@@ -1,0 +1,67 @@
+name: Smoke Test (Testnet)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testnet-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install xrpl-lab
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install httpx
+
+      - name: Run smoke test
+        run: |
+          python -c "
+          import asyncio
+          import json
+          from xrpl.wallet import Wallet
+          from xrpl_lab.transport.xrpl_testnet import XRPLTestnetTransport
+
+          async def smoke():
+              transport = XRPLTestnetTransport()
+
+              # 1. Check network
+              info = await transport.get_network_info()
+              assert info.connected, f'RPC not connected: {info.rpc_url}'
+              print(f'RPC connected: ledger {info.ledger_index}')
+
+              # 2. Create temp wallet and fund
+              wallet = Wallet.create()
+              print(f'Temp wallet: {wallet.address}')
+
+              fund = await transport.fund_from_faucet(wallet.address)
+              assert fund.success, f'Faucet failed: {fund.message}'
+              print(f'Funded: {fund.balance} XRP')
+
+              # 3. Send self-payment
+              result = await transport.submit_payment(
+                  wallet.seed, wallet.address, '10', 'XRPLLAB|SMOKE'
+              )
+              assert result.success, f'Payment failed: {result.error}'
+              print(f'Payment OK: {result.txid[:24]}...')
+
+              # 4. Verify tx
+              tx = await transport.fetch_tx(result.txid)
+              assert tx.result_code == 'tesSUCCESS', f'Verify failed: {tx.result_code}'
+              print(f'Verified: {tx.result_code}, ledger {tx.ledger_index}')
+
+              print('Smoke test passed.')
+
+          asyncio.run(smoke())
+          "

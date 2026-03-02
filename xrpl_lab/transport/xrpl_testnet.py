@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 from xrpl.asyncio.clients import AsyncJsonRpcClient
@@ -23,9 +24,20 @@ DEFAULT_RPC_URL = "https://s.altnet.rippletest.net:51234"
 DEFAULT_FAUCET_URL = "https://faucet.altnet.rippletest.net/accounts"
 EXPLORER_BASE = "https://testnet.xrpl.org/transactions"
 
+# Timeouts and retries
+RPC_TIMEOUT = 30  # seconds per RPC call
+FAUCET_TIMEOUT = 30
+SUBMIT_TIMEOUT = 60  # submissions can take a few ledger closes
+MAX_RETRIES = 2
+RETRY_DELAY = 3  # seconds between retries
 
-def _get_rpc_url() -> str:
+
+def get_rpc_url() -> str:
     return os.environ.get("XRPL_LAB_RPC_URL", DEFAULT_RPC_URL)
+
+
+def get_faucet_url() -> str:
+    return os.environ.get("XRPL_LAB_FAUCET_URL", DEFAULT_FAUCET_URL)
 
 
 def _memo_field(text: str) -> list[Memo]:
@@ -55,16 +67,34 @@ def _decode_memos(memos_raw: list | None) -> list[str]:
     return result
 
 
+def _friendly_error(exc: Exception) -> str:
+    """Turn exceptions into user-friendly error messages."""
+    msg = str(exc)
+    if "ConnectionRefusedError" in msg or "ConnectError" in msg:
+        return (
+            "Cannot connect to RPC endpoint. "
+            "Check your internet or set XRPL_LAB_RPC_URL."
+        )
+    if "TimeoutError" in msg or "timed out" in msg.lower():
+        return "Request timed out. The testnet may be slow. Try again in a minute."
+    if "SSL" in msg or "certificate" in msg.lower():
+        return f"SSL/TLS error connecting to endpoint. ({msg})"
+    return msg
+
+
 class XRPLTestnetTransport(Transport):
     """Real XRPL Testnet transport using xrpl-py async client."""
 
     def __init__(self) -> None:
-        self._rpc_url = _get_rpc_url()
+        self._rpc_url = get_rpc_url()
 
     async def get_network_info(self) -> NetworkInfo:
         try:
             async with AsyncJsonRpcClient(self._rpc_url) as client:
-                ledger_idx = await get_latest_validated_ledger_sequence(client)
+                ledger_idx = await asyncio.wait_for(
+                    get_latest_validated_ledger_sequence(client),
+                    timeout=RPC_TIMEOUT,
+                )
                 return NetworkInfo(
                     network="testnet",
                     rpc_url=self._rpc_url,
@@ -82,33 +112,41 @@ class XRPLTestnetTransport(Transport):
     async def fund_from_faucet(self, address: str) -> FundResult:
         import httpx
 
-        faucet_url = os.environ.get("XRPL_LAB_FAUCET_URL", DEFAULT_FAUCET_URL)
-        try:
-            async with httpx.AsyncClient(timeout=30) as http:
-                resp = await http.post(
-                    faucet_url,
-                    json={"destination": address},
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    balance = data.get("balance", "unknown")
-                    return FundResult(
-                        success=True,
-                        address=address,
-                        balance=str(balance),
-                        message="Funded from testnet faucet",
+        faucet_url = get_faucet_url()
+        last_error = ""
+
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=FAUCET_TIMEOUT) as http:
+                    resp = await http.post(
+                        faucet_url,
+                        json={"destination": address},
                     )
-                return FundResult(
-                    success=False,
-                    address=address,
-                    message=f"Faucet returned {resp.status_code}: {resp.text[:200]}",
-                )
-        except Exception as exc:
-            return FundResult(
-                success=False,
-                address=address,
-                message=f"Faucet request failed: {exc}",
-            )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        balance = data.get("balance", "unknown")
+                        return FundResult(
+                            success=True,
+                            address=address,
+                            balance=str(balance),
+                            message="Funded from testnet faucet",
+                        )
+                    if resp.status_code == 429:
+                        last_error = "Rate limited by faucet. Wait a minute and try again."
+                        if attempt < MAX_RETRIES:
+                            await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+                            continue
+                    last_error = f"Faucet returned {resp.status_code}: {resp.text[:200]}"
+            except httpx.TimeoutException:
+                last_error = "Faucet timed out. The testnet faucet may be down."
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except Exception as exc:
+                last_error = _friendly_error(exc)
+                break
+
+        return FundResult(success=False, address=address, message=last_error)
 
     async def submit_payment(
         self,
@@ -117,45 +155,85 @@ class XRPLTestnetTransport(Transport):
         amount: str,
         memo: str = "",
     ) -> SubmitResult:
-        try:
-            wallet = Wallet.from_seed(wallet_seed)
-            payment = Payment(
-                account=wallet.address,
-                destination=destination,
-                amount=xrp_to_drops(float(amount)),
-                memos=_memo_field(memo) or None,
-            )
-            async with AsyncJsonRpcClient(self._rpc_url) as client:
-                response = await submit_and_wait(payment, client, wallet)
+        last_error = ""
 
-            result = response.result
-            meta = result.get("meta", {})
-            result_code = meta.get("TransactionResult", result.get("engine_result", "unknown"))
-            txid = result.get("hash", "")
-            fee = result.get("Fee", "0")
-            ledger_idx = result.get("ledger_index") or meta.get("ledger_index")
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                wallet = Wallet.from_seed(wallet_seed)
+                payment = Payment(
+                    account=wallet.address,
+                    destination=destination,
+                    amount=xrp_to_drops(float(amount)),
+                    memos=_memo_field(memo) or None,
+                )
+                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                    response = await asyncio.wait_for(
+                        submit_and_wait(payment, client, wallet),
+                        timeout=SUBMIT_TIMEOUT,
+                    )
 
-            success = result_code == "tesSUCCESS"
-            return SubmitResult(
-                success=success,
-                txid=txid,
-                result_code=result_code,
-                fee=fee,
-                ledger_index=ledger_idx,
-                explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
-                error="" if success else f"Transaction failed: {result_code}",
-            )
-        except Exception as exc:
-            return SubmitResult(
-                success=False,
-                result_code="local_error",
-                error=str(exc),
-            )
+                result = response.result
+                meta = result.get("meta", {})
+                result_code = meta.get(
+                    "TransactionResult", result.get("engine_result", "unknown")
+                )
+                txid = result.get("hash", "")
+                fee = result.get("Fee", "0")
+                ledger_idx = result.get("ledger_index") or meta.get("ledger_index")
+
+                success = result_code == "tesSUCCESS"
+
+                # Build error message with guidance
+                error_msg = ""
+                if not success:
+                    from ..doctor import explain_result_code
+
+                    info = explain_result_code(result_code)
+                    error_msg = f"{info['meaning']}. {info['action']}"
+
+                return SubmitResult(
+                    success=success,
+                    txid=txid,
+                    result_code=result_code,
+                    fee=fee,
+                    ledger_index=ledger_idx,
+                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    error=error_msg,
+                )
+
+            except TimeoutError:
+                last_error = (
+                    "Transaction submission timed out. The ledger may be under load. "
+                    "Try again in a minute."
+                )
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except Exception as exc:
+                last_error = _friendly_error(exc)
+                # Don't retry on malformed tx errors
+                if any(
+                    code in last_error
+                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
+                ):
+                    break
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+
+        return SubmitResult(
+            success=False,
+            result_code="local_error",
+            error=last_error,
+        )
 
     async def fetch_tx(self, txid: str) -> TxInfo:
         try:
             async with AsyncJsonRpcClient(self._rpc_url) as client:
-                response = await client.request(Tx(transaction=txid))
+                response = await asyncio.wait_for(
+                    client.request(Tx(transaction=txid)),
+                    timeout=RPC_TIMEOUT,
+                )
 
             result = response.result
             meta = result.get("meta", {})
@@ -174,14 +252,22 @@ class XRPLTestnetTransport(Transport):
                 validated=result.get("validated", False),
                 raw=result,
             )
+        except TimeoutError:
+            return TxInfo(
+                txid=txid,
+                result_code="fetch_error: Timed out fetching transaction. Try again.",
+            )
         except Exception as exc:
-            return TxInfo(txid=txid, result_code=f"fetch_error: {exc}")
+            return TxInfo(txid=txid, result_code=f"fetch_error: {_friendly_error(exc)}")
 
     async def get_balance(self, address: str) -> str:
         try:
             async with AsyncJsonRpcClient(self._rpc_url) as client:
-                response = await client.request(
-                    AccountInfo(account=address, ledger_index="validated")
+                response = await asyncio.wait_for(
+                    client.request(
+                        AccountInfo(account=address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
                 )
             balance_drops = response.result.get("account_data", {}).get("Balance", "0")
             return str(drops_to_xrp(balance_drops))

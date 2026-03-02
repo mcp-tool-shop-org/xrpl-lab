@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -219,6 +220,14 @@ def status():
         console.print("Wallet: [dim]not created yet[/]")
 
     console.print(f"Network: [cyan]{state.network}[/]")
+
+    # Show env overrides if set
+    rpc_override = os.environ.get("XRPL_LAB_RPC_URL")
+    faucet_override = os.environ.get("XRPL_LAB_FAUCET_URL")
+    if rpc_override:
+        console.print(f"RPC endpoint: [yellow]{rpc_override}[/] (override)")
+    if faucet_override:
+        console.print(f"Faucet: [yellow]{faucet_override}[/] (override)")
     console.print()
 
     # Module progress
@@ -234,7 +243,10 @@ def status():
     # Recent transactions
     if state.tx_index:
         console.print()
-        console.print(f"Transactions: {len(state.tx_index)} total")
+        total_tx = len(state.tx_index)
+        ok_tx = sum(1 for tx in state.tx_index if tx.success)
+        fail_tx = total_tx - ok_tx
+        console.print(f"Transactions: {total_tx} total ({ok_tx} ok, {fail_tx} failed)")
         recent = state.tx_index[-5:]
         for tx in reversed(recent):
             status_icon = "[green]\u2713[/]" if tx.success else "[red]\u2717[/]"
@@ -249,6 +261,33 @@ def status():
         console.print(f"Workspace: {ws.resolve()}")
         console.print(f"  Reports: {len(reports)}  |  Proofs: {len(proofs)}")
 
+    console.print()
+
+
+@main.command()
+def doctor():
+    """Run diagnostic checks on your XRPL Lab environment."""
+    from .doctor import run_doctor
+
+    console.print()
+    console.print(Panel("[bold]XRPL Lab Doctor[/]", border_style="blue"))
+    console.print()
+
+    report = asyncio.run(run_doctor())
+
+    for check in report.checks:
+        icon = "[green]\u2713[/]" if check.passed else "[red]\u2717[/]"
+        console.print(f"  {icon} [bold]{check.name}[/]")
+        if check.detail:
+            console.print(f"    {check.detail}")
+        if check.hint and not check.passed:
+            console.print(f"    [yellow]Hint: {check.hint}[/]")
+
+    console.print()
+    if report.all_passed:
+        console.print(f"[green]{report.summary} — all good![/]")
+    else:
+        console.print(f"[yellow]{report.summary}[/]")
     console.print()
 
 
@@ -281,24 +320,29 @@ def certificate():
 
 
 @main.command()
-def reset():
+@click.option("--keep-wallet", is_flag=True, help="Keep wallet file, only wipe progress")
+def reset(keep_wallet: bool):
     """Wipe all local state and workspace (requires confirmation)."""
     console.print()
     console.print("[yellow]This will delete:[/]")
     console.print("  - State: ~/.xrpl-lab/state.json")
     console.print("  - Workspace: ./.xrpl-lab/")
     console.print()
-    console.print("[red bold]Your wallet file will NOT be deleted.[/]")
+    if keep_wallet:
+        console.print("[green]--keep-wallet: Your wallet file will be preserved.[/]")
+    else:
+        console.print("[red bold]Your wallet file will NOT be deleted.[/]")
+        console.print("[dim](Use --keep-wallet to make this explicit.)[/]")
     console.print()
 
     try:
-        confirm = console.input("Type 'reset' to confirm: ").strip()
+        confirm = console.input("Type 'RESET' to confirm: ").strip()
     except (EOFError, KeyboardInterrupt):
         console.print("\nCancelled.")
         return
 
-    if confirm != "reset":
-        console.print("Cancelled.")
+    if confirm != "RESET":
+        console.print("Cancelled. (Must type exactly: RESET)")
         return
 
     reset_state()

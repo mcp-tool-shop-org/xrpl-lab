@@ -34,7 +34,12 @@ class TestProofPack:
         assert pack["address"] == "rTEST123456789"
         assert len(pack["completed_modules"]) == 1
         assert pack["total_transactions"] == 2
+        assert pack["successful_transactions"] == 2
+        assert pack["failed_transactions"] == 0
         assert "sha256" in pack
+        assert "endpoint" in pack
+        assert "transactions" in pack
+        assert len(pack["transactions"]) == 2
 
     def test_no_secrets(self, completed_state):
         pack = generate_proof_pack(completed_state)

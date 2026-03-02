@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import __version__
 from .state import LabState, get_workspace_dir
+from .transport.xrpl_testnet import get_rpc_url
 
 
 def _explorer_url(txid: str, network: str) -> str:
@@ -17,6 +18,18 @@ def _explorer_url(txid: str, network: str) -> str:
     if network == "dry-run":
         return f"dry-run://tx/{txid}"
     return f"https://xrpl.org/transactions/{txid}"
+
+
+def _tx_detail(tx_record, network: str) -> dict:
+    """Build per-tx detail for proof pack."""
+    return {
+        "txid": tx_record.txid,
+        "module_id": tx_record.module_id,
+        "success": tx_record.success,
+        "timestamp": datetime.fromtimestamp(tx_record.timestamp, tz=UTC).isoformat(),
+        "network": tx_record.network,
+        "explorer_url": tx_record.explorer_url or _explorer_url(tx_record.txid, network),
+    }
 
 
 def generate_proof_pack(state: LabState) -> dict:
@@ -36,14 +49,21 @@ def generate_proof_pack(state: LabState) -> dict:
             }
         )
 
+    # Per-tx detail (v0.2.0+)
+    transactions = [_tx_detail(tx, state.network) for tx in state.tx_index]
+
     pack = {
         "xrpl_lab_proof_pack": True,
         "version": __version__,
         "network": state.network,
+        "endpoint": get_rpc_url(),
         "address": state.wallet_address or "unknown",
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "completed_modules": modules,
+        "transactions": transactions,
         "total_transactions": len(state.tx_index),
+        "successful_transactions": sum(1 for tx in state.tx_index if tx.success),
+        "failed_transactions": sum(1 for tx in state.tx_index if not tx.success),
     }
 
     # Add integrity hash (hash of the pack content without the hash field itself)

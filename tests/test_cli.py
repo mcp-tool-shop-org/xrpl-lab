@@ -9,7 +9,7 @@ def test_version():
     runner = CliRunner()
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "0.1.0" in result.output
+    assert "0.2.0" in result.output
 
 
 def test_list():
@@ -42,6 +42,24 @@ def test_reset_cancel(tmp_path, monkeypatch):
     result = runner.invoke(main, ["reset"], input="no\n")
     assert result.exit_code == 0
     assert "Cancelled" in result.output
+
+
+def test_reset_wrong_case(tmp_path, monkeypatch):
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(main, ["reset"], input="reset\n")
+    assert result.exit_code == 0
+    assert "Cancelled" in result.output
+
+
+def test_doctor(tmp_path, monkeypatch):
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_home_dir", lambda: tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_workspace_dir", lambda: tmp_path / "ws")
+    runner = CliRunner()
+    result = runner.invoke(main, ["doctor"])
+    assert result.exit_code == 0
+    assert "Doctor" in result.output
 
 
 def test_proof_pack_empty(tmp_path, monkeypatch):
