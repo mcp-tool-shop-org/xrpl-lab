@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0 — 2026-03-02
+
+DEX Market Making 101: Strategy Track Foundations.
+
+- New module: DEX Market Making 101 — bid/ask offers, position snapshots, cleanup hygiene
+- Strategy foundations: `PositionSnapshot`, `PositionComparison`, `HygieneSummary`
+- `snapshot_position` — extended account state (trust lines, offers, owner count, spendable estimate)
+- `compare_positions` — track owner count and offer deltas between snapshots
+- `cancel_module_offers` — batch cancel strategy offers by sequence
+- `hygiene_summary` — end-of-module cleanup verification (offers cleared, owner count baseline)
+- `write_last_run` — outputs `last_run_txids.txt` + `last_run_meta.json` for audit integration
+- Strategy memo convention: `XRPLLAB|STRAT|<MODULE>|<ACTION>|<RUNID>`
+- Audit preset: `presets/strategy_mm101.json` (OfferCreate/OfferCancel types, memo prefix)
+- Runner: 8 new action handlers (snapshot_position, strategy_offer_bid/ask, verify/cancel module offers, verify_position_delta, hygiene_summary)
+
 ## 0.8.0 — 2026-03-02
 
 AMM Liquidity 101: Providing Liquidity and Earning Fees.

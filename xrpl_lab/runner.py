@@ -28,6 +28,14 @@ from .actions.reserves import (
     snapshot_account,
 )
 from .actions.send import send_payment
+from .actions.strategy import (
+    cancel_module_offers,
+    compare_positions,
+    hygiene_summary,
+    snapshot_position,
+    strategy_memo,
+    write_last_run,
+)
 from .actions.trust_line import (
     issue_token,
     remove_trust_line,
@@ -908,6 +916,294 @@ async def _execute_action(
 
         context["last_amm_verify"] = result
 
+    elif action == "snapshot_position":
+        args = step.action_args
+        label = args.get("label", "snapshot")
+        holder_address = state.wallet_address or ""
+
+        if not holder_address:
+            console.print("  [red]No wallet address found.[/]")
+            return context
+
+        snap = await snapshot_position(transport, holder_address)
+        context[f"position_{label}"] = snap
+
+        balance_xrp = _drops_to_xrp(snap.xrp_balance)
+        console.print(f"  Account: [cyan]{snap.account.address[:16]}...[/]")
+        console.print(
+            f"  Balance: [green]{balance_xrp} XRP[/] "
+            f"({snap.xrp_balance} drops)"
+        )
+        console.print(f"  Owner count: [cyan]{snap.owner_count}[/]")
+        console.print(f"  Open offers: [cyan]{snap.offer_count}[/]")
+        console.print(f"  Trust lines: [cyan]{len(snap.trust_lines)}[/]")
+
+    elif action == "strategy_offer_bid":
+        args = step.action_args
+        pays_currency = args.get("pays_currency", "LAB")
+        pays_value = args.get("pays_value", "10")
+        gets_currency = args.get("gets_currency", "XRP")
+        gets_value = args.get("gets_value", "1")
+        memo_action = args.get("memo_action", "OFFER_BID")
+        issuer_address = context.get("issuer_address", "")
+        module_id = context.get("module_id", "MM101")
+
+        pays_issuer = "" if pays_currency == "XRP" else issuer_address
+        gets_issuer = "" if gets_currency == "XRP" else issuer_address
+
+        memo = strategy_memo(
+            module_id.upper().replace("_", ""),
+            memo_action,
+            context.get("run_id", ""),
+        )
+
+        console.print(
+            f"  [yellow]BID[/]: pay {gets_value} {gets_currency} "
+            f"to get {pays_value} {pays_currency}"
+        )
+        console.print(f"  Memo: [dim]{memo}[/]")
+
+        result = await create_offer(
+            transport, context["wallet_seed"],
+            pays_currency, pays_value, pays_issuer,
+            gets_currency, gets_value, gets_issuer,
+        )
+
+        if result.success:
+            console.print("  [green]Bid placed![/]")
+            console.print(f"  TXID: [cyan]{result.txid}[/]")
+            if result.explorer_url:
+                console.print(
+                    f"  Explorer: [blue]{result.explorer_url}[/]"
+                )
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
+            context.setdefault("txids", []).append(result.txid)
+
+            # Track offer sequence for strategy management
+            offers = await transport.get_account_offers(
+                state.wallet_address or ""
+            )
+            if offers:
+                seq = offers[-1].sequence
+                context.setdefault("strategy_offer_sequences", []).append(seq)
+                console.print(f"  Offer sequence: [cyan]{seq}[/]")
+        else:
+            console.print(f"  [red]Bid failed: {result.error}[/]")
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
+        save_state(state)
+
+    elif action == "strategy_offer_ask":
+        args = step.action_args
+        pays_currency = args.get("pays_currency", "LAB")
+        pays_value = args.get("pays_value", "10")
+        gets_currency = args.get("gets_currency", "XRP")
+        gets_value = args.get("gets_value", "2")
+        memo_action = args.get("memo_action", "OFFER_ASK")
+        issuer_address = context.get("issuer_address", "")
+        module_id = context.get("module_id", "MM101")
+
+        pays_issuer = "" if pays_currency == "XRP" else issuer_address
+        gets_issuer = "" if gets_currency == "XRP" else issuer_address
+
+        memo = strategy_memo(
+            module_id.upper().replace("_", ""),
+            memo_action,
+            context.get("run_id", ""),
+        )
+
+        console.print(
+            f"  [yellow]ASK[/]: sell {pays_value} {pays_currency} "
+            f"for {gets_value} {gets_currency}"
+        )
+        console.print(f"  Memo: [dim]{memo}[/]")
+
+        result = await create_offer(
+            transport, context["wallet_seed"],
+            pays_currency, pays_value, pays_issuer,
+            gets_currency, gets_value, gets_issuer,
+        )
+
+        if result.success:
+            console.print("  [green]Ask placed![/]")
+            console.print(f"  TXID: [cyan]{result.txid}[/]")
+            if result.explorer_url:
+                console.print(
+                    f"  Explorer: [blue]{result.explorer_url}[/]"
+                )
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
+            context.setdefault("txids", []).append(result.txid)
+
+            offers = await transport.get_account_offers(
+                state.wallet_address or ""
+            )
+            if offers:
+                seq = offers[-1].sequence
+                context.setdefault("strategy_offer_sequences", []).append(seq)
+                console.print(f"  Offer sequence: [cyan]{seq}[/]")
+        else:
+            console.print(f"  [red]Ask failed: {result.error}[/]")
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
+        save_state(state)
+
+    elif action == "verify_module_offers":
+        seqs = context.get("strategy_offer_sequences", [])
+        holder_address = state.wallet_address or ""
+
+        if not seqs:
+            console.print("  [red]No strategy offers to verify.[/]")
+            return context
+
+        all_found = True
+        for seq in seqs:
+            result = await verify_offer_present(
+                transport, holder_address, seq
+            )
+            if result.found:
+                for check in result.checks:
+                    console.print(f"  [green]\u2713[/] {check}")
+            else:
+                all_found = False
+                for fail in result.failures:
+                    console.print(f"  [red]\u2717[/] {fail}")
+
+        if all_found:
+            console.print(
+                f"  [green]All {len(seqs)} strategy offers verified[/]"
+            )
+
+    elif action == "cancel_module_offers":
+        seqs = context.get("strategy_offer_sequences", [])
+
+        if not seqs:
+            console.print("  [yellow]No strategy offers to cancel.[/]")
+            return context
+
+        console.print(f"  Cancelling {len(seqs)} offer(s)...")
+        results = await cancel_module_offers(
+            transport, context["wallet_seed"], seqs,
+        )
+
+        cancelled = 0
+        for seq, success in results:
+            if success:
+                console.print(f"  [green]\u2713[/] Offer seq {seq} cancelled")
+                cancelled += 1
+            else:
+                console.print(f"  [red]\u2717[/] Offer seq {seq} cancel failed")
+
+        # Record cancel txids
+        for seq, success in results:
+            if success:
+                state.record_tx(
+                    txid=f"cancel-{seq}",
+                    module_id=context.get("module_id", ""),
+                    network=state.network,
+                    success=True,
+                )
+        save_state(state)
+        context["offers_cancelled"] = cancelled
+        context["strategy_offer_sequences"] = []
+
+    elif action == "verify_module_offers_absent":
+        seqs = context.get("strategy_offer_sequences", [])
+        holder_address = state.wallet_address or ""
+
+        # Check there are no offers from this module
+        offers = await transport.get_account_offers(holder_address)
+        remaining = len(offers)
+
+        if remaining == 0:
+            console.print("  [green]\u2713 No open offers — all cleared[/]")
+        else:
+            console.print(
+                f"  [yellow]{remaining} offer(s) still open[/]"
+            )
+
+    elif action == "verify_position_delta":
+        args = step.action_args
+        before_key = f"position_{args.get('before', 'before')}"
+        after_key = f"position_{args.get('after', 'after')}"
+
+        before_snap = context.get(before_key)
+        after_snap = context.get(after_key)
+
+        if not before_snap or not after_snap:
+            console.print(
+                "  [red]Missing position snapshots. "
+                "Run snapshot_position steps first.[/]"
+            )
+            return context
+
+        result = compare_positions(
+            before_snap, after_snap,
+            label=args.get("after", "changes"),
+        )
+
+        for check in result.checks:
+            if "increased" in check or "decreased" in check:
+                console.print(f"  [cyan]\u0394[/] {check}")
+            else:
+                console.print(f"  [dim]\u2022[/] {check}")
+
+        console.print()
+        console.print(f"  [yellow]{result.explanation}[/]")
+
+        context["last_position_comparison"] = result
+
+    elif action == "hygiene_summary":
+        baseline = context.get("position_baseline")
+        final = context.get("position_final")
+
+        if not baseline or not final:
+            console.print(
+                "  [red]Missing baseline or final snapshots.[/]"
+            )
+            return context
+
+        summary = hygiene_summary(
+            baseline, final,
+            offers_cancelled=context.get("offers_cancelled", 0),
+        )
+
+        console.print()
+        console.print(Panel(
+            "\n".join(summary.checks),
+            title="Hygiene Summary",
+            border_style="green" if summary.clean else "yellow",
+        ))
+
+        # Write last run files
+        txids = context.get("txids", [])
+        if txids:
+            run_path = write_last_run(
+                txids=txids,
+                module_id=context.get("module_id", ""),
+                preset="strategy_mm101",
+            )
+            console.print(f"  Last run txids: [green]{run_path}[/]")
+
     elif action == "write_report":
         # Handled at module completion
         pass
@@ -989,6 +1285,10 @@ async def run_module(
             "ensure_amm_pair", "get_amm_info",
             "amm_deposit", "verify_lp_received",
             "amm_withdraw", "verify_withdrawal",
+            "snapshot_position", "verify_position_delta",
+            "strategy_offer_bid", "strategy_offer_ask",
+            "verify_module_offers", "cancel_module_offers",
+            "verify_module_offers_absent", "hygiene_summary",
         ):
             report_sections.append(
                 (f"Step {i + 1}", step.text.split("\n")[0][:100])
