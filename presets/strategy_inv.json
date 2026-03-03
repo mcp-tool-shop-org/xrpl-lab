@@ -1,0 +1,8 @@
+{
+  "defaults": {
+    "require_validated": true,
+    "require_success": true,
+    "memo_prefix": "XRPLLAB|STRAT|INV|",
+    "types_allowed": ["OfferCreate", "OfferCancel"]
+  }
+}

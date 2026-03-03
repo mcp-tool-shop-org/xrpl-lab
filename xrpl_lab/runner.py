@@ -30,6 +30,7 @@ from .actions.reserves import (
 from .actions.send import send_payment
 from .actions.strategy import (
     cancel_module_offers,
+    check_inventory,
     compare_positions,
     hygiene_summary,
     snapshot_position,
@@ -1172,6 +1173,164 @@ async def _execute_action(
 
         context["last_position_comparison"] = result
 
+    elif action == "check_inventory":
+        args = step.action_args
+        currency = args.get("currency", "LAB")
+        min_xrp = int(args.get("min_xrp_drops", "20000000"))
+        min_token = float(args.get("min_token", "10"))
+        holder_address = state.wallet_address or ""
+
+        if not holder_address:
+            console.print("  [red]No wallet address found.[/]")
+            return context
+
+        snap = await snapshot_position(transport, holder_address)
+        inv = check_inventory(
+            snap, token_currency=currency,
+            min_xrp_drops=min_xrp, min_token_balance=min_token,
+        )
+
+        for check in inv.checks:
+            if "OK" in check:
+                console.print(f"  [green]\u2713[/] {check}")
+            else:
+                console.print(f"  [yellow]\u26a0[/] {check}")
+
+        console.print()
+        if inv.any_allowed:
+            console.print(
+                f"  Sides allowed: [green]{', '.join(inv.sides_allowed)}[/]"
+            )
+        else:
+            console.print("  [red]No sides allowed — inventory too low[/]")
+
+        context["inventory_check"] = inv
+        context["position_baseline"] = snap
+
+    elif action == "place_safe_sides":
+        inv = context.get("inventory_check")
+        if not inv:
+            console.print(
+                "  [red]No inventory check in context. "
+                "Run check_inventory first.[/]"
+            )
+            return context
+
+        if not inv.any_allowed:
+            console.print(
+                "  [yellow]No sides allowed by inventory check. "
+                "Skipping offer placement.[/]"
+            )
+            return context
+
+        args = step.action_args
+        pays_currency = args.get("pays_currency", "LAB")
+        gets_currency = args.get("gets_currency", "XRP")
+        bid_value = args.get("bid_value", "10")
+        ask_value = args.get("ask_value", "10")
+        bid_price = args.get("bid_price", "1")
+        ask_price = args.get("ask_price", "2")
+        issuer_address = context.get("issuer_address", "")
+        module_id = context.get("module_id", "INV")
+
+        pays_issuer = "" if pays_currency == "XRP" else issuer_address
+        gets_issuer = "" if gets_currency == "XRP" else issuer_address
+
+        placed = 0
+
+        if inv.can_bid:
+            memo = strategy_memo(
+                module_id.upper().replace("_", ""),
+                "OFFER_BID",
+                context.get("run_id", ""),
+            )
+            console.print(
+                f"  [yellow]BID[/]: pay {bid_price} {gets_currency} "
+                f"to get {bid_value} {pays_currency}"
+            )
+            console.print(f"  Memo: [dim]{memo}[/]")
+
+            result = await create_offer(
+                transport, context["wallet_seed"],
+                pays_currency, bid_value, pays_issuer,
+                gets_currency, bid_price, gets_issuer,
+            )
+
+            if result.success:
+                console.print("  [green]Bid placed![/]")
+                console.print(f"  TXID: [cyan]{result.txid}[/]")
+                state.record_tx(
+                    txid=result.txid,
+                    module_id=context.get("module_id", ""),
+                    network=state.network,
+                    success=True,
+                    explorer_url=result.explorer_url,
+                )
+                context.setdefault("txids", []).append(result.txid)
+                offers = await transport.get_account_offers(
+                    state.wallet_address or ""
+                )
+                if offers:
+                    seq = offers[-1].sequence
+                    context.setdefault(
+                        "strategy_offer_sequences", []
+                    ).append(seq)
+                placed += 1
+            else:
+                console.print(f"  [red]Bid failed: {result.error}[/]")
+            save_state(state)
+        else:
+            console.print("  [dim]Bid skipped (XRP too low)[/]")
+
+        if inv.can_ask:
+            memo = strategy_memo(
+                module_id.upper().replace("_", ""),
+                "OFFER_ASK",
+                context.get("run_id", ""),
+            )
+            console.print(
+                f"  [yellow]ASK[/]: sell {ask_value} {pays_currency} "
+                f"for {ask_price} {gets_currency}"
+            )
+            console.print(f"  Memo: [dim]{memo}[/]")
+
+            result = await create_offer(
+                transport, context["wallet_seed"],
+                pays_currency, ask_value, pays_issuer,
+                gets_currency, ask_price, gets_issuer,
+            )
+
+            if result.success:
+                console.print("  [green]Ask placed![/]")
+                console.print(f"  TXID: [cyan]{result.txid}[/]")
+                state.record_tx(
+                    txid=result.txid,
+                    module_id=context.get("module_id", ""),
+                    network=state.network,
+                    success=True,
+                    explorer_url=result.explorer_url,
+                )
+                context.setdefault("txids", []).append(result.txid)
+                offers = await transport.get_account_offers(
+                    state.wallet_address or ""
+                )
+                if offers:
+                    seq = offers[-1].sequence
+                    context.setdefault(
+                        "strategy_offer_sequences", []
+                    ).append(seq)
+                placed += 1
+            else:
+                console.print(f"  [red]Ask failed: {result.error}[/]")
+            save_state(state)
+        else:
+            console.print("  [dim]Ask skipped (token too low)[/]")
+
+        console.print(
+            f"  [green]{placed} offer(s) placed[/] "
+            f"out of {len(inv.sides_allowed)} allowed"
+        )
+
     elif action == "hygiene_summary":
         baseline = context.get("position_baseline")
         final = context.get("position_final")
@@ -1289,6 +1448,7 @@ async def run_module(
             "strategy_offer_bid", "strategy_offer_ask",
             "verify_module_offers", "cancel_module_offers",
             "verify_module_offers_absent", "hygiene_summary",
+            "check_inventory", "place_safe_sides",
         ):
             report_sections.append(
                 (f"Step {i + 1}", step.text.split("\n")[0][:100])
@@ -1318,10 +1478,29 @@ async def run_module(
     save_state(state)
 
     console.print()
-    console.print(Panel(
-        f"[bold green]Module completed: {module.title}[/]\n"
-        f"Report: {report_path}\n"
+
+    # Build completion message with audit hint if last_run exists
+    completion_lines = [
+        f"[bold green]Module completed: {module.title}[/]",
+        f"Report: {report_path}",
         f"Transactions: {len(context['txids'])}",
+    ]
+
+    last_run_txids = Path(".xrpl-lab/last_run_txids.txt")
+    if last_run_txids.exists():
+        completion_lines.append("")
+        completion_lines.append("[dim]Verify this run:[/]")
+        audit_cmd = f"xrpl-lab audit --txids {last_run_txids}"
+        # Check for a matching preset
+        preset_candidates = list(Path("presets").glob("*.json")) if Path("presets").exists() else []
+        for p in preset_candidates:
+            if module.id.split("_")[0] in p.stem or module.id[:6] in p.stem:
+                audit_cmd += f" --expect {p}"
+                break
+        completion_lines.append(f"  [cyan]{audit_cmd}[/]")
+
+    console.print(Panel(
+        "\n".join(completion_lines),
         title="Complete",
         border_style="green",
     ))

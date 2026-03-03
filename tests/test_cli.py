@@ -9,7 +9,7 @@ def test_version():
     runner = CliRunner()
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "0.9.0" in result.output
+    assert "0.10.0" in result.output
 
 
 def test_list():
@@ -26,6 +26,8 @@ def test_list():
     assert "receipt_au" in result.output
     assert "amm_liquid" in result.output
     assert "dex_market" in result.output
+    assert "dex_invent" in result.output
+    assert "dex_vs_amm" in result.output
 
 
 def test_status(tmp_path, monkeypatch):

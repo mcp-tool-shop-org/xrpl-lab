@@ -134,6 +134,86 @@ def compare_positions(
     )
 
 
+# ── Inventory guardrails ─────────────────────────────────────────────
+
+
+@dataclass
+class InventoryCheck:
+    """Result of checking inventory thresholds before placing offers."""
+
+    can_bid: bool  # enough XRP to place buy-side
+    can_ask: bool  # enough token balance to place sell-side
+    xrp_spendable_drops: int
+    token_balance: str
+    min_xrp_drops: int
+    min_token: float
+    checks: list[str]
+    sides_allowed: list[str]  # ["bid"], ["ask"], ["bid", "ask"], or []
+
+    @property
+    def any_allowed(self) -> bool:
+        return len(self.sides_allowed) > 0
+
+
+def check_inventory(
+    snapshot: PositionSnapshot,
+    token_currency: str = "LAB",
+    min_xrp_drops: int = 20_000_000,  # 20 XRP
+    min_token_balance: float = 10.0,
+) -> InventoryCheck:
+    """Check inventory thresholds and decide which sides are safe to quote."""
+    checks: list[str] = []
+    sides: list[str] = []
+
+    xrp_spendable = snapshot.spendable_estimate_drops
+
+    # Find token balance in trust lines
+    token_bal = 0.0
+    for tl in snapshot.trust_lines:
+        if tl.currency == token_currency:
+            token_bal = float(tl.balance)
+            break
+
+    # XRP check (bid side = buying token with XRP)
+    can_bid = xrp_spendable >= min_xrp_drops
+    if can_bid:
+        checks.append(
+            f"XRP spendable {xrp_spendable:,} drops >= "
+            f"{min_xrp_drops:,} min — bid OK"
+        )
+        sides.append("bid")
+    else:
+        checks.append(
+            f"XRP spendable {xrp_spendable:,} drops < "
+            f"{min_xrp_drops:,} min — bid BLOCKED"
+        )
+
+    # Token check (ask side = selling token for XRP)
+    can_ask = token_bal >= min_token_balance
+    if can_ask:
+        checks.append(
+            f"{token_currency} balance {token_bal} >= "
+            f"{min_token_balance} min — ask OK"
+        )
+        sides.append("ask")
+    else:
+        checks.append(
+            f"{token_currency} balance {token_bal} < "
+            f"{min_token_balance} min — ask BLOCKED"
+        )
+
+    return InventoryCheck(
+        can_bid=can_bid,
+        can_ask=can_ask,
+        xrp_spendable_drops=xrp_spendable,
+        token_balance=str(token_bal),
+        min_xrp_drops=min_xrp_drops,
+        min_token=min_token_balance,
+        checks=checks,
+        sides_allowed=sides,
+    )
+
+
 # ── Strategy cleanup ─────────────────────────────────────────────────
 
 

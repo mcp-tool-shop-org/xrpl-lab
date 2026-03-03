@@ -417,6 +417,43 @@ def audit(txids_path: str, expect_path: str | None, csv_path: str | None,
     console.print()
 
 
+@main.command("last-run")
+def last_run():
+    """Show last module run info and the audit command to verify it."""
+    ws = Path(".xrpl-lab")
+    meta_path = ws / "last_run_meta.json"
+    txids_path = ws / "last_run_txids.txt"
+
+    if not meta_path.exists():
+        console.print("[yellow]No last run found. Run a strategy module first.[/]")
+        return
+
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+
+    console.print()
+    console.print(Panel("[bold]Last Run[/]", border_style="blue"))
+    console.print()
+    console.print(f"  Module:    [bold]{meta.get('module', '?')}[/]")
+    console.print(f"  Run ID:    [cyan]{meta.get('run_id', '?')}[/]")
+    console.print(f"  Timestamp: {meta.get('timestamp', '?')}")
+    console.print(f"  TX count:  [green]{meta.get('txid_count', 0)}[/]")
+
+    preset = meta.get("preset", "")
+    if preset:
+        console.print(f"  Preset:    {preset}")
+
+    console.print()
+    console.print("[bold]Verify with:[/]")
+
+    cmd = f"  xrpl-lab audit --txids {txids_path}"
+    if preset:
+        preset_file = f"presets/{preset}.json"
+        if Path(preset_file).exists():
+            cmd += f" --expect {preset_file}"
+    console.print(f"  [cyan]{cmd}[/]")
+    console.print()
+
+
 @main.command()
 @click.option("--keep-wallet", is_flag=True, help="Keep wallet file, only wipe progress")
 def reset(keep_wallet: bool):

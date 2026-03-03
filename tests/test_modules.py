@@ -90,6 +90,8 @@ class TestLoadModules:
         assert "receipt_audit" in modules
         assert "amm_liquidity_101" in modules
         assert "dex_market_making_101" in modules
+        assert "dex_inventory_guardrails" in modules
+        assert "dex_vs_amm_risk_literacy" in modules
 
     def test_module_metadata(self):
         modules = load_all_modules()

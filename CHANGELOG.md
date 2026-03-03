@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.0 — 2026-03-03
+
+Strategy Track Complete: Inventory Guardrails + DEX vs AMM Capstone.
+
+- New module: DEX Inventory Guardrails — threshold-based quoting, only safe sides placed
+- New module: DEX vs AMM Risk Literacy — side-by-side comparison of DEX and AMM strategies
+- `check_inventory` — evaluate XRP spendable and token balance against thresholds
+- `InventoryCheck` dataclass with `can_bid`, `can_ask`, `sides_allowed`
+- Runner: `check_inventory` and `place_safe_sides` action handlers
+- New command: `xrpl-lab last-run` — show last module run info + audit command
+- Module completion panel now shows audit verification one-liner
+- Audit presets: `presets/strategy_inv.json`, `presets/strategy_compare.json`
+- 12 modules total — full strategy track (beginner → intermediate → advanced)
+
 ## 0.9.0 — 2026-03-02
 
 DEX Market Making 101: Strategy Track Foundations.

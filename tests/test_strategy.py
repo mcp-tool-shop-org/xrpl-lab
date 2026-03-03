@@ -8,6 +8,7 @@ import pytest
 from xrpl_lab.actions.strategy import (
     PositionSnapshot,
     cancel_module_offers,
+    check_inventory,
     compare_positions,
     hygiene_summary,
     snapshot_position,
@@ -408,6 +409,32 @@ class TestStrategyLifecycle:
         assert summary.offers_remaining == 0
         assert summary.owner_count_delta == 0
 
+    async def test_inventory_guarded_cycle(self):
+        """Simulate inventory-guarded quoting: only safe sides placed."""
+        transport = DryRunTransport()
+        transport._funded_addresses.add(_FAKE_ADDRESS)
+
+        # Add LAB trust line with balance
+        transport._trust_lines.append(
+            TrustLineInfo(
+                account=_FAKE_ADDRESS,
+                peer="rISSUER",
+                currency="LAB",
+                balance="500",
+                limit="10000",
+            )
+        )
+        transport._owner_count = 1
+
+        snap = await snapshot_position(transport, _FAKE_ADDRESS)
+
+        # Check with reasonable thresholds
+        inv = check_inventory(snap, "LAB", min_xrp_drops=20_000_000, min_token_balance=10)
+        assert inv.can_bid  # 1000 XRP funded, plenty spendable
+        assert inv.can_ask  # 500 LAB > 10 threshold
+        assert inv.sides_allowed == ["bid", "ask"]
+        assert inv.any_allowed
+
     async def test_lifecycle_with_trust_line(self):
         """Verify trust lines are tracked in snapshots."""
         transport = DryRunTransport()
@@ -425,3 +452,128 @@ class TestStrategyLifecycle:
         summary = hygiene_summary(baseline, after)
         assert summary.trust_lines_created == 1
         assert summary.owner_count_delta == 1
+
+
+# ── Inventory check tests ───────────────────────────────────────────
+
+
+class TestCheckInventory:
+    def _make_snap(
+        self, balance_drops="1000000000", owner_count=0,
+        lab_balance="500", has_lab=True,
+    ) -> PositionSnapshot:
+        tls = []
+        if has_lab:
+            tls.append(TrustLineInfo(
+                account="rTEST", peer="rISSUER", currency="LAB",
+                balance=lab_balance, limit="10000",
+            ))
+        return PositionSnapshot(
+            timestamp=time.time(),
+            account=AccountSnapshot(
+                address="rTEST",
+                balance_drops=balance_drops,
+                owner_count=owner_count,
+            ),
+            trust_lines=tls,
+            offers=[],
+            xrp_balance=balance_drops,
+            owner_count=owner_count,
+            offer_count=0,
+        )
+
+    def test_both_sides_healthy(self):
+        snap = self._make_snap(balance_drops="1000000000", lab_balance="500")
+        inv = check_inventory(snap, "LAB")
+        assert inv.can_bid
+        assert inv.can_ask
+        assert inv.sides_allowed == ["bid", "ask"]
+        assert inv.any_allowed
+
+    def test_xrp_too_low_blocks_bid(self):
+        # 15 XRP total, base reserve 10 XRP = 5 XRP spendable < 20 XRP threshold
+        snap = self._make_snap(balance_drops="15000000", lab_balance="500")
+        inv = check_inventory(snap, "LAB", min_xrp_drops=20_000_000)
+        assert not inv.can_bid
+        assert inv.can_ask
+        assert inv.sides_allowed == ["ask"]
+
+    def test_token_too_low_blocks_ask(self):
+        snap = self._make_snap(balance_drops="1000000000", lab_balance="5")
+        inv = check_inventory(snap, "LAB", min_token_balance=10)
+        assert inv.can_bid
+        assert not inv.can_ask
+        assert inv.sides_allowed == ["bid"]
+
+    def test_both_too_low(self):
+        snap = self._make_snap(balance_drops="5000000", lab_balance="1")
+        inv = check_inventory(snap, "LAB", min_xrp_drops=20_000_000, min_token_balance=10)
+        assert not inv.can_bid
+        assert not inv.can_ask
+        assert inv.sides_allowed == []
+        assert not inv.any_allowed
+
+    def test_no_trust_line_blocks_ask(self):
+        snap = self._make_snap(balance_drops="1000000000", has_lab=False)
+        inv = check_inventory(snap, "LAB", min_token_balance=10)
+        assert inv.can_bid
+        assert not inv.can_ask
+        assert inv.sides_allowed == ["bid"]
+
+    def test_checks_have_ok_or_blocked(self):
+        snap = self._make_snap(balance_drops="1000000000", lab_balance="500")
+        inv = check_inventory(snap, "LAB")
+        assert any("OK" in c for c in inv.checks)
+
+    def test_custom_thresholds(self):
+        snap = self._make_snap(balance_drops="50000000", lab_balance="50")
+        inv = check_inventory(
+            snap, "LAB",
+            min_xrp_drops=100_000_000,  # 100 XRP minimum
+            min_token_balance=100,  # 100 LAB minimum
+        )
+        assert not inv.can_bid  # 50 XRP total - 10 reserve = 40 spendable < 100
+        assert not inv.can_ask  # 50 LAB < 100
+
+
+# ── Last-run CLI test ───────────────────────────────────────────────
+
+
+class TestLastRunCLI:
+    def test_last_run_no_data(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+
+        from xrpl_lab.cli import main
+
+        monkeypatch.chdir(tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(main, ["last-run"])
+        assert result.exit_code == 0
+        assert "No last run" in result.output
+
+    def test_last_run_with_data(self, tmp_path, monkeypatch):
+        from click.testing import CliRunner
+
+        from xrpl_lab.cli import main
+
+        monkeypatch.chdir(tmp_path)
+        ws = tmp_path / ".xrpl-lab"
+        write_last_run(
+            txids=["TX_1", "TX_2"],
+            module_id="dex_market_making_101",
+            run_id="test-run-1",
+            preset="strategy_mm101",
+            workspace=ws,
+        )
+        # Also create the preset file for the audit hint
+        presets_dir = tmp_path / "presets"
+        presets_dir.mkdir()
+        (presets_dir / "strategy_mm101.json").write_text("{}", encoding="utf-8")
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["last-run"])
+        assert result.exit_code == 0
+        assert "dex_market_making_101" in result.output
+        assert "test-run-1" in result.output
+        assert "2" in result.output  # txid_count
+        assert "audit" in result.output  # audit command hint

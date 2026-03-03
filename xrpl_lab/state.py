@@ -38,7 +38,7 @@ class TxRecord(BaseModel):
 class LabState(BaseModel):
     """Persistent state stored in ~/.xrpl-lab/state.json."""
 
-    version: str = "0.9.0"
+    version: str = "0.10.0"
     network: str = DEFAULT_NETWORK
     wallet_path: str | None = None
     wallet_address: str | None = None
