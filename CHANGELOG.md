@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1 — 2026-03-03
+
+Debugging Reality: trust line failure module + ecosystem alignment.
+
+- New module: Debugging Trust Lines — intentional failure, error decode, fix, verify
+- Dry-run transport validates trust lines realistically (no trust line = tecPATH_DRY)
+- `xrpl-lab self-check` — alias for `doctor` (ecosystem verb alignment)
+- Proof pack receipt table: human-readable per-tx summary (txid, module, status, timestamp)
+- Runner: `issue_token_expect_fail` action with result code explanation
+
 ## 0.3.0 — 2026-03-02
 
 Trust Lines module + feedback command.

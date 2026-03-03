@@ -138,12 +138,27 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: no trust line",
             )
 
-        txid = _next_txid()
-        # Update trust line balance
+        # Realistic validation: check trust line exists
+        matching_tl = None
         for tl in self._trust_lines:
             if tl.currency == currency and tl.peer == issuer:
-                tl.balance = amount
+                matching_tl = tl
                 break
+
+        if matching_tl is None:
+            return SubmitResult(
+                success=False,
+                result_code="tecPATH_DRY",
+                fee="12",
+                error=(
+                    "[dry-run] No trust line for "
+                    f"{currency}/{issuer[:12]}... — "
+                    "recipient must set a trust line first"
+                ),
+            )
+
+        txid = _next_txid()
+        matching_tl.balance = amount
         return SubmitResult(
             success=True,
             txid=txid,

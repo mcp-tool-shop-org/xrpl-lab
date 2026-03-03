@@ -291,6 +291,61 @@ async def _execute_action(
             )
         save_state(state)
 
+    elif action == "issue_token_expect_fail":
+        # Intentionally issue tokens expecting failure (no trust line)
+        args = step.action_args
+        currency = args.get("currency", "DBG")
+        amount = args.get("amount", "100")
+        issuer_seed = context.get("issuer_seed", "")
+        issuer_address = context.get("issuer_address", "")
+        holder_address = state.wallet_address or ""
+
+        if not issuer_seed or not holder_address:
+            console.print(
+                "  [red]Missing issuer or holder wallet. "
+                "Run previous steps first.[/]"
+            )
+            return context
+
+        console.print(
+            f"  [yellow]Attempting to issue {amount} {currency} "
+            f"(expecting failure)...[/]"
+        )
+        result = await issue_token(
+            transport, issuer_seed, holder_address,
+            currency, issuer_address, amount,
+        )
+
+        if result.success:
+            console.print(
+                f"  [yellow]Unexpected success — {amount} {currency} "
+                f"delivered. Trust line may already exist.[/]"
+            )
+            context.setdefault("txids", []).append(result.txid)
+        else:
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(f"  Error: {result.error}")
+
+            # Decode the result code for learning
+            from .doctor import explain_result_code
+
+            info = explain_result_code(result.result_code)
+            console.print()
+            console.print(f"  Category: [cyan]{info['category']}[/]")
+            console.print(f"  Meaning: {info['meaning']}")
+            console.print(f"  Action: [yellow]{info['action']}[/]")
+
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+        state.record_tx(
+            txid=result.txid or "failed",
+            module_id=context.get("module_id", ""),
+            network=state.network,
+            success=result.success,
+        )
+        save_state(state)
+
     elif action == "verify_trust_line":
         args = step.action_args
         currency = args.get("currency", "LAB")
@@ -387,7 +442,8 @@ async def run_module(
         # Collect report material
         if step.action in (
             "submit_payment", "submit_payment_fail", "verify_tx",
-            "set_trust_line", "issue_token", "verify_trust_line",
+            "set_trust_line", "issue_token", "issue_token_expect_fail",
+            "verify_trust_line",
         ):
             report_sections.append(
                 (f"Step {i + 1}", step.text.split("\n")[0][:100])

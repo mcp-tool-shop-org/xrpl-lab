@@ -9,17 +9,17 @@ def test_version():
     runner = CliRunner()
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "0.3.0" in result.output
+    assert "0.3.1" in result.output
 
 
 def test_list():
     runner = CliRunner()
     result = runner.invoke(main, ["list"])
     assert result.exit_code == 0
-    # Rich table may truncate IDs in narrow terminals
-    assert "receipt_liter" in result.output
-    assert "failure_liter" in result.output
-    assert "trust_lines" in result.output
+    # Rich table truncates IDs — check short prefixes
+    assert "receipt_lite" in result.output
+    assert "failure_lite" in result.output
+    assert "trust_line" in result.output
 
 
 def test_status(tmp_path, monkeypatch):
@@ -88,4 +88,14 @@ def test_feedback(tmp_path, monkeypatch):
     result = runner.invoke(main, ["feedback"])
     assert result.exit_code == 0
     assert "XRPL Lab Feedback" in result.output
+    assert "Doctor" in result.output
+
+
+def test_self_check(tmp_path, monkeypatch):
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_home_dir", lambda: tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_workspace_dir", lambda: tmp_path / "ws")
+    runner = CliRunner()
+    result = runner.invoke(main, ["self-check"])
+    assert result.exit_code == 0
     assert "Doctor" in result.output

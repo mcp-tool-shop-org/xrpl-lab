@@ -52,6 +52,20 @@ def generate_proof_pack(state: LabState) -> dict:
     # Per-tx detail (v0.2.0+)
     transactions = [_tx_detail(tx, state.network) for tx in state.tx_index]
 
+    # Receipt table (v0.3.1+): human-readable transaction summary
+    receipt_table = []
+    for tx in state.tx_index:
+        receipt_table.append({
+            "txid": tx.txid[:16] + "..." if len(tx.txid) > 16 else tx.txid,
+            "txid_full": tx.txid,
+            "module": tx.module_id,
+            "status": "ok" if tx.success else "FAIL",
+            "network": tx.network,
+            "timestamp": datetime.fromtimestamp(
+                tx.timestamp, tz=UTC
+            ).strftime("%Y-%m-%d %H:%M"),
+        })
+
     pack = {
         "xrpl_lab_proof_pack": True,
         "version": __version__,
@@ -61,6 +75,7 @@ def generate_proof_pack(state: LabState) -> dict:
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "completed_modules": modules,
         "transactions": transactions,
+        "receipt_table": receipt_table,
         "total_transactions": len(state.tx_index),
         "successful_transactions": sum(1 for tx in state.tx_index if tx.success),
         "failed_transactions": sum(1 for tx in state.tx_index if not tx.success),

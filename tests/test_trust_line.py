@@ -155,3 +155,47 @@ class TestTrustLineActions:
         assert len(lines) == 2
         currencies = {tl.currency for tl in lines}
         assert currencies == {"LAB", "USD"}
+
+
+class TestRealisticDryRunValidation:
+    """Tests for dry-run transport rejecting issued payments without trust lines."""
+
+    @pytest.mark.asyncio
+    async def test_issued_payment_no_trust_line_fails(self, transport):
+        """Issued payment without trust line should fail with tecPATH_DRY."""
+        result = await transport.submit_issued_payment(
+            "sISSUER", "rHOLDER", "DBG", "rISSUER", "100"
+        )
+        assert result.success is False
+        assert result.result_code == "tecPATH_DRY"
+        assert "trust line" in result.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_issued_payment_wrong_currency_fails(self, transport):
+        """Trust line for LAB shouldn't allow DBG payment."""
+        await transport.submit_trust_set("sFAKE", "rISSUER", "LAB", "1000")
+        result = await transport.submit_issued_payment(
+            "sISSUER", "rHOLDER", "DBG", "rISSUER", "100"
+        )
+        assert result.success is False
+        assert result.result_code == "tecPATH_DRY"
+
+    @pytest.mark.asyncio
+    async def test_issued_payment_wrong_issuer_fails(self, transport):
+        """Trust line for rISSUER1 shouldn't allow rISSUER2 payment."""
+        await transport.submit_trust_set("sFAKE", "rISSUER1", "LAB", "1000")
+        result = await transport.submit_issued_payment(
+            "sISSUER2", "rHOLDER", "LAB", "rISSUER2", "100"
+        )
+        assert result.success is False
+        assert result.result_code == "tecPATH_DRY"
+
+    @pytest.mark.asyncio
+    async def test_set_trust_then_issue_succeeds(self, transport):
+        """Set trust line first, then issue — should succeed."""
+        await transport.submit_trust_set("sFAKE", "rISSUER", "DBG", "1000")
+        result = await transport.submit_issued_payment(
+            "sISSUER", "rHOLDER", "DBG", "rISSUER", "100"
+        )
+        assert result.success is True
+        assert result.result_code == "tesSUCCESS"

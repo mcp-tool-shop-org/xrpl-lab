@@ -291,6 +291,12 @@ def doctor():
     console.print()
 
 
+@main.command("self-check")
+def self_check():
+    """Alias for 'doctor' — ecosystem-consistent diagnostic."""
+    doctor.callback()
+
+
 @main.command("proof-pack")
 def proof_pack():
     """Generate a shareable proof pack."""

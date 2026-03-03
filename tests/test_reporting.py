@@ -47,6 +47,33 @@ class TestProofPack:
         assert "seed" not in text.lower()
         assert "secret" not in text.lower()
 
+    def test_receipt_table(self, completed_state):
+        pack = generate_proof_pack(completed_state)
+        assert "receipt_table" in pack
+        table = pack["receipt_table"]
+        assert len(table) == 2
+        row = table[0]
+        assert "txid" in row
+        assert "txid_full" in row
+        assert "module" in row
+        assert "status" in row
+        assert "network" in row
+        assert "timestamp" in row
+        assert row["status"] == "ok"
+        assert row["module"] == "receipt_literacy"
+        assert row["txid_full"] == "TX001"
+
+    def test_receipt_table_failed_tx(self):
+        state = LabState(network="testnet", wallet_address="rTEST")
+        state.complete_module("test", txids=["TX1"])
+        state.record_tx("TX1", "test", "testnet", True)
+        state.record_tx("TX_FAIL", "test", "testnet", False)
+        pack = generate_proof_pack(state)
+        table = pack["receipt_table"]
+        assert len(table) == 2
+        assert table[0]["status"] == "ok"
+        assert table[1]["status"] == "FAIL"
+
     def test_explorer_urls(self, completed_state):
         pack = generate_proof_pack(completed_state)
         mod = pack["completed_modules"][0]
