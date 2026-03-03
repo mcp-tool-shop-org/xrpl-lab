@@ -9,7 +9,7 @@ def test_version():
     runner = CliRunner()
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "0.2.0" in result.output
+    assert "0.3.0" in result.output
 
 
 def test_list():
@@ -19,6 +19,7 @@ def test_list():
     # Rich table may truncate IDs in narrow terminals
     assert "receipt_liter" in result.output
     assert "failure_liter" in result.output
+    assert "trust_lines" in result.output
 
 
 def test_status(tmp_path, monkeypatch):
@@ -76,3 +77,15 @@ def test_certificate_empty(tmp_path, monkeypatch):
     result = runner.invoke(main, ["certificate"])
     assert result.exit_code == 0
     assert "No completed modules" in result.output
+
+
+def test_feedback(tmp_path, monkeypatch):
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_home_dir", lambda: tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_workspace_dir", lambda: tmp_path / "ws")
+    monkeypatch.setattr("xrpl_lab.feedback.get_workspace_dir", lambda: tmp_path / "ws")
+    runner = CliRunner()
+    result = runner.invoke(main, ["feedback"])
+    assert result.exit_code == 0
+    assert "XRPL Lab Feedback" in result.output
+    assert "Doctor" in result.output

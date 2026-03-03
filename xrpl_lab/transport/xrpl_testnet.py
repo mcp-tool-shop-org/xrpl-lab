@@ -8,7 +8,7 @@ import os
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
 from xrpl.asyncio.transaction import submit_and_wait
-from xrpl.models import AccountInfo, Memo, Payment, Tx
+from xrpl.models import AccountInfo, AccountLines, IssuedCurrencyAmount, Memo, Payment, TrustSet, Tx
 from xrpl.utils import drops_to_xrp, xrp_to_drops
 from xrpl.wallet import Wallet
 
@@ -17,6 +17,7 @@ from .base import (
     NetworkInfo,
     SubmitResult,
     Transport,
+    TrustLineInfo,
     TxInfo,
 )
 
@@ -226,6 +227,191 @@ class XRPLTestnetTransport(Transport):
             result_code="local_error",
             error=last_error,
         )
+
+    async def submit_trust_set(
+        self,
+        wallet_seed: str,
+        issuer: str,
+        currency: str,
+        limit: str,
+    ) -> SubmitResult:
+        last_error = ""
+
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                wallet = Wallet.from_seed(wallet_seed)
+                trust_set = TrustSet(
+                    account=wallet.address,
+                    limit_amount=IssuedCurrencyAmount(
+                        currency=currency,
+                        issuer=issuer,
+                        value=limit,
+                    ),
+                )
+                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                    response = await asyncio.wait_for(
+                        submit_and_wait(trust_set, client, wallet),
+                        timeout=SUBMIT_TIMEOUT,
+                    )
+
+                result = response.result
+                meta = result.get("meta", {})
+                result_code = meta.get(
+                    "TransactionResult", result.get("engine_result", "unknown")
+                )
+                txid = result.get("hash", "")
+                fee = result.get("Fee", "0")
+                ledger_idx = (
+                    result.get("ledger_index") or meta.get("ledger_index")
+                )
+
+                success = result_code == "tesSUCCESS"
+                error_msg = ""
+                if not success:
+                    from ..doctor import explain_result_code
+
+                    info = explain_result_code(result_code)
+                    error_msg = f"{info['meaning']}. {info['action']}"
+
+                return SubmitResult(
+                    success=success,
+                    txid=txid,
+                    result_code=result_code,
+                    fee=fee,
+                    ledger_index=ledger_idx,
+                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    error=error_msg,
+                )
+
+            except TimeoutError:
+                last_error = (
+                    "TrustSet submission timed out. Try again in a minute."
+                )
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except Exception as exc:
+                last_error = _friendly_error(exc)
+                if any(
+                    code in last_error
+                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
+                ):
+                    break
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+
+        return SubmitResult(
+            success=False,
+            result_code="local_error",
+            error=last_error,
+        )
+
+    async def submit_issued_payment(
+        self,
+        wallet_seed: str,
+        destination: str,
+        currency: str,
+        issuer: str,
+        amount: str,
+        memo: str = "",
+    ) -> SubmitResult:
+        last_error = ""
+
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                wallet = Wallet.from_seed(wallet_seed)
+                payment = Payment(
+                    account=wallet.address,
+                    destination=destination,
+                    amount=IssuedCurrencyAmount(
+                        currency=currency,
+                        issuer=issuer,
+                        value=amount,
+                    ),
+                    memos=_memo_field(memo) or None,
+                )
+                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                    response = await asyncio.wait_for(
+                        submit_and_wait(payment, client, wallet),
+                        timeout=SUBMIT_TIMEOUT,
+                    )
+
+                result = response.result
+                meta = result.get("meta", {})
+                result_code = meta.get(
+                    "TransactionResult", result.get("engine_result", "unknown")
+                )
+                txid = result.get("hash", "")
+                fee = result.get("Fee", "0")
+                ledger_idx = (
+                    result.get("ledger_index") or meta.get("ledger_index")
+                )
+
+                success = result_code == "tesSUCCESS"
+                error_msg = ""
+                if not success:
+                    from ..doctor import explain_result_code
+
+                    info = explain_result_code(result_code)
+                    error_msg = f"{info['meaning']}. {info['action']}"
+
+                return SubmitResult(
+                    success=success,
+                    txid=txid,
+                    result_code=result_code,
+                    fee=fee,
+                    ledger_index=ledger_idx,
+                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    error=error_msg,
+                )
+
+            except TimeoutError:
+                last_error = (
+                    "Issued payment timed out. Try again in a minute."
+                )
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except Exception as exc:
+                last_error = _friendly_error(exc)
+                if any(
+                    code in last_error
+                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
+                ):
+                    break
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+
+        return SubmitResult(
+            success=False,
+            result_code="local_error",
+            error=last_error,
+        )
+
+    async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
+        try:
+            async with AsyncJsonRpcClient(self._rpc_url) as client:
+                response = await asyncio.wait_for(
+                    client.request(
+                        AccountLines(account=address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+            lines = response.result.get("lines", [])
+            return [
+                TrustLineInfo(
+                    account=address,
+                    peer=line.get("account", ""),
+                    currency=line.get("currency", ""),
+                    balance=line.get("balance", "0"),
+                    limit=line.get("limit", "0"),
+                )
+                for line in lines
+            ]
+        except Exception:
+            return []
 
     async def fetch_tx(self, txid: str) -> TxInfo:
         try:

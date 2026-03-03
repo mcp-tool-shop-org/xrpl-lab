@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
 from .actions.send import send_payment
+from .actions.trust_line import (
+    issue_token,
+    set_trust_line,
+    verify_trust_line,
+)
 from .actions.verify import verify_tx
 from .actions.wallet import (
     create_wallet,
@@ -26,8 +32,6 @@ console = Console()
 
 async def _ensure_wallet(state: LabState, transport: Transport) -> tuple[LabState, str]:
     """Make sure we have a wallet; return (state, seed)."""
-    from pathlib import Path
-
     wallet_path = Path(state.wallet_path) if state.wallet_path else None
 
     if wallet_path and wallet_exists(wallet_path):
@@ -180,6 +184,138 @@ async def _execute_action(
         for fail in result.failures:
             console.print(f"  [red]\u2717[/] {fail}")
 
+    elif action == "create_issuer_wallet":
+        console.print("  Creating issuer wallet...")
+        issuer = create_wallet()
+        issuer_path = Path(".xrpl-lab") / "issuer_wallet.json"
+        issuer_path.parent.mkdir(parents=True, exist_ok=True)
+        save_wallet(issuer, issuer_path)
+        console.print(f"  Issuer wallet created: [cyan]{issuer.address}[/]")
+        context["issuer_seed"] = issuer.seed
+        context["issuer_address"] = issuer.address
+
+    elif action == "fund_issuer":
+        issuer_address = context.get("issuer_address", "")
+        if not issuer_address:
+            console.print("  [red]No issuer wallet found. Run the previous step first.[/]")
+            return context
+        console.print("  Funding issuer wallet from faucet...")
+        result = await transport.fund_from_faucet(issuer_address)
+        if result.success:
+            console.print(f"  Issuer funded! Balance: [green]{result.balance} XRP[/]")
+        else:
+            console.print(f"  [red]Funding failed: {result.message}[/]")
+            console.print("  You can retry by re-running this module.")
+
+    elif action == "set_trust_line":
+        args = step.action_args
+        currency = args.get("currency", "LAB")
+        limit = args.get("limit", "1000")
+        issuer_address = context.get("issuer_address", "")
+
+        if not issuer_address:
+            console.print("  [red]No issuer address in context. Run the issuer step first.[/]")
+            return context
+
+        issuer_short = issuer_address[:12]
+        console.print(
+            f"  Setting trust line: [cyan]{currency}[/] "
+            f"from issuer [cyan]{issuer_short}...[/]"
+        )
+        console.print(f"  Limit: {limit}")
+        result = await set_trust_line(
+            transport, context["wallet_seed"], issuer_address, currency, limit
+        )
+
+        if result.success:
+            console.print("  [green]Trust line set![/]")
+            console.print(f"  TXID: [cyan]{result.txid}[/]")
+            if result.explorer_url:
+                console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
+            context.setdefault("txids", []).append(result.txid)
+        else:
+            console.print(f"  [red]Trust line failed: {result.error}[/]")
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
+        save_state(state)
+
+    elif action == "issue_token":
+        args = step.action_args
+        currency = args.get("currency", "LAB")
+        amount = args.get("amount", "100")
+        issuer_seed = context.get("issuer_seed", "")
+        issuer_address = context.get("issuer_address", "")
+        holder_address = state.wallet_address or ""
+
+        if not issuer_seed or not holder_address:
+            console.print("  [red]Missing issuer or holder wallet. Run previous steps first.[/]")
+            return context
+
+        console.print(f"  Issuing {amount} {currency} to [cyan]{holder_address[:12]}...[/]")
+        result = await issue_token(
+            transport, issuer_seed, holder_address, currency, issuer_address, amount,
+            memo=f"XRPLLAB|ISSUE|{currency}|{amount}",
+        )
+
+        if result.success:
+            console.print(f"  [green]{amount} {currency} issued![/]")
+            console.print(f"  TXID: [cyan]{result.txid}[/]")
+            if result.explorer_url:
+                console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
+            context.setdefault("txids", []).append(result.txid)
+        else:
+            console.print(f"  [red]Issuance failed: {result.error}[/]")
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
+        save_state(state)
+
+    elif action == "verify_trust_line":
+        args = step.action_args
+        currency = args.get("currency", "LAB")
+        holder_address = state.wallet_address or ""
+        issuer_address = context.get("issuer_address")
+
+        if not holder_address:
+            console.print("  [red]No wallet address found.[/]")
+            return context
+
+        result = await verify_trust_line(
+            transport, holder_address, currency, expected_issuer=issuer_address
+        )
+
+        if result.found:
+            for check in result.checks:
+                console.print(f"  [green]\u2713[/] {check}")
+            for fail in result.failures:
+                console.print(f"  [red]\u2717[/] {fail}")
+        else:
+            for fail in result.failures:
+                console.print(f"  [red]\u2717[/] {fail}")
+
+        context["last_trust_line_verify"] = result
+
     elif action == "write_report":
         # Handled at module completion
         pass
@@ -249,7 +385,10 @@ async def run_module(
                 return False
 
         # Collect report material
-        if step.action in ("submit_payment", "submit_payment_fail", "verify_tx"):
+        if step.action in (
+            "submit_payment", "submit_payment_fail", "verify_tx",
+            "set_trust_line", "issue_token", "verify_trust_line",
+        ):
             report_sections.append(
                 (f"Step {i + 1}", step.text.split("\n")[0][:100])
             )

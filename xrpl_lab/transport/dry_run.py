@@ -10,6 +10,7 @@ from .base import (
     NetworkInfo,
     SubmitResult,
     Transport,
+    TrustLineInfo,
     TxInfo,
 )
 
@@ -33,6 +34,7 @@ class DryRunTransport(Transport):
         self._fail_next = fail_next
         self._balance = "1000000000"  # 1000 XRP in drops
         self._funded_addresses: set[str] = set()
+        self._trust_lines: list[TrustLineInfo] = []
 
     def set_fail_next(self, fail: bool = True) -> None:
         """Configure the next submission to fail (for failure_literacy module)."""
@@ -81,6 +83,78 @@ class DryRunTransport(Transport):
             ledger_index=99999999,
             explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
         )
+
+    async def submit_trust_set(
+        self,
+        wallet_seed: str,
+        issuer: str,
+        currency: str,
+        limit: str,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False,
+                result_code="tecNO_DST",
+                fee="12",
+                error="[dry-run] Simulated failure: issuer not found",
+            )
+
+        txid = _next_txid()
+        # Track the trust line
+        self._trust_lines.append(
+            TrustLineInfo(
+                account=_FAKE_ADDRESS,
+                peer=issuer,
+                currency=currency,
+                balance="0",
+                limit=limit,
+            )
+        )
+        return SubmitResult(
+            success=True,
+            txid=txid,
+            result_code="tesSUCCESS",
+            fee="12",
+            ledger_index=99999999,
+            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+        )
+
+    async def submit_issued_payment(
+        self,
+        wallet_seed: str,
+        destination: str,
+        currency: str,
+        issuer: str,
+        amount: str,
+        memo: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False,
+                result_code="tecPATH_DRY",
+                fee="12",
+                error="[dry-run] Simulated failure: no trust line",
+            )
+
+        txid = _next_txid()
+        # Update trust line balance
+        for tl in self._trust_lines:
+            if tl.currency == currency and tl.peer == issuer:
+                tl.balance = amount
+                break
+        return SubmitResult(
+            success=True,
+            txid=txid,
+            result_code="tesSUCCESS",
+            fee="12",
+            ledger_index=99999999,
+            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+        )
+
+    async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
+        return list(self._trust_lines)
 
     async def fetch_tx(self, txid: str) -> TxInfo:
         return TxInfo(

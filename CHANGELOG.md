@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-03-02
+
+Trust Lines module + feedback command.
+
+- New module: Trust Lines 101 — create issuer, set trust line, issue tokens, verify
+- Transport: `submit_trust_set`, `submit_issued_payment`, `get_trust_lines`
+- Trust line actions: `set_trust_line`, `issue_token`, `verify_trust_line`
+- `xrpl-lab feedback` — generates issue-ready markdown (doctor + env + proof pack)
+- Runner handles trust line action types (create_issuer_wallet, fund_issuer, etc.)
+
 ## 0.2.0 — 2026-03-02
 
 Clinic & Proof Pack release.

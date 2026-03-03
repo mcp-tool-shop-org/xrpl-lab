@@ -56,6 +56,17 @@ class TxInfo:
     raw: dict | None = None
 
 
+@dataclass
+class TrustLineInfo:
+    """A single trust line between two accounts."""
+
+    account: str
+    peer: str
+    currency: str
+    balance: str = "0"
+    limit: str = "0"
+
+
 class Transport(ABC):
     """Abstract base for XRPL network operations."""
 
@@ -76,6 +87,32 @@ class Transport(ABC):
         memo: str = "",
     ) -> SubmitResult:
         """Submit a payment transaction."""
+
+    @abstractmethod
+    async def submit_trust_set(
+        self,
+        wallet_seed: str,
+        issuer: str,
+        currency: str,
+        limit: str,
+    ) -> SubmitResult:
+        """Submit a TrustSet transaction."""
+
+    @abstractmethod
+    async def submit_issued_payment(
+        self,
+        wallet_seed: str,
+        destination: str,
+        currency: str,
+        issuer: str,
+        amount: str,
+        memo: str = "",
+    ) -> SubmitResult:
+        """Submit a payment of issued currency (not XRP)."""
+
+    @abstractmethod
+    async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
+        """Get trust lines for an address."""
 
     @abstractmethod
     async def fetch_tx(self, txid: str) -> TxInfo:

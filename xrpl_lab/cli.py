@@ -320,6 +320,21 @@ def certificate():
 
 
 @main.command()
+def feedback():
+    """Generate an issue-ready feedback block (markdown)."""
+    from .feedback import generate_feedback
+
+    md = generate_feedback()
+    console.print()
+    console.print(md)
+    console.print()
+
+    # Also copy to clipboard hint
+    console.print("[dim]Copy the block above into a GitHub issue or support message.[/]")
+    console.print()
+
+
+@main.command()
 @click.option("--keep-wallet", is_flag=True, help="Keep wallet file, only wipe progress")
 def reset(keep_wallet: bool):
     """Wipe all local state and workspace (requires confirmation)."""
