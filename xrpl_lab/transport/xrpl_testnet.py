@@ -8,13 +8,25 @@ import os
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
 from xrpl.asyncio.transaction import submit_and_wait
-from xrpl.models import AccountInfo, AccountLines, IssuedCurrencyAmount, Memo, Payment, TrustSet, Tx
+from xrpl.models import (
+    AccountInfo,
+    AccountLines,
+    AccountOffers,
+    IssuedCurrencyAmount,
+    Memo,
+    OfferCancel,
+    OfferCreate,
+    Payment,
+    TrustSet,
+    Tx,
+)
 from xrpl.utils import drops_to_xrp, xrp_to_drops
 from xrpl.wallet import Wallet
 
 from .base import (
     FundResult,
     NetworkInfo,
+    OfferInfo,
     SubmitResult,
     Transport,
     TrustLineInfo,
@@ -409,6 +421,204 @@ class XRPLTestnetTransport(Transport):
                     limit=line.get("limit", "0"),
                 )
                 for line in lines
+            ]
+        except Exception:
+            return []
+
+    def _amount_obj(
+        self, currency: str, value: str, issuer: str
+    ) -> str | IssuedCurrencyAmount:
+        """Build an XRP drops string or IssuedCurrencyAmount."""
+        if currency == "XRP":
+            return xrp_to_drops(float(value))
+        return IssuedCurrencyAmount(currency=currency, issuer=issuer, value=value)
+
+    @staticmethod
+    def _format_amount(amt) -> str:
+        """Format an XRPL amount field for display."""
+        if isinstance(amt, str):
+            return amt  # XRP in drops
+        if isinstance(amt, dict):
+            v = amt.get("value", "?")
+            c = amt.get("currency", "?")
+            i = amt.get("issuer", "")[:12]
+            return f"{v}/{c}/{i}"
+        return str(amt)
+
+    async def submit_offer_create(
+        self,
+        wallet_seed: str,
+        taker_pays_currency: str,
+        taker_pays_value: str,
+        taker_pays_issuer: str,
+        taker_gets_currency: str,
+        taker_gets_value: str,
+        taker_gets_issuer: str,
+    ) -> SubmitResult:
+        last_error = ""
+
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                wallet = Wallet.from_seed(wallet_seed)
+                offer = OfferCreate(
+                    account=wallet.address,
+                    taker_pays=self._amount_obj(
+                        taker_pays_currency, taker_pays_value, taker_pays_issuer
+                    ),
+                    taker_gets=self._amount_obj(
+                        taker_gets_currency, taker_gets_value, taker_gets_issuer
+                    ),
+                )
+                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                    response = await asyncio.wait_for(
+                        submit_and_wait(offer, client, wallet),
+                        timeout=SUBMIT_TIMEOUT,
+                    )
+
+                result = response.result
+                meta = result.get("meta", {})
+                result_code = meta.get(
+                    "TransactionResult", result.get("engine_result", "unknown")
+                )
+                txid = result.get("hash", "")
+                fee = result.get("Fee", "0")
+                ledger_idx = (
+                    result.get("ledger_index") or meta.get("ledger_index")
+                )
+
+                success = result_code == "tesSUCCESS"
+                error_msg = ""
+                if not success:
+                    from ..doctor import explain_result_code
+
+                    info = explain_result_code(result_code)
+                    error_msg = f"{info['meaning']}. {info['action']}"
+
+                return SubmitResult(
+                    success=success,
+                    txid=txid,
+                    result_code=result_code,
+                    fee=fee,
+                    ledger_index=ledger_idx,
+                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    error=error_msg,
+                )
+
+            except TimeoutError:
+                last_error = (
+                    "OfferCreate timed out. Try again in a minute."
+                )
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except Exception as exc:
+                last_error = _friendly_error(exc)
+                if any(
+                    code in last_error
+                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
+                ):
+                    break
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+
+        return SubmitResult(
+            success=False,
+            result_code="local_error",
+            error=last_error,
+        )
+
+    async def submit_offer_cancel(
+        self,
+        wallet_seed: str,
+        offer_sequence: int,
+    ) -> SubmitResult:
+        last_error = ""
+
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                wallet = Wallet.from_seed(wallet_seed)
+                cancel = OfferCancel(
+                    account=wallet.address,
+                    offer_sequence=offer_sequence,
+                )
+                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                    response = await asyncio.wait_for(
+                        submit_and_wait(cancel, client, wallet),
+                        timeout=SUBMIT_TIMEOUT,
+                    )
+
+                result = response.result
+                meta = result.get("meta", {})
+                result_code = meta.get(
+                    "TransactionResult", result.get("engine_result", "unknown")
+                )
+                txid = result.get("hash", "")
+                fee = result.get("Fee", "0")
+                ledger_idx = (
+                    result.get("ledger_index") or meta.get("ledger_index")
+                )
+
+                success = result_code == "tesSUCCESS"
+                error_msg = ""
+                if not success:
+                    from ..doctor import explain_result_code
+
+                    info = explain_result_code(result_code)
+                    error_msg = f"{info['meaning']}. {info['action']}"
+
+                return SubmitResult(
+                    success=success,
+                    txid=txid,
+                    result_code=result_code,
+                    fee=fee,
+                    ledger_index=ledger_idx,
+                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    error=error_msg,
+                )
+
+            except TimeoutError:
+                last_error = (
+                    "OfferCancel timed out. Try again in a minute."
+                )
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except Exception as exc:
+                last_error = _friendly_error(exc)
+                if any(
+                    code in last_error
+                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
+                ):
+                    break
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+
+        return SubmitResult(
+            success=False,
+            result_code="local_error",
+            error=last_error,
+        )
+
+    async def get_account_offers(self, address: str) -> list[OfferInfo]:
+        try:
+            async with AsyncJsonRpcClient(self._rpc_url) as client:
+                response = await asyncio.wait_for(
+                    client.request(
+                        AccountOffers(account=address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+            offers = response.result.get("offers", [])
+            return [
+                OfferInfo(
+                    sequence=o.get("seq", 0),
+                    taker_pays=self._format_amount(o.get("taker_pays")),
+                    taker_gets=self._format_amount(o.get("taker_gets")),
+                    quality=str(o.get("quality", "")),
+                )
+                for o in offers
             ]
         except Exception:
             return []

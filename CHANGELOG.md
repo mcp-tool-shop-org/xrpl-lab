@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — 2026-03-02
+
+DEX Literacy module — offers, order books, and cancellations.
+
+- New module: DEX Literacy — create offer, verify active, cancel, verify absent
+- Transport: `submit_offer_create`, `submit_offer_cancel`, `get_account_offers`
+- `OfferInfo` dataclass for DEX offer representation
+- Actions: `create_offer`, `cancel_offer`, `verify_offer_present`, `verify_offer_absent`
+- Runner: handles DEX action types (create_offer, cancel_offer, verify_offer_*)
+- Dry-run transport tracks offers with sequence numbers and supports cancellation
+- DEX notes: `docs/dex_notes.md` — taker pays/gets, partial fills, why cancel matters
+
 ## 0.3.1 — 2026-03-03
 
 Debugging Reality: trust line failure module + ecosystem alignment.

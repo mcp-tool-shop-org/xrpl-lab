@@ -8,6 +8,7 @@ import time
 from .base import (
     FundResult,
     NetworkInfo,
+    OfferInfo,
     SubmitResult,
     Transport,
     TrustLineInfo,
@@ -35,6 +36,8 @@ class DryRunTransport(Transport):
         self._balance = "1000000000"  # 1000 XRP in drops
         self._funded_addresses: set[str] = set()
         self._trust_lines: list[TrustLineInfo] = []
+        self._offers: list[OfferInfo] = []
+        self._offer_seq = 100  # starting sequence for fake offers
 
     def set_fail_next(self, fail: bool = True) -> None:
         """Configure the next submission to fail (for failure_literacy module)."""
@@ -170,6 +173,90 @@ class DryRunTransport(Transport):
 
     async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
         return list(self._trust_lines)
+
+    async def submit_offer_create(
+        self,
+        wallet_seed: str,
+        taker_pays_currency: str,
+        taker_pays_value: str,
+        taker_pays_issuer: str,
+        taker_gets_currency: str,
+        taker_gets_value: str,
+        taker_gets_issuer: str,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False,
+                result_code="tecUNFUNDED_OFFER",
+                fee="12",
+                error="[dry-run] Simulated failure: unfunded offer",
+            )
+
+        txid = _next_txid()
+        seq = self._offer_seq
+        self._offer_seq += 1
+
+        # Format taker_pays / taker_gets for display
+        if taker_pays_currency == "XRP":
+            pays_str = taker_pays_value
+        else:
+            pays_str = (
+                f"{taker_pays_value}/{taker_pays_currency}"
+                f"/{taker_pays_issuer[:12]}"
+            )
+        if taker_gets_currency == "XRP":
+            gets_str = taker_gets_value
+        else:
+            gets_str = (
+                f"{taker_gets_value}/{taker_gets_currency}"
+                f"/{taker_gets_issuer[:12]}"
+            )
+
+        self._offers.append(
+            OfferInfo(
+                sequence=seq,
+                taker_pays=pays_str,
+                taker_gets=gets_str,
+            )
+        )
+        return SubmitResult(
+            success=True,
+            txid=txid,
+            result_code="tesSUCCESS",
+            fee="12",
+            ledger_index=99999999,
+            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+        )
+
+    async def submit_offer_cancel(
+        self,
+        wallet_seed: str,
+        offer_sequence: int,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False,
+                result_code="tecNO_ENTRY",
+                fee="12",
+                error="[dry-run] Simulated failure: offer not found",
+            )
+
+        txid = _next_txid()
+        # Remove the offer from tracked list
+        self._offers = [o for o in self._offers if o.sequence != offer_sequence]
+        return SubmitResult(
+            success=True,
+            txid=txid,
+            result_code="tesSUCCESS",
+            fee="12",
+            ledger_index=99999999,
+            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+        )
+
+    async def get_account_offers(self, address: str) -> list[OfferInfo]:
+        return list(self._offers)
 
     async def fetch_tx(self, txid: str) -> TxInfo:
         return TxInfo(

@@ -9,6 +9,12 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+from .actions.dex import (
+    cancel_offer,
+    create_offer,
+    verify_offer_absent,
+    verify_offer_present,
+)
 from .actions.send import send_payment
 from .actions.trust_line import (
     issue_token,
@@ -371,6 +377,154 @@ async def _execute_action(
 
         context["last_trust_line_verify"] = result
 
+    elif action == "create_offer":
+        args = step.action_args
+        pays_currency = args.get("pays_currency", "LAB")
+        pays_value = args.get("pays_value", "50")
+        gets_currency = args.get("gets_currency", "XRP")
+        gets_value = args.get("gets_value", "10")
+        issuer_address = context.get("issuer_address", "")
+
+        # Resolve issuers: XRP has no issuer
+        pays_issuer = "" if pays_currency == "XRP" else issuer_address
+        gets_issuer = "" if gets_currency == "XRP" else issuer_address
+
+        console.print(
+            f"  Creating offer: pay {gets_value} {gets_currency} "
+            f"to get {pays_value} {pays_currency}"
+        )
+        result = await create_offer(
+            transport, context["wallet_seed"],
+            pays_currency, pays_value, pays_issuer,
+            gets_currency, gets_value, gets_issuer,
+        )
+
+        if result.success:
+            console.print("  [green]Offer created![/]")
+            console.print(f"  TXID: [cyan]{result.txid}[/]")
+            if result.explorer_url:
+                console.print(
+                    f"  Explorer: [blue]{result.explorer_url}[/]"
+                )
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
+            context.setdefault("txids", []).append(result.txid)
+            # Store offer sequence for cancel/verify
+            # In dry-run, the transport tracks offers internally
+            offers = await transport.get_account_offers(
+                state.wallet_address or ""
+            )
+            if offers:
+                context["offer_sequence"] = offers[-1].sequence
+                console.print(
+                    f"  Offer sequence: "
+                    f"[cyan]{context['offer_sequence']}[/]"
+                )
+        else:
+            console.print(f"  [red]Offer failed: {result.error}[/]")
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
+        save_state(state)
+
+    elif action == "verify_offer_present":
+        offer_seq = context.get("offer_sequence")
+        holder_address = state.wallet_address or ""
+
+        if offer_seq is None:
+            console.print(
+                "  [red]No offer sequence in context. "
+                "Create an offer first.[/]"
+            )
+            return context
+
+        result = await verify_offer_present(
+            transport, holder_address, offer_seq
+        )
+
+        if result.found:
+            for check in result.checks:
+                console.print(f"  [green]\u2713[/] {check}")
+        else:
+            for fail in result.failures:
+                console.print(f"  [red]\u2717[/] {fail}")
+
+        context["last_offer_verify"] = result
+
+    elif action == "cancel_offer":
+        offer_seq = context.get("offer_sequence")
+
+        if offer_seq is None:
+            console.print(
+                "  [red]No offer sequence in context. "
+                "Create an offer first.[/]"
+            )
+            return context
+
+        console.print(f"  Cancelling offer seq {offer_seq}...")
+        result = await cancel_offer(
+            transport, context["wallet_seed"], offer_seq
+        )
+
+        if result.success:
+            console.print("  [green]Offer cancelled![/]")
+            console.print(f"  TXID: [cyan]{result.txid}[/]")
+            if result.explorer_url:
+                console.print(
+                    f"  Explorer: [blue]{result.explorer_url}[/]"
+                )
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
+            context.setdefault("txids", []).append(result.txid)
+        else:
+            console.print(
+                f"  [red]Cancel failed: {result.error}[/]"
+            )
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
+        save_state(state)
+
+    elif action == "verify_offer_absent":
+        offer_seq = context.get("offer_sequence")
+        holder_address = state.wallet_address or ""
+
+        if offer_seq is None:
+            console.print(
+                "  [red]No offer sequence in context. "
+                "Create an offer first.[/]"
+            )
+            return context
+
+        result = await verify_offer_absent(
+            transport, holder_address, offer_seq
+        )
+
+        if result.passed:
+            for check in result.checks:
+                console.print(f"  [green]\u2713[/] {check}")
+        else:
+            for fail in result.failures:
+                console.print(f"  [red]\u2717[/] {fail}")
+
+        context["last_offer_verify"] = result
+
     elif action == "write_report":
         # Handled at module completion
         pass
@@ -444,6 +598,8 @@ async def run_module(
             "submit_payment", "submit_payment_fail", "verify_tx",
             "set_trust_line", "issue_token", "issue_token_expect_fail",
             "verify_trust_line",
+            "create_offer", "cancel_offer",
+            "verify_offer_present", "verify_offer_absent",
         ):
             report_sections.append(
                 (f"Step {i + 1}", step.text.split("\n")[0][:100])

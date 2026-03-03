@@ -67,6 +67,16 @@ class TrustLineInfo:
     limit: str = "0"
 
 
+@dataclass
+class OfferInfo:
+    """A single DEX offer on the ledger."""
+
+    sequence: int
+    taker_pays: str  # e.g. "10/LAB/rISSUER..." or "1000000" (drops for XRP)
+    taker_gets: str  # e.g. "1000000" (drops for XRP) or "10/LAB/rISSUER..."
+    quality: str = ""
+
+
 class Transport(ABC):
     """Abstract base for XRPL network operations."""
 
@@ -113,6 +123,31 @@ class Transport(ABC):
     @abstractmethod
     async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
         """Get trust lines for an address."""
+
+    @abstractmethod
+    async def submit_offer_create(
+        self,
+        wallet_seed: str,
+        taker_pays_currency: str,
+        taker_pays_value: str,
+        taker_pays_issuer: str,
+        taker_gets_currency: str,
+        taker_gets_value: str,
+        taker_gets_issuer: str,
+    ) -> SubmitResult:
+        """Submit an OfferCreate transaction on the DEX."""
+
+    @abstractmethod
+    async def submit_offer_cancel(
+        self,
+        wallet_seed: str,
+        offer_sequence: int,
+    ) -> SubmitResult:
+        """Submit an OfferCancel transaction."""
+
+    @abstractmethod
+    async def get_account_offers(self, address: str) -> list[OfferInfo]:
+        """Get active offers for an address."""
 
     @abstractmethod
     async def fetch_tx(self, txid: str) -> TxInfo:
