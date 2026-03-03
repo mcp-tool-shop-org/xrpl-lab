@@ -6,6 +6,7 @@ import hashlib
 import time
 
 from .base import (
+    AccountSnapshot,
     FundResult,
     NetworkInfo,
     OfferInfo,
@@ -38,6 +39,7 @@ class DryRunTransport(Transport):
         self._trust_lines: list[TrustLineInfo] = []
         self._offers: list[OfferInfo] = []
         self._offer_seq = 100  # starting sequence for fake offers
+        self._owner_count = 0  # tracks owned objects (trust lines, offers)
 
     def set_fail_next(self, fail: bool = True) -> None:
         """Configure the next submission to fail (for failure_literacy module)."""
@@ -104,7 +106,7 @@ class DryRunTransport(Transport):
             )
 
         txid = _next_txid()
-        # Track the trust line
+        # Track the trust line and increment owner count
         self._trust_lines.append(
             TrustLineInfo(
                 account=_FAKE_ADDRESS,
@@ -114,6 +116,7 @@ class DryRunTransport(Transport):
                 limit=limit,
             )
         )
+        self._owner_count += 1
         return SubmitResult(
             success=True,
             txid=txid,
@@ -220,6 +223,7 @@ class DryRunTransport(Transport):
                 taker_gets=gets_str,
             )
         )
+        self._owner_count += 1
         return SubmitResult(
             success=True,
             txid=txid,
@@ -244,8 +248,11 @@ class DryRunTransport(Transport):
             )
 
         txid = _next_txid()
-        # Remove the offer from tracked list
+        # Remove the offer from tracked list and decrement owner count
+        before = len(self._offers)
         self._offers = [o for o in self._offers if o.sequence != offer_sequence]
+        if len(self._offers) < before:
+            self._owner_count = max(0, self._owner_count - 1)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -257,6 +264,15 @@ class DryRunTransport(Transport):
 
     async def get_account_offers(self, address: str) -> list[OfferInfo]:
         return list(self._offers)
+
+    async def get_account_info(self, address: str) -> AccountSnapshot:
+        balance = self._balance if address in self._funded_addresses else "0"
+        return AccountSnapshot(
+            address=address,
+            balance_drops=balance,
+            owner_count=self._owner_count,
+            sequence=42,
+        )
 
     async def fetch_tx(self, txid: str) -> TxInfo:
         return TxInfo(

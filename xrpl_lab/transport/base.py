@@ -68,6 +68,16 @@ class TrustLineInfo:
 
 
 @dataclass
+class AccountSnapshot:
+    """Account state at a point in time — balance, owner count, reserves."""
+
+    address: str
+    balance_drops: str = "0"
+    owner_count: int = 0
+    sequence: int = 0
+
+
+@dataclass
 class OfferInfo:
     """A single DEX offer on the ledger."""
 
@@ -148,6 +158,10 @@ class Transport(ABC):
     @abstractmethod
     async def get_account_offers(self, address: str) -> list[OfferInfo]:
         """Get active offers for an address."""
+
+    @abstractmethod
+    async def get_account_info(self, address: str) -> AccountSnapshot:
+        """Get account info including balance, owner count, and sequence."""
 
     @abstractmethod
     async def fetch_tx(self, txid: str) -> TxInfo:

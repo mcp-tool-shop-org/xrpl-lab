@@ -15,6 +15,11 @@ from .actions.dex import (
     verify_offer_absent,
     verify_offer_present,
 )
+from .actions.reserves import (
+    _drops_to_xrp,
+    compare_snapshots,
+    snapshot_account,
+)
 from .actions.send import send_payment
 from .actions.trust_line import (
     issue_token,
@@ -525,6 +530,58 @@ async def _execute_action(
 
         context["last_offer_verify"] = result
 
+    elif action == "snapshot_account":
+        args = step.action_args
+        label = args.get("label", "snapshot")
+        holder_address = state.wallet_address or ""
+
+        if not holder_address:
+            console.print("  [red]No wallet address found.[/]")
+            return context
+
+        snap = await snapshot_account(transport, holder_address)
+        context[f"snapshot_{label}"] = snap
+
+        balance_xrp = _drops_to_xrp(snap.balance_drops)
+        console.print(f"  Account: [cyan]{snap.address[:16]}...[/]")
+        console.print(
+            f"  Balance: [green]{balance_xrp} XRP[/] "
+            f"({snap.balance_drops} drops)"
+        )
+        console.print(f"  Owner count: [cyan]{snap.owner_count}[/]")
+        console.print(f"  Sequence: {snap.sequence}")
+
+    elif action == "verify_reserve_change":
+        args = step.action_args
+        before_key = f"snapshot_{args.get('before', 'before')}"
+        after_key = f"snapshot_{args.get('after', 'after')}"
+
+        before_snap = context.get(before_key)
+        after_snap = context.get(after_key)
+
+        if not before_snap or not after_snap:
+            console.print(
+                "  [red]Missing snapshots. Run snapshot steps "
+                "first.[/]"
+            )
+            return context
+
+        result = compare_snapshots(
+            before_snap, after_snap,
+            label=args.get("after", "changes"),
+        )
+
+        for check in result.checks:
+            if "increased" in check or "decreased" in check:
+                console.print(f"  [cyan]\u0394[/] {check}")
+            else:
+                console.print(f"  [dim]\u2022[/] {check}")
+
+        console.print()
+        console.print(f"  [yellow]{result.explanation}[/]")
+
+        context["last_reserve_comparison"] = result
+
     elif action == "write_report":
         # Handled at module completion
         pass
@@ -600,6 +657,7 @@ async def run_module(
             "verify_trust_line",
             "create_offer", "cancel_offer",
             "verify_offer_present", "verify_offer_absent",
+            "snapshot_account", "verify_reserve_change",
         ):
             report_sections.append(
                 (f"Step {i + 1}", step.text.split("\n")[0][:100])

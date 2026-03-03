@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — 2026-03-02
+
+Reserves 101: Where Your XRP "Went" — account snapshots and owner count tracking.
+
+- New module: Reserves 101 — snapshot before/after, owner count delta, reserve explanation
+- Transport: `get_account_info` returns `AccountSnapshot` (balance, owner count, sequence)
+- `AccountSnapshot` dataclass for point-in-time account state
+- Actions: `snapshot_account`, `compare_snapshots` with `ReserveComparison` result
+- Runner: `snapshot_account` and `verify_reserve_change` action handlers
+- Dry-run transport tracks `_owner_count` across trust lines and offers
+- Helper: `_drops_to_xrp` for human-readable balance display
+
 ## 0.4.0 — 2026-03-02
 
 DEX Literacy module — offers, order books, and cancellations.

@@ -85,6 +85,7 @@ class TestLoadModules:
         assert "trust_lines_101" in modules
         assert "trust_line_failures" in modules
         assert "dex_literacy" in modules
+        assert "reserves_101" in modules
 
     def test_module_metadata(self):
         modules = load_all_modules()

@@ -24,6 +24,7 @@ from xrpl.utils import drops_to_xrp, xrp_to_drops
 from xrpl.wallet import Wallet
 
 from .base import (
+    AccountSnapshot,
     FundResult,
     NetworkInfo,
     OfferInfo,
@@ -622,6 +623,25 @@ class XRPLTestnetTransport(Transport):
             ]
         except Exception:
             return []
+
+    async def get_account_info(self, address: str) -> AccountSnapshot:
+        try:
+            async with AsyncJsonRpcClient(self._rpc_url) as client:
+                response = await asyncio.wait_for(
+                    client.request(
+                        AccountInfo(account=address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+            acct = response.result.get("account_data", {})
+            return AccountSnapshot(
+                address=address,
+                balance_drops=acct.get("Balance", "0"),
+                owner_count=acct.get("OwnerCount", 0),
+                sequence=acct.get("Sequence", 0),
+            )
+        except Exception:
+            return AccountSnapshot(address=address)
 
     async def fetch_tx(self, txid: str) -> TxInfo:
         try:
