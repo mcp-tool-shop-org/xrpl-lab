@@ -25,6 +25,7 @@ from xrpl.wallet import Wallet
 
 from .base import (
     AccountSnapshot,
+    AmmInfo,
     FundResult,
     NetworkInfo,
     OfferInfo,
@@ -689,3 +690,70 @@ class XRPLTestnetTransport(Transport):
             return str(drops_to_xrp(balance_drops))
         except Exception:
             return "0"
+
+    # ── AMM stubs (not yet implemented for testnet) ──────────────────
+
+    async def get_amm_info(
+        self,
+        asset_a_currency: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_issuer: str,
+    ) -> AmmInfo | None:
+        return None
+
+    async def submit_amm_create(
+        self,
+        wallet_seed: str,
+        asset_a_currency: str,
+        asset_a_value: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_value: str,
+        asset_b_issuer: str,
+        trading_fee: int = 500,
+    ) -> SubmitResult:
+        return SubmitResult(
+            success=False,
+            result_code="notSupported",
+            error="AMM not yet implemented for testnet transport. Use --dry-run.",
+        )
+
+    async def submit_amm_deposit(
+        self,
+        wallet_seed: str,
+        asset_a_currency: str,
+        asset_a_value: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_value: str,
+        asset_b_issuer: str,
+    ) -> SubmitResult:
+        return SubmitResult(
+            success=False,
+            result_code="notSupported",
+            error="AMM not yet implemented for testnet transport. Use --dry-run.",
+        )
+
+    async def submit_amm_withdraw(
+        self,
+        wallet_seed: str,
+        asset_a_currency: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_issuer: str,
+        lp_token_value: str = "",
+    ) -> SubmitResult:
+        return SubmitResult(
+            success=False,
+            result_code="notSupported",
+            error="AMM not yet implemented for testnet transport. Use --dry-run.",
+        )
+
+    async def get_lp_token_balance(
+        self,
+        address: str,
+        lp_token_currency: str,
+        lp_token_issuer: str,
+    ) -> str:
+        return "0"

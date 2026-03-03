@@ -87,6 +87,20 @@ class OfferInfo:
     quality: str = ""
 
 
+@dataclass
+class AmmInfo:
+    """AMM pool state for an asset pair."""
+
+    asset_a: str  # e.g. "XRP" or "LAB/rISSUER..."
+    asset_b: str
+    pool_a: str = "0"  # pool balance for asset A
+    pool_b: str = "0"  # pool balance for asset B
+    lp_token_currency: str = ""
+    lp_token_issuer: str = ""  # AMM account that issues LP tokens
+    lp_supply: str = "0"
+    trading_fee: str = "0"
+
+
 class Transport(ABC):
     """Abstract base for XRPL network operations."""
 
@@ -170,3 +184,61 @@ class Transport(ABC):
     @abstractmethod
     async def get_balance(self, address: str) -> str:
         """Get XRP balance for an address."""
+
+    @abstractmethod
+    async def get_amm_info(
+        self,
+        asset_a_currency: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_issuer: str,
+    ) -> AmmInfo | None:
+        """Get AMM pool info for an asset pair. Returns None if no AMM exists."""
+
+    @abstractmethod
+    async def submit_amm_create(
+        self,
+        wallet_seed: str,
+        asset_a_currency: str,
+        asset_a_value: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_value: str,
+        asset_b_issuer: str,
+        trading_fee: int = 500,
+    ) -> SubmitResult:
+        """Create an AMM pool for an asset pair (AMMCreate)."""
+
+    @abstractmethod
+    async def submit_amm_deposit(
+        self,
+        wallet_seed: str,
+        asset_a_currency: str,
+        asset_a_value: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_value: str,
+        asset_b_issuer: str,
+    ) -> SubmitResult:
+        """Deposit both assets into an AMM pool (AMMDeposit)."""
+
+    @abstractmethod
+    async def submit_amm_withdraw(
+        self,
+        wallet_seed: str,
+        asset_a_currency: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_issuer: str,
+        lp_token_value: str = "",
+    ) -> SubmitResult:
+        """Withdraw from an AMM pool by returning LP tokens (AMMWithdraw)."""
+
+    @abstractmethod
+    async def get_lp_token_balance(
+        self,
+        address: str,
+        lp_token_currency: str,
+        lp_token_issuer: str,
+    ) -> str:
+        """Get LP token balance for an address. Returns '0' if none."""

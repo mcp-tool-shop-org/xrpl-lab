@@ -7,6 +7,7 @@ import time
 
 from .base import (
     AccountSnapshot,
+    AmmInfo,
     FundResult,
     NetworkInfo,
     OfferInfo,
@@ -41,6 +42,9 @@ class DryRunTransport(Transport):
         self._offer_seq = 100  # starting sequence for fake offers
         self._owner_count = 0  # tracks owned objects (trust lines, offers)
         self._tx_fixtures: dict[str, TxInfo] = {}  # txid -> TxInfo for audit testing
+        # AMM state
+        self._amm_pools: dict[str, dict] = {}  # pair_key -> pool state
+        self._lp_balances: dict[str, dict[str, str]] = {}  # address -> {lp_key: balance}
 
     def set_fail_next(self, fail: bool = True) -> None:
         """Configure the next submission to fail (for failure_literacy module)."""
@@ -337,3 +341,266 @@ class DryRunTransport(Transport):
 
     async def get_balance(self, address: str) -> str:
         return "1000.000000" if address in self._funded_addresses else "0"
+
+    # ── AMM methods ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _amm_pair_key(
+        a_currency: str, a_issuer: str,
+        b_currency: str, b_issuer: str,
+    ) -> str:
+        """Canonical key for an asset pair (sorted so order doesn't matter)."""
+        a = f"{a_currency}/{a_issuer}" if a_issuer else a_currency
+        b = f"{b_currency}/{b_issuer}" if b_issuer else b_currency
+        return "|".join(sorted([a, b]))
+
+    async def get_amm_info(
+        self,
+        asset_a_currency: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_issuer: str,
+    ) -> AmmInfo | None:
+        key = self._amm_pair_key(
+            asset_a_currency, asset_a_issuer,
+            asset_b_currency, asset_b_issuer,
+        )
+        pool = self._amm_pools.get(key)
+        if not pool:
+            return None
+        return AmmInfo(
+            asset_a=pool["asset_a"],
+            asset_b=pool["asset_b"],
+            pool_a=pool["pool_a"],
+            pool_b=pool["pool_b"],
+            lp_token_currency=pool["lp_currency"],
+            lp_token_issuer=pool["lp_issuer"],
+            lp_supply=pool["lp_supply"],
+            trading_fee=pool["trading_fee"],
+        )
+
+    async def submit_amm_create(
+        self,
+        wallet_seed: str,
+        asset_a_currency: str,
+        asset_a_value: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_value: str,
+        asset_b_issuer: str,
+        trading_fee: int = 500,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False,
+                result_code="tecAMM_FAILED",
+                fee="12",
+                error="[dry-run] Simulated failure: AMM creation failed",
+            )
+
+        key = self._amm_pair_key(
+            asset_a_currency, asset_a_issuer,
+            asset_b_currency, asset_b_issuer,
+        )
+        if key in self._amm_pools:
+            return SubmitResult(
+                success=False,
+                result_code="tecDUPLICATE",
+                fee="12",
+                error="[dry-run] AMM already exists for this asset pair",
+            )
+
+        txid = _next_txid()
+        amm_account = f"rAMM{hashlib.sha256(key.encode()).hexdigest()[:24].upper()}"
+        lp_currency = hashlib.sha256(key.encode()).hexdigest()[:3].upper()
+
+        # Label assets for display
+        a_label = (
+            asset_a_currency if asset_a_currency == "XRP"
+            else f"{asset_a_currency}/{asset_a_issuer[:12]}"
+        )
+        b_label = (
+            asset_b_currency if asset_b_currency == "XRP"
+            else f"{asset_b_currency}/{asset_b_issuer[:12]}"
+        )
+
+        # Initial LP supply = sqrt(a * b) simplified as sum for dry-run
+        initial_lp = str(
+            round((float(asset_a_value) * float(asset_b_value)) ** 0.5, 6)
+        )
+
+        self._amm_pools[key] = {
+            "asset_a": a_label,
+            "asset_b": b_label,
+            "pool_a": asset_a_value,
+            "pool_b": asset_b_value,
+            "lp_currency": lp_currency,
+            "lp_issuer": amm_account,
+            "lp_supply": initial_lp,
+            "trading_fee": str(trading_fee),
+            "a_currency": asset_a_currency,
+            "a_issuer": asset_a_issuer,
+            "b_currency": asset_b_currency,
+            "b_issuer": asset_b_issuer,
+        }
+
+        # Creator gets all initial LP tokens
+        lp_key = f"{lp_currency}/{amm_account}"
+        self._lp_balances.setdefault(_FAKE_ADDRESS, {})[lp_key] = initial_lp
+
+        self._owner_count += 1  # AMM position
+
+        return SubmitResult(
+            success=True,
+            txid=txid,
+            result_code="tesSUCCESS",
+            fee="12",
+            ledger_index=99999999,
+            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+        )
+
+    async def submit_amm_deposit(
+        self,
+        wallet_seed: str,
+        asset_a_currency: str,
+        asset_a_value: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_value: str,
+        asset_b_issuer: str,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False,
+                result_code="tecAMM_BALANCE",
+                fee="12",
+                error="[dry-run] Simulated failure: AMM deposit failed",
+            )
+
+        key = self._amm_pair_key(
+            asset_a_currency, asset_a_issuer,
+            asset_b_currency, asset_b_issuer,
+        )
+        pool = self._amm_pools.get(key)
+        if not pool:
+            return SubmitResult(
+                success=False,
+                result_code="tecAMM_NOT_FOUND",
+                fee="12",
+                error="[dry-run] No AMM found for this asset pair",
+            )
+
+        txid = _next_txid()
+
+        # Calculate LP tokens to mint (proportional to deposit)
+        old_a = float(pool["pool_a"])
+        deposit_a = float(asset_a_value)
+        ratio = deposit_a / old_a if old_a > 0 else 1.0
+        lp_minted = round(float(pool["lp_supply"]) * ratio, 6)
+
+        # Update pool balances
+        pool["pool_a"] = str(round(old_a + deposit_a, 6))
+        pool["pool_b"] = str(round(float(pool["pool_b"]) + float(asset_b_value), 6))
+        pool["lp_supply"] = str(round(float(pool["lp_supply"]) + lp_minted, 6))
+
+        # Credit LP tokens to depositor
+        lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
+        balances = self._lp_balances.setdefault(_FAKE_ADDRESS, {})
+        current = float(balances.get(lp_key, "0"))
+        balances[lp_key] = str(round(current + lp_minted, 6))
+
+        return SubmitResult(
+            success=True,
+            txid=txid,
+            result_code="tesSUCCESS",
+            fee="12",
+            ledger_index=99999999,
+            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+        )
+
+    async def submit_amm_withdraw(
+        self,
+        wallet_seed: str,
+        asset_a_currency: str,
+        asset_a_issuer: str,
+        asset_b_currency: str,
+        asset_b_issuer: str,
+        lp_token_value: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False,
+                result_code="tecAMM_BALANCE",
+                fee="12",
+                error="[dry-run] Simulated failure: AMM withdraw failed",
+            )
+
+        key = self._amm_pair_key(
+            asset_a_currency, asset_a_issuer,
+            asset_b_currency, asset_b_issuer,
+        )
+        pool = self._amm_pools.get(key)
+        if not pool:
+            return SubmitResult(
+                success=False,
+                result_code="tecAMM_NOT_FOUND",
+                fee="12",
+                error="[dry-run] No AMM found for this asset pair",
+            )
+
+        lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
+        balances = self._lp_balances.get(_FAKE_ADDRESS, {})
+        current_lp = float(balances.get(lp_key, "0"))
+
+        # Determine how much LP to burn
+        burn_lp = float(lp_token_value) if lp_token_value else current_lp
+        if burn_lp <= 0 or burn_lp > current_lp:
+            return SubmitResult(
+                success=False,
+                result_code="tecAMM_BALANCE",
+                fee="12",
+                error=(
+                    f"[dry-run] Insufficient LP tokens: "
+                    f"have {current_lp}, need {burn_lp}"
+                ),
+            )
+
+        txid = _next_txid()
+
+        # Calculate proportional withdrawal
+        total_lp = float(pool["lp_supply"])
+        ratio = burn_lp / total_lp if total_lp > 0 else 0
+
+        pool["pool_a"] = str(round(float(pool["pool_a"]) * (1 - ratio), 6))
+        pool["pool_b"] = str(round(float(pool["pool_b"]) * (1 - ratio), 6))
+        pool["lp_supply"] = str(round(total_lp - burn_lp, 6))
+
+        # Debit LP tokens from withdrawer
+        new_lp = round(current_lp - burn_lp, 6)
+        if new_lp <= 0:
+            balances.pop(lp_key, None)
+        else:
+            balances[lp_key] = str(new_lp)
+
+        return SubmitResult(
+            success=True,
+            txid=txid,
+            result_code="tesSUCCESS",
+            fee="12",
+            ledger_index=99999999,
+            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+        )
+
+    async def get_lp_token_balance(
+        self,
+        address: str,
+        lp_token_currency: str,
+        lp_token_issuer: str,
+    ) -> str:
+        lp_key = f"{lp_token_currency}/{lp_token_issuer}"
+        # Dry-run stores LP balances under _FAKE_ADDRESS
+        balances = self._lp_balances.get(_FAKE_ADDRESS, {})
+        return balances.get(lp_key, "0")

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0 — 2026-03-02
+
+AMM Liquidity 101: Providing Liquidity and Earning Fees.
+
+- New module: AMM Liquidity 101 — create pool, deposit, verify LP, withdraw, verify
+- Transport: `get_amm_info`, `submit_amm_create`, `submit_amm_deposit`, `submit_amm_withdraw`, `get_lp_token_balance`
+- `AmmInfo` dataclass: pool balances, LP token, trading fee
+- Dry-run transport: full AMM simulation (pool registry, LP minting/burning, proportional math)
+- Actions: `ensure_amm_pair`, `amm_deposit`, `amm_withdraw`, `verify_lp_received`, `verify_withdrawal`
+- Runner: 7 new AMM action handlers
+- Testnet transport: AMM stubs (dry-run only for now, pending AMM amendment availability)
+
 ## 0.7.0 — 2026-03-02
 
 Audit Mode: Verify Receipts at Scale.

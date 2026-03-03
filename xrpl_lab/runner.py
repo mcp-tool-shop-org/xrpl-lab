@@ -9,6 +9,13 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+from .actions.amm import (
+    amm_deposit,
+    amm_withdraw,
+    ensure_amm_pair,
+    verify_lp_received,
+    verify_withdrawal,
+)
 from .actions.dex import (
     cancel_offer,
     create_offer,
@@ -692,6 +699,215 @@ async def _execute_action(
 
         context["last_audit"] = audit_report
 
+    elif action == "ensure_amm_pair":
+        args = step.action_args
+        a_currency = args.get("a_currency", "XRP")
+        a_value = args.get("a_value", "100")
+        b_currency = args.get("b_currency", "LAB")
+        b_value = args.get("b_value", "100")
+        issuer_address = context.get("issuer_address", "")
+
+        a_issuer = "" if a_currency == "XRP" else issuer_address
+        b_issuer = "" if b_currency == "XRP" else issuer_address
+
+        console.print(
+            f"  Checking for AMM pool: "
+            f"[cyan]{a_currency}[/] / [cyan]{b_currency}[/]"
+        )
+
+        amm_info, create_result = await ensure_amm_pair(
+            transport, context["wallet_seed"],
+            a_currency, a_value, a_issuer,
+            b_currency, b_value, b_issuer,
+        )
+
+        if create_result is None:
+            console.print("  [green]AMM pool already exists[/]")
+        elif create_result.success:
+            console.print("  [green]AMM pool created![/]")
+            console.print(f"  TXID: [cyan]{create_result.txid}[/]")
+            if create_result.explorer_url:
+                console.print(
+                    f"  Explorer: [blue]{create_result.explorer_url}[/]"
+                )
+            state.record_tx(
+                txid=create_result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=create_result.explorer_url,
+            )
+            context.setdefault("txids", []).append(create_result.txid)
+            save_state(state)
+        else:
+            console.print(
+                f"  [red]AMM creation failed: {create_result.error}[/]"
+            )
+
+        console.print(f"  Pool A: {amm_info.pool_a}")
+        console.print(f"  Pool B: {amm_info.pool_b}")
+        console.print(f"  LP token: {amm_info.lp_token_currency}")
+        console.print(f"  LP issuer: {amm_info.lp_token_issuer[:16]}...")
+
+        context["amm_info"] = amm_info
+        context["a_currency"] = a_currency
+        context["a_issuer"] = a_issuer
+        context["b_currency"] = b_currency
+        context["b_issuer"] = b_issuer
+
+    elif action == "get_amm_info":
+        args = step.action_args
+        a_currency = args.get("a_currency", context.get("a_currency", "XRP"))
+        b_currency = args.get("b_currency", context.get("b_currency", "LAB"))
+        a_issuer = context.get("a_issuer", "")
+        b_issuer = context.get("b_issuer", "")
+
+        amm_info = await transport.get_amm_info(
+            a_currency, a_issuer, b_currency, b_issuer,
+        )
+
+        if amm_info:
+            console.print(f"  Pool {a_currency}: [cyan]{amm_info.pool_a}[/]")
+            console.print(f"  Pool {b_currency}: [cyan]{amm_info.pool_b}[/]")
+            console.print(f"  LP supply: [cyan]{amm_info.lp_supply}[/]")
+            console.print(f"  Trading fee: {amm_info.trading_fee}")
+            context["amm_info"] = amm_info
+        else:
+            console.print("  [red]No AMM found for this pair.[/]")
+
+    elif action == "amm_deposit":
+        args = step.action_args
+        a_currency = args.get("a_currency", context.get("a_currency", "XRP"))
+        a_value = args.get("a_value", "10")
+        b_currency = args.get("b_currency", context.get("b_currency", "LAB"))
+        b_value = args.get("b_value", "10")
+        a_issuer = context.get("a_issuer", "")
+        b_issuer = context.get("b_issuer", "")
+
+        console.print(
+            f"  Depositing: [cyan]{a_value} {a_currency}[/] + "
+            f"[cyan]{b_value} {b_currency}[/]"
+        )
+
+        result = await amm_deposit(
+            transport, context["wallet_seed"],
+            a_currency, a_value, a_issuer,
+            b_currency, b_value, b_issuer,
+        )
+
+        if result.success:
+            console.print("  [green]Deposit succeeded![/]")
+            console.print(f"  TXID: [cyan]{result.txid}[/]")
+            if result.explorer_url:
+                console.print(
+                    f"  Explorer: [blue]{result.explorer_url}[/]"
+                )
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
+            context.setdefault("txids", []).append(result.txid)
+        else:
+            console.print(f"  [red]Deposit failed: {result.error}[/]")
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
+        save_state(state)
+
+    elif action == "verify_lp_received":
+        amm_info = context.get("amm_info")
+        holder_address = state.wallet_address or ""
+
+        if not amm_info:
+            console.print("  [red]No AMM info in context. Run AMM steps first.[/]")
+            return context
+
+        result = await verify_lp_received(
+            transport, holder_address, amm_info,
+        )
+
+        for check in result.checks:
+            console.print(f"  [green]\u2713[/] {check}")
+        for fail in result.failures:
+            console.print(f"  [red]\u2717[/] {fail}")
+
+        context["lp_balance_before_withdraw"] = result.lp_balance
+        context["last_amm_verify"] = result
+
+    elif action == "amm_withdraw":
+        args = step.action_args
+        a_currency = args.get("a_currency", context.get("a_currency", "XRP"))
+        b_currency = args.get("b_currency", context.get("b_currency", "LAB"))
+        a_issuer = context.get("a_issuer", "")
+        b_issuer = context.get("b_issuer", "")
+        lp_value = args.get("lp_value", "")  # empty = withdraw all
+
+        console.print(
+            f"  Withdrawing from AMM: "
+            f"[cyan]{a_currency}[/] / [cyan]{b_currency}[/]"
+        )
+        if not lp_value:
+            console.print("  (returning all LP tokens)")
+
+        result = await amm_withdraw(
+            transport, context["wallet_seed"],
+            a_currency, a_issuer,
+            b_currency, b_issuer,
+            lp_token_value=lp_value,
+        )
+
+        if result.success:
+            console.print("  [green]Withdrawal succeeded![/]")
+            console.print(f"  TXID: [cyan]{result.txid}[/]")
+            if result.explorer_url:
+                console.print(
+                    f"  Explorer: [blue]{result.explorer_url}[/]"
+                )
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
+            context.setdefault("txids", []).append(result.txid)
+        else:
+            console.print(f"  [red]Withdrawal failed: {result.error}[/]")
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
+        save_state(state)
+
+    elif action == "verify_withdrawal":
+        amm_info = context.get("amm_info")
+        holder_address = state.wallet_address or ""
+        lp_before = context.get("lp_balance_before_withdraw", "0")
+
+        if not amm_info:
+            console.print("  [red]No AMM info in context. Run AMM steps first.[/]")
+            return context
+
+        result = await verify_withdrawal(
+            transport, holder_address, amm_info,
+            lp_before=lp_before,
+        )
+
+        for check in result.checks:
+            console.print(f"  [green]\u2713[/] {check}")
+        for fail in result.failures:
+            console.print(f"  [red]\u2717[/] {fail}")
+
+        context["last_amm_verify"] = result
+
     elif action == "write_report":
         # Handled at module completion
         pass
@@ -770,6 +986,9 @@ async def run_module(
             "snapshot_account", "verify_reserve_change",
             "remove_trust_line", "verify_trust_line_removed",
             "run_audit",
+            "ensure_amm_pair", "get_amm_info",
+            "amm_deposit", "verify_lp_received",
+            "amm_withdraw", "verify_withdrawal",
         ):
             report_sections.append(
                 (f"Step {i + 1}", step.text.split("\n")[0][:100])
