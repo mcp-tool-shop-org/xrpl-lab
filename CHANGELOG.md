@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 — 2026-03-03
+
+Binary launcher fix: Windows UTF-8 encoding for Rich console output.
+
+- Fix: `UnicodeEncodeError` on Windows when Rich renders Unicode symbols (○, ✓, ✗)
+- `__main__.py` reconfigures stdout/stderr to UTF-8 before any imports
+- PyInstaller + npm-launcher: `npx @mcptoolshop/xrpl-lab` now works on Windows
+
 ## 1.0.0 — 2026-03-03
 
 Shipcheck + Full Treatment — production-ready release.

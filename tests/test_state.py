@@ -8,7 +8,7 @@ from xrpl_lab.state import LabState
 class TestLabState:
     def test_fresh_state(self):
         state = LabState()
-        assert state.version == "1.0.0"
+        assert state.version == "1.0.1"
         assert state.network == "testnet"
         assert state.wallet_address is None
         assert state.completed_modules == []
