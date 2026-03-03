@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0 — 2026-03-03
+
+Shipcheck + Full Treatment — production-ready release.
+
+- Structured error contract: `LabError` + `LabException` with code/message/hint/cause/retryable
+- Exit code mapping: INPUT/CONFIG/STATE → 1, IO/DEP/RUNTIME → 2, PARTIAL → 3
+- Verify script: `verify.sh` (lint + test + build in one command)
+- README: logo, badges, full 12-module table, trust model paragraph
+- SECURITY.md: complete security policy with trust boundaries
+- SHIP_GATE.md: all hard gates (A-D) passing
+- Landing page: @mcptoolshop/site-theme
+- Translations: 8 languages via polyglot-mcp
+
 ## 0.10.0 — 2026-03-03
 
 Strategy Track Complete: Inventory Guardrails + DEX vs AMM Capstone.
