@@ -87,6 +87,7 @@ class TestLoadModules:
         assert "dex_literacy" in modules
         assert "reserves_101" in modules
         assert "account_hygiene" in modules
+        assert "receipt_audit" in modules
 
     def test_module_metadata(self):
         modules = load_all_modules()

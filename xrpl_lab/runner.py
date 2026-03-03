@@ -35,6 +35,7 @@ from .actions.wallet import (
     save_wallet,
     wallet_exists,
 )
+from .audit import run_audit, write_audit_pack, write_audit_report_md
 from .modules import ModuleDef, ModuleStep
 from .reporting import write_module_report
 from .state import LabState, ensure_workspace, load_state, save_state
@@ -652,6 +653,45 @@ async def _execute_action(
 
         context["last_reserve_comparison"] = result
 
+    elif action == "run_audit":
+        txids = context.get("txids", [])
+        if not txids:
+            console.print("  [yellow]No transactions to audit yet.[/]")
+            return context
+
+        console.print(f"  Auditing {len(txids)} transaction(s)...")
+        audit_report = await run_audit(transport, txids)
+
+        console.print()
+        console.print(f"  Checked: [bold]{audit_report.total}[/]")
+        console.print(f"  Pass:    [green]{audit_report.passed}[/]")
+        console.print(f"  Fail:    [red]{audit_report.failed}[/]")
+        console.print(f"  Missing: [yellow]{audit_report.not_found}[/]")
+
+        # Show per-tx verdicts
+        console.print()
+        for v in audit_report.verdicts:
+            icon = "[green]\u2713[/]" if v.status == "pass" else "[red]\u2717[/]"
+            console.print(f"  {icon} {v.txid[:16]}... [{v.status}]")
+            for check in v.checks[:3]:  # Show first 3 checks
+                console.print(f"      {check}")
+            for fail in v.failures:
+                console.print(f"      [red]{fail}[/]")
+
+        # Write reports
+        ensure_workspace()
+        ts = int(time.time())
+        md_path = Path(f".xrpl-lab/reports/audit_{ts}.md")
+        write_audit_report_md(audit_report, md_path)
+        console.print()
+        console.print(f"  Report: [green]{md_path}[/]")
+
+        pack_path = Path(f".xrpl-lab/proofs/audit_pack_{ts}.json")
+        write_audit_pack(audit_report, pack_path)
+        console.print(f"  Audit pack: [green]{pack_path}[/]")
+
+        context["last_audit"] = audit_report
+
     elif action == "write_report":
         # Handled at module completion
         pass
@@ -729,6 +769,7 @@ async def run_module(
             "verify_offer_present", "verify_offer_absent",
             "snapshot_account", "verify_reserve_change",
             "remove_trust_line", "verify_trust_line_removed",
+            "run_audit",
         ):
             report_sections.append(
                 (f"Step {i + 1}", step.text.split("\n")[0][:100])

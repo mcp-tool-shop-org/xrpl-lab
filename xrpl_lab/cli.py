@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import click
@@ -337,6 +338,82 @@ def feedback():
 
     # Also copy to clipboard hint
     console.print("[dim]Copy the block above into a GitHub issue or support message.[/]")
+    console.print()
+
+
+@main.command()
+@click.option(
+    "--txids", "txids_path", required=True,
+    type=click.Path(exists=True), help="File with one txid per line",
+)
+@click.option(
+    "--expect", "expect_path", default=None,
+    type=click.Path(exists=True), help="Expectations JSON file",
+)
+@click.option("--csv", "csv_path", default=None, help="Write CSV report to this path")
+@click.option("--md", "md_path", default=None, help="Write markdown report to this path")
+@click.option("--dry-run", is_flag=True, help="Use dry-run transport")
+def audit(txids_path: str, expect_path: str | None, csv_path: str | None,
+          md_path: str | None, dry_run: bool):
+    """Batch verify transactions and produce an audit report."""
+    from .audit import (
+        AuditConfig,
+        parse_expectations,
+        parse_txids_file,
+        run_audit,
+        write_audit_pack,
+        write_audit_report_csv,
+        write_audit_report_md,
+    )
+
+    # Parse inputs
+    txids = parse_txids_file(Path(txids_path))
+    if not txids:
+        console.print("[yellow]No txids found in file.[/]")
+        return
+
+    config = parse_expectations(Path(expect_path)) if expect_path else AuditConfig()
+
+    transport = _get_transport(dry_run)
+    report = asyncio.run(run_audit(transport, txids, config))
+
+    # Console summary
+    console.print()
+    console.print(Panel("[bold]XRPL Lab Audit[/]", border_style="blue"))
+    console.print()
+    console.print(f"  Checked: [bold]{report.total}[/] transactions")
+    console.print(f"  Pass:    [green]{report.passed}[/]")
+    console.print(f"  Fail:    [red]{report.failed}[/]")
+    console.print(f"  Missing: [yellow]{report.not_found}[/]")
+    console.print()
+
+    # Failure reasons
+    summary = report.failure_summary()
+    if summary:
+        console.print("  [bold]Top failure reasons:[/]")
+        for reason, count in summary.items():
+            console.print(f"    {reason}: {count}")
+        console.print()
+
+    # Write reports
+    ensure_workspace()
+    ts = time.strftime("%Y%m%d_%H%M%S")
+
+    # Markdown report (always write, or to custom path)
+    md_out = Path(md_path) if md_path else Path(f".xrpl-lab/reports/audit_{ts}.md")
+    write_audit_report_md(report, md_out)
+    console.print(f"  Report:     [green]{md_out}[/]")
+
+    # CSV report (optional)
+    if csv_path:
+        csv_out = Path(csv_path)
+        write_audit_report_csv(report, csv_out)
+        console.print(f"  CSV:        [green]{csv_out}[/]")
+
+    # Audit pack
+    pack_out = Path(f".xrpl-lab/proofs/audit_pack_{ts}.json")
+    write_audit_pack(report, pack_out)
+    console.print(f"  Audit pack: [green]{pack_out}[/]")
     console.print()
 
 

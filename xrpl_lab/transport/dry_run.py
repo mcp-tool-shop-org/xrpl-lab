@@ -40,6 +40,7 @@ class DryRunTransport(Transport):
         self._offers: list[OfferInfo] = []
         self._offer_seq = 100  # starting sequence for fake offers
         self._owner_count = 0  # tracks owned objects (trust lines, offers)
+        self._tx_fixtures: dict[str, TxInfo] = {}  # txid -> TxInfo for audit testing
 
     def set_fail_next(self, fail: bool = True) -> None:
         """Configure the next submission to fail (for failure_literacy module)."""
@@ -313,7 +314,14 @@ class DryRunTransport(Transport):
             sequence=42,
         )
 
+    def set_tx_fixtures(self, fixtures: dict[str, TxInfo]) -> None:
+        """Load tx fixtures for audit testing."""
+        self._tx_fixtures = dict(fixtures)
+
     async def fetch_tx(self, txid: str) -> TxInfo:
+        # Check fixtures first (for audit testing)
+        if txid in self._tx_fixtures:
+            return self._tx_fixtures[txid]
         return TxInfo(
             txid=txid,
             tx_type="Payment",

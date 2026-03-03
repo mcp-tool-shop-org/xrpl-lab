@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0 — 2026-03-02
+
+Audit Mode: Verify Receipts at Scale.
+
+- New command: `xrpl-lab audit --txids txids.txt` — batch verify transactions
+- Expectation configs: JSON with defaults + per-tx overrides (require_validated, require_success, memo_prefix, types_allowed, expected_engine_result)
+- Failure vocabulary: NOT_FOUND, NOT_VALIDATED, ENGINE_RESULT_MISMATCH, TYPE_DISALLOWED, MEMO_MISSING
+- Reports: Markdown table, CSV, JSON audit pack with SHA-256 integrity hash
+- New module: Receipt Audit — hands-on audit mode walkthrough
+- Dry-run transport: tx fixture support for deterministic audit testing
+- Runner: `run_audit` action handler for module-driven audits
+
 ## 0.6.0 — 2026-03-03
 
 Account Hygiene: Freeing Reserves and Cleaning Up Objects.
