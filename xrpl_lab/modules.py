@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -114,6 +115,9 @@ def parse_module(text: str) -> ModuleDef:
 
 def _builtin_modules_dir() -> Path:
     """Path to the bundled modules/ directory."""
+    # PyInstaller frozen binary: modules are bundled next to the executable
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "modules"
     ref = resources.files("xrpl_lab").joinpath("../modules")
     # resources.files returns a Traversable; for our case it's always a Path
     return Path(str(ref))
