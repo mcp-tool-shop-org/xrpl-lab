@@ -106,17 +106,56 @@ class DryRunTransport(Transport):
             )
 
         txid = _next_txid()
-        # Track the trust line and increment owner count
-        self._trust_lines.append(
-            TrustLineInfo(
-                account=_FAKE_ADDRESS,
-                peer=issuer,
-                currency=currency,
-                balance="0",
-                limit=limit,
+
+        # Find existing trust line for this currency + issuer
+        existing = None
+        for tl in self._trust_lines:
+            if tl.currency == currency and tl.peer == issuer:
+                existing = tl
+                break
+
+        if limit == "0":
+            # Removing a trust line
+            if existing is None:
+                # No trust line to remove — success (no-op)
+                return SubmitResult(
+                    success=True,
+                    txid=txid,
+                    result_code="tesSUCCESS",
+                    fee="12",
+                    ledger_index=99999999,
+                    explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+                )
+            if existing.balance != "0":
+                # Can't remove with non-zero balance
+                return SubmitResult(
+                    success=False,
+                    result_code="tecNO_PERMISSION",
+                    fee="12",
+                    error=(
+                        f"[dry-run] Cannot remove trust line — "
+                        f"balance is {existing.balance} (must be 0)"
+                    ),
+                )
+            # Remove trust line and decrement owner count
+            self._trust_lines.remove(existing)
+            self._owner_count = max(0, self._owner_count - 1)
+        elif existing:
+            # Update existing trust line limit (don't create duplicate)
+            existing.limit = limit
+        else:
+            # Create new trust line
+            self._trust_lines.append(
+                TrustLineInfo(
+                    account=_FAKE_ADDRESS,
+                    peer=issuer,
+                    currency=currency,
+                    balance="0",
+                    limit=limit,
+                )
             )
-        )
-        self._owner_count += 1
+            self._owner_count += 1
+
         return SubmitResult(
             success=True,
             txid=txid,

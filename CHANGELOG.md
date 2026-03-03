@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-03-03
+
+Account Hygiene: Freeing Reserves and Cleaning Up Objects.
+
+- New module: Account Hygiene — create objects, cancel offers, remove trust lines, verify cleanup
+- Trust line removal: `submit_trust_set` with `limit=0` removes trust lines (balance must be 0)
+- Dry-run transport: smart trust line handling — no duplicates, limit updates, owner count decrement on removal
+- Actions: `remove_trust_line`, `verify_trust_line_removed`
+- Runner: `remove_trust_line` and `verify_trust_line_removed` action handlers
+- Non-zero balance guard: removal fails with `tecNO_PERMISSION` if tokens still held
+
 ## 0.5.0 — 2026-03-02
 
 Reserves 101: Where Your XRP "Went" — account snapshots and owner count tracking.

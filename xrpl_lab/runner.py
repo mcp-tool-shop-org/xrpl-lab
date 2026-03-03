@@ -23,8 +23,10 @@ from .actions.reserves import (
 from .actions.send import send_payment
 from .actions.trust_line import (
     issue_token,
+    remove_trust_line,
     set_trust_line,
     verify_trust_line,
+    verify_trust_line_removed,
 )
 from .actions.verify import verify_tx
 from .actions.wallet import (
@@ -382,6 +384,74 @@ async def _execute_action(
 
         context["last_trust_line_verify"] = result
 
+    elif action == "remove_trust_line":
+        args = step.action_args
+        currency = args.get("currency", "HYGIENE")
+        issuer_address = context.get("issuer_address", "")
+
+        if not issuer_address:
+            console.print("  [red]No issuer address in context. Run the issuer step first.[/]")
+            return context
+
+        console.print(
+            f"  Removing trust line: [cyan]{currency}[/] "
+            f"(setting limit to 0)"
+        )
+        result = await remove_trust_line(
+            transport, context["wallet_seed"], issuer_address, currency
+        )
+
+        if result.success:
+            console.print("  [green]Trust line removed (limit 0, balance 0)[/]")
+            console.print(f"  TXID: [cyan]{result.txid}[/]")
+            if result.explorer_url:
+                console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
+            context.setdefault("txids", []).append(result.txid)
+        else:
+            console.print(f"  [red]Removal failed: {result.error}[/]")
+            if "balance" in result.error.lower():
+                console.print(
+                    "  [yellow]Hint: send tokens back to issuer "
+                    "before removing the trust line.[/]"
+                )
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
+        save_state(state)
+
+    elif action == "verify_trust_line_removed":
+        args = step.action_args
+        currency = args.get("currency", "HYGIENE")
+        holder_address = state.wallet_address or ""
+        issuer_address = context.get("issuer_address")
+
+        if not holder_address:
+            console.print("  [red]No wallet address found.[/]")
+            return context
+
+        result = await verify_trust_line_removed(
+            transport, holder_address, currency, expected_issuer=issuer_address
+        )
+
+        if not result.found:
+            for check in result.checks:
+                console.print(f"  [green]\u2713[/] {check}")
+        else:
+            for fail in result.failures:
+                console.print(f"  [red]\u2717[/] {fail}")
+
+        context["last_trust_line_verify"] = result
+
     elif action == "create_offer":
         args = step.action_args
         pays_currency = args.get("pays_currency", "LAB")
@@ -658,6 +728,7 @@ async def run_module(
             "create_offer", "cancel_offer",
             "verify_offer_present", "verify_offer_absent",
             "snapshot_account", "verify_reserve_change",
+            "remove_trust_line", "verify_trust_line_removed",
         ):
             report_sections.append(
                 (f"Step {i + 1}", step.text.split("\n")[0][:100])

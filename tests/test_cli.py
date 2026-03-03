@@ -9,19 +9,20 @@ def test_version():
     runner = CliRunner()
     result = runner.invoke(main, ["--version"])
     assert result.exit_code == 0
-    assert "0.5.0" in result.output
+    assert "0.6.0" in result.output
 
 
 def test_list():
     runner = CliRunner()
     result = runner.invoke(main, ["list"])
     assert result.exit_code == 0
-    # Rich table truncates IDs — check short prefixes (6 modules = narrower cols)
+    # Rich table truncates IDs — check short prefixes (7 modules = narrower cols)
     assert "receipt_lit" in result.output
     assert "failure_lit" in result.output
     assert "trust_line" in result.output
     assert "dex_lite" in result.output
     assert "reserves" in result.output
+    assert "account_hy" in result.output
 
 
 def test_status(tmp_path, monkeypatch):

@@ -43,6 +43,21 @@ async def issue_token(
     )
 
 
+async def remove_trust_line(
+    transport: Transport,
+    wallet_seed: str,
+    issuer: str,
+    currency: str,
+) -> SubmitResult:
+    """Remove a trust line by setting limit to 0 (balance must be 0)."""
+    return await transport.submit_trust_set(
+        wallet_seed=wallet_seed,
+        issuer=issuer,
+        currency=currency,
+        limit="0",
+    )
+
+
 async def get_trust_lines(
     transport: Transport,
     address: str,
@@ -109,4 +124,34 @@ async def verify_trust_line(
 
     return TrustLineVerifyResult(
         found=True, trust_line=match, checks=checks, failures=failures
+    )
+
+
+async def verify_trust_line_removed(
+    transport: Transport,
+    address: str,
+    currency: str,
+    expected_issuer: str | None = None,
+) -> TrustLineVerifyResult:
+    """Verify a trust line has been removed (no longer present)."""
+    lines = await transport.get_trust_lines(address)
+    checks: list[str] = []
+    failures: list[str] = []
+
+    for tl in lines:
+        if tl.currency == currency:
+            if expected_issuer and tl.peer != expected_issuer:
+                continue
+            # Trust line still exists
+            failures.append(
+                f"Trust line for {currency} still present "
+                f"(balance: {tl.balance}, limit: {tl.limit})"
+            )
+            return TrustLineVerifyResult(
+                found=True, trust_line=tl, checks=checks, failures=failures
+            )
+
+    checks.append(f"Trust line for {currency} successfully removed")
+    return TrustLineVerifyResult(
+        found=False, trust_line=None, checks=checks, failures=failures
     )
