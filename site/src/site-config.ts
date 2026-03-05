@@ -14,7 +14,7 @@ export const config: SiteConfig = {
     headlineAccent: 'learn by doing.',
     description: 'CLI training workbook for the XRP Ledger. 12 hands-on modules — each one teaches a skill and produces a verifiable artifact. No accounts, no fluff.',
     primaryCta: { href: '#usage', label: 'Get started' },
-    secondaryCta: { href: '#modules', label: 'See modules' },
+    secondaryCta: { href: 'handbook/', label: 'Read the Handbook' },
     previews: [
       { label: 'Install', code: 'pipx install xrpl-lab' },
       { label: 'Start', code: 'xrpl-lab start' },
