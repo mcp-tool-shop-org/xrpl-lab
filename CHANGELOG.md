@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2 — 2026-03-25
+
+- SHA-pinned CI actions (checkout, setup-python)
+- Version test now uses dynamic `__version__` instead of hardcoded string
+
 ## 1.0.1 — 2026-03-03
 
 Binary launcher fix: Windows UTF-8 encoding for Rich console output.
