@@ -2,13 +2,14 @@
 
 
 
+from xrpl_lab import __version__
 from xrpl_lab.state import LabState
 
 
 class TestLabState:
     def test_fresh_state(self):
         state = LabState()
-        assert state.version == "1.0.1"
+        assert state.version == __version__
         assert state.network == "testnet"
         assert state.wallet_address is None
         assert state.completed_modules == []
