@@ -39,6 +39,17 @@ xrpl-lab start --dry-run
 
 All commands support `--dry-run` where applicable, letting you learn the workflow without touching the network.
 
+## Verify your installation
+
+After installing, confirm everything works:
+
+```bash
+xrpl-lab --version
+xrpl-lab doctor
+```
+
+The `doctor` command checks your wallet, state file, workspace, RPC endpoint, and faucet connectivity. It reports actionable hints for anything that needs attention.
+
 ## What happens on first run
 
 1. `xrpl-lab start` launches the guided launcher

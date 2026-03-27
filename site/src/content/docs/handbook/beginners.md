@@ -1,91 +1,112 @@
 ---
-title: Beginners
-description: New to the XRP Ledger? Start here.
+title: For Beginners
+description: New to XRPL Lab? Start here for a gentle introduction.
 sidebar:
   order: 99
 ---
 
-New to the XRP Ledger? This page covers the core concepts you need before starting the modules.
+## What is this tool?
 
-## What is the XRP Ledger?
+XRPL Lab is a hands-on training workbook for the XRP Ledger. Instead of reading documentation and hoping you understand it, you work through 12 structured modules that each teach one skill and produce a verifiable artifact -- a transaction ID, a signed receipt, or a diagnostic report.
 
-The XRP Ledger (XRPL) is a decentralized public blockchain. It processes transactions in seconds, has a built-in decentralized exchange (DEX), and supports issued currencies and automated market makers (AMMs) natively. XRPL Lab works exclusively on the **Testnet** -- a free sandbox that behaves like the real ledger but uses worthless test XRP. Nothing you do in XRPL Lab costs real money or touches real funds.
+Everything runs on the XRPL Testnet, a free sandbox that behaves like the real ledger but uses worthless test XRP. Nothing you do costs real money. The tool stores your wallet and progress locally on your machine, connects only to public testnet endpoints, and sends no telemetry.
 
-## Wallets and addresses
+## Who is this for?
 
-A wallet is your identity on the ledger. It consists of:
+- **Developers** learning XRPL fundamentals before building production applications
+- **Students** studying blockchain technology who want hands-on practice with a real ledger
+- **Analysts and auditors** who need to understand XRPL transaction receipts and verification
+- **Anyone curious about the XRP Ledger** who prefers learning by doing over reading specs
 
-- **Address** (public) -- a string like `rHb9CJA...` that others use to send you XRP. Safe to share.
-- **Seed** (secret) -- the private key that signs your transactions. Never share this.
+No prior blockchain experience is required. The beginner track starts from zero and builds up.
 
-XRPL Lab stores your wallet locally in `~/.xrpl-lab/wallet.json` with restrictive file permissions. Create one with:
+## Prerequisites
 
-```bash
-xrpl-lab wallet create
-```
+Before you begin, make sure you have:
 
-View your address (no secrets shown) with:
+- **Python 3.11 or newer** -- check with `python --version` or `python3 --version`
+- **pip or pipx** -- pipx is recommended for CLI tools (`pip install pipx` if you do not have it)
+- **Basic terminal skills** -- you should be comfortable running commands and reading output
+- **An internet connection** -- needed to talk to the XRPL Testnet (or use `--dry-run` for fully offline mode)
 
-```bash
-xrpl-lab wallet show
-```
+You do not need:
 
-## Funding and the testnet faucet
+- An XRPL mainnet account or real XRP
+- Any cloud accounts, API keys, or registrations
+- Prior experience with blockchain, the XRPL, or cryptography
 
-Before you can send transactions, your account needs XRP. On testnet, you get free XRP from the **faucet** -- a public service that deposits test XRP into your wallet.
+## Your first 5 minutes
 
-```bash
-xrpl-lab fund
-```
-
-The faucet typically grants enough XRP to complete all 12 modules. If you run low, call `fund` again.
-
-## Transactions and receipts
-
-Every action on the ledger is a **transaction**: a payment, a trust line change, a DEX offer, or an AMM deposit. Each transaction produces a **receipt** with:
-
-- **Transaction ID (txid)** -- a unique hash that identifies it on the ledger forever
-- **Result code** -- `tesSUCCESS` means it worked; codes starting with `tec`, `tef`, `tel`, or `tem` indicate different failure types
-- **Ledger index** -- which ledger version included your transaction
-- **Explorer URL** -- a link to view the transaction on testnet.xrpl.org
-
-XRPL Lab records every transaction you submit. View your history with `xrpl-lab status`, or verify any single transaction:
+**1. Install XRPL Lab:**
 
 ```bash
-xrpl-lab verify --tx <transaction_id>
+pipx install xrpl-lab
 ```
 
-## Trust lines and issued currencies
-
-XRP is the native currency, but the ledger also supports **issued currencies** -- tokens created by any account. To hold an issued currency, you must first create a **trust line** to the issuer. A trust line says: "I trust this issuer to hold up to X units of this currency."
-
-Module 3 (Trust Lines 101) walks you through the full lifecycle: creating an issuer account, setting a trust line, and issuing tokens. Module 4 teaches you what happens when trust lines fail and how to fix them.
-
-## The DEX and order books
-
-The XRPL has a built-in decentralized exchange. You trade by placing **offers** -- orders to buy or sell a currency pair. The ledger matches offers automatically.
-
-Key concepts:
-
-- **OfferCreate** -- place a new offer on the order book
-- **OfferCancel** -- remove an offer you no longer want
-- **Order book** -- the list of all open offers for a currency pair
-- **Reserves** -- XRP that the ledger locks up for each object you own (offers, trust lines). Cancelling offers and removing trust lines frees reserves.
-
-Modules 5 through 8 cover DEX operations, reserve math, account cleanup, and batch verification of your trading history.
-
-## Dry-run mode
-
-If you want to learn the workflow without a network connection, use dry-run mode:
+**2. Verify the installation:**
 
 ```bash
-xrpl-lab start --dry-run
+xrpl-lab --version
 ```
 
-Dry-run mode simulates every transaction locally. You get the same step-by-step flow, the same receipts, and the same artifacts -- but nothing touches the real testnet. This is useful for:
+You should see the version number printed.
 
-- Learning on a plane or in a restricted network
-- Testing the CLI without waiting for network responses
-- Understanding the module structure before committing real testnet resources
+**3. Launch the guided starter:**
 
-All commands that submit transactions accept `--dry-run`. When you are ready for the real thing, drop the flag and run against testnet.
+```bash
+xrpl-lab start
+```
+
+The launcher walks you through creating a wallet, funding it from the testnet faucet, and starting your first module (Receipt Literacy).
+
+**4. Complete the first module:**
+
+Follow the on-screen prompts. You will send a payment, read every field of the receipt, and verify the transaction on-ledger. When the module finishes, you get a transaction ID and verification report as proof.
+
+**5. Check your progress:**
+
+```bash
+xrpl-lab status
+```
+
+This shows your wallet address, completed modules, and recent transactions.
+
+## Common mistakes
+
+**Forgetting to fund your wallet.** Before you can send transactions, your testnet wallet needs XRP. If you see `tecUNFUNDED_PAYMENT`, run `xrpl-lab fund` to request free test XRP from the faucet.
+
+**Running without a wallet.** Commands that submit transactions require a wallet. If you see a "No wallet found" error, run `xrpl-lab wallet create` first.
+
+**Confusing testnet with mainnet.** XRPL Lab only works on the Testnet. Your testnet XRP has no real value, and testnet addresses are not valid on mainnet. This is by design -- it keeps you safe while learning.
+
+**Skipping module prerequisites.** Some modules build on earlier ones. Module 4 (Debugging Trust Lines) expects you to have completed Module 3 (Trust Lines 101). The guided launcher suggests the next module in order.
+
+**Not checking doctor when something fails.** If a command produces unexpected errors, run `xrpl-lab doctor` before anything else. It checks your wallet, state file, workspace, network connectivity, and reports actionable hints for each problem it finds.
+
+## Next steps
+
+Once you have completed your first module:
+
+- Read the [Getting Started](/xrpl-lab/handbook/getting-started/) guide for details on data storage and network usage
+- Browse the [Modules](/xrpl-lab/handbook/modules/) page to see all 12 modules across the Beginner, Intermediate, and Advanced tracks
+- Check the [Commands](/xrpl-lab/handbook/commands/) reference for every CLI command and flag
+- Learn about [Artifacts](/xrpl-lab/handbook/artifacts/) -- proof packs, audit packs, and certificates that prove your work
+
+## Glossary
+
+| Term | Definition |
+|------|------------|
+| **XRPL** | XRP Ledger -- the decentralized public blockchain that XRPL Lab teaches you to use |
+| **Testnet** | A free sandbox copy of the XRPL that uses worthless test XRP, safe for experimentation |
+| **Wallet** | Your identity on the ledger, consisting of a public address and a secret seed (private key) |
+| **Seed** | The secret key that signs your transactions. Never share it. Stored locally in `~/.xrpl-lab/wallet.json` |
+| **Faucet** | A public service that gives out free testnet XRP for development and learning |
+| **Transaction (tx)** | Any action on the ledger: a payment, trust line change, DEX offer, or AMM deposit |
+| **Transaction ID (txid)** | A unique hash that identifies a transaction on the ledger permanently |
+| **Result code** | The outcome of a transaction. `tesSUCCESS` means it worked; prefixes `tec`, `tef`, `tel`, `tem` indicate different failure categories |
+| **Trust line** | A declaration that you trust an issuer to hold up to a specified amount of an issued currency |
+| **DEX** | Decentralized Exchange -- the XRPL has a built-in order book for trading currency pairs |
+| **AMM** | Automated Market Maker -- liquidity pools on the XRPL that trade algorithmically |
+| **Reserves** | XRP the ledger locks for each object you own (offers, trust lines). Removing objects frees reserves |
+| **Proof pack** | A shareable JSON record of your completed modules, transaction IDs, and explorer links with a SHA-256 integrity hash |
+| **Dry-run mode** | Offline mode that simulates transactions locally without touching the network |

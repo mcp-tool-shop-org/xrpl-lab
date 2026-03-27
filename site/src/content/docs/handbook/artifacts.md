@@ -63,6 +63,14 @@ xrpl-lab certificate
 
 Human-readable Markdown summaries of what you did and proved in each module. Generated automatically as you complete modules.
 
+## Workspace layout
+
+When you run modules, XRPL Lab creates a `.xrpl-lab/` directory in the current folder with three subdirectories:
+
+- **`proofs/`** — JSON proof packs and audit packs with SHA-256 integrity hashes
+- **`reports/`** — Markdown summaries generated after each module
+- **`logs/`** — Internal run logs
+
 ## Strategy run metadata
 
 After running a strategy module, XRPL Lab writes two files to the workspace:
