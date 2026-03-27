@@ -42,10 +42,11 @@ All commands support `--dry-run` where applicable, letting you learn the workflo
 ## What happens on first run
 
 1. `xrpl-lab start` launches the guided launcher
-2. You create a wallet (stored locally in `~/.xrpl-lab/wallet.json`)
-3. The faucet funds your testnet wallet
-4. You choose a module and work through it
-5. Each module produces a verifiable artifact (transaction ID, report, etc.)
+2. If an XRPL Camp certificate is detected, you can reuse that wallet
+3. You create a wallet (stored locally in `~/.xrpl-lab/wallet.json`)
+4. The faucet funds your testnet wallet
+5. You choose a module and work through it
+6. Each module produces a verifiable artifact (transaction ID, report, etc.)
 
 ## Data storage
 
@@ -59,5 +60,7 @@ All state lives locally:
 
 - **XRPL Testnet RPC** — public endpoint, transactions signed locally before submission
 - **Testnet faucet** — public HTTP, only your address is sent
-- Both endpoints are overridable via environment variables
+- Both endpoints are overridable via environment variables:
+  - `XRPL_LAB_RPC_URL` — custom RPC endpoint
+  - `XRPL_LAB_FAUCET_URL` — custom faucet endpoint
 - Both are optional with `--dry-run`

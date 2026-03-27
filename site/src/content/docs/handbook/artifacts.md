@@ -15,6 +15,8 @@ A shareable record of completed modules containing:
 
 - Module names and completion timestamps
 - Transaction IDs with explorer links
+- Receipt table with human-readable transaction summaries
+- Success/failure counts
 - SHA-256 integrity hash
 
 Proof packs never contain secrets (wallet seeds, private keys). They are safe to share publicly.
@@ -60,6 +62,15 @@ xrpl-lab certificate
 **Directory:** `reports/*.md`
 
 Human-readable Markdown summaries of what you did and proved in each module. Generated automatically as you complete modules.
+
+## Strategy run metadata
+
+After running a strategy module, XRPL Lab writes two files to the workspace:
+
+- **`last_run_meta.json`** — module name, run ID, timestamp, and preset used
+- **`last_run_txids.txt`** — one transaction ID per line, ready for audit
+
+Use `xrpl-lab last-run` to view the metadata and get the exact audit command.
 
 ## Verification
 

@@ -11,7 +11,7 @@ sidebar:
 |---------|-------------|
 | `xrpl-lab start` | Guided launcher — walks through wallet setup, funding, and first module |
 | `xrpl-lab list` | Show all modules with completion status |
-| `xrpl-lab run <module_id>` | Run a specific module |
+| `xrpl-lab run <module_id>` | Run a specific module (add `--force` to redo a completed module) |
 | `xrpl-lab status` | Show progress, wallet info, and recent transactions |
 | `xrpl-lab last-run` | Show details of the last module run + suggested audit command |
 
@@ -21,26 +21,36 @@ sidebar:
 |---------|-------------|
 | `xrpl-lab proof-pack` | Export a shareable proof pack (JSON with SHA-256 integrity) |
 | `xrpl-lab certificate` | Export a slim completion certificate |
-| `xrpl-lab audit` | Batch verify transactions against expectations |
+| `xrpl-lab audit --txids <file>` | Batch verify transactions against expectations |
+
+### Audit flags
+
+| Flag | Description |
+|------|-------------|
+| `--txids <file>` | Required. File with one transaction ID per line |
+| `--expect <file>` | Optional expectations JSON file (type checks, memo prefix, etc.) |
+| `--csv <path>` | Write a CSV report to this path |
+| `--md <path>` | Write a Markdown report to this path |
+| `--dry-run` | Use the dry-run transport for verification |
 
 ## Wallet commands
 
 | Command | Description |
 |---------|-------------|
-| `xrpl-lab wallet create` | Create a new testnet wallet |
+| `xrpl-lab wallet create` | Create a new testnet wallet (add `--path <dir>` for custom location) |
 | `xrpl-lab wallet show` | Show wallet info (no secrets displayed) |
 | `xrpl-lab fund` | Fund wallet from the testnet faucet |
-| `xrpl-lab send` | Send a payment |
+| `xrpl-lab send --to <addr> --amount <xrp>` | Send a payment (optional `--memo <text>`) |
 | `xrpl-lab verify --tx <id>` | Verify a single transaction on-ledger |
 
 ## Utility commands
 
 | Command | Description |
 |---------|-------------|
-| `xrpl-lab doctor` | Run diagnostic checks |
+| `xrpl-lab doctor` | Run diagnostic checks (wallet, state, workspace, RPC, faucet) |
 | `xrpl-lab self-check` | Alias for doctor |
 | `xrpl-lab feedback` | Generate issue-ready markdown for bug reports |
-| `xrpl-lab reset` | Wipe local state (requires RESET confirmation) |
+| `xrpl-lab reset` | Wipe local state (requires typing RESET to confirm; add `--keep-wallet` to preserve wallet) |
 
 ## Global flags
 
