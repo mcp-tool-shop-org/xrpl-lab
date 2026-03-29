@@ -84,7 +84,7 @@ xrpl-lab reset              Wipe local state (requires RESET confirmation)
 xrpl-lab wallet create      Create a new wallet
 xrpl-lab wallet show        Show wallet info (no secrets)
 xrpl-lab fund               Fund wallet from testnet faucet
-xrpl-lab send               Send a payment
+xrpl-lab send --to <address> --amount <xrp> [--memo <text>]  Send a payment
 xrpl-lab verify --tx <id>   Verify a transaction on-ledger
 ```
 
