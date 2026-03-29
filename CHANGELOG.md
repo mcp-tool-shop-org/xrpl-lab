@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.0.3 — 2026-03-29
+
+Dogfood Swarm — comprehensive health pass, web dashboard, and 127 new tests.
+
+### Health Pass (Stage A-C)
+- Fixed 9 HIGH-severity logic bugs (trust line, AMM, runner, state, doctor, audit)
+- SHA-pinned all CI workflow actions across 4 workflows
+- Added defensive guards for all float/int conversions on network data
+- Exception boundary around module runner with state preservation
+- Graceful faucet failure handling with actionable messages
+- Corrupted state backup before reset
+- Step-level progress indicators and retry visibility
+- Wired XRPL_LAB_HOME env var for state directory override
+- Added `network_name` property to Transport ABC
+
+### Web Dashboard
+- FastAPI server layer with 9 REST endpoints + WebSocket module runner
+- `xrpl-lab serve` command starts API server with --dry-run support
+- Astro dashboard: module catalog, interactive runner, artifact viewer, doctor page
+- Real-time module execution via WebSocket with terminal-style output
+- 36-page site build (landing page + handbook + dashboard)
+
+### Feature Improvements
+- Module ordering by explicit order field (not alphabetical)
+- AMM modules require --dry-run with clear warning
+- Prerequisite enforcement with --force bypass
+- Richer module reports with action outcomes
+- Certificate includes titles, tx counts, summary line
+- `audit --no-pack` option to skip JSON pack
+- Fixed dex_market_making_101 step ordering bug
+
+### Test Coverage
+- 228 → 355 tests (+127)
+- New test files: wallet, verify, send/fund, errors, server, runner_ws, CLI serve
+- Fixed dry-run fidelity: per-address balances, instance-level counter, valid base58
+
 ## 1.0.2 — 2026-03-25
 
 - SHA-pinned CI actions (checkout, setup-python)
