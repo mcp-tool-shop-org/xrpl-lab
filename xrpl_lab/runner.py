@@ -1119,7 +1119,7 @@ async def _execute_action(
         for seq, success in results:
             if success:
                 state.record_tx(
-                    txid=f"cancel-{seq}",
+                    txid=f"synthetic-cancel-{seq}",
                     module_id=context.get("module_id", ""),
                     network=state.network,
                     success=True,

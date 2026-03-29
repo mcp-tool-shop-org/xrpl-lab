@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["xrpl", "blockchain", "training", "cli", "education"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Education",
     "License :: OSI Approved :: MIT License",

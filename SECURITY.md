@@ -52,6 +52,6 @@ rm -rf ./.xrpl-lab/
 
 ## Reporting vulnerabilities
 
-Report security issues at: https://github.com/mcp-tool-shop-org/xrpl-lab/issues
+Report security issues at: https://github.com/mcp-tool-shop-org/xrpl-lab/security/advisories/new
 
-Use the "security" label. We will respond within 48 hours.
+We will respond within 48 hours.

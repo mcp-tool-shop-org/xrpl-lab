@@ -2,7 +2,7 @@
 id: dex_market_making_101
 title: "DEX Market Making 101: Earning Spread on the Order Book"
 time: 20-30 min
-level: intermediate
+level: advanced
 requires:
   - wallet
   - dex_literacy

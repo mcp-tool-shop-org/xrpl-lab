@@ -2,7 +2,7 @@
 id: dex_inventory_guardrails
 title: "DEX Inventory Guardrails: Don't Get Lopsided"
 time: 15-20 min
-level: intermediate
+level: advanced
 requires:
   - wallet
   - dex_market_making_101

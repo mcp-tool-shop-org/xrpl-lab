@@ -2,7 +2,7 @@
 id: amm_liquidity_101
 title: "AMM Liquidity 101: Providing Liquidity and Earning Fees"
 time: 20-30 min
-level: intermediate
+level: advanced
 requires:
   - wallet
   - trust_lines_101

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import click
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -85,7 +86,7 @@ def start(dry_run: bool):
             data = json.loads(camp_cert.read_text(encoding="utf-8"))
             camp_address = data.get("address")
             if camp_address and not state.wallet_address:
-                console.print(f"  Camp address: [cyan]{camp_address}[/]")
+                console.print(f"  Camp address: [cyan]{escape(camp_address)}[/]")
                 console.print("  (You can reuse this or create a new wallet)")
         except (json.JSONDecodeError, KeyError):
             pass

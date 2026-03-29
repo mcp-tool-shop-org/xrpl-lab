@@ -136,6 +136,8 @@ def write_module_report(
 
     sections: list of (heading, body) pairs.
     """
+    if "/" in module_id or "\\" in module_id or ".." in module_id:
+        raise ValueError(f"Invalid module_id: {module_id!r}")
     out = output_dir or (get_workspace_dir() / "reports")
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"{module_id}.md"

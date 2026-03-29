@@ -36,7 +36,7 @@
 ## C. Operator Docs
 
 - [x] `[all]` README is current: what it does, install, usage, supported platforms + runtime versions (2026-03-03)
-- [x] `[all]` CHANGELOG.md (Keep a Changelog format) (2026-03-03) — 11 entries, v0.1.0 through v0.10.0
+- [x] `[all]` CHANGELOG.md (Keep a Changelog format) (2026-03-03) — 14 entries, v0.1.0 through v1.0.2
 - [x] `[all]` LICENSE file present and repo states support status (2026-03-03) — MIT
 - [x] `[cli]` `--help` output accurate for all commands and flags (2026-03-03)
 - [x] `[cli|mcp|desktop]` Logging levels defined: silent / normal / verbose / debug — secrets redacted at all levels (2026-03-03) — Rich console output; no secrets in any output path; `--dry-run` for silent network

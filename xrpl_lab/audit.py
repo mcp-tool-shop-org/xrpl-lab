@@ -10,6 +10,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import click
+
 from . import __version__
 from .transport.base import Transport, TxInfo
 
@@ -89,8 +91,11 @@ class AuditReport:
 
 def parse_txids_file(path: Path) -> list[str]:
     """Parse a txids file — one txid per line, ignore blanks and # comments."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        raise click.ClickException(f"Cannot read txids file: {path}: {e}") from e
     txids: list[str] = []
-    text = path.read_text(encoding="utf-8")
     for line in text.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
@@ -106,7 +111,14 @@ def parse_txids_list(txids_raw: list[str]) -> list[str]:
 
 def parse_expectations(path: Path) -> AuditConfig:
     """Parse an expectations JSON file into AuditConfig."""
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        raise click.ClickException(f"Cannot read expectations file: {path}: {e}") from e
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise click.ClickException(f"Invalid JSON in expectations file: {path}: {e}") from e
     defaults = data.get("defaults", {})
     config = AuditConfig(
         require_validated=defaults.get("require_validated", True),
