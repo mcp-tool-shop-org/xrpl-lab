@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -94,7 +97,13 @@ class LabState(BaseModel):
 
 
 def get_home_dir() -> Path:
-    """Return the XRPL Lab home directory (~/.xrpl-lab/)."""
+    """Return the XRPL Lab home directory (~/.xrpl-lab/).
+
+    Override with the ``XRPL_LAB_HOME`` environment variable.
+    """
+    env_home = os.environ.get('XRPL_LAB_HOME')
+    if env_home:
+        return Path(env_home)
     return DEFAULT_HOME_DIR
 
 
@@ -131,7 +140,19 @@ def load_state() -> LabState:
             data: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
             return LabState.model_validate(data)
         except (json.JSONDecodeError, ValueError, ValidationError):
-            # Corrupted state — start fresh but warn
+            # Corrupted state — backup then start fresh
+            bak = p.with_suffix('.json.bak')
+            try:
+                shutil.copy2(p, bak)
+                print(
+                    f"Warning: state file was corrupted, backup saved to {bak}",
+                    file=sys.stderr,
+                )
+            except OSError as bak_err:
+                print(
+                    f"Warning: state file was corrupted and backup failed: {bak_err}",
+                    file=sys.stderr,
+                )
             return LabState()
     return LabState()
 
@@ -141,7 +162,10 @@ def save_state(state: LabState) -> None:
     state.updated_at = time.time()
     p = state_path()
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+    try:
+        p.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+    except OSError as e:
+        print(f"Warning: could not save state: {e}", file=sys.stderr)
 
 
 def reset_state() -> None:
@@ -152,6 +176,4 @@ def reset_state() -> None:
 
     ws = get_workspace_dir()
     if ws.exists():
-        import shutil
-
         shutil.rmtree(ws)

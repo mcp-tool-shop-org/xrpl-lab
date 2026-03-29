@@ -40,7 +40,10 @@ class PositionSnapshot:
         """Estimate spendable XRP (balance - reserves)."""
         base_reserve = 10_000_000  # 10 XRP in drops
         owner_reserve = 2_000_000  # 2 XRP per object
-        balance = int(self.account.balance_drops)
+        try:
+            balance = int(self.account.balance_drops)
+        except (ValueError, TypeError):
+            balance = 0
         reserved = base_reserve + (self.owner_count * owner_reserve)
         return max(0, balance - reserved)
 

@@ -10,6 +10,14 @@ from ..transport.base import AccountSnapshot, Transport
 _DROPS_PER_XRP = 1_000_000
 
 
+def _safe_int(s: str, default: int = 0) -> int:
+    """Convert a string to int, returning default if conversion fails."""
+    try:
+        return int(s)
+    except (ValueError, TypeError):
+        return default
+
+
 def _drops_to_xrp(drops: str) -> str:
     """Convert drops to XRP string with 6 decimal places."""
     try:
@@ -48,7 +56,7 @@ def compare_snapshots(
     label: str = "",
 ) -> ReserveComparison:
     """Compare two snapshots and explain what changed."""
-    balance_delta = int(after.balance_drops) - int(before.balance_drops)
+    balance_delta = _safe_int(after.balance_drops) - _safe_int(before.balance_drops)
     owner_delta = after.owner_count - before.owner_count
 
     checks: list[str] = []

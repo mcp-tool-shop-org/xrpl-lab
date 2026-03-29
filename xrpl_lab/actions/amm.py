@@ -120,7 +120,11 @@ async def verify_lp_received(
     lp_balance = await transport.get_lp_token_balance(
         address, amm_info.lp_token_currency, amm_info.lp_token_issuer,
     )
-    balance_f = float(lp_balance)
+    try:
+        balance_f = float(lp_balance)
+    except (ValueError, TypeError):
+        balance_f = 0.0
+        failures.append(f"Could not parse LP balance: {lp_balance!r}")
 
     if balance_f > 0:
         checks.append(f"LP token balance: {lp_balance}")
@@ -172,8 +176,16 @@ async def verify_withdrawal(
     lp_balance = await transport.get_lp_token_balance(
         address, amm_info.lp_token_currency, amm_info.lp_token_issuer,
     )
-    balance_f = float(lp_balance)
-    before_f = float(lp_before)
+    try:
+        balance_f = float(lp_balance)
+    except (ValueError, TypeError):
+        balance_f = 0.0
+        failures.append(f"Could not parse LP balance: {lp_balance!r}")
+    try:
+        before_f = float(lp_before)
+    except (ValueError, TypeError):
+        before_f = 0.0
+        failures.append(f"Could not parse LP balance: {lp_before!r}")
 
     if balance_f == 0 and before_f == 0:
         failures.append(

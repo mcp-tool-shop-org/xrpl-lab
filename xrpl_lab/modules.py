@@ -141,8 +141,8 @@ def load_all_modules(extra_dirs: list[Path] | None = None) -> dict[str, ModuleDe
             try:
                 mod = parse_module(f.read_text(encoding="utf-8"))
                 modules[mod.id] = mod
-            except (ValueError, yaml.YAMLError):
-                # Skip malformed modules with a warning
+            except (ValueError, yaml.YAMLError) as e:
+                print(f"Warning: skipping malformed module {f.name}: {e}", file=sys.stderr)
                 continue
 
     return modules

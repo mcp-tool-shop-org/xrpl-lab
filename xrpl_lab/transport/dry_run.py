@@ -61,6 +61,10 @@ class DryRunTransport(Transport):
         raw = f"{_FAKE_TXID_PREFIX}-{self._counter}-{time.time()}"
         return hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
 
+    @property
+    def network_name(self) -> str:
+        return "dry-run"
+
     def set_fail_next(self, fail: bool = True) -> None:
         """Configure the next submission to fail (for failure_literacy module)."""
         self._fail_next = fail

@@ -106,6 +106,15 @@ class AmmInfo:
 class Transport(ABC):
     """Abstract base for XRPL network operations."""
 
+    @property
+    @abstractmethod
+    def network_name(self) -> str:
+        """Return a short identifier for this transport's network.
+
+        Examples: ``"testnet"``, ``"dry-run"``, ``"mainnet"``.
+        Use this to identify the active network without making a live call.
+        """
+
     @abstractmethod
     async def get_network_info(self) -> NetworkInfo:
         """Check network connectivity and return info."""

@@ -87,6 +87,26 @@ def _decode_memos(memos_raw: list | None) -> list[str]:
 
 def _friendly_error(exc: Exception) -> str:
     """Turn exceptions into user-friendly error messages."""
+    # Check exception type first — more reliable than string matching
+    if isinstance(exc, asyncio.TimeoutError):
+        return "Request timed out. The testnet may be slow. Try again in a minute."
+    if isinstance(exc, ConnectionRefusedError):
+        return (
+            "Cannot connect to RPC endpoint. "
+            "Check your internet or set XRPL_LAB_RPC_URL."
+        )
+    if isinstance(exc, ConnectionError):
+        return (
+            "Connection error reaching RPC endpoint. "
+            "Check your internet or set XRPL_LAB_RPC_URL."
+        )
+    if isinstance(exc, OSError) and exc.errno == 111:  # ECONNREFUSED
+        return (
+            "Cannot connect to RPC endpoint. "
+            "Check your internet or set XRPL_LAB_RPC_URL."
+        )
+
+    # Fall back to string matching for unrecognized exception types
     msg = str(exc)
     if "ConnectionRefusedError" in msg or "ConnectError" in msg:
         return (
@@ -105,6 +125,10 @@ class XRPLTestnetTransport(Transport):
 
     def __init__(self) -> None:
         self._rpc_url = get_rpc_url()
+
+    @property
+    def network_name(self) -> str:
+        return "testnet"
 
     async def get_network_info(self) -> NetworkInfo:
         try:
@@ -174,6 +198,15 @@ class XRPLTestnetTransport(Transport):
         amount: str,
         memo: str = "",
     ) -> SubmitResult:
+        try:
+            amount_f = float(amount)
+        except (ValueError, TypeError):
+            return SubmitResult(
+                success=False,
+                result_code="local_error",
+                error=f"Invalid amount: {amount!r} — expected a numeric value like '10' or '1.5'",
+            )
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
@@ -182,7 +215,7 @@ class XRPLTestnetTransport(Transport):
                 payment = Payment(
                     account=wallet.address,
                     destination=destination,
-                    amount=xrp_to_drops(float(amount)),
+                    amount=xrp_to_drops(amount_f),
                     memos=_memo_field(memo) or None,
                 )
                 async with AsyncJsonRpcClient(self._rpc_url) as client:
@@ -437,7 +470,12 @@ class XRPLTestnetTransport(Transport):
     ) -> str | IssuedCurrencyAmount:
         """Build an XRP drops string or IssuedCurrencyAmount."""
         if currency == "XRP":
-            return xrp_to_drops(float(value))
+            try:
+                return xrp_to_drops(float(value))
+            except (ValueError, TypeError):
+                raise ValueError(
+                    f"Invalid XRP amount: {value!r} — expected a numeric value like '10' or '1.5'"
+                ) from None
         return IssuedCurrencyAmount(currency=currency, issuer=issuer, value=value)
 
     @staticmethod

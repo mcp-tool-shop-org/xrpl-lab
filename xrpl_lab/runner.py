@@ -98,20 +98,26 @@ async def _ensure_wallet(state: LabState, transport: Transport) -> tuple[LabStat
 
 async def _ensure_funded(
     state: LabState, transport: Transport, address: str
-) -> None:
-    """Check balance and fund from faucet if needed."""
+) -> bool:
+    """Check balance and fund from faucet if needed. Returns True if funded."""
     balance = await transport.get_balance(address)
     if balance and float(balance) > 0:
         console.print(f"  Balance: [green]{balance} XRP[/]")
-        return
+        return True
 
     console.print("  Requesting funds from testnet faucet...")
     result = await transport.fund_from_faucet(address)
-    if result.success:
+    if result.success and result.balance and float(result.balance) > 0:
         console.print(f"  Funded! Balance: [green]{result.balance} XRP[/]")
+        return True
     else:
-        console.print(f"  [red]Funding failed: {result.message}[/]")
-        console.print("  You can retry with: [bold]xrpl-lab fund[/]")
+        console.print(
+            "[red]Faucet funding failed.[/] The testnet faucet may be under load."
+        )
+        console.print(
+            "Try: [cyan]xrpl-lab fund[/] manually, or wait a few minutes and retry."
+        )
+        return False
 
 
 async def _execute_action(
@@ -126,6 +132,23 @@ async def _execute_action(
     if not action:
         return context
 
+    # PH-005: resolve wallet_seed safely from context, falling back to the
+    # parameter so callers that pass it directly still work.
+    wallet_seed = context.get('wallet_seed', wallet_seed) or wallet_seed
+
+    _WALLET_REQUIRED_ACTIONS = {
+        "submit_payment", "submit_payment_fail",
+        "set_trust_line", "remove_trust_line",
+        "issue_token", "issue_token_expect_fail",
+        "create_offer", "cancel_offer",
+        "ensure_amm_pair", "amm_deposit", "amm_withdraw",
+        "strategy_offer_bid", "strategy_offer_ask",
+        "cancel_module_offers", "place_safe_sides",
+    }
+    if action in _WALLET_REQUIRED_ACTIONS and not wallet_seed:
+        console.print('[red]No wallet available. Run ensure_wallet first.[/]')
+        return context
+
     if action == "ensure_wallet":
         state, wallet_seed = await _ensure_wallet(state, transport)
         context["wallet_seed"] = wallet_seed
@@ -133,7 +156,9 @@ async def _execute_action(
     elif action == "ensure_funded":
         address = state.wallet_address
         if address:
-            await _ensure_funded(state, transport, address)
+            funded = await _ensure_funded(state, transport, address)
+            if not funded:
+                return context
 
     elif action == "submit_payment":
         args = step.action_args
@@ -750,6 +775,16 @@ async def _execute_action(
             context.setdefault("txids", []).append(create_result.txid)
             save_state(state)
         else:
+            # PH-014: detect notSupported / stub failure and warn clearly
+            not_supported = getattr(create_result, 'result_code', '') in (
+                'notSupported', 'temDISABLED', 'notYetImplemented',
+            )
+            if not_supported:
+                console.print(
+                    "[yellow]AMM not supported on this transport. "
+                    "Use --dry-run to practice.[/]"
+                )
+                return context
             console.print(
                 f"  [red]AMM creation failed: {create_result.error}[/]"
             )
@@ -1421,7 +1456,18 @@ async def run_module(
 
         # Execute action if present
         if step.action:
-            context = await _execute_action(step, state, transport, context["wallet_seed"], context)
+            try:
+                context = await _execute_action(
+                    step, state, transport, context.get("wallet_seed", ""), context
+                )
+            except Exception as exc:
+                console.print(f"[red]Step failed unexpectedly: {exc}[/]")
+                save_state(state)
+                console.print(
+                    f"[yellow]Progress saved. You can resume with: "
+                    f"xrpl-lab run {module.id}[/]"
+                )
+                return False
             console.print()
 
         # Pause between steps (except last)
