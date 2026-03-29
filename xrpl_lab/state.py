@@ -12,6 +12,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
+from . import __version__
+
 # Defaults
 DEFAULT_HOME_DIR = Path.home() / ".xrpl-lab"
 DEFAULT_WORKSPACE_DIR = Path(".xrpl-lab")
@@ -138,6 +140,13 @@ def load_state() -> LabState:
     if p.exists():
         try:
             data: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
+            state_version = data.get("version", "unknown")
+            if state_version != __version__:
+                print(
+                    f"Warning: state from v{state_version}, current is v{__version__}. "
+                    "Some fields may differ.",
+                    file=sys.stderr,
+                )
             return LabState.model_validate(data)
         except (json.JSONDecodeError, ValueError, ValidationError):
             # Corrupted state — backup then start fresh

@@ -127,7 +127,12 @@ async def _execute_action(
     wallet_seed: str,
     context: dict,
 ) -> dict:
-    """Execute an action embedded in a module step. Returns updated context."""
+    """Execute an action embedded in a module step. Returns updated context.
+
+    # NOTE: This function dispatches module actions via a large if/elif chain.
+    # A registry-based dispatch (dict[str, Callable]) is planned for a future
+    # version to improve maintainability. See PH-020.
+    """
     action = step.action
     if not action:
         return context
@@ -701,8 +706,13 @@ async def _execute_action(
             console.print("  [yellow]No transactions to audit yet.[/]")
             return context
 
-        console.print(f"  Auditing {len(txids)} transaction(s)...")
-        audit_report = await run_audit(transport, txids)
+        total = len(txids)
+        console.print(f"  Auditing {total} transaction(s)...")
+
+        def _audit_progress(i: int, tot: int, txid: str) -> None:
+            console.print(f"[dim]  Auditing {i}/{tot}: {txid[:16]}...[/]")
+
+        audit_report = await run_audit(transport, txids, on_progress=_audit_progress)
 
         console.print()
         console.print(f"  Checked: [bold]{audit_report.total}[/]")
@@ -1212,7 +1222,11 @@ async def _execute_action(
     elif action == "check_inventory":
         args = step.action_args
         currency = args.get("currency", "LAB")
-        min_xrp = int(args.get("min_xrp_drops", "20000000"))
+        try:
+            min_xrp = int(args.get("min_xrp_drops", "20000000"))
+        except ValueError:
+            console.print("[yellow]Invalid min_xrp_drops, using default[/]")
+            min_xrp = 20_000_000
         min_token = float(args.get("min_token", "10"))
         holder_address = state.wallet_address or ""
 
@@ -1456,6 +1470,7 @@ async def run_module(
 
         # Execute action if present
         if step.action:
+            console.print(f"[dim]  → {step.action}...[/]")
             try:
                 context = await _execute_action(
                     step, state, transport, context.get("wallet_seed", ""), context

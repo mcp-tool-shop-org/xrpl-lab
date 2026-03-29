@@ -256,13 +256,22 @@ async def run_audit(
     txids: list[str],
     config: AuditConfig | None = None,
     endpoint: str = "",
+    on_progress=None,
 ) -> AuditReport:
-    """Run audit on a list of txids. Returns AuditReport."""
+    """Run audit on a list of txids. Returns AuditReport.
+
+    Args:
+        on_progress: optional callable(i, total, txid) called before each fetch,
+                     where i is 1-based index.
+    """
     if config is None:
         config = AuditConfig()
 
     verdicts: list[AuditVerdict] = []
-    for txid in txids:
+    total = len(txids)
+    for i, txid in enumerate(txids):
+        if on_progress is not None:
+            on_progress(i + 1, total, txid)
         tx = await transport.fetch_tx(txid)
         verdict = audit_tx(tx, config)
         verdicts.append(verdict)

@@ -259,6 +259,7 @@ class XRPLTestnetTransport(Transport):
                     "Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -270,6 +271,7 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -339,6 +341,7 @@ class XRPLTestnetTransport(Transport):
                     "TrustSet submission timed out. Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -349,6 +352,7 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -422,6 +426,7 @@ class XRPLTestnetTransport(Transport):
                     "Issued payment timed out. Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -432,6 +437,7 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -462,7 +468,7 @@ class XRPLTestnetTransport(Transport):
                 for line in lines
             ]
         except Exception:
-            logger.debug("get_trust_lines failed for %s", address, exc_info=True)
+            logger.warning("get_trust_lines failed for %s", address, exc_info=True)
             return []
 
     def _amount_obj(
@@ -554,6 +560,7 @@ class XRPLTestnetTransport(Transport):
                     "OfferCreate timed out. Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -564,6 +571,7 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -627,6 +635,7 @@ class XRPLTestnetTransport(Transport):
                     "OfferCancel timed out. Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -637,6 +646,7 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
+                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -666,7 +676,7 @@ class XRPLTestnetTransport(Transport):
                 for o in offers
             ]
         except Exception:
-            logger.debug("get_account_offers failed for %s", address, exc_info=True)
+            logger.warning("get_account_offers failed for %s", address, exc_info=True)
             return []
 
     async def get_account_info(self, address: str) -> AccountSnapshot:
@@ -686,7 +696,7 @@ class XRPLTestnetTransport(Transport):
                 sequence=acct.get("Sequence", 0),
             )
         except Exception:
-            logger.debug("get_account_info failed for %s", address, exc_info=True)
+            logger.warning("get_account_info failed for %s", address, exc_info=True)
             return AccountSnapshot(address=address)
 
     async def fetch_tx(self, txid: str) -> TxInfo:
@@ -734,7 +744,7 @@ class XRPLTestnetTransport(Transport):
             balance_drops = response.result.get("account_data", {}).get("Balance", "0")
             return str(drops_to_xrp(balance_drops))
         except Exception:
-            logger.debug("get_balance failed for %s", address, exc_info=True)
+            logger.warning("get_balance failed for %s", address, exc_info=True)
             return "0"
 
     # ── AMM stubs (not yet implemented for testnet) ──────────────────

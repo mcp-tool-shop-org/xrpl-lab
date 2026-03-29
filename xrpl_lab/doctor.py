@@ -100,7 +100,7 @@ async def _check_rpc() -> Check:
 
     transport = XRPLTestnetTransport()
     try:
-        info = await asyncio.wait_for(transport.get_network_info(), timeout=15)
+        info = await asyncio.wait_for(transport.get_network_info(), timeout=30)  # Match RPC_TIMEOUT from xrpl_testnet transport
         if info.connected:
             return Check(
                 "RPC endpoint",

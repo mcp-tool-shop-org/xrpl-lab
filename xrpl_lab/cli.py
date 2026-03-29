@@ -89,7 +89,7 @@ def start(dry_run: bool):
                 console.print(f"  Camp address: [cyan]{escape(camp_address)}[/]")
                 console.print("  (You can reuse this or create a new wallet)")
         except (json.JSONDecodeError, KeyError):
-            pass
+            console.print(f"[yellow]Found certificate at {camp_cert} but could not read it (malformed JSON). Continuing without it.[/]")
         console.print()
     else:
         console.print("[dim]No XRPL Camp certificate found (that's fine).[/]")
@@ -432,7 +432,11 @@ def last_run():
         console.print("[yellow]No last run found. Run a strategy module first.[/]")
         return
 
-    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        console.print("[yellow]Last run data is unreadable. Try running a module first.[/]")
+        return
 
     console.print()
     console.print(Panel("[bold]Last Run[/]", border_style="blue"))
