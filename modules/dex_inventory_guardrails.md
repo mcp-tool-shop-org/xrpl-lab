@@ -1,6 +1,7 @@
 ---
 id: dex_inventory_guardrails
 title: "DEX Inventory Guardrails: Don't Get Lopsided"
+order: 11
 time: 15-20 min
 level: advanced
 requires:

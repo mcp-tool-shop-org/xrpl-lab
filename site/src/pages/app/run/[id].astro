@@ -1,0 +1,382 @@
+---
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+
+export function getStaticPaths() {
+  const moduleIds = [
+    'receipt_literacy',
+    'failure_literacy',
+    'trust_lines_101',
+    'debugging_trust_lines',
+    'dex_literacy',
+    'reserves_101',
+    'account_hygiene',
+    'receipt_audit',
+    'amm_liquidity_101',
+    'dex_market_making_101',
+    'inventory_guardrails',
+    'dex_vs_amm_risk_literacy',
+  ];
+  return moduleIds.map(id => ({ params: { id } }));
+}
+
+const { id } = Astro.params;
+---
+
+<DashboardLayout title="Run Module" activePage="modules">
+
+  <div id="run-page" class="space-y-6" data-module-id={id}>
+
+    <!-- Header (loaded dynamically) -->
+    <div>
+      <a href={`/xrpl-lab/app/modules/${id}/`} class="text-sm text-slate-500 hover:text-emerald-400 transition-colors mb-2 inline-block">&larr; Back to Module</a>
+      <div class="flex items-center gap-3 mt-1">
+        <h1 id="run-title" class="text-2xl font-bold text-slate-100">Loading...</h1>
+        <span id="run-badge" class="inline-block px-2 py-0.5 text-xs font-medium rounded border border-slate-600 text-slate-400"></span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="flex items-center gap-3">
+      <button
+        id="btn-run"
+        class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        &#9654; Run
+      </button>
+      <button
+        id="btn-dry"
+        class="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded border border-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        &#128203; Dry Run
+      </button>
+      <span id="run-status-label" class="text-sm text-slate-500 ml-2"></span>
+    </div>
+
+    <!-- Main content area: terminal + sidebar -->
+    <div class="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
+
+      <!-- Terminal output -->
+      <section class="order-2 lg:order-1">
+        <div class="bg-slate-950 rounded-lg border border-slate-700 overflow-hidden">
+          <div class="flex items-center gap-2 px-4 py-2 bg-slate-900 border-b border-slate-700">
+            <span class="w-3 h-3 rounded-full bg-red-500/60"></span>
+            <span class="w-3 h-3 rounded-full bg-amber-500/60"></span>
+            <span class="w-3 h-3 rounded-full bg-emerald-500/60"></span>
+            <span class="text-xs text-slate-500 ml-2 font-mono">output</span>
+          </div>
+          <div
+            id="terminal"
+            class="p-4 font-mono text-sm text-emerald-400 h-96 overflow-y-auto whitespace-pre-wrap"
+          >
+            <span class="text-slate-600">Waiting to start...</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step sidebar -->
+      <aside class="order-1 lg:order-2">
+        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Steps</h2>
+          <div id="step-list" class="space-y-2">
+            <p class="text-sm text-slate-600">Steps appear when run starts.</p>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+
+    <!-- Transactions -->
+    <section id="tx-section" class="hidden">
+      <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Transactions</h2>
+        <ul id="tx-list" class="space-y-1.5 font-mono text-xs"></ul>
+      </div>
+    </section>
+
+    <!-- Completion banner -->
+    <div id="completion-banner" class="hidden rounded-lg border p-5"></div>
+
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8321';
+
+    const container = document.getElementById('run-page');
+    const moduleId = container?.dataset.moduleId || '';
+
+    const levelColors: Record<string, string> = {
+      beginner: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      intermediate: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      advanced: 'bg-red-500/20 text-red-400 border-red-500/30',
+    };
+
+    // Check URL params for auto-start
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoDryRun = urlParams.get('dry_run');
+
+    // State
+    let ws: WebSocket | null = null;
+    let running = false;
+    let steps: Array<{ action: string; status: 'pending' | 'running' | 'done' | 'failed' }> = [];
+    let txids: string[] = [];
+
+    // Elements
+    const terminal = document.getElementById('terminal')!;
+    const stepList = document.getElementById('step-list')!;
+    const txSection = document.getElementById('tx-section')!;
+    const txList = document.getElementById('tx-list')!;
+    const completionBanner = document.getElementById('completion-banner')!;
+    const btnRun = document.getElementById('btn-run') as HTMLButtonElement;
+    const btnDry = document.getElementById('btn-dry') as HTMLButtonElement;
+    const statusLabel = document.getElementById('run-status-label')!;
+
+    // Load module info
+    async function loadModuleInfo() {
+      try {
+        const mod = await fetch(`${API_BASE}/api/modules/${moduleId}`).then(r => r.json());
+        const title = document.getElementById('run-title');
+        if (title) title.textContent = mod.title || moduleId;
+        const badge = document.getElementById('run-badge');
+        if (badge && mod.level) {
+          badge.textContent = mod.level;
+          badge.className = `inline-block px-2 py-0.5 text-xs font-medium rounded border ${levelColors[mod.level] || ''}`;
+        }
+      } catch {
+        const title = document.getElementById('run-title');
+        if (title) title.textContent = moduleId;
+      }
+    }
+
+    // Terminal helpers
+    function termClear() {
+      terminal.innerHTML = '';
+    }
+
+    function termAppend(text: string, cls: string = 'text-emerald-400') {
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = text + '\n';
+      terminal.appendChild(span);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    // Step sidebar render
+    function renderSteps() {
+      if (steps.length === 0) {
+        stepList.innerHTML = '<p class="text-sm text-slate-600">Steps appear when run starts.</p>';
+        return;
+      }
+      stepList.innerHTML = steps.map((s, i) => {
+        let icon = '<span class="text-slate-600">&#9675;</span>';      // pending
+        let textCls = 'text-slate-500';
+        if (s.status === 'running') {
+          icon = '<span class="text-emerald-400 animate-pulse">&#9679;</span>';
+          textCls = 'text-emerald-400 font-semibold';
+        } else if (s.status === 'done') {
+          icon = '<span class="text-emerald-500">&#10003;</span>';
+          textCls = 'text-slate-300';
+        } else if (s.status === 'failed') {
+          icon = '<span class="text-red-500">&#10007;</span>';
+          textCls = 'text-red-400';
+        }
+        return `<div class="flex items-start gap-2 text-sm">
+          <span class="shrink-0 w-5 text-center mt-0.5">${icon}</span>
+          <span class="${textCls}">${i + 1}. ${s.action}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // Start a run
+    async function startRun(dryRun: boolean) {
+      if (running) return;
+      running = true;
+      steps = [];
+      txids = [];
+
+      btnRun.disabled = true;
+      btnDry.disabled = true;
+      termClear();
+      txSection.classList.add('hidden');
+      txList.innerHTML = '';
+      completionBanner.classList.add('hidden');
+      renderSteps();
+
+      const modeLabel = dryRun ? 'DRY RUN' : 'LIVE RUN';
+      statusLabel.textContent = `Starting ${modeLabel}...`;
+      statusLabel.className = 'text-sm text-emerald-400 ml-2 animate-pulse';
+      termAppend(`[${modeLabel}] Starting module: ${moduleId}`, 'text-slate-400');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/run/${moduleId}?dry_run=${dryRun}`, { method: 'POST' });
+        if (!res.ok) {
+          throw new Error(`API returned ${res.status}`);
+        }
+        const result = await res.json();
+        const runId = result.run_id;
+
+        termAppend(`[${modeLabel}] Run ID: ${runId}`, 'text-slate-500');
+        statusLabel.textContent = `Running...`;
+
+        // Connect WebSocket
+        const wsBase = API_BASE.replace(/^http/, 'ws');
+        ws = new WebSocket(`${wsBase}/api/run/${moduleId}/ws?run_id=${runId}`);
+
+        ws.addEventListener('message', (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            handleMessage(msg);
+          } catch {
+            // ignore
+          }
+        });
+
+        ws.addEventListener('close', () => {
+          if (running) {
+            statusLabel.textContent = 'Connection closed';
+            statusLabel.className = 'text-sm text-amber-400 ml-2';
+            termAppend('\n[disconnected] WebSocket closed. If the run is still going, refresh to reconnect.', 'text-amber-400');
+            running = false;
+            btnRun.disabled = false;
+            btnDry.disabled = false;
+          }
+        });
+
+        ws.addEventListener('error', () => {
+          termAppend('[error] WebSocket connection failed.', 'text-red-400');
+        });
+
+      } catch (err: any) {
+        termAppend(`[error] ${err.message || 'Failed to start run'}`, 'text-red-400');
+        statusLabel.textContent = 'Failed to start';
+        statusLabel.className = 'text-sm text-red-400 ml-2';
+        running = false;
+        btnRun.disabled = false;
+        btnDry.disabled = false;
+      }
+    }
+
+    // Handle incoming WS messages
+    function handleMessage(msg: any) {
+      switch (msg.type) {
+        case 'step': {
+          // Initialize steps if first step message
+          if (steps.length === 0 && msg.total) {
+            for (let i = 0; i < msg.total; i++) {
+              steps.push({ action: `Step ${i + 1}`, status: 'pending' });
+            }
+          }
+          // Update current step
+          if (msg.index !== undefined && msg.index < steps.length) {
+            // Mark previous as done if it was running
+            for (let i = 0; i < steps.length; i++) {
+              if (steps[i].status === 'running') steps[i].status = 'done';
+            }
+            steps[msg.index].action = msg.action || steps[msg.index].action;
+            steps[msg.index].status = 'running';
+          }
+          renderSteps();
+          termAppend(`> Step ${(msg.index || 0) + 1}/${msg.total || '?'}: ${msg.action || '...'}`, 'text-slate-300');
+          break;
+        }
+
+        case 'output': {
+          termAppend(msg.text || '', 'text-emerald-400');
+          break;
+        }
+
+        case 'step_complete': {
+          const idx = steps.findIndex(s => s.action === msg.action);
+          if (idx >= 0) {
+            steps[idx].status = msg.success ? 'done' : 'failed';
+          }
+          renderSteps();
+          const sym = msg.success ? '✓' : '✗';
+          const cls = msg.success ? 'text-emerald-500' : 'text-red-500';
+          termAppend(`  ${sym} ${msg.action}: ${msg.success ? 'completed' : 'failed'}`, cls);
+          break;
+        }
+
+        case 'tx': {
+          txids.push(msg.txid);
+          txSection.classList.remove('hidden');
+          const li = document.createElement('li');
+          li.className = 'flex items-center gap-2';
+          const resultCls = msg.result_code === 'tesSUCCESS' ? 'text-emerald-400' : 'text-amber-400';
+          li.innerHTML = `<span class="text-slate-500">#${txids.length}</span>
+            <span class="text-slate-300 truncate">${msg.txid}</span>
+            <span class="${resultCls}">${msg.result_code}</span>`;
+          txList.appendChild(li);
+          termAppend(`  TX: ${msg.txid} [${msg.result_code}]`, 'text-cyan-400');
+          break;
+        }
+
+        case 'error': {
+          termAppend(`[ERROR] ${msg.message || 'Unknown error'}`, 'text-red-400');
+          break;
+        }
+
+        case 'complete': {
+          running = false;
+          btnRun.disabled = false;
+          btnDry.disabled = false;
+          ws?.close();
+
+          const success = msg.success;
+          statusLabel.textContent = success ? 'Completed' : 'Failed';
+          statusLabel.className = success
+            ? 'text-sm text-emerald-400 ml-2'
+            : 'text-sm text-red-400 ml-2';
+
+          // Mark remaining running steps
+          steps.forEach(s => {
+            if (s.status === 'running') s.status = success ? 'done' : 'failed';
+          });
+          renderSteps();
+
+          // Completion banner
+          if (success) {
+            completionBanner.className = 'rounded-lg border p-5 bg-emerald-500/10 border-emerald-500/30';
+            completionBanner.innerHTML = `
+              <div class="flex items-center gap-3">
+                <span class="text-3xl text-emerald-400">&#10003;</span>
+                <div>
+                  <p class="text-lg font-semibold text-emerald-400">Module completed successfully</p>
+                  <p class="text-sm text-slate-400 mt-1">
+                    ${msg.txids?.length || 0} transaction(s) submitted.
+                    ${msg.report_path ? `<a href="/xrpl-lab/app/artifacts/" class="text-emerald-400 hover:underline ml-1">View artifacts &rarr;</a>` : ''}
+                  </p>
+                </div>
+              </div>`;
+          } else {
+            completionBanner.className = 'rounded-lg border p-5 bg-red-500/10 border-red-500/30';
+            completionBanner.innerHTML = `
+              <div class="flex items-center gap-3">
+                <span class="text-3xl text-red-400">&#10007;</span>
+                <div>
+                  <p class="text-lg font-semibold text-red-400">Module run failed</p>
+                  <p class="text-sm text-slate-400 mt-1">Check the output above for errors. You can retry the run.</p>
+                </div>
+              </div>`;
+          }
+          completionBanner.classList.remove('hidden');
+
+          termAppend(`\n--- Run ${success ? 'PASSED' : 'FAILED'} ---`, success ? 'text-emerald-500' : 'text-red-500');
+          break;
+        }
+      }
+    }
+
+    // Wire buttons
+    btnRun.addEventListener('click', () => startRun(false));
+    btnDry.addEventListener('click', () => startRun(true));
+
+    // Init
+    loadModuleInfo();
+
+    // Auto-start if navigated with ?dry_run param
+    if (autoDryRun !== null) {
+      setTimeout(() => startRun(autoDryRun === 'true'), 300);
+    }
+  </script>
+
+</DashboardLayout>

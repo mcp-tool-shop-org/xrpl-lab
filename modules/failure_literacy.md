@@ -1,6 +1,7 @@
 ---
 id: failure_literacy
 title: Failure Literacy
+order: 2
 time: 10-15 min
 level: beginner
 requires:

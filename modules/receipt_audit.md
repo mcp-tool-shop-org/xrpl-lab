@@ -1,6 +1,7 @@
 ---
 id: receipt_audit
 title: "Audit Mode: Verify Receipts at Scale"
+order: 8
 time: 10-15 min
 level: intermediate
 requires:

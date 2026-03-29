@@ -1,6 +1,7 @@
 ---
 id: receipt_literacy
 title: Receipt Literacy
+order: 1
 time: 10-15 min
 level: beginner
 requires:

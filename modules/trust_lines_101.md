@@ -1,6 +1,7 @@
 ---
 id: trust_lines_101
 title: "Trust Lines 101: Issued Currencies as Relationships"
+order: 3
 time: 15-20 min
 level: beginner
 requires:

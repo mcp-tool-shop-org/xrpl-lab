@@ -1,6 +1,7 @@
 ---
 id: dex_vs_amm_risk_literacy
 title: "DEX vs AMM Risk Literacy: Comparing Trading Strategies"
+order: 12
 time: 25-35 min
 level: advanced
 requires:

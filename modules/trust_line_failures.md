@@ -1,6 +1,7 @@
 ---
 id: trust_line_failures
 title: "Debugging Trust Lines"
+order: 4
 time: 10-15 min
 level: beginner
 requires:

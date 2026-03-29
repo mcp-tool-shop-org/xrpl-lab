@@ -1,6 +1,7 @@
 ---
 id: dex_literacy
 title: "DEX Literacy: Offers, Order Books, and Cancellations"
+order: 5
 time: 10-15 min
 level: intermediate
 requires:

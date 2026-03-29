@@ -90,14 +90,36 @@ def generate_proof_pack(state: LabState) -> dict:
 
 def generate_certificate(state: LabState) -> dict:
     """Generate a slim completion certificate (no secrets)."""
+    from .modules import load_all_modules
+
+    completed_ids = [cm.module_id for cm in state.completed_modules]
+    all_mods = load_all_modules()
+    module_titles = {
+        cm.module_id: all_mods[cm.module_id].title
+        if cm.module_id in all_mods else cm.module_id
+        for cm in state.completed_modules
+    }
+    total_tx = len(state.tx_index)
+    successful_tx = sum(1 for tx in state.tx_index if tx.success)
+
+    n = len(completed_ids)
+    summary_line = (
+        f"Completed {n} module{'s' if n != 1 else ''} "
+        f"with {total_tx} transaction{'s' if total_tx != 1 else ''}."
+    )
+
     cert = {
         "xrpl_lab_certificate": True,
         "version": __version__,
         "network": state.network,
         "address": state.wallet_address or "unknown",
         "generated_at": datetime.now(tz=UTC).isoformat(),
-        "modules_completed": [cm.module_id for cm in state.completed_modules],
+        "modules_completed": completed_ids,
+        "module_titles": module_titles,
         "total_modules": len(state.completed_modules),
+        "total_transactions": total_tx,
+        "successful_transactions": successful_tx,
+        "summary_line": summary_line,
     }
 
     content = json.dumps(cert, sort_keys=True, separators=(",", ":"))

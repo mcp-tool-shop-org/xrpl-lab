@@ -33,6 +33,7 @@ class ModuleDef:
     checks: list[str]
     steps: list[ModuleStep]
     raw_body: str = ""
+    order: int = 99
 
     @property
     def summary_line(self) -> str:
@@ -113,6 +114,7 @@ def parse_module(text: str) -> ModuleDef:
         checks=meta.get("checks", []),
         steps=steps,
         raw_body=body,
+        order=int(meta.get("order", 99)),
     )
 
 
@@ -127,7 +129,11 @@ def _builtin_modules_dir() -> Path:
 
 
 def load_all_modules(extra_dirs: list[Path] | None = None) -> dict[str, ModuleDef]:
-    """Load all modules from built-in + optional extra directories."""
+    """Load all modules from built-in + optional extra directories.
+
+    Modules are sorted by (order, id) so the returned dict preserves
+    the intended curriculum sequence.
+    """
     modules: dict[str, ModuleDef] = {}
 
     dirs = [_builtin_modules_dir()]
@@ -145,4 +151,6 @@ def load_all_modules(extra_dirs: list[Path] | None = None) -> dict[str, ModuleDe
                 print(f"Warning: skipping malformed module {f.name}: {e}", file=sys.stderr)
                 continue
 
-    return modules
+    # Sort by (order, id) so the dict iteration order matches curriculum
+    sorted_items = sorted(modules.items(), key=lambda kv: (kv[1].order, kv[0]))
+    return dict(sorted_items)

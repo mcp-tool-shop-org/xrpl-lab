@@ -1,6 +1,7 @@
 ---
 id: account_hygiene
 title: "Account Hygiene: Freeing Reserves and Cleaning Up Objects"
+order: 7
 time: 15-25 min
 level: intermediate
 requires:

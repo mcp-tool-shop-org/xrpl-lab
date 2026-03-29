@@ -1,6 +1,7 @@
 ---
 id: reserves_101
 title: "Reserves 101: Where Your XRP 'Went'"
+order: 6
 time: 10-15 min
 level: intermediate
 requires:

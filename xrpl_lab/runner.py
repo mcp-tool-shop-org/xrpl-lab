@@ -1431,6 +1431,7 @@ async def run_module(
     module: ModuleDef,
     transport: Transport,
     dry_run: bool = False,
+    force: bool = False,
 ) -> bool:
     """Run a module interactively. Returns True if completed successfully."""
     state = load_state()
@@ -1442,6 +1443,20 @@ async def run_module(
             f"Run with --force to redo it.[/]"
         )
         return True
+
+    # FT-013: Prerequisite check — warn if required modules not completed
+    if module.requires and not force:
+        completed_ids = {cm.module_id for cm in state.completed_modules}
+        missing_prereqs = [r for r in module.requires if r not in completed_ids]
+        if missing_prereqs:
+            console.print(
+                f"[yellow]Warning: This module requires the following to be completed first:[/]"
+            )
+            for prereq in missing_prereqs:
+                console.print(f"  [yellow]- {prereq}[/]")
+            console.print(
+                "[yellow]Run those modules first, or use --force to bypass.[/]"
+            )
 
     # FT-003: Warn if module uses AMM actions but transport is not dry-run
     _AMM_ACTIONS = {"ensure_amm_pair", "amm_deposit", "amm_withdraw"}
@@ -1532,8 +1547,30 @@ async def run_module(
             "verify_module_offers_absent", "hygiene_summary",
             "check_inventory", "place_safe_sides",
         ):
+            # FT-006: include action outcome in the report body
+            step_heading = step.text.split("\n")[0][:100]
+            outcome_lines: list[str] = [f"Action: `{step.action}`"]
+
+            # Capture txids produced by this step
+            current_txids = context.get("txids", [])
+            if current_txids:
+                outcome_lines.append(f"Transactions: {len(current_txids)}")
+                for txid in current_txids[-3:]:  # last 3 at most
+                    outcome_lines.append(f"- TXID: `{txid}`")
+
+            # Capture last submit result
+            last_submit = context.get("last_submit")
+            if last_submit and hasattr(last_submit, "result_code") and last_submit.result_code:
+                outcome_lines.append(f"Result code: `{last_submit.result_code}`")
+
+            # Capture verify result
+            last_verify = context.get("last_verify")
+            if last_verify and hasattr(last_verify, "checks"):
+                for chk in last_verify.checks[:3]:
+                    outcome_lines.append(f"- \u2713 {chk}")
+
             report_sections.append(
-                (f"Step {i + 1}", step.text.split("\n")[0][:100])
+                (f"Step {i + 1}: {step_heading}", "\n".join(outcome_lines))
             )
 
     # Module completed — write report and update state

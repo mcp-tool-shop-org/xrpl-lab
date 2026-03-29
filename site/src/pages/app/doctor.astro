@@ -1,0 +1,131 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout title="Doctor" activePage="doctor">
+
+  <div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-100">Doctor</h1>
+        <p class="text-slate-400 mt-1">Environment health checks for your XRPL Lab setup.</p>
+      </div>
+      <button
+        id="btn-rerun"
+        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Re-run Checks
+      </button>
+    </div>
+
+    <!-- Overall banner -->
+    <div id="doctor-banner" class="hidden rounded-lg border p-4 flex items-center gap-3">
+      <span id="banner-icon" class="text-2xl"></span>
+      <div>
+        <p id="banner-title" class="font-semibold text-lg"></p>
+        <p id="banner-subtitle" class="text-sm opacity-80"></p>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div id="doctor-loading" class="space-y-3">
+      <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 animate-pulse">
+        <div class="h-5 bg-slate-700 rounded w-1/3 mb-2"></div>
+        <div class="h-4 bg-slate-700 rounded w-2/3"></div>
+      </div>
+      <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 animate-pulse">
+        <div class="h-5 bg-slate-700 rounded w-1/4 mb-2"></div>
+        <div class="h-4 bg-slate-700 rounded w-1/2"></div>
+      </div>
+      <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 animate-pulse">
+        <div class="h-5 bg-slate-700 rounded w-2/5 mb-2"></div>
+        <div class="h-4 bg-slate-700 rounded w-3/5"></div>
+      </div>
+    </div>
+
+    <!-- Checks grid -->
+    <div id="doctor-checks" class="hidden space-y-3"></div>
+
+    <!-- Error state -->
+    <div id="doctor-error" class="hidden">
+      <div class="flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
+        <span>&#9888;</span>
+        <span>Could not run doctor checks. Is the API running?</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8321';
+
+    const statusConfig: Record<string, { icon: string; border: string; dot: string; text: string }> = {
+      ok:   { icon: '&#10003;', border: 'border-emerald-500/30', dot: 'bg-emerald-500', text: 'text-emerald-400' },
+      warn: { icon: '&#9888;',  border: 'border-amber-500/30',  dot: 'bg-amber-500',  text: 'text-amber-400' },
+      fail: { icon: '&#10007;', border: 'border-red-500/30',     dot: 'bg-red-500',     text: 'text-red-400' },
+    };
+
+    const bannerConfig: Record<string, { icon: string; bg: string; border: string; title: string; subtitle: string }> = {
+      healthy: { icon: '&#10003;', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', title: 'All checks passed', subtitle: 'Your environment is ready.' },
+      warning: { icon: '&#9888;',  bg: 'bg-amber-500/10',  border: 'border-amber-500/30',  title: 'Some warnings found', subtitle: 'Review the items below.' },
+      error:   { icon: '&#10007;', bg: 'bg-red-500/10',     border: 'border-red-500/30',     title: 'Issues detected', subtitle: 'Fix the failing checks before running modules.' },
+    };
+
+    async function runDoctor() {
+      const loading = document.getElementById('doctor-loading');
+      const checks = document.getElementById('doctor-checks');
+      const banner = document.getElementById('doctor-banner');
+      const error = document.getElementById('doctor-error');
+
+      loading?.classList.remove('hidden');
+      checks?.classList.add('hidden');
+      banner?.classList.add('hidden');
+      error?.classList.add('hidden');
+
+      try {
+        const result = await fetch(`${API_BASE}/api/doctor`).then(r => r.json());
+
+        // Banner
+        if (banner) {
+          const bc = bannerConfig[result.overall] || bannerConfig.error;
+          banner.className = `rounded-lg border p-4 flex items-center gap-3 ${bc.bg} ${bc.border}`;
+          const icon = document.getElementById('banner-icon');
+          const title = document.getElementById('banner-title');
+          const subtitle = document.getElementById('banner-subtitle');
+          if (icon) icon.innerHTML = bc.icon;
+          if (title) title.textContent = bc.title;
+          if (subtitle) subtitle.textContent = bc.subtitle;
+          banner.classList.remove('hidden');
+        }
+
+        // Check cards
+        if (checks && Array.isArray(result.checks)) {
+          checks.innerHTML = result.checks.map((c: any) => {
+            const sc = statusConfig[c.status] || statusConfig.ok;
+            return `<div class="bg-slate-800 rounded-lg border ${sc.border} p-4">
+              <div class="flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full ${sc.dot} shrink-0"></span>
+                <span class="font-semibold text-slate-100 text-sm">${c.name}</span>
+                <span class="ml-auto ${sc.text} text-sm">${sc.icon}</span>
+              </div>
+              <p class="text-sm text-slate-400 mt-2 ml-5">${c.message}</p>
+            </div>`;
+          }).join('');
+          checks.classList.remove('hidden');
+        }
+
+        loading?.classList.add('hidden');
+
+      } catch {
+        loading?.classList.add('hidden');
+        error?.classList.remove('hidden');
+      }
+    }
+
+    document.getElementById('btn-rerun')?.addEventListener('click', runDoctor);
+    runDoctor();
+  </script>
+
+</DashboardLayout>

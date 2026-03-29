@@ -70,24 +70,27 @@ const { id } = Astro.params;
         <ol id="mod-steps" class="space-y-2 list-decimal list-inside text-sm text-slate-300"></ol>
       </section>
 
+      <!-- Prerequisites detail -->
+      <section id="prereqs-section" class="hidden bg-slate-800 rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Prerequisites</h2>
+        <ul id="prereqs-list" class="space-y-2"></ul>
+      </section>
+
       <!-- Actions -->
       <div class="flex items-center gap-3">
-        <button
+        <a
           id="btn-run"
-          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled
-          title="Wired in Wave 2"
+          class="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded transition-colors cursor-pointer"
         >
           Run Module
-        </button>
-        <button
+        </a>
+        <a
           id="btn-dry"
-          class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded border border-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled
-          title="Wired in Wave 2"
+          class="inline-block px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded border border-slate-600 transition-colors cursor-pointer"
         >
           Run in Dry Mode
-        </button>
+        </a>
+        <span id="mod-done-badge" class="hidden ml-2 px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-semibold rounded border border-emerald-500/30">&#10003; Module Completed</span>
       </div>
 
     </div>
@@ -160,6 +163,45 @@ const { id } = Astro.params;
         if (mod.completed) {
           const completedEl = document.getElementById('mod-completed');
           if (completedEl) completedEl.classList.remove('hidden');
+          const doneBadge = document.getElementById('mod-done-badge');
+          if (doneBadge) doneBadge.classList.remove('hidden');
+        }
+
+        // Wire run buttons
+        const btnRun = document.getElementById('btn-run') as HTMLAnchorElement;
+        const btnDry = document.getElementById('btn-dry') as HTMLAnchorElement;
+        if (btnRun) btnRun.href = `/xrpl-lab/app/run/${moduleId}/?dry_run=false`;
+        if (btnDry) btnDry.href = `/xrpl-lab/app/run/${moduleId}/?dry_run=true`;
+
+        // Load prerequisites with completion status
+        if (mod.prerequisites && mod.prerequisites.length > 0) {
+          const prereqsSection = document.getElementById('prereqs-section');
+          const prereqsList = document.getElementById('prereqs-list');
+          if (prereqsSection && prereqsList) {
+            try {
+              const allModules = await fetch(`${API_BASE}/api/modules`).then(r => r.json());
+              const moduleMap = new Map(allModules.map((m: any) => [m.id, m]));
+              prereqsList.innerHTML = mod.prerequisites.map((pid: string) => {
+                const pm = moduleMap.get(pid) as any;
+                const completed = pm?.completed;
+                const title = pm?.title || pid;
+                const dot = completed
+                  ? '<span class="text-emerald-500 shrink-0">&#10003;</span>'
+                  : '<span class="text-slate-600 shrink-0">&#9675;</span>';
+                const statusText = completed
+                  ? '<span class="text-xs text-emerald-500">Completed</span>'
+                  : '<span class="text-xs text-amber-400">Not completed</span>';
+                return `<li class="flex items-center gap-2 text-sm">
+                  ${dot}
+                  <a href="/xrpl-lab/app/modules/${pid}/" class="text-slate-300 hover:text-emerald-400 transition-colors">${title}</a>
+                  ${statusText}
+                </li>`;
+              }).join('');
+              prereqsSection.classList.remove('hidden');
+            } catch {
+              // skip prerequisites detail on error
+            }
+          }
         }
 
         // Show content, hide loading

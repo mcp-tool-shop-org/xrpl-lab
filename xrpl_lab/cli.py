@@ -202,7 +202,7 @@ def run(module_id: str, dry_run: bool, force: bool):
 
     from .runner import run_module
 
-    asyncio.run(run_module(modules[module_id], transport, dry_run=dry_run))
+    asyncio.run(run_module(modules[module_id], transport, dry_run=dry_run, force=force))
 
 
 @main.command()
@@ -627,16 +627,20 @@ def verify(txid: str, dry_run: bool):
         console.print("[red]Verification failed.[/]")
 
     console.print()
-    for check in result.checks:
-        console.print(f"  [green]\u2713[/] {check}")
-    for fail in result.failures:
-        console.print(f"  [red]\u2717[/] {fail}")
+    if result.checks or result.failures:
+        for check in result.checks:
+            console.print(f"  [green]\u2713[/] {check}")
+        for fail in result.failures:
+            console.print(f"  [red]\u2717[/] {fail}")
+    else:
+        console.print("  [dim]No checks or failures recorded for this transaction.[/]")
 
     console.print()
     tx = result.tx_info
     console.print(f"  Type: {tx.tx_type}")
     console.print(f"  From: {tx.account}")
-    console.print(f"  To: {tx.destination}")
+    if tx.destination:
+        console.print(f"  To: {tx.destination}")
     console.print(f"  Amount: {tx.amount}")
     if tx.memos:
         console.print(f"  Memos: {', '.join(tx.memos)}")

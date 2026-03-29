@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .api.routes import router
+from .api.runner_ws import router as runner_ws_router
 
 
 def create_app() -> FastAPI:
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(router)
+    app.include_router(runner_ws_router)
 
     return app
 

@@ -97,3 +97,64 @@ export async function fetchReports(): Promise<Report[]> {
 export async function fetchDoctor(): Promise<DoctorResult> {
   return request<DoctorResult>('/api/doctor');
 }
+
+// --- Run API (Wave 2) ---
+
+export interface RunResult {
+  run_id: string;
+  status: string;
+}
+
+export interface RunHandlers {
+  onStep?: (data: { action: string; index: number; total: number }) => void;
+  onOutput?: (data: { text: string }) => void;
+  onStepComplete?: (data: { action: string; success: boolean }) => void;
+  onTx?: (data: { txid: string; result_code: string }) => void;
+  onError?: (data: { message: string }) => void;
+  onComplete?: (data: { success: boolean; txids: string[]; report_path?: string }) => void;
+}
+
+export async function startModuleRun(id: string, dryRun: boolean): Promise<RunResult> {
+  const res = await fetch(`${API_BASE}/api/run/${id}?dry_run=${dryRun}`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    throw new Error(`Run API returned ${res.status}: ${res.statusText}`);
+  }
+  return res.json() as Promise<RunResult>;
+}
+
+export function connectRunWebSocket(id: string, runId: string, handlers: RunHandlers): WebSocket {
+  const wsBase = API_BASE.replace(/^http/, 'ws');
+  const ws = new WebSocket(`${wsBase}/api/run/${id}/ws?run_id=${runId}`);
+
+  ws.addEventListener('message', (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      switch (msg.type) {
+        case 'step':
+          handlers.onStep?.(msg);
+          break;
+        case 'output':
+          handlers.onOutput?.(msg);
+          break;
+        case 'step_complete':
+          handlers.onStepComplete?.(msg);
+          break;
+        case 'tx':
+          handlers.onTx?.(msg);
+          break;
+        case 'error':
+          handlers.onError?.(msg);
+          break;
+        case 'complete':
+          handlers.onComplete?.(msg);
+          break;
+      }
+    } catch {
+      // ignore malformed messages
+    }
+  });
+
+  return ws;
+}
