@@ -23,6 +23,15 @@ _FAKE_ADDRESS = "rDRYRUN1234567890ABCDEFGHIJK"
 _COUNTER = 0
 
 
+def _address_from_seed(wallet_seed: str) -> str:
+    """Derive a deterministic fake address from a seed (no network needed).
+
+    In the dry-run transport all seeds map to _FAKE_ADDRESS because the
+    transport is single-user offline mode by design.
+    """
+    return _FAKE_ADDRESS
+
+
 def _next_txid() -> str:
     global _COUNTER
     _COUNTER += 1
@@ -208,7 +217,11 @@ class DryRunTransport(Transport):
             )
 
         txid = _next_txid()
-        matching_tl.balance = amount
+        new_balance = float(matching_tl.balance) + float(amount)
+        # Preserve integer representation when the result is a whole number
+        matching_tl.balance = (
+            str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
+        )
         return SubmitResult(
             success=True,
             txid=txid,
@@ -377,6 +390,8 @@ class DryRunTransport(Transport):
             lp_token_issuer=pool["lp_issuer"],
             lp_supply=pool["lp_supply"],
             trading_fee=pool["trading_fee"],
+            asset_a_issuer=pool.get("a_issuer", ""),
+            asset_b_issuer=pool.get("b_issuer", ""),
         )
 
     async def submit_amm_create(
@@ -447,7 +462,8 @@ class DryRunTransport(Transport):
 
         # Creator gets all initial LP tokens
         lp_key = f"{lp_currency}/{amm_account}"
-        self._lp_balances.setdefault(_FAKE_ADDRESS, {})[lp_key] = initial_lp
+        creator_address = _address_from_seed(wallet_seed)
+        self._lp_balances.setdefault(creator_address, {})[lp_key] = initial_lp
 
         self._owner_count += 1  # AMM position
 
@@ -507,7 +523,8 @@ class DryRunTransport(Transport):
 
         # Credit LP tokens to depositor
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
-        balances = self._lp_balances.setdefault(_FAKE_ADDRESS, {})
+        depositor_address = _address_from_seed(wallet_seed)
+        balances = self._lp_balances.setdefault(depositor_address, {})
         current = float(balances.get(lp_key, "0"))
         balances[lp_key] = str(round(current + lp_minted, 6))
 
@@ -552,7 +569,8 @@ class DryRunTransport(Transport):
             )
 
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
-        balances = self._lp_balances.get(_FAKE_ADDRESS, {})
+        withdrawer_address = _address_from_seed(wallet_seed)
+        balances = self._lp_balances.get(withdrawer_address, {})
         current_lp = float(balances.get(lp_key, "0"))
 
         # Determine how much LP to burn
@@ -601,6 +619,5 @@ class DryRunTransport(Transport):
         lp_token_issuer: str,
     ) -> str:
         lp_key = f"{lp_token_currency}/{lp_token_issuer}"
-        # Dry-run stores LP balances under _FAKE_ADDRESS
-        balances = self._lp_balances.get(_FAKE_ADDRESS, {})
+        balances = self._lp_balances.get(address, {})
         return balances.get(lp_key, "0")

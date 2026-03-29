@@ -112,11 +112,6 @@ async def verify_trust_line(
     checks.append(f"Limit: {match.limit}")
     checks.append(f"Balance: {match.balance}")
 
-    if expected_issuer and match.peer != expected_issuer:
-        failures.append(
-            f"Issuer mismatch: expected {expected_issuer}, got {match.peer}"
-        )
-
     if expected_balance and match.balance != expected_balance:
         failures.append(
             f"Balance mismatch: expected {expected_balance}, got {match.balance}"

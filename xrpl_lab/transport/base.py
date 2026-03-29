@@ -99,6 +99,8 @@ class AmmInfo:
     lp_token_issuer: str = ""  # AMM account that issues LP tokens
     lp_supply: str = "0"
     trading_fee: str = "0"
+    asset_a_issuer: str = ""  # full canonical issuer for asset A
+    asset_b_issuer: str = ""  # full canonical issuer for asset B
 
 
 class Transport(ABC):

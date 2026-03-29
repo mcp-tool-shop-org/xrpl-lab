@@ -333,7 +333,15 @@ def write_audit_report_csv(report: AuditReport, path: Path) -> Path:
 
 
 def write_audit_pack(report: AuditReport, path: Path) -> Path:
-    """Write a JSON audit pack with sha256 integrity hash."""
+    """Write a JSON audit pack with sha256 integrity hash.
+
+    Integrity verification procedure:
+      1. Read the file and parse JSON.
+      2. Set ``pack["integrity_sha256"] = ""``.
+      3. Serialize with ``json.dumps(pack, sort_keys=True, indent=2)``.
+      4. Compute ``hashlib.sha256(serialization.encode()).hexdigest()``.
+      5. Compare to the original ``integrity_sha256`` value.
+    """
     pack: dict = {
         "tool": "xrpl-lab",
         "version": report.tool_version,
@@ -371,9 +379,13 @@ def write_audit_pack(report: AuditReport, path: Path) -> Path:
             }
         pack["verdicts"].append(entry)
 
-    # Compute integrity hash (before adding it)
-    content = json.dumps(pack, indent=2, sort_keys=True)
-    sha = hashlib.sha256(content.encode()).hexdigest()
+    # Compute integrity hash using sentinel approach so the hash is
+    # externally verifiable without reading the source code.
+    # Verification: set integrity_sha256="" in parsed dict, serialize
+    # with sort_keys=True, indent=2, hash, compare.
+    pack["integrity_sha256"] = ""
+    canonical = json.dumps(pack, indent=2, sort_keys=True)
+    sha = hashlib.sha256(canonical.encode()).hexdigest()
     pack["integrity_sha256"] = sha
 
     path.parent.mkdir(parents=True, exist_ok=True)

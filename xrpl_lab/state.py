@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 # Defaults
 DEFAULT_HOME_DIR = Path.home() / ".xrpl-lab"
@@ -126,7 +126,7 @@ def load_state() -> LabState:
         try:
             data: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
             return LabState.model_validate(data)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError, ValidationError):
             # Corrupted state — start fresh but warn
             return LabState()
     return LabState()

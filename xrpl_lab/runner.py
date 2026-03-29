@@ -47,6 +47,7 @@ from .actions.trust_line import (
 from .actions.verify import verify_tx
 from .actions.wallet import (
     create_wallet,
+    default_wallet_path,
     load_wallet,
     save_wallet,
     wallet_exists,
@@ -74,7 +75,7 @@ async def _ensure_wallet(state: LabState, transport: Transport) -> tuple[LabStat
         if wallet:
             console.print(f"  Wallet loaded: [cyan]{wallet.address}[/]")
             state.wallet_address = wallet.address
-            state.wallet_path = str(wallet_path) if wallet_path else None
+            state.wallet_path = str(default_wallet_path())
             save_state(state)
             return state, wallet.seed
 

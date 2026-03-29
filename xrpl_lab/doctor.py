@@ -172,12 +172,11 @@ def _check_last_error() -> Check:
         return Check("Last error", True, "No failed transactions")
 
     last = failed[-1]
-    hint = _result_code_hint(last.txid)
     return Check(
         "Last error",
         True,  # Informational, not a failure
-        f"Last failure in '{last.module_id}': {last.txid[:24]}...",
-        hint,
+        f"Last failure in '{last.module_id}': tx {last.txid[:24]}...",
+        f"Run: xrpl-lab verify --tx {last.txid} for details",
     )
 
 

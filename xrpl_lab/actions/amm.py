@@ -132,12 +132,18 @@ async def verify_lp_received(
             f"LP balance {lp_balance} below expected minimum {min_expected}"
         )
 
-    # Refresh pool info
+    # Refresh pool info using canonical issuer fields
+    a_currency = (
+        amm_info.asset_a.split("/")[0] if "/" in amm_info.asset_a else amm_info.asset_a
+    )
+    b_currency = (
+        amm_info.asset_b.split("/")[0] if "/" in amm_info.asset_b else amm_info.asset_b
+    )
     pool = await transport.get_amm_info(
-        amm_info.asset_a.split("/")[0] if "/" in amm_info.asset_a else amm_info.asset_a,
-        "",
-        amm_info.asset_b.split("/")[0] if "/" in amm_info.asset_b else amm_info.asset_b,
-        "",
+        a_currency,
+        amm_info.asset_a_issuer,
+        b_currency,
+        amm_info.asset_b_issuer,
     )
     if pool:
         checks.append(f"Pool A: {pool.pool_a}")
@@ -169,7 +175,11 @@ async def verify_withdrawal(
     balance_f = float(lp_balance)
     before_f = float(lp_before)
 
-    if balance_f < before_f:
+    if balance_f == 0 and before_f == 0:
+        failures.append(
+            "LP balance was 0 before and after — no withdrawal detected"
+        )
+    elif balance_f < before_f:
         checks.append(
             f"LP tokens decreased: {lp_before} -> {lp_balance}"
         )
