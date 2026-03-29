@@ -10,13 +10,16 @@ from .api.routes import router
 from .api.runner_ws import router as runner_ws_router
 
 
-def create_app() -> FastAPI:
+def create_app(dry_run: bool = False) -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="XRPL Lab",
         version=__version__,
         description="XRPL Lab API — learn by doing, prove by artifact.",
     )
+
+    # Store the dry_run preference so routes can read it via request.app.state.dry_run
+    app.state.dry_run = dry_run
 
     app.add_middleware(
         CORSMiddleware,

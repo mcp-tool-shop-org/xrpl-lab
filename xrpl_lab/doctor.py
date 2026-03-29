@@ -100,7 +100,10 @@ async def _check_rpc() -> Check:
 
     transport = XRPLTestnetTransport()
     try:
-        info = await asyncio.wait_for(transport.get_network_info(), timeout=30)  # Match RPC_TIMEOUT from xrpl_testnet transport
+        # Match RPC_TIMEOUT from xrpl_testnet transport
+        info = await asyncio.wait_for(
+            transport.get_network_info(), timeout=30,
+        )
         if info.connected:
             return Check(
                 "RPC endpoint",
@@ -175,7 +178,8 @@ def _check_last_error() -> Check:
     return Check(
         "Last error",
         True,  # Informational, not a failure
-        f"Last failure in '{last.module_id}': tx {last.txid[:24]}{'...' if len(last.txid) > 24 else ''}",
+        f"Last failure in '{last.module_id}': "
+        f"tx {last.txid[:24]}{'...' if len(last.txid) > 24 else ''}",
         f"Run: xrpl-lab verify --tx {last.txid} for details",
     )
 

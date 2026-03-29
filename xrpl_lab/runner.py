@@ -1450,7 +1450,7 @@ async def run_module(
         missing_prereqs = [r for r in module.requires if r not in completed_ids]
         if missing_prereqs:
             console.print(
-                f"[yellow]Warning: This module requires the following to be completed first:[/]"
+                "[yellow]Warning: This module requires the following to be completed first:[/]"
             )
             for prereq in missing_prereqs:
                 console.print(f"  [yellow]- {prereq}[/]")
@@ -1463,7 +1463,7 @@ async def run_module(
     _module_step_actions = {s.action for s in module.steps if s.action}
     if _AMM_ACTIONS & _module_step_actions and transport.network_name != "dry-run":
         console.print(
-            f"[yellow]This module uses AMM operations which require --dry-run mode.[/]"
+            "[yellow]This module uses AMM operations which require --dry-run mode.[/]"
         )
         console.print(
             f"[yellow]Run with: xrpl-lab run {module.id} --dry-run[/]"

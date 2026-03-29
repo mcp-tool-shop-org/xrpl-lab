@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import pytest
 from xrpl.wallet import Wallet
 
 from xrpl_lab.actions.wallet import (

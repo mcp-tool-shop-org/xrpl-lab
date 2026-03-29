@@ -6,8 +6,6 @@ import asyncio
 import logging
 import os
 
-logger = logging.getLogger(__name__)
-
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
 from xrpl.asyncio.transaction import submit_and_wait
@@ -37,6 +35,8 @@ from .base import (
     TrustLineInfo,
     TxInfo,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_RPC_URL = "https://s.altnet.rippletest.net:51234"
 DEFAULT_FAUCET_URL = "https://faucet.altnet.rippletest.net/accounts"
@@ -259,7 +259,10 @@ class XRPLTestnetTransport(Transport):
                     "Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -271,7 +274,10 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -341,7 +347,10 @@ class XRPLTestnetTransport(Transport):
                     "TrustSet submission timed out. Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -352,7 +361,10 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -426,7 +438,10 @@ class XRPLTestnetTransport(Transport):
                     "Issued payment timed out. Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -437,7 +452,10 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -560,7 +578,10 @@ class XRPLTestnetTransport(Transport):
                     "OfferCreate timed out. Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -571,7 +592,10 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -635,7 +659,10 @@ class XRPLTestnetTransport(Transport):
                     "OfferCancel timed out. Try again in a minute."
                 )
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -646,7 +673,10 @@ class XRPLTestnetTransport(Transport):
                 ):
                     break
                 if attempt < MAX_RETRIES:
-                    logger.info("Retrying (%d/%d) after %ds...", attempt + 1, MAX_RETRIES, RETRY_DELAY)
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
 
@@ -812,4 +842,5 @@ class XRPLTestnetTransport(Transport):
         lp_token_currency: str,
         lp_token_issuer: str,
     ) -> str:
+        logger.warning("AMM LP balance not available on testnet — returns 0")
         return "0"

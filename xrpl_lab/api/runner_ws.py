@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from ..modules import load_all_modules
 from ..runner import run_module
@@ -17,7 +17,7 @@ from ..runner import run_module
 router = APIRouter(prefix="/api")
 
 # In-memory store of active and recently completed run sessions
-_sessions: dict[str, "ModuleRunSession"] = {}
+_sessions: dict[str, ModuleRunSession] = {}
 
 
 @dataclass
@@ -54,12 +54,12 @@ def _make_capture_console(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop)
 
 async def _run_module_task(session: ModuleRunSession) -> None:
     """Background task: run the module and feed events to session.queue."""
-    from ..state import load_state
 
     all_mods = load_all_modules()
     mod = all_mods.get(session.module_id)
     if mod is None:
-        await session.queue.put({"type": "error", "message": f"Module '{session.module_id}' not found"})
+        msg = f"Module '{session.module_id}' not found"
+        await session.queue.put({"type": "error", "message": msg})
         session.status = "error"
         session.error = f"Module '{session.module_id}' not found"
         return
@@ -175,8 +175,20 @@ async def _run_module_task(session: ModuleRunSession) -> None:
 
 
 @router.post("/run/{module_id}")
-async def start_run(module_id: str, dry_run: bool = False) -> dict[str, Any]:
-    """Start a module run in the background. Returns run_id."""
+async def start_run(request: Request, module_id: str, dry_run: bool = False) -> dict[str, Any]:
+    """Start a module run in the background. Returns run_id.
+
+    The ``dry_run`` query parameter overrides the app-level default.  If not
+    supplied, the value is read from ``request.app.state.dry_run`` (set by
+    ``create_app(dry_run=...)`` via the ``serve`` CLI command).
+    """
+    # If the caller didn't pass ?dry_run=true, fall back to the app-level default
+    # FastAPI sets default=False above; we detect "not explicitly passed" by
+    # checking whether the raw query string contains the key.
+    qs = str(request.url.query)
+    if "dry_run" not in qs and "dry-run" not in qs:
+        dry_run = getattr(request.app.state, "dry_run", False)
+
     all_mods = load_all_modules()
     if module_id not in all_mods:
         raise HTTPException(status_code=404, detail=f"Module '{module_id}' not found")
@@ -212,7 +224,7 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
         while True:
             try:
                 msg = await asyncio.wait_for(session.queue.get(), timeout=30.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Send a keepalive ping and continue waiting
                 try:
                     await websocket.send_json({"type": "ping"})
@@ -231,7 +243,5 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
     except WebSocketDisconnect:
         pass
     finally:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close()
-        except Exception:
-            pass

@@ -31,7 +31,8 @@ export const config: SiteConfig = {
       features: [
         { title: 'Artifact-driven', desc: 'Every module produces a verifiable artifact — transaction IDs, audit packs, proof packs with SHA-256 integrity.' },
         { title: 'Offline-first', desc: 'Full dry-run mode with simulated transactions. Learn the workflow without touching the network.' },
-        { title: '228 tests', desc: 'Deterministic test suite covers every module, action, and transport path. Strategy track included.' },
+        { title: '343 tests', desc: 'Deterministic test suite covers every module, action, and transport path. Strategy track included.' },
+        { title: 'Web Dashboard', desc: 'Interactive browser UI with real-time module runner, artifact viewer, and health diagnostics. Run xrpl-lab serve to start.' },
       ],
     },
     {
@@ -64,6 +65,7 @@ export const config: SiteConfig = {
         { title: 'Start learning', code: 'xrpl-lab start\n# or offline:\nxrpl-lab start --dry-run' },
         { title: 'Run a module', code: 'xrpl-lab run receipt_literacy' },
         { title: 'Verify your work', code: 'xrpl-lab audit --txids .xrpl-lab/last_run_txids.txt \\\n  --expect presets/strategy_mm101.json' },
+        { title: 'Web UI', code: 'xrpl-lab serve\n# Open http://localhost:4321/xrpl-lab/app/' },
       ],
     },
     {

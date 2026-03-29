@@ -32,3 +32,5 @@ site/.astro/
 site/dist/
 site/node_modules/
 .polyglot-cache.json
+.astro/
+node_modules/

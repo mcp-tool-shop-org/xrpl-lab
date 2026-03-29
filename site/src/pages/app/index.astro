@@ -69,6 +69,42 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
       </div>
     </section>
 
+    <!-- Getting Started -->
+    <section class="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Getting Started</h2>
+      <ol class="space-y-4 text-sm">
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">1</span>
+          <div>
+            <p class="text-slate-200 font-medium mb-1">Start the API server</p>
+            <code class="bg-slate-900 text-emerald-400 px-2 py-1 rounded text-xs font-mono">xrpl-lab serve</code>
+            <p class="text-slate-500 mt-1">This powers the live status, module runner, and artifact viewer above.</p>
+          </div>
+        </li>
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">2</span>
+          <div>
+            <p class="text-slate-200 font-medium mb-1">Start the Astro dev server (development only)</p>
+            <code class="bg-slate-900 text-emerald-400 px-2 py-1 rounded text-xs font-mono">cd site &amp;&amp; npm run dev</code>
+            <p class="text-slate-500 mt-1">Only needed if you are developing the UI locally. The published site is pre-built.</p>
+          </div>
+        </li>
+        <li class="flex gap-4">
+          <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">3</span>
+          <div>
+            <p class="text-slate-200 font-medium mb-1">Run your first module</p>
+            <code class="bg-slate-900 text-emerald-400 px-2 py-1 rounded text-xs font-mono">xrpl-lab run receipt_literacy</code>
+            <p class="text-slate-500 mt-1">Or browse <a href="/xrpl-lab/app/modules/" class="text-emerald-400 hover:underline">Modules</a> to pick one from the list.</p>
+          </div>
+        </li>
+      </ol>
+      <p class="mt-5 text-xs text-slate-500">
+        Need more detail?
+        <a href="/xrpl-lab/handbook/getting-started/" class="text-emerald-400 hover:underline">Read the Getting Started guide</a>
+        in the handbook.
+      </p>
+    </section>
+
   </div>
 
   <script>

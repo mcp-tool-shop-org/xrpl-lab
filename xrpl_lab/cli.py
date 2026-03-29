@@ -89,7 +89,10 @@ def start(dry_run: bool):
                 console.print(f"  Camp address: [cyan]{escape(camp_address)}[/]")
                 console.print("  (You can reuse this or create a new wallet)")
         except (json.JSONDecodeError, KeyError):
-            console.print(f"[yellow]Found certificate at {camp_cert} but could not read it (malformed JSON). Continuing without it.[/]")
+            console.print(
+                f"[yellow]Found certificate at {camp_cert} "
+                "but could not read it. Continuing without it.[/]"
+            )
         console.print()
     else:
         console.print("[dim]No XRPL Camp certificate found (that's fine).[/]")
@@ -375,8 +378,9 @@ def feedback():
 @click.option("--csv", "csv_path", default=None, help="Write CSV report to this path")
 @click.option("--md", "md_path", default=None, help="Write markdown report to this path")
 @click.option("--dry-run", is_flag=True, help="Use dry-run transport")
+@click.option("--no-pack", is_flag=True, help="Skip writing audit pack JSON")
 def audit(txids_path: str, expect_path: str | None, csv_path: str | None,
-          md_path: str | None, dry_run: bool):
+          md_path: str | None, dry_run: bool, no_pack: bool):
     """Batch verify transactions and produce an audit report."""
     from .audit import (
         AuditConfig,
@@ -432,10 +436,11 @@ def audit(txids_path: str, expect_path: str | None, csv_path: str | None,
         write_audit_report_csv(report, csv_out)
         console.print(f"  CSV:        [green]{csv_out}[/]")
 
-    # Audit pack
-    pack_out = Path(f".xrpl-lab/proofs/audit_pack_{ts}.json")
-    write_audit_pack(report, pack_out)
-    console.print(f"  Audit pack: [green]{pack_out}[/]")
+    # Audit pack (skipped when --no-pack is passed)
+    if not no_pack:
+        pack_out = Path(f".xrpl-lab/proofs/audit_pack_{ts}.json")
+        write_audit_pack(report, pack_out)
+        console.print(f"  Audit pack: [green]{pack_out}[/]")
     console.print()
 
 
@@ -478,6 +483,29 @@ def last_run():
             cmd += f" --expect {preset_file}"
     console.print(f"  [cyan]{cmd}[/]")
     console.print()
+
+
+@main.command()
+@click.option('--port', default=8321, help='API server port')
+@click.option('--host', default='127.0.0.1', help='API server host')
+@click.option('--dry-run', is_flag=True, help='Use dry-run transport for all operations')
+def serve(port: int, host: str, dry_run: bool):
+    """Start the XRPL Lab web dashboard and API server."""
+    import uvicorn
+
+    from .server import create_app
+
+    console.print(Panel.fit(
+        f"[bold]XRPL Lab Web Dashboard[/]\n"
+        f"API: [cyan]http://{host}:{port}[/]\n"
+        f"Dashboard: [cyan]http://localhost:4321/xrpl-lab/app/[/]\n"
+        f"Mode: [yellow]{'Dry Run' if dry_run else 'Testnet'}[/]",
+        title="serve"
+    ))
+    console.print("[dim]Start the Astro dev server separately: cd site && npm run dev[/]")
+
+    app = create_app(dry_run=dry_run)
+    uvicorn.run(app, host=host, port=port)
 
 
 @main.command()

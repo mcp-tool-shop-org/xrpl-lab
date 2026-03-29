@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,7 +12,6 @@ from xrpl_lab.doctor import Check, DoctorReport
 from xrpl_lab.modules import ModuleDef, ModuleStep
 from xrpl_lab.server import create_app
 from xrpl_lab.state import LabState
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -428,3 +424,23 @@ class TestDoctor:
         data = resp.json()
         assert data["all_passed"] is False
         assert "1/2" in data["summary"]
+
+
+# ── create_app dry_run state ──────────────────────────────────────────
+
+
+class TestCreateAppDryRun:
+    def test_dry_run_stored_in_app_state(self) -> None:
+        """create_app(dry_run=True) should store dry_run=True in app.state."""
+        app = create_app(dry_run=True)
+        assert app.state.dry_run is True
+
+    def test_default_dry_run_is_false(self) -> None:
+        """create_app() without arguments should default dry_run to False."""
+        app = create_app()
+        assert app.state.dry_run is False
+
+    def test_dry_run_false_explicit(self) -> None:
+        """create_app(dry_run=False) explicitly stores False."""
+        app = create_app(dry_run=False)
+        assert app.state.dry_run is False
