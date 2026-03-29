@@ -375,7 +375,7 @@ class DryRunTransport(Transport):
     async def get_balance(self, address: str) -> str:
         if address in self._balances:
             drops = self._balances[address]
-            if drops == 0:
+            if drops <= 0:
                 return "0"
             from xrpl.utils import drops_to_xrp as _drops_to_xrp
             return str(_drops_to_xrp(str(drops)))
