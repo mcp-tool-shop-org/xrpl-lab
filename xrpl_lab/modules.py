@@ -36,8 +36,7 @@ class ModuleDef:
 
     @property
     def summary_line(self) -> str:
-        status = "beginner" if self.level == "beginner" else self.level
-        return f"{self.title}  [{status}, ~{self.time}]"
+        return f"{self.title}  [{self.level}, ~{self.time}]"
 
 
 # ── Front-matter regex ──────────────────────────────────────────────
@@ -52,7 +51,11 @@ _ACTION_RE = re.compile(r"<!--\s*action:\s*(\w+)(?:\s+(.*?))?\s*-->")
 
 
 def _parse_action_args(raw: str | None) -> dict[str, str]:
-    """Parse 'key=value key2=value2' from action comment."""
+    """Parse 'key=value key2=value2' from action comment.
+
+    Note: values cannot contain spaces — the raw string is split on whitespace
+    before the ``=`` split, so any space in a value will silently truncate it.
+    """
     if not raw:
         return {}
     args: dict[str, str] = {}

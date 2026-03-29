@@ -278,7 +278,11 @@ class TestAuditVerdict:
         )
         v = audit_tx(tx, config)
         assert v.status == "fail"
-        assert len(v.failure_reasons) >= 3  # NOT_VALIDATED + ENGINE + TYPE + MEMO
+        assert len(v.failure_reasons) == 4
+        assert NOT_VALIDATED in v.failure_reasons
+        assert ENGINE_RESULT_MISMATCH in v.failure_reasons
+        assert TYPE_DISALLOWED in v.failure_reasons
+        assert MEMO_MISSING in v.failure_reasons
 
     def test_no_requirements(self):
         """With all requirements off, any tx passes."""
@@ -463,7 +467,7 @@ class TestAuditCLI:
         ])
         assert result.exit_code == 0
 
-    def test_audit_empty_file(self, tmp_path, monkeypatch):
+    def test_audit_empty_file(self, tmp_path):
         from click.testing import CliRunner
 
         from xrpl_lab.cli import main

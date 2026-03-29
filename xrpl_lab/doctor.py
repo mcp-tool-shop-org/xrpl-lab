@@ -175,25 +175,10 @@ def _check_last_error() -> Check:
     return Check(
         "Last error",
         True,  # Informational, not a failure
-        f"Last failure in '{last.module_id}': tx {last.txid[:24]}...",
+        f"Last failure in '{last.module_id}': tx {last.txid[:24]}{'...' if len(last.txid) > 24 else ''}",
         f"Run: xrpl-lab verify --tx {last.txid} for details",
     )
 
-
-def _result_code_hint(result_code: str) -> str:
-    """Return an actionable hint for a result code."""
-    hints = {
-        "tecUNFUNDED_PAYMENT": "Not enough XRP. Run: xrpl-lab fund",
-        "tecNO_DST": "Destination account doesn't exist on the ledger",
-        "tefBAD_AUTH": "Wrong signing key for this account",
-        "tecPATH_DRY": "No liquidity path for this currency pair",
-        "temBAD_AMOUNT": "Invalid amount (zero, negative, or wrong format)",
-        "temBAD_FEE": "Fee too low or malformed",
-        "tefPAST_SEQ": "Sequence number already used — transaction may be a duplicate",
-        "terPRE_SEQ": "Sequence number too high — a previous tx may still be pending",
-        "local_error": "Transaction rejected locally before submission",
-    }
-    return hints.get(result_code, "Check the XRPL documentation for this result code")
 
 
 async def run_doctor() -> DoctorReport:

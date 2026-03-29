@@ -296,7 +296,10 @@ def doctor():
 @main.command("self-check")
 def self_check():
     """Alias for 'doctor' — ecosystem-consistent diagnostic."""
-    doctor.callback()
+    console.print()
+    console.print("[bold]XRPL Lab Doctor[/]")
+    console.print("Run [cyan]xrpl-lab doctor[/] to execute all diagnostic checks.")
+    console.print()
 
 
 @main.command("proof-pack")

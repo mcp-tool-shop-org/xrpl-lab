@@ -7,6 +7,10 @@ from xrpl_lab.state import LabState
 
 
 class TestLabState:
+    def test_version_matches_package(self):
+        """LabState.version must stay in sync with the package __version__."""
+        assert LabState().version == __version__
+
     def test_fresh_state(self):
         state = LabState()
         assert state.version == __version__

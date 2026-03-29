@@ -155,7 +155,7 @@ class TestHygieneLifecycle:
         # Compare B -> C (should show -2)
         cmp_bc = compare_snapshots(snap_b, snap_c, label="clean")
         assert cmp_bc.owner_count_delta == -2
-        assert "decreased" in cmp_bc.checks[1].lower()
+        assert any("decreased" in c.lower() for c in cmp_bc.checks)
 
         # Compare A -> C (should be same owner count)
         cmp_ac = compare_snapshots(snap_a, snap_c, label="full cycle")

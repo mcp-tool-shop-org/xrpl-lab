@@ -15,7 +15,7 @@ class LabError:
     cause: str | None = None
     retryable: bool = False
 
-    def safe_dict(self) -> dict:
+    def safe_dict(self) -> dict[str, object]:
         """Return a dict safe for display (no stack traces)."""
         d: dict = {"code": self.code, "message": self.message, "hint": self.hint}
         if self.cause:

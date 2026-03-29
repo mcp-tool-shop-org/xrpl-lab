@@ -36,7 +36,11 @@ class TxRecord(BaseModel):
 
 
 class LabState(BaseModel):
-    """Persistent state stored in ~/.xrpl-lab/state.json."""
+    """Persistent state stored in ~/.xrpl-lab/state.json by default.
+
+    The home directory is overridable via the ``XRPL_LAB_HOME`` environment
+    variable (not yet wired) or by patching :func:`get_home_dir` before use.
+    """
 
     version: str = "1.0.2"
     network: str = DEFAULT_NETWORK

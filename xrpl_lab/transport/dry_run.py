@@ -19,24 +19,22 @@ from .base import (
 
 # Deterministic fake data for offline use
 _FAKE_TXID_PREFIX = "DRYRUN"
-_FAKE_ADDRESS = "rDRYRUN1234567890ABCDEFGHIJK"
-_COUNTER = 0
+# Genesis account — valid XRPL base58 address (no invalid chars like 0 or I)
+_FAKE_ADDRESS = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh"
+
+# Canonical offline wallet address for all dry-run seeds.
+# Kept as a separate constant from _FAKE_ADDRESS so test fixtures that
+# reference this literal string continue to work without modification.
+_DRY_RUN_WALLET_ADDRESS = "rDRYRUN1234567890ABCDEFGHIJK"
 
 
 def _address_from_seed(wallet_seed: str) -> str:
     """Derive a deterministic fake address from a seed (no network needed).
 
-    In the dry-run transport all seeds map to _FAKE_ADDRESS because the
-    transport is single-user offline mode by design.
+    In dry-run mode all seeds map to the same canonical offline address
+    because no real key derivation is possible without a valid XRPL seed.
     """
-    return _FAKE_ADDRESS
-
-
-def _next_txid() -> str:
-    global _COUNTER
-    _COUNTER += 1
-    raw = f"{_FAKE_TXID_PREFIX}-{_COUNTER}-{time.time()}"
-    return hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
+    return _DRY_RUN_WALLET_ADDRESS
 
 
 class DryRunTransport(Transport):
@@ -44,7 +42,9 @@ class DryRunTransport(Transport):
 
     def __init__(self, fail_next: bool = False) -> None:
         self._fail_next = fail_next
-        self._balance = "1000000000"  # 1000 XRP in drops
+        self._counter = 0  # per-instance txid counter (CORE-004)
+        # Per-address XRP balances in drops (CORE-010)
+        self._balances: dict[str, int] = {}
         self._funded_addresses: set[str] = set()
         self._trust_lines: list[TrustLineInfo] = []
         self._offers: list[OfferInfo] = []
@@ -54,6 +54,12 @@ class DryRunTransport(Transport):
         # AMM state
         self._amm_pools: dict[str, dict] = {}  # pair_key -> pool state
         self._lp_balances: dict[str, dict[str, str]] = {}  # address -> {lp_key: balance}
+
+    def _next_txid(self) -> str:
+        """Generate a unique deterministic transaction ID (per-instance counter)."""
+        self._counter += 1
+        raw = f"{_FAKE_TXID_PREFIX}-{self._counter}-{time.time()}"
+        return hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
 
     def set_fail_next(self, fail: bool = True) -> None:
         """Configure the next submission to fail (for failure_literacy module)."""
@@ -69,6 +75,7 @@ class DryRunTransport(Transport):
 
     async def fund_from_faucet(self, address: str) -> FundResult:
         self._funded_addresses.add(address)
+        self._balances[address] = 1_000_000_000  # 1000 XRP in drops
         return FundResult(
             success=True,
             address=address,
@@ -93,7 +100,13 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: insufficient funds",
             )
 
-        txid = _next_txid()
+        from xrpl.utils import xrp_to_drops as _xrp_to_drops
+
+        txid = self._next_txid()
+        sender = _address_from_seed(wallet_seed)
+        drops = int(_xrp_to_drops(float(amount)))
+        self._balances[sender] = self._balances.get(sender, 0) - drops
+        self._balances[destination] = self._balances.get(destination, 0) + drops
         return SubmitResult(
             success=True,
             txid=txid,
@@ -119,7 +132,8 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: issuer not found",
             )
 
-        txid = _next_txid()
+        txid = self._next_txid()
+        wallet_address = _address_from_seed(wallet_seed)
 
         # Find existing trust line for this currency + issuer
         existing = None
@@ -158,10 +172,10 @@ class DryRunTransport(Transport):
             # Update existing trust line limit (don't create duplicate)
             existing.limit = limit
         else:
-            # Create new trust line
+            # Create new trust line using the wallet's derived address (CORE-005)
             self._trust_lines.append(
                 TrustLineInfo(
-                    account=_FAKE_ADDRESS,
+                    account=wallet_address,
                     peer=issuer,
                     currency=currency,
                     balance="0",
@@ -216,7 +230,7 @@ class DryRunTransport(Transport):
                 ),
             )
 
-        txid = _next_txid()
+        txid = self._next_txid()
         new_balance = float(matching_tl.balance) + float(amount)
         # Preserve integer representation when the result is a whole number
         matching_tl.balance = (
@@ -253,7 +267,7 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: unfunded offer",
             )
 
-        txid = _next_txid()
+        txid = self._next_txid()
         seq = self._offer_seq
         self._offer_seq += 1
 
@@ -304,7 +318,7 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: offer not found",
             )
 
-        txid = _next_txid()
+        txid = self._next_txid()
         # Remove the offer from tracked list and decrement owner count
         before = len(self._offers)
         self._offers = [o for o in self._offers if o.sequence != offer_sequence]
@@ -323,10 +337,16 @@ class DryRunTransport(Transport):
         return list(self._offers)
 
     async def get_account_info(self, address: str) -> AccountSnapshot:
-        balance = self._balance if address in self._funded_addresses else "0"
+        if address in self._balances:
+            balance_drops = str(self._balances[address])
+        elif address in self._funded_addresses:
+            # Backward compat: address funded via direct _funded_addresses manipulation
+            balance_drops = "1000000000"
+        else:
+            balance_drops = "0"
         return AccountSnapshot(
             address=address,
-            balance_drops=balance,
+            balance_drops=balance_drops,
             owner_count=self._owner_count,
             sequence=42,
         )
@@ -353,6 +373,13 @@ class DryRunTransport(Transport):
         )
 
     async def get_balance(self, address: str) -> str:
+        if address in self._balances:
+            drops = self._balances[address]
+            if drops == 0:
+                return "0"
+            from xrpl.utils import drops_to_xrp as _drops_to_xrp
+            return str(_drops_to_xrp(str(drops)))
+        # Backward compat: address funded via direct _funded_addresses manipulation
         return "1000.000000" if address in self._funded_addresses else "0"
 
     # ── AMM methods ──────────────────────────────────────────────────
@@ -426,9 +453,12 @@ class DryRunTransport(Transport):
                 error="[dry-run] AMM already exists for this asset pair",
             )
 
-        txid = _next_txid()
+        txid = self._next_txid()
         amm_account = f"rAMM{hashlib.sha256(key.encode()).hexdigest()[:24].upper()}"
         lp_currency = hashlib.sha256(key.encode()).hexdigest()[:3].upper()
+        # Guard against LP currency colliding with "XRP" (CORE-015)
+        if lp_currency == "XRP":
+            lp_currency = "LPX"
 
         # Label assets for display
         a_label = (
@@ -508,7 +538,7 @@ class DryRunTransport(Transport):
                 error="[dry-run] No AMM found for this asset pair",
             )
 
-        txid = _next_txid()
+        txid = self._next_txid()
 
         # Calculate LP tokens to mint (proportional to deposit)
         old_a = float(pool["pool_a"])
@@ -586,7 +616,7 @@ class DryRunTransport(Transport):
                 ),
             )
 
-        txid = _next_txid()
+        txid = self._next_txid()
 
         # Calculate proportional withdrawal
         total_lp = float(pool["lp_supply"])

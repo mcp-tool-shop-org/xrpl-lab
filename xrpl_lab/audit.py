@@ -148,6 +148,20 @@ def audit_tx(tx: TxInfo, config: AuditConfig) -> AuditVerdict:
     types_allowed = override.get("types_allowed", config.types_allowed)
 
     # Check: tx fetched (not a fetch error)
+    # Empty result_code with no validated flag means the fetch returned
+    # an incomplete or error response — treat as not found.
+    if tx.result_code == "" and not tx.validated:
+        failures.append("Transaction not found or fetch error (empty result code)")
+        reasons.append(NOT_FOUND)
+        return AuditVerdict(
+            txid=tx.txid,
+            status="not_found",
+            checks=checks,
+            failures=failures,
+            failure_reasons=reasons,
+            tx_info=tx,
+        )
+
     if tx.result_code.startswith("fetch_error"):
         failures.append(f"Transaction not found: {tx.result_code}")
         reasons.append(NOT_FOUND)
