@@ -1,0 +1,131 @@
+---
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout title="Modules" activePage="modules">
+
+  <div class="space-y-6">
+
+    <div>
+      <h1 class="text-2xl font-bold text-slate-100">Modules</h1>
+      <p class="text-slate-400 mt-1">12 hands-on modules across three tracks.</p>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="flex items-center gap-2">
+      <button data-filter="all" class="filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400">All</button>
+      <button data-filter="beginner" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Beginner</button>
+      <button data-filter="intermediate" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Intermediate</button>
+      <button data-filter="advanced" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Advanced</button>
+    </div>
+
+    <!-- Module grid -->
+    <div id="module-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- Loading skeletons -->
+      <div class="skeleton bg-slate-800 rounded-lg border border-slate-700 p-5 animate-pulse">
+        <div class="h-4 bg-slate-700 rounded w-3/4 mb-3"></div>
+        <div class="h-3 bg-slate-700 rounded w-1/2"></div>
+      </div>
+      <div class="skeleton bg-slate-800 rounded-lg border border-slate-700 p-5 animate-pulse">
+        <div class="h-4 bg-slate-700 rounded w-3/4 mb-3"></div>
+        <div class="h-3 bg-slate-700 rounded w-1/2"></div>
+      </div>
+      <div class="skeleton bg-slate-800 rounded-lg border border-slate-700 p-5 animate-pulse">
+        <div class="h-4 bg-slate-700 rounded w-3/4 mb-3"></div>
+        <div class="h-3 bg-slate-700 rounded w-1/2"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8321';
+
+    interface Module {
+      id: string;
+      title: string;
+      level: string;
+      time_estimate: string;
+      completed: boolean;
+    }
+
+    let allModules: Module[] = [];
+
+    const levelColors: Record<string, string> = {
+      beginner: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      intermediate: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      advanced: 'bg-red-500/20 text-red-400 border-red-500/30',
+    };
+
+    function renderModules(modules: Module[]) {
+      const grid = document.getElementById('module-grid');
+      if (!grid) return;
+
+      if (modules.length === 0) {
+        grid.innerHTML = '<p class="text-slate-500 col-span-full">No modules found.</p>';
+        return;
+      }
+
+      grid.innerHTML = modules.map(m => `
+        <a href="/xrpl-lab/app/modules/${m.id}/"
+           class="block bg-slate-800 rounded-lg border border-slate-700 p-5 hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all group"
+           data-level="${m.level}">
+          <div class="flex items-start justify-between mb-3">
+            <h3 class="text-base font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">
+              ${m.title}
+            </h3>
+            ${m.completed ? '<span class="text-emerald-500 text-sm" title="Completed">&#10003;</span>' : ''}
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="inline-block px-2 py-0.5 text-xs font-medium rounded border ${levelColors[m.level] || levelColors.beginner}">
+              ${m.level}
+            </span>
+            <span class="text-xs text-slate-500">${m.time_estimate}</span>
+          </div>
+        </a>
+      `).join('');
+    }
+
+    function applyFilter(level: string) {
+      const filtered = level === 'all'
+        ? allModules
+        : allModules.filter(m => m.level === level);
+      renderModules(filtered);
+
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        const f = (btn as HTMLElement).dataset.filter;
+        if (f === level) {
+          btn.className = 'filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400';
+        } else {
+          btn.className = 'filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50';
+        }
+      });
+    }
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        applyFilter((btn as HTMLElement).dataset.filter || 'all');
+      });
+    });
+
+    async function loadModules() {
+      try {
+        allModules = await fetch(`${API_BASE}/api/modules`).then(r => r.json());
+        renderModules(allModules);
+      } catch {
+        const grid = document.getElementById('module-grid');
+        if (grid) {
+          grid.innerHTML = `
+            <div class="col-span-full flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
+              <span>&#9888;</span>
+              <span>API is offline. Start the backend with <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code></span>
+            </div>
+          `;
+        }
+      }
+    }
+
+    loadModules();
+  </script>
+
+</DashboardLayout>

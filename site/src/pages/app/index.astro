@@ -1,0 +1,196 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import ProgressBar from '../../components/dashboard/ProgressBar.astro';
+import StatusCard from '../../components/dashboard/StatusCard.astro';
+---
+
+<DashboardLayout title="Dashboard" activePage="dashboard">
+
+  <div class="space-y-8">
+
+    <!-- Page header -->
+    <div>
+      <h1 class="text-2xl font-bold text-slate-100">Dashboard</h1>
+      <p class="text-slate-400 mt-1">Your XRPL Lab training overview.</p>
+    </div>
+
+    <!-- Progress section -->
+    <section class="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Overall Progress</h2>
+      <div id="progress-area">
+        <ProgressBar completed={0} total={12} label="Modules completed" />
+      </div>
+    </section>
+
+    <!-- Quick actions -->
+    <section>
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <a href="/xrpl-lab/app/modules/" class="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-emerald-500/50 transition-colors group">
+          <span class="text-2xl">&#9654;</span>
+          <div>
+            <p class="text-sm font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">Start Learning</p>
+            <p class="text-xs text-slate-500">Browse modules</p>
+          </div>
+        </a>
+        <a href="/xrpl-lab/app/modules/" class="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-emerald-500/50 transition-colors group">
+          <span class="text-2xl">&#9881;</span>
+          <div>
+            <p class="text-sm font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">Run Module</p>
+            <p class="text-xs text-slate-500">Pick and execute</p>
+          </div>
+        </a>
+        <a href="/xrpl-lab/app/artifacts/" class="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-emerald-500/50 transition-colors group">
+          <span class="text-2xl">&#128196;</span>
+          <div>
+            <p class="text-sm font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">View Proof Pack</p>
+            <p class="text-xs text-slate-500">Artifacts &amp; certs</p>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <!-- Status cards -->
+    <section>
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Status</h2>
+      <div id="status-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatusCard icon="&#128179;" label="Wallet" value="--" status="warn" />
+        <StatusCard icon="&#127760;" label="Network" value="--" />
+        <StatusCard icon="&#9889;" label="Doctor" value="--" />
+        <StatusCard icon="&#128337;" label="Last Run" value="--" />
+      </div>
+    </section>
+
+    <!-- Recent activity -->
+    <section class="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Recent Activity</h2>
+      <div id="recent-activity" class="text-sm text-slate-500">
+        <p class="animate-pulse">Loading...</p>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8321';
+
+    async function hydrateDashboard() {
+      // Fetch status
+      try {
+        const status = await fetch(`${API_BASE}/api/status`).then(r => r.json());
+
+        // Progress bar
+        const progressArea = document.getElementById('progress-area');
+        if (progressArea) {
+          const pct = status.modules_total > 0
+            ? Math.round((status.modules_completed / status.modules_total) * 100)
+            : 0;
+          progressArea.innerHTML = `
+            <p class="text-sm text-slate-400 mb-1">Modules completed</p>
+            <div class="flex items-center gap-3">
+              <div class="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden">
+                <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+              </div>
+              <span class="text-sm font-mono text-slate-300 min-w-[4rem] text-right">
+                ${status.modules_completed}/${status.modules_total}
+              </span>
+            </div>
+          `;
+        }
+
+        // Status cards
+        const cardsEl = document.getElementById('status-cards');
+        if (cardsEl) {
+          const walletStatus = status.wallet_configured ? 'ok' : 'warn';
+          const walletVal = status.wallet_configured ? 'Configured' : 'Not set up';
+          const lastRun = status.last_run
+            ? `${status.last_run.module} (${status.last_run.success ? 'pass' : 'fail'})`
+            : 'No runs yet';
+
+          cardsEl.innerHTML = buildCard('&#128179;', 'Wallet', walletVal, walletStatus)
+            + buildCard('&#127760;', 'Network', status.network || 'Unknown', 'ok')
+            + buildCard('&#9889;', 'Doctor', 'Checking...', 'ok')
+            + buildCard('&#128337;', 'Last Run', lastRun, status.last_run?.success === false ? 'warn' : 'ok');
+        }
+
+        // Recent activity
+        const actEl = document.getElementById('recent-activity');
+        if (actEl) {
+          if (status.last_run) {
+            actEl.innerHTML = `
+              <div class="flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full ${status.last_run.success ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+                <span class="text-slate-300">${status.last_run.module}</span>
+                <span class="text-slate-600">&middot;</span>
+                <span class="text-slate-500">${new Date(status.last_run.timestamp).toLocaleString()}</span>
+                <span class="text-xs px-1.5 py-0.5 rounded ${status.last_run.success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${status.last_run.success ? 'passed' : 'failed'}</span>
+              </div>
+            `;
+          } else {
+            actEl.innerHTML = '<p class="text-slate-600">No activity yet. Run a module to get started.</p>';
+          }
+        }
+      } catch {
+        showOffline();
+      }
+
+      // Doctor check
+      try {
+        const doctor = await fetch(`${API_BASE}/api/doctor`).then(r => r.json());
+        const cards = document.getElementById('status-cards');
+        if (cards) {
+          const doctorCard = cards.children[2];
+          if (doctorCard) {
+            const statusMap: Record<string, string> = { healthy: 'ok', warning: 'warn', error: 'error' };
+            const dotMap: Record<string, string> = { ok: 'bg-emerald-500', warn: 'bg-amber-500', error: 'bg-red-500' };
+            const s = statusMap[doctor.overall] || 'ok';
+            const borderMap: Record<string, string> = { ok: 'border-emerald-500/30', warn: 'border-amber-500/30', error: 'border-red-500/30' };
+            (doctorCard as HTMLElement).className = `bg-slate-800 rounded-lg border ${borderMap[s]} p-4`;
+            const dot = doctorCard.querySelector('.status-dot');
+            const val = doctorCard.querySelector('.status-value');
+            if (dot) (dot as HTMLElement).className = `ml-auto w-2 h-2 rounded-full status-dot ${dotMap[s]}`;
+            if (val) (val as HTMLElement).textContent = doctor.overall;
+          }
+        }
+      } catch {
+        // leave as-is
+      }
+    }
+
+    function buildCard(icon: string, label: string, value: string, status: string) {
+      const borderMap: Record<string, string> = {
+        ok: 'border-emerald-500/30',
+        warn: 'border-amber-500/30',
+        error: 'border-red-500/30',
+      };
+      const dotMap: Record<string, string> = {
+        ok: 'bg-emerald-500',
+        warn: 'bg-amber-500',
+        error: 'bg-red-500',
+      };
+      return `<div class="bg-slate-800 rounded-lg border ${borderMap[status] || borderMap.ok} p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-lg">${icon}</span>
+          <span class="text-sm text-slate-400">${label}</span>
+          <span class="ml-auto w-2 h-2 rounded-full status-dot ${dotMap[status] || dotMap.ok}"></span>
+        </div>
+        <p class="text-lg font-semibold text-slate-100 status-value">${value}</p>
+      </div>`;
+    }
+
+    function showOffline() {
+      const actEl = document.getElementById('recent-activity');
+      if (actEl) {
+        actEl.innerHTML = `
+          <div class="flex items-center gap-2 text-amber-400">
+            <span>&#9888;</span>
+            <span>API is offline. Start the backend with <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code></span>
+          </div>
+        `;
+      }
+    }
+
+    hydrateDashboard();
+  </script>
+
+</DashboardLayout>

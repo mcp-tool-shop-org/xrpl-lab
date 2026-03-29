@@ -1,0 +1,171 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import JsonViewer from '../../components/dashboard/JsonViewer.astro';
+---
+
+<DashboardLayout title="Artifacts" activePage="artifacts">
+
+  <div class="space-y-6">
+
+    <div>
+      <h1 class="text-2xl font-bold text-slate-100">Artifacts</h1>
+      <p class="text-slate-400 mt-1">Your verifiable training outputs.</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-slate-700">
+      <nav class="flex gap-1">
+        <button data-tab="proof" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400">
+          Proof Pack
+        </button>
+        <button data-tab="certificate" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200">
+          Certificate
+        </button>
+        <button data-tab="reports" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200">
+          Reports
+        </button>
+      </nav>
+    </div>
+
+    <!-- Proof Pack tab -->
+    <div id="tab-proof" class="tab-content">
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold text-slate-200">Proof Pack</h2>
+          <span id="proof-integrity" class="text-xs font-mono text-slate-500"></span>
+        </div>
+        <JsonViewer id="proof-json" />
+      </div>
+    </div>
+
+    <!-- Certificate tab -->
+    <div id="tab-certificate" class="tab-content hidden">
+      <div class="space-y-4">
+        <h2 class="text-lg font-semibold text-slate-200">Certificate</h2>
+        <JsonViewer id="cert-json" />
+      </div>
+    </div>
+
+    <!-- Reports tab -->
+    <div id="tab-reports" class="tab-content hidden">
+      <div class="space-y-4">
+        <h2 class="text-lg font-semibold text-slate-200">Reports</h2>
+        <div id="reports-list" class="space-y-4">
+          <p class="text-slate-500 animate-pulse">Loading...</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8321';
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = (btn as HTMLElement).dataset.tab;
+        if (!tab) return;
+
+        // Update buttons
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.className = 'tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200';
+        });
+        btn.className = 'tab-btn px-4 py-2 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400';
+
+        // Show/hide content
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.getElementById(`tab-${tab}`)?.classList.remove('hidden');
+      });
+    });
+
+    function prettyJson(data: unknown): string {
+      return JSON.stringify(data, null, 2);
+    }
+
+    function setJsonContent(containerId: string, data: unknown) {
+      const container = document.getElementById(containerId);
+      const code = container?.querySelector('.json-content');
+      if (code) code.textContent = prettyJson(data);
+    }
+
+    function setJsonError(containerId: string, message: string) {
+      const container = document.getElementById(containerId);
+      const code = container?.querySelector('.json-content');
+      if (code) {
+        code.textContent = '';
+        code.innerHTML = `<span class="text-amber-400">&#9888; ${message}</span>`;
+      }
+    }
+
+    // Load proof pack
+    async function loadProofPack() {
+      try {
+        const data = await fetch(`${API_BASE}/api/artifacts/proof-pack`).then(r => r.json());
+        setJsonContent('proof-json', data);
+        const integrity = document.getElementById('proof-integrity');
+        if (integrity && data.integrity) {
+          integrity.textContent = `SHA-256: ${data.integrity.substring(0, 16)}...`;
+        }
+      } catch {
+        setJsonError('proof-json', 'Could not load proof pack. Is the API running?');
+      }
+    }
+
+    // Load certificate
+    async function loadCertificate() {
+      try {
+        const data = await fetch(`${API_BASE}/api/artifacts/certificate`).then(r => r.json());
+        setJsonContent('cert-json', data);
+      } catch {
+        setJsonError('cert-json', 'Could not load certificate. Is the API running?');
+      }
+    }
+
+    // Load reports
+    async function loadReports() {
+      try {
+        const reports = await fetch(`${API_BASE}/api/artifacts/reports`).then(r => r.json());
+        const list = document.getElementById('reports-list');
+        if (!list) return;
+
+        if (!Array.isArray(reports) || reports.length === 0) {
+          list.innerHTML = '<p class="text-slate-500">No reports generated yet. Complete a module to generate reports.</p>';
+          return;
+        }
+
+        list.innerHTML = reports.map((r: any) => `
+          <div class="bg-slate-800 rounded-lg border border-slate-700 p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-base font-semibold text-slate-200">${r.title}</h3>
+              <span class="text-xs text-slate-500">${new Date(r.generated).toLocaleDateString()}</span>
+            </div>
+            <div class="prose prose-invert prose-sm max-w-none text-slate-300 whitespace-pre-wrap font-mono text-xs bg-slate-900 rounded p-3 max-h-64 overflow-y-auto">${escapeHtml(r.content)}</div>
+          </div>
+        `).join('');
+      } catch {
+        const list = document.getElementById('reports-list');
+        if (list) {
+          list.innerHTML = `
+            <div class="flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
+              <span>&#9888;</span>
+              <span>Could not load reports. Is the API running?</span>
+            </div>
+          `;
+        }
+      }
+    }
+
+    function escapeHtml(text: string): string {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load all artifacts
+    loadProofPack();
+    loadCertificate();
+    loadReports();
+  </script>
+
+</DashboardLayout>

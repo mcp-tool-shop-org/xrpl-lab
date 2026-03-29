@@ -1,0 +1,32 @@
+---
+import LevelBadge from './LevelBadge.astro';
+
+interface Props {
+  id: string;
+  title: string;
+  level: 'beginner' | 'intermediate' | 'advanced';
+  timeEstimate: string;
+  completed: boolean;
+  basePath?: string;
+}
+
+const { id, title, level, timeEstimate, completed, basePath = '/xrpl-lab' } = Astro.props;
+---
+
+<a
+  href={`${basePath}/app/modules/${id}/`}
+  class="block bg-slate-800 rounded-lg border border-slate-700 p-5 hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all group"
+>
+  <div class="flex items-start justify-between mb-3">
+    <h3 class="text-base font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">
+      {title}
+    </h3>
+    {completed && (
+      <span class="text-emerald-500 text-sm" title="Completed">&#10003;</span>
+    )}
+  </div>
+  <div class="flex items-center gap-3">
+    <LevelBadge level={level} />
+    <span class="text-xs text-slate-500">{timeEstimate}</span>
+  </div>
+</a>

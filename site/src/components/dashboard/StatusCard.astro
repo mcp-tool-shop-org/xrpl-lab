@@ -1,0 +1,31 @@
+---
+interface Props {
+  icon: string;
+  label: string;
+  value: string;
+  status?: 'ok' | 'warn' | 'error';
+}
+
+const { icon, label, value, status = 'ok' } = Astro.props;
+
+const statusColors: Record<string, string> = {
+  ok: 'border-emerald-500/30',
+  warn: 'border-amber-500/30',
+  error: 'border-red-500/30',
+};
+
+const dotColors: Record<string, string> = {
+  ok: 'bg-emerald-500',
+  warn: 'bg-amber-500',
+  error: 'bg-red-500',
+};
+---
+
+<div class={`bg-slate-800 rounded-lg border ${statusColors[status]} p-4`}>
+  <div class="flex items-center gap-2 mb-2">
+    <span class="text-lg">{icon}</span>
+    <span class="text-sm text-slate-400">{label}</span>
+    <span class={`ml-auto w-2 h-2 rounded-full ${dotColors[status]}`}></span>
+  </div>
+  <p class="text-lg font-semibold text-slate-100">{value}</p>
+</div>

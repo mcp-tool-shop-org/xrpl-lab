@@ -39,21 +39,22 @@ placing, verifying, and cleaning up orders with a strategic frame.
 
 <!-- action: ensure_funded -->
 
-## Step 3: Set trust line for LAB
-
-You need a LAB trust line to trade LAB/XRP.
-
-<!-- action: set_trust_line currency=LAB limit=10000 -->
-
-## Step 4: Create the issuer and issue LAB
+## Step 3: Create the issuer wallet
 
 We need an issuer to provide LAB tokens for the sell side.
 
 <!-- action: create_issuer_wallet -->
 
-## Step 5: Fund the issuer
+## Step 4: Fund the issuer
 
 <!-- action: fund_issuer -->
+
+## Step 5: Set trust line for LAB
+
+You need a LAB trust line to trade LAB/XRP. The issuer must exist
+before the trust line can reference it.
+
+<!-- action: set_trust_line currency=LAB limit=10000 -->
 
 ## Step 6: Issue LAB tokens to your wallet
 

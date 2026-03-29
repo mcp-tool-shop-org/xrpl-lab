@@ -296,9 +296,27 @@ def doctor():
 @main.command("self-check")
 def self_check():
     """Alias for 'doctor' — ecosystem-consistent diagnostic."""
+    from .doctor import run_doctor
+
     console.print()
-    console.print("[bold]XRPL Lab Doctor[/]")
-    console.print("Run [cyan]xrpl-lab doctor[/] to execute all diagnostic checks.")
+    console.print(Panel("[bold]XRPL Lab Doctor[/]", border_style="blue"))
+    console.print()
+
+    report = asyncio.run(run_doctor())
+
+    for check in report.checks:
+        icon = "[green]\u2713[/]" if check.passed else "[red]\u2717[/]"
+        console.print(f"  {icon} [bold]{check.name}[/]")
+        if check.detail:
+            console.print(f"    {check.detail}")
+        if check.hint and not check.passed:
+            console.print(f"    [yellow]Hint: {check.hint}[/]")
+
+    console.print()
+    if report.all_passed:
+        console.print(f"[green]{report.summary} — all good![/]")
+    else:
+        console.print(f"[yellow]{report.summary}[/]")
     console.print()
 
 

@@ -1406,10 +1406,17 @@ async def _execute_action(
         # Write last run files
         txids = context.get("txids", [])
         if txids:
+            _module_id = context.get("module_id", "unknown")
+            _preset_map = {
+                "dex_market_making_101": "strategy_mm101",
+                "dex_inventory_guardrails": "strategy_inv",
+                "dex_vs_amm_risk_literacy": "strategy_compare",
+            }
+            _preset = _preset_map.get(_module_id, f"strategy_{_module_id[:20]}")
             run_path = write_last_run(
                 txids=txids,
-                module_id=context.get("module_id", ""),
-                preset="strategy_mm101",
+                module_id=_module_id,
+                preset=_preset,
             )
             console.print(f"  Last run txids: [green]{run_path}[/]")
 
@@ -1436,6 +1443,18 @@ async def run_module(
         )
         return True
 
+    # FT-003: Warn if module uses AMM actions but transport is not dry-run
+    _AMM_ACTIONS = {"ensure_amm_pair", "amm_deposit", "amm_withdraw"}
+    _module_step_actions = {s.action for s in module.steps if s.action}
+    if _AMM_ACTIONS & _module_step_actions and transport.network_name != "dry-run":
+        console.print(
+            f"[yellow]This module uses AMM operations which require --dry-run mode.[/]"
+        )
+        console.print(
+            f"[yellow]Run with: xrpl-lab run {module.id} --dry-run[/]"
+        )
+        return False
+
     console.print()
     console.print(
         Panel(
@@ -1454,6 +1473,7 @@ async def run_module(
         "wallet_seed": "",
         "txids": [],
         "failed_txids": [],
+        "run_id": time.strftime('%Y%m%dT%H%M%S', time.gmtime()),
     }
 
     # Load wallet seed if available

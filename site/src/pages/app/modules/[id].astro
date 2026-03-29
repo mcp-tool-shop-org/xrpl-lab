@@ -1,0 +1,178 @@
+---
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+
+export function getStaticPaths() {
+  // All 12 module IDs from the curriculum
+  const moduleIds = [
+    'receipt_literacy',
+    'failure_literacy',
+    'trust_lines_101',
+    'debugging_trust_lines',
+    'dex_literacy',
+    'reserves_101',
+    'account_hygiene',
+    'receipt_audit',
+    'amm_liquidity_101',
+    'dex_market_making_101',
+    'inventory_guardrails',
+    'dex_vs_amm_risk_literacy',
+  ];
+  return moduleIds.map(id => ({ params: { id } }));
+}
+
+const { id } = Astro.params;
+---
+
+<DashboardLayout title="Module" activePage="modules">
+
+  <div id="module-detail" class="space-y-6" data-module-id={id}>
+
+    <!-- Loading state -->
+    <div id="module-loading" class="space-y-4 animate-pulse">
+      <div class="h-8 bg-slate-700 rounded w-1/2"></div>
+      <div class="h-4 bg-slate-700 rounded w-3/4"></div>
+      <div class="h-4 bg-slate-700 rounded w-2/3"></div>
+    </div>
+
+    <!-- Content (hidden until loaded) -->
+    <div id="module-content" class="hidden space-y-6">
+
+      <!-- Header -->
+      <div>
+        <a href="/xrpl-lab/app/modules/" class="text-sm text-slate-500 hover:text-emerald-400 transition-colors mb-2 inline-block">&larr; Back to Modules</a>
+        <div class="flex items-center gap-3 mt-1">
+          <h1 id="mod-title" class="text-2xl font-bold text-slate-100"></h1>
+          <span id="mod-badge" class="inline-block px-2 py-0.5 text-xs font-medium rounded border"></span>
+          <span id="mod-completed" class="hidden text-emerald-500 text-sm">&#10003; Completed</span>
+        </div>
+        <p id="mod-description" class="text-slate-400 mt-2"></p>
+      </div>
+
+      <!-- Meta -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+          <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Time Estimate</p>
+          <p id="mod-time" class="text-sm font-semibold text-slate-200"></p>
+        </div>
+        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+          <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Prerequisites</p>
+          <p id="mod-prereqs" class="text-sm text-slate-200"></p>
+        </div>
+        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
+          <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Artifacts</p>
+          <p id="mod-artifacts" class="text-sm text-slate-200"></p>
+        </div>
+      </div>
+
+      <!-- Steps -->
+      <section class="bg-slate-800 rounded-lg border border-slate-700 p-6">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Steps Preview</h2>
+        <ol id="mod-steps" class="space-y-2 list-decimal list-inside text-sm text-slate-300"></ol>
+      </section>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-3">
+        <button
+          id="btn-run"
+          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled
+          title="Wired in Wave 2"
+        >
+          Run Module
+        </button>
+        <button
+          id="btn-dry"
+          class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded border border-slate-600 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled
+          title="Wired in Wave 2"
+        >
+          Run in Dry Mode
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Error state -->
+    <div id="module-error" class="hidden">
+      <a href="/xrpl-lab/app/modules/" class="text-sm text-slate-500 hover:text-emerald-400 transition-colors mb-4 inline-block">&larr; Back to Modules</a>
+      <div class="flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
+        <span>&#9888;</span>
+        <span>Could not load module details. Is the API running?</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:8321';
+
+    const levelColors: Record<string, string> = {
+      beginner: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      intermediate: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      advanced: 'bg-red-500/20 text-red-400 border-red-500/30',
+    };
+
+    async function loadModule() {
+      const container = document.getElementById('module-detail');
+      const moduleId = container?.dataset.moduleId;
+      if (!moduleId) return;
+
+      try {
+        const mod = await fetch(`${API_BASE}/api/modules/${moduleId}`).then(r => r.json());
+
+        // Populate fields
+        const title = document.getElementById('mod-title');
+        if (title) title.textContent = mod.title;
+
+        const badge = document.getElementById('mod-badge');
+        if (badge) {
+          badge.textContent = mod.level;
+          badge.className = `inline-block px-2 py-0.5 text-xs font-medium rounded border ${levelColors[mod.level] || ''}`;
+        }
+
+        const desc = document.getElementById('mod-description');
+        if (desc) desc.textContent = mod.description || '';
+
+        const time = document.getElementById('mod-time');
+        if (time) time.textContent = mod.time_estimate || '--';
+
+        const prereqs = document.getElementById('mod-prereqs');
+        if (prereqs) {
+          prereqs.textContent = mod.prerequisites?.length > 0
+            ? mod.prerequisites.join(', ')
+            : 'None';
+        }
+
+        const artifacts = document.getElementById('mod-artifacts');
+        if (artifacts) {
+          artifacts.textContent = mod.artifacts?.length > 0
+            ? mod.artifacts.join(', ')
+            : '--';
+        }
+
+        const steps = document.getElementById('mod-steps');
+        if (steps && mod.steps) {
+          steps.innerHTML = mod.steps.map((s: string) =>
+            `<li class="text-slate-300">${s}</li>`
+          ).join('');
+        }
+
+        if (mod.completed) {
+          const completedEl = document.getElementById('mod-completed');
+          if (completedEl) completedEl.classList.remove('hidden');
+        }
+
+        // Show content, hide loading
+        document.getElementById('module-loading')?.classList.add('hidden');
+        document.getElementById('module-content')?.classList.remove('hidden');
+
+      } catch {
+        document.getElementById('module-loading')?.classList.add('hidden');
+        document.getElementById('module-error')?.classList.remove('hidden');
+      }
+    }
+
+    loadModule();
+  </script>
+
+</DashboardLayout>

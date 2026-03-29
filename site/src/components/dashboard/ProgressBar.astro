@@ -1,0 +1,25 @@
+---
+interface Props {
+  completed: number;
+  total: number;
+  label?: string;
+}
+
+const { completed, total, label } = Astro.props;
+const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+---
+
+<div class="w-full">
+  {label && <p class="text-sm text-slate-400 mb-1">{label}</p>}
+  <div class="flex items-center gap-3">
+    <div class="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden">
+      <div
+        class="h-full bg-emerald-500 rounded-full transition-all duration-500"
+        style={`width: ${pct}%`}
+      />
+    </div>
+    <span class="text-sm font-mono text-slate-300 min-w-[4rem] text-right">
+      {completed}/{total}
+    </span>
+  </div>
+</div>
