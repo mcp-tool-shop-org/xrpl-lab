@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.0.6 — 2026-04-05
+
+Dogfood Swarm v2 — deep quality hardening, 456 tests.
+
+### Stage A — Bug/Security Fix (65 findings, 4 amend waves)
+- Locked API contract: Pydantic response models as single source of truth
+- XSS defense: escapeHtml() on all frontend innerHTML injections
+- Secret handling: _SecretValue wrapper prevents seed leakage in tracebacks
+- Per-address scoping in DryRunTransport (trust lines, offers)
+- Float safety: try/except on all numeric conversions from network data
+- CORS restricted to localhost dev origins only
+- Modules included in pip wheel via hatch force-include
+
+### Stage B — Institutional Hardening (4 waves)
+- B1 Contract Law: Pydantic schemas + TypeScript drift detection tests
+- B2 Runner Law: console injection, callback isolation, no monkey-patching
+- B3 Secret + Numeric Law: Decimal-only financial math, pickle-proof secrets
+- B4 Product Proving: 29 end-to-end smoke tests
+
+### Stage C — Humanization
+- Structured HTTP errors with code/message/hint (not bare strings)
+- CLI help text with quick-start examples
+- Runner step failures show exception type + doctor hint
+
+### Feature Pass
+- Fixed 2 mismatched module IDs in frontend static paths
+
+### Test Coverage
+- 355 → 456 tests (+101)
+- New test files: api_contract, schema_drift, runner_isolation, numeric_law, product_smoke
+
 ## 1.0.5 — 2026-04-05
 
 Version alignment — bump to match upstream and npm wrapper versions.
