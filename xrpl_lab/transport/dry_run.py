@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from .base import (
     AccountSnapshot,
@@ -135,8 +135,6 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: insufficient funds",
             )
 
-        from xrpl.utils import xrp_to_drops as _xrp_to_drops
-
         try:
             numeric_amount = Decimal(amount)
         except Exception:
@@ -150,7 +148,7 @@ class DryRunTransport(Transport):
 
         txid = self._next_txid()
         sender = _address_from_seed(wallet_seed)
-        drops = int(_xrp_to_drops(float(numeric_amount)))
+        drops = int(numeric_amount * Decimal("1000000"))
         self._balances[sender] = self._balances.get(sender, 0) - drops
         self._balances[destination] = self._balances.get(destination, 0) + drops
         return SubmitResult(
@@ -564,10 +562,10 @@ class DryRunTransport(Transport):
             else f"{asset_b_currency}/{asset_b_issuer[:12]}"
         )
 
-        # Initial LP supply = sqrt(a * b) simplified as sum for dry-run
-        initial_lp = str(
-            round((float(asset_a_value) * float(asset_b_value)) ** 0.5, 6)
-        )
+        # Initial LP supply = sqrt(a * b)
+        _six = Decimal("0.000001")
+        raw_lp = (Decimal(asset_a_value) * Decimal(asset_b_value)).sqrt()
+        initial_lp = str(raw_lp.quantize(_six, rounding=ROUND_HALF_UP))
 
         self._amm_pools[key] = {
             "asset_a": a_label,
@@ -635,22 +633,25 @@ class DryRunTransport(Transport):
         txid = self._next_txid()
 
         # Calculate LP tokens to mint (proportional to deposit)
-        old_a = float(pool["pool_a"])
-        deposit_a = float(asset_a_value)
-        ratio = deposit_a / old_a if old_a > 0 else 1.0
-        lp_minted = round(float(pool["lp_supply"]) * ratio, 6)
+        _six = Decimal("0.000001")
+        old_a = Decimal(pool["pool_a"])
+        deposit_a = Decimal(asset_a_value)
+        ratio = deposit_a / old_a if old_a > 0 else Decimal("1")
+        lp_minted = (Decimal(pool["lp_supply"]) * ratio).quantize(_six, rounding=ROUND_HALF_UP)
 
         # Update pool balances
-        pool["pool_a"] = str(round(old_a + deposit_a, 6))
-        pool["pool_b"] = str(round(float(pool["pool_b"]) + float(asset_b_value), 6))
-        pool["lp_supply"] = str(round(float(pool["lp_supply"]) + lp_minted, 6))
+        pool["pool_a"] = str((old_a + deposit_a).quantize(_six, rounding=ROUND_HALF_UP))
+        new_b = Decimal(pool["pool_b"]) + Decimal(asset_b_value)
+        pool["pool_b"] = str(new_b.quantize(_six, rounding=ROUND_HALF_UP))
+        new_lp = Decimal(pool["lp_supply"]) + lp_minted
+        pool["lp_supply"] = str(new_lp.quantize(_six, rounding=ROUND_HALF_UP))
 
         # Credit LP tokens to depositor
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
         depositor_address = _address_from_seed(wallet_seed)
         balances = self._lp_balances.setdefault(depositor_address, {})
-        current = float(balances.get(lp_key, "0"))
-        balances[lp_key] = str(round(current + lp_minted, 6))
+        current = Decimal(balances.get(lp_key, "0"))
+        balances[lp_key] = str((current + lp_minted).quantize(_six, rounding=ROUND_HALF_UP))
 
         return SubmitResult(
             success=True,
@@ -695,10 +696,10 @@ class DryRunTransport(Transport):
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
         withdrawer_address = _address_from_seed(wallet_seed)
         balances = self._lp_balances.get(withdrawer_address, {})
-        current_lp = float(balances.get(lp_key, "0"))
+        current_lp = Decimal(balances.get(lp_key, "0"))
 
         # Determine how much LP to burn
-        burn_lp = float(lp_token_value) if lp_token_value else current_lp
+        burn_lp = Decimal(lp_token_value) if lp_token_value else current_lp
         if burn_lp <= 0 or burn_lp > current_lp:
             return SubmitResult(
                 success=False,
@@ -713,15 +714,21 @@ class DryRunTransport(Transport):
         txid = self._next_txid()
 
         # Calculate proportional withdrawal
-        total_lp = float(pool["lp_supply"])
-        ratio = burn_lp / total_lp if total_lp > 0 else 0
+        _six = Decimal("0.000001")
+        total_lp = Decimal(pool["lp_supply"])
+        ratio = burn_lp / total_lp if total_lp > 0 else Decimal("0")
 
-        pool["pool_a"] = str(round(float(pool["pool_a"]) * (1 - ratio), 6))
-        pool["pool_b"] = str(round(float(pool["pool_b"]) * (1 - ratio), 6))
-        pool["lp_supply"] = str(round(total_lp - burn_lp, 6))
+        keep = Decimal("1") - ratio
+        pool["pool_a"] = str(
+            (Decimal(pool["pool_a"]) * keep).quantize(_six, rounding=ROUND_HALF_UP),
+        )
+        pool["pool_b"] = str(
+            (Decimal(pool["pool_b"]) * keep).quantize(_six, rounding=ROUND_HALF_UP),
+        )
+        pool["lp_supply"] = str((total_lp - burn_lp).quantize(_six, rounding=ROUND_HALF_UP))
 
         # Debit LP tokens from withdrawer
-        new_lp = round(current_lp - burn_lp, 6)
+        new_lp = (current_lp - burn_lp).quantize(_six, rounding=ROUND_HALF_UP)
         if new_lp <= 0:
             balances.pop(lp_key, None)
         else:

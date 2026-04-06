@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from ..transport.base import AccountSnapshot, OfferInfo, Transport, TrustLineInfo
@@ -149,7 +150,7 @@ class InventoryCheck:
     xrp_spendable_drops: int
     token_balance: str
     min_xrp_drops: int
-    min_token: float
+    min_token: Decimal | float
     checks: list[str]
     sides_allowed: list[str]  # ["bid"], ["ask"], ["bid", "ask"], or []
 
@@ -162,7 +163,7 @@ def check_inventory(
     snapshot: PositionSnapshot,
     token_currency: str = "LAB",
     min_xrp_drops: int = 20_000_000,  # 20 XRP
-    min_token_balance: float = 10.0,
+    min_token_balance: Decimal | float = Decimal("10"),
 ) -> InventoryCheck:
     """Check inventory thresholds and decide which sides are safe to quote."""
     checks: list[str] = []
@@ -171,13 +172,13 @@ def check_inventory(
     xrp_spendable = snapshot.spendable_estimate_drops
 
     # Find token balance in trust lines
-    token_bal = 0.0
+    token_bal = Decimal("0")
     for tl in snapshot.trust_lines:
         if tl.currency == token_currency:
             try:
-                token_bal = float(tl.balance)
-            except (ValueError, TypeError):
-                token_bal = 0.0
+                token_bal = Decimal(tl.balance)
+            except (ValueError, TypeError, InvalidOperation):
+                token_bal = Decimal("0")
             break
 
     # XRP check (bid side = buying token with XRP)

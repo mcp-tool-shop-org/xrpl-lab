@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import time
 from collections.abc import Callable
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from rich.console import Console
@@ -79,6 +80,9 @@ class _SecretValue:
     def __bool__(self) -> bool:
         return bool(self._value)
 
+    def __reduce__(self):
+        raise TypeError("Cannot pickle _SecretValue")
+
 
 console = Console()
 
@@ -135,9 +139,9 @@ async def _ensure_funded(
         console = globals()["console"]
     balance = await transport.get_balance(address)
     try:
-        bal = float(balance) if balance else 0.0
-    except (ValueError, TypeError):
-        bal = 0.0
+        bal = Decimal(balance) if balance else Decimal("0")
+    except (ValueError, TypeError, InvalidOperation):
+        bal = Decimal("0")
     if bal > 0:
         console.print(f"  Balance: [green]{balance} XRP[/]")
         return True
@@ -145,9 +149,9 @@ async def _ensure_funded(
     console.print("  Requesting funds from testnet faucet...")
     result = await transport.fund_from_faucet(address)
     try:
-        funded_bal = float(result.balance) if result.balance else 0.0
-    except (ValueError, TypeError):
-        funded_bal = 0.0
+        funded_bal = Decimal(result.balance) if result.balance else Decimal("0")
+    except (ValueError, TypeError, InvalidOperation):
+        funded_bal = Decimal("0")
     if result.success and funded_bal > 0:
         console.print(f"  Funded! Balance: [green]{result.balance} XRP[/]")
         return True
@@ -1277,9 +1281,9 @@ async def _execute_action(
             console.print("[yellow]Invalid min_xrp_drops, using default[/]")
             min_xrp = 20_000_000
         try:
-            min_token = float(args.get("min_token", "10"))
-        except (ValueError, TypeError):
-            min_token = 10.0
+            min_token = Decimal(args.get("min_token", "10"))
+        except (ValueError, TypeError, InvalidOperation):
+            min_token = Decimal("10")
         holder_address = state.wallet_address or ""
 
         if not holder_address:

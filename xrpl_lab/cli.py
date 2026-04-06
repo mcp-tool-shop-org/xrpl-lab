@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import time
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import click
@@ -606,8 +607,8 @@ def send(destination: str, amount: str, memo: str, dry_run: bool):
 
     # Validate amount
     try:
-        amount_f = float(amount)
-    except ValueError:
+        amount_f = Decimal(amount)
+    except (ValueError, InvalidOperation):
         console.print("[red]Invalid amount — must be a number[/]")
         raise SystemExit(2) from None
     if amount_f <= 0:

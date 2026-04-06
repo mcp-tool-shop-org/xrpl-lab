@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 
 from ..transport.base import AmmInfo, SubmitResult, Transport
 
@@ -121,9 +122,9 @@ async def verify_lp_received(
         address, amm_info.lp_token_currency, amm_info.lp_token_issuer,
     )
     try:
-        balance_f = float(lp_balance)
-    except (ValueError, TypeError):
-        balance_f = 0.0
+        balance_f = Decimal(lp_balance)
+    except (ValueError, TypeError, InvalidOperation):
+        balance_f = Decimal("0")
         failures.append(f"Could not parse LP balance: {lp_balance!r}")
 
     if balance_f > 0:
@@ -177,14 +178,14 @@ async def verify_withdrawal(
         address, amm_info.lp_token_currency, amm_info.lp_token_issuer,
     )
     try:
-        balance_f = float(lp_balance)
-    except (ValueError, TypeError):
-        balance_f = 0.0
+        balance_f = Decimal(lp_balance)
+    except (ValueError, TypeError, InvalidOperation):
+        balance_f = Decimal("0")
         failures.append(f"Could not parse LP balance: {lp_balance!r}")
     try:
-        before_f = float(lp_before)
-    except (ValueError, TypeError):
-        before_f = 0.0
+        before_f = Decimal(lp_before)
+    except (ValueError, TypeError, InvalidOperation):
+        before_f = Decimal("0")
         failures.append(f"Could not parse LP balance: {lp_before!r}")
 
     if balance_f == 0 and before_f == 0:

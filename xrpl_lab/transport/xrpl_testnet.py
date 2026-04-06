@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from decimal import Decimal, InvalidOperation
 
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
@@ -199,8 +200,8 @@ class XRPLTestnetTransport(Transport):
         memo: str = "",
     ) -> SubmitResult:
         try:
-            amount_f = float(amount)
-        except (ValueError, TypeError):
+            amount_f = Decimal(amount)
+        except (ValueError, TypeError, InvalidOperation):
             return SubmitResult(
                 success=False,
                 result_code="local_error",
@@ -215,7 +216,7 @@ class XRPLTestnetTransport(Transport):
                 payment = Payment(
                     account=wallet.address,
                     destination=destination,
-                    amount=xrp_to_drops(amount_f),
+                    amount=xrp_to_drops(amount_f),  # xrp_to_drops accepts Decimal
                     memos=_memo_field(memo) or None,
                 )
                 async with AsyncJsonRpcClient(self._rpc_url) as client:
@@ -495,8 +496,8 @@ class XRPLTestnetTransport(Transport):
         """Build an XRP drops string or IssuedCurrencyAmount."""
         if currency == "XRP":
             try:
-                return xrp_to_drops(float(value))
-            except (ValueError, TypeError):
+                return xrp_to_drops(Decimal(value))  # xrp_to_drops accepts Decimal
+            except (ValueError, TypeError, InvalidOperation):
                 raise ValueError(
                     f"Invalid XRP amount: {value!r} — expected a numeric value like '10' or '1.5'"
                 ) from None
