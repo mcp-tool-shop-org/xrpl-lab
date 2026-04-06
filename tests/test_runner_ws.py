@@ -150,7 +150,7 @@ class TestRunWebSocket:
         monkeypatch.setattr("xrpl_lab.api.runner_ws.load_all_modules", lambda: mods)
 
         # Mock run_module to avoid real async execution and just emit done
-        async def _fake_run_module(module, transport, dry_run=False, force=False):
+        async def _fake_run_module(module, transport, dry_run=False, force=False, **kwargs):
             return True
 
         monkeypatch.setattr("xrpl_lab.api.runner_ws.run_module", _fake_run_module)
@@ -193,7 +193,7 @@ class TestRunWebSocket:
         mods = {"receipt_literacy": _make_simple_module("receipt_literacy")}
         monkeypatch.setattr("xrpl_lab.api.runner_ws.load_all_modules", lambda: mods)
 
-        async def _fake_run_module(module, transport, dry_run=False, force=False):
+        async def _fake_run_module(module, transport, dry_run=False, force=False, **kwargs):
             return True
 
         monkeypatch.setattr("xrpl_lab.api.runner_ws.run_module", _fake_run_module)

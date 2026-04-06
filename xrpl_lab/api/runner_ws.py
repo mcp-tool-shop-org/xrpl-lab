@@ -23,14 +23,16 @@ _sessions: dict[str, ModuleRunSession] = {}
 # Max sessions cap — evict oldest completed when exceeded
 _MAX_SESSIONS = 100
 
-# Max concurrent runs allowed at a time
+# Concurrency policy: up to _MAX_CONCURRENT_RUNS module runs may execute
+# simultaneously. Each run has its own Console, context, and event sink.
+# No global mutable state is shared between runs.
 _MAX_CONCURRENT_RUNS = 3
 
 # Grace period (seconds) before cleaning up a disconnected session
 _CLEANUP_GRACE_SECONDS = 60
 
-# Lock to serialize monkey-patching of runner_mod.console and _execute_action
-_runner_patch_lock = asyncio.Lock()
+# Timeout (seconds) for a single module run
+_RUN_TIMEOUT_SECONDS = 300
 
 
 @dataclass
@@ -101,7 +103,11 @@ def _make_capture_console(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop)
 
 
 async def _run_module_task(session: ModuleRunSession) -> None:
-    """Background task: run the module and feed events to session.queue."""
+    """Background task: run the module and feed events to session.queue.
+
+    Each run gets its own ``Console`` and callback closures — no global
+    mutable state is shared, so concurrent runs are naturally isolated.
+    """
 
     all_mods = load_all_modules()
     mod = all_mods.get(session.module_id)
@@ -109,7 +115,7 @@ async def _run_module_task(session: ModuleRunSession) -> None:
         msg = f"Module '{session.module_id}' not found"
         await session.queue.put({"type": "error", "message": msg})
         session.status = "error"
-        session.error = f"Module '{session.module_id}' not found"
+        session.error = msg
         return
 
     if session.dry_run:
@@ -121,104 +127,87 @@ async def _run_module_task(session: ModuleRunSession) -> None:
 
     session.status = "running"
 
-    # Serialize access to monkey-patched runner globals
-    async with _runner_patch_lock:
-        # Emit step events by wrapping the runner's console output
-        # We intercept at the run_module level by patching the console in runner module
-        import xrpl_lab.runner as runner_mod
+    loop = asyncio.get_event_loop()
+    capture_console = _make_capture_console(session.queue, loop)
+    # Skip interactive pauses in WebSocket mode
+    capture_console.input = lambda _prompt="": ""  # type: ignore[method-assign]
 
-        loop = asyncio.get_event_loop()
-        capture_console = _make_capture_console(session.queue, loop)
+    total_steps = len(mod.steps)
 
-        # Count steps for progress messages
-        total_steps = len(mod.steps)
+    # ── Callbacks fed to run_module ──────────────────────────────────
 
-        # Emit step start events alongside the regular execution
-        # We wrap _execute_action to emit step events
-        original_execute = runner_mod._execute_action
+    async def _on_step(action: str, index: int, total: int) -> None:
+        await session.queue.put({
+            "type": "step",
+            "action": action,
+            "index": index,
+            "total": total_steps,
+        })
 
-        step_counter = [0]
+    async def _on_step_complete(action: str, success: bool) -> None:
+        await session.queue.put({
+            "type": "step_complete",
+            "action": action,
+            "success": success,
+        })
 
-        async def _tracked_execute(step, state, transport_inner, wallet_seed, context):
-            idx = step_counter[0]
-            step_counter[0] += 1
-            action = step.action or "read"
+    async def _on_tx(txid: str, result_code: str) -> None:
+        if txid not in session.txids:
+            session.txids.append(txid)
             await session.queue.put({
-                "type": "step",
-                "action": action,
-                "index": idx,
-                "total": total_steps,
+                "type": "tx",
+                "txid": txid,
+                "result_code": result_code,
             })
-            result_ctx = await original_execute(step, state, transport_inner, wallet_seed, context)
 
-            # Emit tx events for any new txids
-            new_txids = result_ctx.get("txids", [])
-            for txid in new_txids:
-                if txid not in session.txids:
-                    session.txids.append(txid)
-                    last_submit = result_ctx.get("last_submit")
-                    result_code = ""
-                    if last_submit and hasattr(last_submit, "result_code"):
-                        result_code = last_submit.result_code or ""
-                    await session.queue.put({
-                        "type": "tx",
-                        "txid": txid,
-                        "result_code": result_code,
-                    })
+    try:
+        success = await asyncio.wait_for(
+            run_module(
+                mod,
+                transport,
+                dry_run=session.dry_run,
+                console=capture_console,
+                on_step=_on_step,
+                on_step_complete=_on_step_complete,
+                on_tx=_on_tx,
+            ),
+            timeout=_RUN_TIMEOUT_SECONDS,
+        )
 
-            success = True
-            last_submit = result_ctx.get("last_submit")
-            if last_submit and hasattr(last_submit, "success"):
-                success = bool(last_submit.success)
-
-            await session.queue.put({
-                "type": "step_complete",
-                "action": action,
-                "success": success,
-            })
-            return result_ctx
-
-        original_console = runner_mod.console
-        runner_mod.console = capture_console
-        runner_mod._execute_action = _tracked_execute
-
+        # Collect report path from state
         try:
-            # run_module calls console.input for step pauses — we skip interactive mode
-            # by patching console.input to return "" automatically
-            capture_console.input = lambda _prompt="": ""  # type: ignore[method-assign]
+            from ..state import load_state as _load_state
+            state = _load_state()
+            for cm in state.completed_modules:
+                if cm.module_id == session.module_id:
+                    session.report_path = cm.report_path or ""
+                    if not session.txids:
+                        session.txids = list(cm.txids)
+                    break
+        except Exception:
+            pass
 
-            success = await run_module(mod, transport, dry_run=session.dry_run)
-
-            # Collect report path from state
-            try:
-                from ..state import load_state as _load_state
-                state = _load_state()
-                for cm in state.completed_modules:
-                    if cm.module_id == session.module_id:
-                        session.report_path = cm.report_path or ""
-                        if not session.txids:
-                            session.txids = list(cm.txids)
-                        break
-            except Exception:
-                pass
-
-            session.status = "complete"
-            await session.queue.put({
-                "type": "complete",
-                "success": success,
-                "txids": session.txids,
-                "report_path": session.report_path,
-            })
-        except Exception as exc:
-            session.status = "error"
-            session.error = str(exc)
-            await session.queue.put({
-                "type": "error",
-                "message": str(exc),
-            })
-        finally:
-            runner_mod.console = original_console
-            runner_mod._execute_action = original_execute
+        session.status = "complete"
+        await session.queue.put({
+            "type": "complete",
+            "success": success,
+            "txids": session.txids,
+            "report_path": session.report_path,
+        })
+    except TimeoutError:
+        session.status = "error"
+        session.error = f"Module run timed out after {_RUN_TIMEOUT_SECONDS}s"
+        await session.queue.put({
+            "type": "error",
+            "message": session.error,
+        })
+    except Exception as exc:
+        session.status = "error"
+        session.error = str(exc)
+        await session.queue.put({
+            "type": "error",
+            "message": str(exc),
+        })
 
 
 # ── POST /api/run/{module_id} ────────────────────────────────────────

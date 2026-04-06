@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import inspect
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from rich.console import Console
@@ -81,8 +83,14 @@ class _SecretValue:
 console = Console()
 
 
-async def _ensure_wallet(state: LabState, transport: Transport) -> tuple[LabState, _SecretValue]:
+async def _ensure_wallet(
+    state: LabState,
+    transport: Transport,
+    console: Console | None = None,
+) -> tuple[LabState, _SecretValue]:
     """Make sure we have a wallet; return (state, wrapped_seed)."""
+    if console is None:
+        console = globals()["console"]
     wallet_path = Path(state.wallet_path) if state.wallet_path else None
 
     if wallet_path and wallet_exists(wallet_path):
@@ -117,9 +125,14 @@ async def _ensure_wallet(state: LabState, transport: Transport) -> tuple[LabStat
 
 
 async def _ensure_funded(
-    state: LabState, transport: Transport, address: str
+    state: LabState,
+    transport: Transport,
+    address: str,
+    console: Console | None = None,
 ) -> bool:
     """Check balance and fund from faucet if needed. Returns True if funded."""
+    if console is None:
+        console = globals()["console"]
     balance = await transport.get_balance(address)
     try:
         bal = float(balance) if balance else 0.0
@@ -154,6 +167,7 @@ async def _execute_action(
     transport: Transport,
     wallet_seed: str | _SecretValue,
     context: dict,
+    console: Console | None = None,
 ) -> dict:
     """Execute an action embedded in a module step. Returns updated context.
 
@@ -161,6 +175,8 @@ async def _execute_action(
     # A registry-based dispatch (dict[str, Callable]) is planned for a future
     # version to improve maintainability. See PH-020.
     """
+    if console is None:
+        console = globals()["console"]
     action = step.action
     if not action:
         return context
@@ -185,14 +201,14 @@ async def _execute_action(
         return context
 
     if action == "ensure_wallet":
-        state, wrapped_seed = await _ensure_wallet(state, transport)
+        state, wrapped_seed = await _ensure_wallet(state, transport, console=console)
         context["wallet_seed"] = wrapped_seed
         wallet_seed = wrapped_seed.get()
 
     elif action == "ensure_funded":
         address = state.wallet_address
         if address:
-            funded = await _ensure_funded(state, transport, address)
+            funded = await _ensure_funded(state, transport, address, console=console)
             if not funded:
                 return context
 
@@ -1468,8 +1484,26 @@ async def run_module(
     transport: Transport,
     dry_run: bool = False,
     force: bool = False,
+    console: Console | None = None,
+    on_step: Callable | None = None,
+    on_step_complete: Callable | None = None,
+    on_tx: Callable | None = None,
 ) -> bool:
-    """Run a module interactively. Returns True if completed successfully."""
+    """Run a module interactively. Returns True if completed successfully.
+
+    Parameters
+    ----------
+    console:
+        Rich Console to use for output.  Falls back to the module-level global.
+    on_step:
+        ``on_step(action, index, total)`` — called before each step executes.
+    on_step_complete:
+        ``on_step_complete(action, success)`` — called after each step.
+    on_tx:
+        ``on_tx(txid, result_code)`` — called for each new transaction.
+    """
+    if console is None:
+        console = globals()["console"]
     state = load_state()
     ensure_workspace()
 
@@ -1541,12 +1575,23 @@ async def run_module(
 
         # Execute action if present
         if step.action:
+            if on_step is not None:
+                _r = on_step(step.action, i, len(module.steps))
+                if inspect.isawaitable(_r):
+                    await _r
             console.print(f"[dim]  → {step.action}...[/]")
             try:
                 context = await _execute_action(
-                    step, state, transport, context.get("wallet_seed", _SecretValue("")), context
+                    step, state, transport,
+                    context.get("wallet_seed", _SecretValue("")),
+                    context,
+                    console=console,
                 )
             except Exception as exc:
+                if on_step_complete is not None:
+                    _r = on_step_complete(step.action, False)
+                    if inspect.isawaitable(_r):
+                        await _r
                 console.print(f"[red]Step failed unexpectedly: {exc}[/]")
                 save_state(state)
                 console.print(
@@ -1554,6 +1599,28 @@ async def run_module(
                     f"xrpl-lab run {module.id}[/]"
                 )
                 return False
+
+            # Fire tx callback for any new transactions from this step
+            if on_tx is not None:
+                for txid in context.get("txids", []):
+                    last_submit = context.get("last_submit")
+                    result_code = ""
+                    if last_submit and hasattr(last_submit, "result_code"):
+                        result_code = last_submit.result_code or ""
+                    _r = on_tx(txid, result_code)
+                    if inspect.isawaitable(_r):
+                        await _r
+
+            # Fire step_complete callback
+            if on_step_complete is not None:
+                success = True
+                last_submit = context.get("last_submit")
+                if last_submit and hasattr(last_submit, "success"):
+                    success = bool(last_submit.success)
+                _r = on_step_complete(step.action, success)
+                if inspect.isawaitable(_r):
+                    await _r
+
             console.print()
 
         # Pause between steps (except last)
