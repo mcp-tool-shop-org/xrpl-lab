@@ -6,14 +6,14 @@ export function getStaticPaths() {
     'receipt_literacy',
     'failure_literacy',
     'trust_lines_101',
-    'debugging_trust_lines',
+    'trust_line_failures',
     'dex_literacy',
     'reserves_101',
     'account_hygiene',
     'receipt_audit',
     'amm_liquidity_101',
     'dex_market_making_101',
-    'inventory_guardrails',
+    'dex_inventory_guardrails',
     'dex_vs_amm_risk_literacy',
   ];
   return moduleIds.map(id => ({ params: { id } }));
