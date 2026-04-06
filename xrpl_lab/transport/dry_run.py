@@ -106,9 +106,20 @@ class DryRunTransport(Transport):
 
         from xrpl.utils import xrp_to_drops as _xrp_to_drops
 
+        try:
+            numeric_amount = float(amount)
+        except (ValueError, TypeError):
+            return SubmitResult(
+                success=False,
+                txid="",
+                result_code="temBAD_AMOUNT",
+                fee="0",
+                error=f"[dry-run] Invalid amount: {amount}",
+            )
+
         txid = self._next_txid()
         sender = _address_from_seed(wallet_seed)
-        drops = int(_xrp_to_drops(float(amount)))
+        drops = int(_xrp_to_drops(numeric_amount))
         self._balances[sender] = self._balances.get(sender, 0) - drops
         self._balances[destination] = self._balances.get(destination, 0) + drops
         return SubmitResult(
@@ -234,8 +245,23 @@ class DryRunTransport(Transport):
                 ),
             )
 
+        try:
+            numeric_balance = float(matching_tl.balance)
+        except (ValueError, TypeError):
+            numeric_balance = 0.0
+        try:
+            numeric_amount = float(amount)
+        except (ValueError, TypeError):
+            return SubmitResult(
+                success=False,
+                txid="",
+                result_code="temBAD_AMOUNT",
+                fee="0",
+                error=f"[dry-run] Invalid amount: {amount}",
+            )
+
         txid = self._next_txid()
-        new_balance = float(matching_tl.balance) + float(amount)
+        new_balance = numeric_balance + numeric_amount
         # Preserve integer representation when the result is a whole number
         matching_tl.balance = (
             str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)

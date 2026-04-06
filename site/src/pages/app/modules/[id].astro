@@ -109,6 +109,16 @@ const { id } = Astro.params;
   <script>
     const API_BASE = 'http://localhost:8321';
 
+    function escapeHtml(str: any): string {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     const levelColors: Record<string, string> = {
       beginner: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
       intermediate: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
@@ -156,7 +166,7 @@ const { id } = Astro.params;
         const steps = document.getElementById('mod-steps');
         if (steps && mod.steps) {
           steps.innerHTML = mod.steps.map((s: string) =>
-            `<li class="text-slate-300">${s}</li>`
+            `<li class="text-slate-300">${escapeHtml(s)}</li>`
           ).join('');
         }
 
@@ -193,7 +203,7 @@ const { id } = Astro.params;
                   : '<span class="text-xs text-amber-400">Not completed</span>';
                 return `<li class="flex items-center gap-2 text-sm">
                   ${dot}
-                  <a href="/xrpl-lab/app/modules/${pid}/" class="text-slate-300 hover:text-emerald-400 transition-colors">${title}</a>
+                  <a href="/xrpl-lab/app/modules/${escapeHtml(pid)}/" class="text-slate-300 hover:text-emerald-400 transition-colors">${escapeHtml(title)}</a>
                   ${statusText}
                 </li>`;
               }).join('');

@@ -101,6 +101,16 @@ const { id } = Astro.params;
   <script>
     const API_BASE = 'http://localhost:8321';
 
+    function escapeHtml(str: any): string {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     const container = document.getElementById('run-page');
     const moduleId = container?.dataset.moduleId || '';
 
@@ -181,7 +191,7 @@ const { id } = Astro.params;
         }
         return `<div class="flex items-start gap-2 text-sm">
           <span class="shrink-0 w-5 text-center mt-0.5">${icon}</span>
-          <span class="${textCls}">${i + 1}. ${s.action}</span>
+          <span class="${textCls}">${i + 1}. ${escapeHtml(s.action)}</span>
         </div>`;
       }).join('');
     }
@@ -303,8 +313,8 @@ const { id } = Astro.params;
           li.className = 'flex items-center gap-2';
           const resultCls = msg.result_code === 'tesSUCCESS' ? 'text-emerald-400' : 'text-amber-400';
           li.innerHTML = `<span class="text-slate-500">#${txids.length}</span>
-            <span class="text-slate-300 truncate">${msg.txid}</span>
-            <span class="${resultCls}">${msg.result_code}</span>`;
+            <span class="text-slate-300 truncate">${escapeHtml(msg.txid)}</span>
+            <span class="${resultCls}">${escapeHtml(msg.result_code)}</span>`;
           txList.appendChild(li);
           termAppend(`  TX: ${msg.txid} [${msg.result_code}]`, 'text-cyan-400');
           break;

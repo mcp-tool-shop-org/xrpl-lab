@@ -95,6 +95,16 @@ const navLinks = [
   <script>
     const API_BASE = 'http://localhost:8321';
 
+    function escapeHtml(str: any): string {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     async function hydrateLayout() {
       // Sidebar modules
       try {
@@ -106,9 +116,9 @@ const navLinks = [
               ? '<span class="text-emerald-500 mr-1.5">&#9679;</span>'
               : '<span class="text-slate-600 mr-1.5">&#9675;</span>';
             return `<li>
-              <a href="/xrpl-lab/app/modules/${m.id}/"
+              <a href="/xrpl-lab/app/modules/${escapeHtml(m.id)}/"
                  class="flex items-center text-sm text-slate-400 hover:text-emerald-400 py-1 transition-colors">
-                ${dot}${m.title}
+                ${dot}${escapeHtml(m.title)}
               </a>
             </li>`;
           }).join('');

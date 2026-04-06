@@ -41,6 +41,9 @@ Homepage = "https://mcp-tool-shop-org.github.io/xrpl-lab/"
 Repository = "https://github.com/mcp-tool-shop-org/xrpl-lab"
 Issues = "https://github.com/mcp-tool-shop-org/xrpl-lab/issues"
 
+[tool.hatch.build.targets.wheel.force-include]
+"modules" = "modules"
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100

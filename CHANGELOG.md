@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.5 — 2026-04-05
+
+Version alignment — bump to match upstream and npm wrapper versions.
+
+- Bump version to 1.0.5 to align with @mcptoolshop/xrpl-lab npm wrapper
+- Include module markdown files in wheel via hatch force-include (pip installs now get all 12 modules)
+- Fix PyInstaller --add-data separator for cross-platform builds (Windows uses `;`, Linux uses `:`)
+
+## 1.0.4 — 2026-03-29
+
+Translations and documentation update.
+
+- Added 8-language translations for v1.0.3 release notes
+
 ## 1.0.3 — 2026-03-29
 
 Dogfood Swarm — comprehensive health pass, web dashboard, and 127 new tests.

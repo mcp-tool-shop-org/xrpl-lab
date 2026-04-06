@@ -174,7 +174,10 @@ def check_inventory(
     token_bal = 0.0
     for tl in snapshot.trust_lines:
         if tl.currency == token_currency:
-            token_bal = float(tl.balance)
+            try:
+                token_bal = float(tl.balance)
+            except (ValueError, TypeError):
+                token_bal = 0.0
             break
 
     # XRP check (bid side = buying token with XRP)

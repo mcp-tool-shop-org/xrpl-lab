@@ -39,6 +39,11 @@ jobs:
       - name: Install dependencies + PyInstaller
         run: uv pip install . "pyinstaller>=6.9.0"
 
+      - name: Set path separator
+        id: sep
+        shell: bash
+        run: echo "sep=$([[ "$RUNNER_OS" == "Windows" ]] && echo ';' || echo ':')" >> "$GITHUB_OUTPUT"
+
       - name: Build binary
         shell: bash
         run: |
@@ -47,7 +52,7 @@ jobs:
             --collect-submodules rich \
             --collect-submodules pydantic \
             --collect-data xrpl \
-            --add-data "modules:modules" \
+            --add-data "modules${{ steps.sep.outputs.sep }}modules" \
             xrpl_lab/__main__.py
           OUTNAME="xrpl-lab-${VERSION}-${{ matrix.target }}${{ matrix.ext }}"
           mv "dist/xrpl-lab${{ matrix.ext }}" "dist/${OUTNAME}"

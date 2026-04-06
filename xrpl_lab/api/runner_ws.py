@@ -23,6 +23,9 @@ _sessions: dict[str, ModuleRunSession] = {}
 # Max sessions cap — evict oldest completed when exceeded
 _MAX_SESSIONS = 100
 
+# Max concurrent runs allowed at a time
+_MAX_CONCURRENT_RUNS = 3
+
 # Grace period (seconds) before cleaning up a disconnected session
 _CLEANUP_GRACE_SECONDS = 60
 
@@ -67,12 +70,16 @@ def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS
     """Schedule removal of a session after a grace period."""
 
     async def _cleanup() -> None:
-        await asyncio.sleep(delay)
-        session = _sessions.get(run_id)
-        if session and session.status in ("complete", "error"):
-            _sessions.pop(run_id, None)
+        try:
+            await asyncio.sleep(delay)
+            session = _sessions.get(run_id)
+            if session and session.status in ("complete", "error"):
+                _sessions.pop(run_id, None)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning("Session cleanup failed for %s", run_id)
 
-    asyncio.ensure_future(_cleanup())
+    asyncio.create_task(_cleanup())
 
 
 def _make_capture_console(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
@@ -231,6 +238,11 @@ async def start_run(request: Request, module_id: str, dry_run: bool = False) -> 
     qs = str(request.url.query)
     if "dry_run" not in qs and "dry-run" not in qs:
         dry_run = getattr(request.app.state, "dry_run", False)
+
+    # Rate limit: cap concurrent runs
+    active = sum(1 for s in _sessions.values() if s.status in ("running", "started"))
+    if active >= _MAX_CONCURRENT_RUNS:
+        raise HTTPException(status_code=429, detail="Too many concurrent runs. Try again later.")
 
     all_mods = load_all_modules()
     if module_id not in all_mods:

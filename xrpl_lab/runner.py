@@ -121,13 +121,21 @@ async def _ensure_funded(
 ) -> bool:
     """Check balance and fund from faucet if needed. Returns True if funded."""
     balance = await transport.get_balance(address)
-    if balance and float(balance) > 0:
+    try:
+        bal = float(balance) if balance else 0.0
+    except (ValueError, TypeError):
+        bal = 0.0
+    if bal > 0:
         console.print(f"  Balance: [green]{balance} XRP[/]")
         return True
 
     console.print("  Requesting funds from testnet faucet...")
     result = await transport.fund_from_faucet(address)
-    if result.success and result.balance and float(result.balance) > 0:
+    try:
+        funded_bal = float(result.balance) if result.balance else 0.0
+    except (ValueError, TypeError):
+        funded_bal = 0.0
+    if result.success and funded_bal > 0:
         console.print(f"  Funded! Balance: [green]{result.balance} XRP[/]")
         return True
     else:
@@ -275,7 +283,7 @@ async def _execute_action(
         issuer_path.parent.mkdir(parents=True, exist_ok=True)
         save_wallet(issuer, issuer_path)
         console.print(f"  Issuer wallet created: [cyan]{issuer.address}[/]")
-        context["issuer_seed"] = issuer.seed
+        context["issuer_seed"] = _SecretValue(issuer.seed)
         context["issuer_address"] = issuer.address
 
     elif action == "fund_issuer":
@@ -338,7 +346,8 @@ async def _execute_action(
         args = step.action_args
         currency = args.get("currency", "LAB")
         amount = args.get("amount", "100")
-        issuer_seed = context.get("issuer_seed", "")
+        _raw_issuer = context.get("issuer_seed", "")
+        issuer_seed = _raw_issuer.get() if isinstance(_raw_issuer, _SecretValue) else _raw_issuer
         issuer_address = context.get("issuer_address", "")
         holder_address = state.wallet_address or ""
 
@@ -380,7 +389,8 @@ async def _execute_action(
         args = step.action_args
         currency = args.get("currency", "DBG")
         amount = args.get("amount", "100")
-        issuer_seed = context.get("issuer_seed", "")
+        _raw_issuer = context.get("issuer_seed", "")
+        issuer_seed = _raw_issuer.get() if isinstance(_raw_issuer, _SecretValue) else _raw_issuer
         issuer_address = context.get("issuer_address", "")
         holder_address = state.wallet_address or ""
 
@@ -1250,7 +1260,10 @@ async def _execute_action(
         except ValueError:
             console.print("[yellow]Invalid min_xrp_drops, using default[/]")
             min_xrp = 20_000_000
-        min_token = float(args.get("min_token", "10"))
+        try:
+            min_token = float(args.get("min_token", "10"))
+        except (ValueError, TypeError):
+            min_token = 10.0
         holder_address = state.wallet_address or ""
 
         if not holder_address:
