@@ -12,42 +12,52 @@ from ..doctor import run_doctor
 from ..modules import load_all_modules
 from ..reporting import generate_certificate, generate_proof_pack
 from ..state import get_workspace_dir, load_state
+from .schemas import (
+    DoctorCheck,
+    DoctorResponse,
+    LastRun,
+    ModuleDetail,
+    ModuleSummary,
+    ReportDetail,
+    ReportSummary,
+    StatusResponse,
+)
 
 router = APIRouter(prefix="/api")
 
 
-# ── /api/modules ──────────────────────────────────────────────────────
+# -- /api/modules ----------------------------------------------------------
 
 
 @router.get("/modules")
-def list_modules() -> list[dict[str, Any]]:
+def list_modules() -> list[ModuleSummary]:
     """List all modules with metadata and completion status."""
     all_mods = load_all_modules()
     state = load_state()
     completed_ids = {cm.module_id for cm in state.completed_modules}
 
-    result: list[dict[str, Any]] = []
+    result: list[ModuleSummary] = []
     for mod in all_mods.values():
         result.append(
-            {
-                "id": mod.id,
-                "title": mod.title,
-                "level": mod.level,
-                "time_estimate": mod.time,
-                "requires": mod.requires,
-                "produces": mod.produces,
-                "checks": mod.checks,
-                "completed": mod.id in completed_ids,
-            }
+            ModuleSummary(
+                id=mod.id,
+                title=mod.title,
+                level=mod.level,
+                time_estimate=mod.time,
+                requires=mod.requires,
+                produces=mod.produces,
+                checks=mod.checks,
+                completed=mod.id in completed_ids,
+            )
         )
     return result
 
 
-# ── /api/modules/{module_id} ──────────────────────────────────────────
+# -- /api/modules/{module_id} ----------------------------------------------
 
 
 @router.get("/modules/{module_id}")
-def get_module(module_id: str) -> dict[str, Any]:
+def get_module(module_id: str) -> ModuleDetail:
     """Return detailed info for a single module including steps."""
     all_mods = load_all_modules()
     mod = all_mods.get(module_id)
@@ -70,51 +80,51 @@ def get_module(module_id: str) -> dict[str, Any]:
     if not description and mod.steps:
         description = mod.steps[0].text
 
-    return {
-        "id": mod.id,
-        "title": mod.title,
-        "level": mod.level,
-        "time_estimate": mod.time,
-        "prerequisites": mod.requires,
-        "artifacts": mod.produces,
-        "checks": mod.checks,
-        "completed": mod.id in completed_ids,
-        "description": description,
-        "steps": steps,
-    }
+    return ModuleDetail(
+        id=mod.id,
+        title=mod.title,
+        level=mod.level,
+        time_estimate=mod.time,
+        prerequisites=mod.requires,
+        artifacts=mod.produces,
+        checks=mod.checks,
+        completed=mod.id in completed_ids,
+        description=description,
+        steps=steps,
+    )
 
 
-# ── /api/status ───────────────────────────────────────────────────────
+# -- /api/status -----------------------------------------------------------
 
 
 @router.get("/status")
-def get_status() -> dict[str, Any]:
+def get_status() -> StatusResponse:
     """Return overall lab status: completion counts, wallet info, workspace."""
     state = load_state()
     all_mods = load_all_modules()
 
-    last_run: dict[str, Any] | None = None
+    last_run: LastRun | None = None
     if state.completed_modules:
         latest = max(state.completed_modules, key=lambda m: m.completed_at)
-        last_run = {
-            "module": latest.module_id,
-            "timestamp": datetime.fromtimestamp(latest.completed_at, tz=UTC).isoformat(),
-            "success": True,
-        }
+        last_run = LastRun(
+            module=latest.module_id,
+            timestamp=datetime.fromtimestamp(latest.completed_at, tz=UTC).isoformat(),
+            success=True,
+        )
 
     ws = get_workspace_dir()
 
-    return {
-        "modules_completed": len(state.completed_modules),
-        "modules_total": len(all_mods),
-        "wallet_configured": state.wallet_address is not None and len(state.wallet_address) > 0,
-        "wallet_address": state.wallet_address,
-        "last_run": last_run,
-        "workspace": str(ws),
-    }
+    return StatusResponse(
+        modules_completed=len(state.completed_modules),
+        modules_total=len(all_mods),
+        wallet_configured=state.wallet_address is not None and len(state.wallet_address) > 0,
+        wallet_address=state.wallet_address,
+        last_run=last_run,
+        workspace=str(ws),
+    )
 
 
-# ── /api/artifacts/proof-pack ─────────────────────────────────────────
+# -- /api/artifacts/proof-pack ---------------------------------------------
 
 
 @router.get("/artifacts/proof-pack")
@@ -124,7 +134,7 @@ def get_proof_pack() -> dict[str, Any]:
     return generate_proof_pack(state)
 
 
-# ── /api/artifacts/certificate ────────────────────────────────────────
+# -- /api/artifacts/certificate --------------------------------------------
 
 
 @router.get("/artifacts/certificate")
@@ -134,18 +144,18 @@ def get_certificate() -> dict[str, Any]:
     return generate_certificate(state)
 
 
-# ── /api/artifacts/reports ────────────────────────────────────────────
+# -- /api/artifacts/reports ------------------------------------------------
 
 
 @router.get("/artifacts/reports")
-def list_reports() -> list[dict[str, Any]]:
+def list_reports() -> list[ReportSummary]:
     """Return a list of available module reports with title, generated timestamp, and content."""
     ws = get_workspace_dir()
     reports_dir = ws / "reports"
     if not reports_dir.is_dir():
         return []
 
-    result: list[dict[str, Any]] = []
+    result: list[ReportSummary] = []
     for p in sorted(reports_dir.glob("*.md")):
         # Title from filename (strip .md, replace underscores with spaces, title-case)
         title = p.stem.replace("_", " ").replace("-", " ").title()
@@ -154,16 +164,16 @@ def list_reports() -> list[dict[str, Any]]:
         generated = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
         # Read content
         content = p.read_text(encoding="utf-8")
-        result.append({
-            "title": title,
-            "generated": generated,
-            "content": content,
-        })
+        result.append(ReportSummary(
+            title=title,
+            generated=generated,
+            content=content,
+        ))
     return result
 
 
 @router.get("/artifacts/reports/{module_id}")
-def get_report(module_id: str) -> dict[str, Any]:
+def get_report(module_id: str) -> ReportDetail:
     """Return the content of a specific module report."""
     # Guard against path traversal
     if "/" in module_id or "\\" in module_id or ".." in module_id or "\x00" in module_id:
@@ -192,22 +202,22 @@ def get_report(module_id: str) -> dict[str, Any]:
             "hint": "Run a module first to generate its report",
         })
 
-    return {
-        "module_id": module_id,
-        "content": report_path.read_text(encoding="utf-8"),
-    }
+    return ReportDetail(
+        module_id=module_id,
+        content=report_path.read_text(encoding="utf-8"),
+    )
 
 
-# ── /api/doctor ───────────────────────────────────────────────────────
+# -- /api/doctor -----------------------------------------------------------
 
 
 @router.get("/doctor")
-async def get_doctor() -> dict[str, Any]:
+async def get_doctor() -> DoctorResponse:
     """Run diagnostic checks and return results."""
     report = await run_doctor()
 
     # Map checks to canonical shape
-    checks: list[dict[str, str]] = []
+    checks: list[DoctorCheck] = []
     has_failure = False
     for c in report.checks:
         if c.passed:
@@ -220,11 +230,11 @@ async def get_doctor() -> dict[str, Any]:
         if c.hint:
             message = f"{message}. {c.hint}" if message else c.hint
 
-        checks.append({
-            "name": c.name,
-            "status": status,
-            "message": message,
-        })
+        checks.append(DoctorCheck(
+            name=c.name,
+            status=status,
+            message=message,
+        ))
 
     # Determine overall status
     if has_failure:
@@ -234,7 +244,7 @@ async def get_doctor() -> dict[str, Any]:
     else:
         overall = "warning"
 
-    return {
-        "overall": overall,
-        "checks": checks,
-    }
+    return DoctorResponse(
+        overall=overall,
+        checks=checks,
+    )

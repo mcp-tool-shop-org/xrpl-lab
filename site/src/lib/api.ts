@@ -1,3 +1,9 @@
+/**
+ * API type definitions — mirrors xrpl_lab/api/schemas.py exactly.
+ * DO NOT edit these interfaces without updating the Python models first.
+ * Drift is caught by tests/test_schema_drift.py.
+ */
+
 const API_BASE = 'http://localhost:8321';
 
 async function request<T>(path: string): Promise<T> {
@@ -11,40 +17,39 @@ async function request<T>(path: string): Promise<T> {
 export interface ModuleSummary {
   id: string;
   title: string;
-  level: 'beginner' | 'intermediate' | 'advanced';
+  level: string;
   time_estimate: string;
-  completed: boolean;
-  description?: string;
-  checks: string[];
   requires: string[];
   produces: string[];
+  checks: string[];
+  completed: boolean;
 }
 
 export interface ModuleDetail extends ModuleSummary {
-  checks: string[];
   prerequisites: string[];
-  steps: string[];
   artifacts: string[];
+  description: string;
+  steps: string[];
 }
 
 export interface Status {
-  wallet_configured: boolean;
-  wallet_address: string | null;
-  workspace: string;
   modules_completed: number;
   modules_total: number;
+  wallet_configured: boolean;
+  wallet_address: string | null;
   last_run: {
     module: string;
     timestamp: string;
     success: boolean;
   } | null;
+  workspace: string;
 }
 
 export interface DoctorResult {
-  overall: 'healthy' | 'warning' | 'error';
+  overall: string;
   checks: Array<{
     name: string;
-    status: 'ok' | 'warn' | 'fail';
+    status: 'pass' | 'warn' | 'fail';
     message: string;
   }>;
 }

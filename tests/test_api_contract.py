@@ -1,7 +1,8 @@
-"""API contract tests — enforce canonical response schemas for every endpoint.
+"""API contract tests — enforce response schemas using Pydantic models.
 
-These tests validate structural guarantees that the frontend depends on.
-If a field is renamed, removed, or changes type, these tests catch it.
+These tests prove that every API response can be deserialized into
+the canonical Pydantic model without error. Field drift is caught
+at test time, not at runtime.
 """
 
 from __future__ import annotations
@@ -11,6 +12,15 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from xrpl_lab.api.schemas import (
+    DoctorCheck,
+    DoctorResponse,
+    ModuleDetail,
+    ModuleSummary,
+    ReportDetail,
+    ReportSummary,
+    StatusResponse,
+)
 from xrpl_lab.doctor import Check, DoctorReport
 from xrpl_lab.modules import ModuleDef, ModuleStep
 from xrpl_lab.server import create_app
@@ -40,7 +50,7 @@ def _make_module(mod_id: str = "receipt_literacy", order: int = 1) -> ModuleDef:
 def _make_state(completed: list[str] | None = None) -> LabState:
     state = LabState()
     state.wallet_address = "rTestAddress123"
-    for mod_id in (completed or []):
+    for mod_id in completed or []:
         state.complete_module(mod_id)
     return state
 
@@ -73,72 +83,53 @@ def client(
     return TestClient(create_app())
 
 
-# ── GET /api/status — schema contract ────────────────────────────────
+# ── GET /api/status — Pydantic model validation ───────────────────────
 
 
 class TestStatusSchema:
-    """The status endpoint must return: modules_completed (int),
-    modules_total (int), wallet_configured (bool), wallet_address (str|None),
-    last_run (dict|None), workspace (str)."""
+    """Every status response must deserialize into StatusResponse."""
 
     def test_status_returns_200(self, client: TestClient) -> None:
         resp = client.get("/api/status")
         assert resp.status_code == 200
 
-    def test_status_schema_required_fields(self, client: TestClient) -> None:
+    def test_status_validates_against_pydantic_model(self, client: TestClient) -> None:
         data = client.get("/api/status").json()
-        assert isinstance(data["modules_completed"], int)
-        assert isinstance(data["modules_total"], int)
-        assert isinstance(data["wallet_configured"], bool)
-        # wallet_address may be str or None
-        assert data["wallet_address"] is None or isinstance(data["wallet_address"], str)
-        # last_run may be dict or None
-        assert data["last_run"] is None or isinstance(data["last_run"], (dict, str))
-        assert isinstance(data["workspace"], str)
+        model = StatusResponse(**data)
+        # Round-trip: model fields match response keys
+        assert set(data.keys()) == set(model.model_dump().keys())
 
     def test_status_counts_are_consistent(self, client: TestClient) -> None:
         data = client.get("/api/status").json()
-        assert data["modules_completed"] <= data["modules_total"]
-        assert data["modules_total"] >= 0
+        model = StatusResponse(**data)
+        assert model.modules_completed <= model.modules_total
+        assert model.modules_total >= 0
 
     def test_status_no_old_field_names(self, client: TestClient) -> None:
         """Old field names completed_modules and total_modules must NOT appear."""
         data = client.get("/api/status").json()
         assert "completed_modules" not in data
         assert "total_modules" not in data
-        assert "version" not in data  # moved out of status
-        assert "network" not in data  # moved out of status
+        assert "version" not in data
+        assert "network" not in data
 
 
-# ── GET /api/modules — schema contract ───────────────────────────────
+# ── GET /api/modules — Pydantic model validation ──────────────────────
 
 
 class TestModulesListSchema:
-    """Each module summary must have: id, title, level, time_estimate,
-    completed, checks, requires, produces."""
-
-    REQUIRED_KEYS = {"id", "title", "level", "time_estimate", "completed", "checks"}
+    """Every module summary must deserialize into ModuleSummary."""
 
     def test_modules_returns_list(self, client: TestClient) -> None:
         data = client.get("/api/modules").json()
         assert isinstance(data, list)
         assert len(data) == 2
 
-    def test_module_item_has_all_required_keys(self, client: TestClient) -> None:
+    def test_each_module_validates_against_pydantic_model(self, client: TestClient) -> None:
         data = client.get("/api/modules").json()
-        for mod in data:
-            missing = self.REQUIRED_KEYS - set(mod.keys())
-            assert not missing, f"Module {mod.get('id', '?')} missing keys: {missing}"
-
-    def test_module_item_field_types(self, client: TestClient) -> None:
-        data = client.get("/api/modules").json()
-        for mod in data:
-            assert isinstance(mod["id"], str) and len(mod["id"]) > 0
-            assert isinstance(mod["title"], str) and len(mod["title"]) > 0
-            assert isinstance(mod["level"], str)
-            assert isinstance(mod["time_estimate"], str)
-            assert isinstance(mod["completed"], bool)
-            assert isinstance(mod["checks"], list)
+        for item in data:
+            model = ModuleSummary(**item)
+            assert model.id and model.title
 
     def test_module_list_must_not_have_old_time_field(self, client: TestClient) -> None:
         """The old 'time' key must NOT appear in list items."""
@@ -147,59 +138,50 @@ class TestModulesListSchema:
             assert "time" not in mod, f"Module {mod['id']} still has old 'time' field"
 
 
-# ── GET /api/modules/{id} — schema contract ──────────────────────────
+# ── GET /api/modules/{id} — Pydantic model validation ─────────────────
 
 
 class TestModuleDetailSchema:
-    """Module detail must have: id, title, level, time_estimate, completed,
-    description (non-empty), prerequisites, artifacts, checks,
-    steps (list of strings)."""
+    """Module detail must deserialize into ModuleDetail."""
 
-    def test_module_detail_has_steps_as_strings(self, client: TestClient) -> None:
+    def test_module_detail_validates_against_pydantic_model(self, client: TestClient) -> None:
         data = client.get("/api/modules/receipt_literacy").json()
-        assert "steps" in data
-        assert isinstance(data["steps"], list)
-        assert len(data["steps"]) > 0
+        model = ModuleDetail(**data)
+        assert model.id == "receipt_literacy"
+        assert model.description
+        assert isinstance(model.steps, list) and len(model.steps) > 0
 
     def test_module_detail_steps_are_strings(self, client: TestClient) -> None:
         """Each step must be a plain string, NOT a dict."""
         data = client.get("/api/modules/receipt_literacy").json()
-        for i, step in enumerate(data["steps"]):
-            assert isinstance(step, str), (
-                f"Step {i} should be str, got {type(step).__name__}"
-            )
-
-    def test_module_detail_has_description(self, client: TestClient) -> None:
-        data = client.get("/api/modules/receipt_literacy").json()
-        assert "description" in data
-        assert isinstance(data["description"], str)
-        assert len(data["description"]) > 0
+        model = ModuleDetail(**data)
+        for step in model.steps:
+            assert isinstance(step, str)
 
     def test_module_detail_has_canonical_list_fields(self, client: TestClient) -> None:
         data = client.get("/api/modules/receipt_literacy").json()
-        assert isinstance(data["prerequisites"], list)
-        assert isinstance(data["artifacts"], list)
-        assert isinstance(data["checks"], list)
+        model = ModuleDetail(**data)
+        assert isinstance(model.prerequisites, list)
+        assert isinstance(model.artifacts, list)
+        assert isinstance(model.checks, list)
 
     def test_module_detail_must_not_have_old_field_names(self, client: TestClient) -> None:
         """Old field names 'time', 'requires', 'produces' must NOT appear."""
         data = client.get("/api/modules/receipt_literacy").json()
-        assert "time" not in data, "Detail still has old 'time' field"
-        assert "requires" not in data, "Detail still has old 'requires' field"
-        assert "produces" not in data, "Detail still has old 'produces' field"
+        assert "time" not in data
+        assert "requires" not in data
+        assert "produces" not in data
 
     def test_module_detail_404_for_unknown(self, client: TestClient) -> None:
         resp = client.get("/api/modules/nonexistent_xyz_999")
         assert resp.status_code == 404
 
 
-# ── GET /api/doctor — schema contract ────────────────────────────────
+# ── GET /api/doctor — Pydantic model validation ──────────────────────
 
 
 class TestDoctorSchema:
-    """Doctor endpoint must return: overall (str: healthy|warning|error),
-    checks (list of dicts with name/status/message).
-    status must be one of pass|warn|fail."""
+    """Doctor response must deserialize into DoctorResponse."""
 
     @pytest.fixture()
     def doctor_client(
@@ -218,21 +200,24 @@ class TestDoctorSchema:
             return fake_report
 
         import xrpl_lab.api.routes as routes_mod
+
         monkeypatch.setattr(routes_mod, "run_doctor", _fake_run_doctor)
         return TestClient(create_app())
 
-    def test_doctor_has_overall(self, doctor_client: TestClient) -> None:
+    def test_doctor_validates_against_pydantic_model(self, doctor_client: TestClient) -> None:
         data = doctor_client.get("/api/doctor").json()
-        assert "overall" in data
-        assert data["overall"] in ("healthy", "warning", "error")
+        model = DoctorResponse(**data)
+        assert model.overall in ("healthy", "warning", "error")
 
-    def test_doctor_checks_structure(self, doctor_client: TestClient) -> None:
+    def test_doctor_checks_validate_against_pydantic_model(self, doctor_client: TestClient) -> None:
         data = doctor_client.get("/api/doctor").json()
-        assert isinstance(data["checks"], list)
-        for check in data["checks"]:
-            assert isinstance(check["name"], str)
-            assert check["status"] in ("pass", "warn", "fail")
-            assert "message" in check
+        model = DoctorResponse(**data)
+        assert isinstance(model.checks, list)
+        for check in model.checks:
+            assert isinstance(check, DoctorCheck)
+            assert check.status in ("pass", "warn", "fail")
+            assert isinstance(check.name, str)
+            assert isinstance(check.message, str)
 
     def test_doctor_no_old_field_names(self, doctor_client: TestClient) -> None:
         """Old field names must NOT appear in the doctor response."""
@@ -268,6 +253,39 @@ class TestArtifactsSchema:
         data = client.get("/api/artifacts/reports").json()
         assert isinstance(data, list)
 
+    def test_reports_validate_against_pydantic_model(
+        self, client: TestClient, tmp_path: Path,
+    ) -> None:
+        """If reports exist, each must deserialize into ReportSummary."""
+        # Create a fake report so we have data to validate
+        ws = tmp_path / "ws"
+        reports_dir = ws / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        (reports_dir / "test_module.md").write_text(
+            "# Test Report\nSome content.", encoding="utf-8",
+        )
+
+        data = client.get("/api/artifacts/reports").json()
+        assert len(data) >= 1
+        for item in data:
+            model = ReportSummary(**item)
+            assert model.title
+            assert model.content
+
     def test_report_detail_returns_404_for_missing(self, client: TestClient) -> None:
         resp = client.get("/api/artifacts/reports/nonexistent_module_xyz")
         assert resp.status_code == 404
+
+    def test_report_detail_validates_against_pydantic_model(
+        self, client: TestClient, tmp_path: Path,
+    ) -> None:
+        """An existing report must deserialize into ReportDetail."""
+        ws = tmp_path / "ws"
+        reports_dir = ws / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        (reports_dir / "my_module.md").write_text("Report body.", encoding="utf-8")
+
+        data = client.get("/api/artifacts/reports/my_module").json()
+        model = ReportDetail(**data)
+        assert model.module_id == "my_module"
+        assert model.content == "Report body."
