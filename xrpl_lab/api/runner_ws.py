@@ -231,11 +231,19 @@ async def start_run(request: Request, module_id: str, dry_run: bool = False) -> 
     # Rate limit: cap concurrent runs
     active = sum(1 for s in _sessions.values() if s.status in ("running", "started"))
     if active >= _MAX_CONCURRENT_RUNS:
-        raise HTTPException(status_code=429, detail="Too many concurrent runs. Try again later.")
+        raise HTTPException(status_code=429, detail={
+            "code": "RATE_LIMIT_RUNS",
+            "message": f"Maximum {_MAX_CONCURRENT_RUNS} concurrent runs reached",
+            "hint": "Wait for a running module to finish, then try again",
+        })
 
     all_mods = load_all_modules()
     if module_id not in all_mods:
-        raise HTTPException(status_code=404, detail=f"Module '{module_id}' not found")
+        raise HTTPException(status_code=404, detail={
+            "code": "MODULE_NOT_FOUND",
+            "message": f"Module '{module_id}' not found",
+            "hint": "Use GET /api/modules to see available module IDs",
+        })
 
     # Evict oldest completed sessions if at capacity
     _evict_oldest_completed()

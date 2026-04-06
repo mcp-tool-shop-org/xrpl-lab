@@ -1596,7 +1596,14 @@ async def run_module(
                     _r = on_step_complete(step.action, False)
                     if inspect.isawaitable(_r):
                         await _r
-                console.print(f"[red]Step failed unexpectedly: {exc}[/]")
+                console.print(
+                    f"[red]Step failed:[/] "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                console.print(
+                    "[yellow]Hint: Run 'xrpl-lab doctor' "
+                    "to diagnose the issue.[/]"
+                )
                 save_state(state)
                 console.print(
                     f"[yellow]Progress saved. You can resume with: "

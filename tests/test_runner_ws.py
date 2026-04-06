@@ -79,7 +79,9 @@ class TestStartRun:
     ) -> None:
         resp = client_with_module.post("/api/run/nonexistent_module?dry_run=true")
         assert resp.status_code == 404
-        assert "not found" in resp.json()["detail"].lower()
+        detail = resp.json()["detail"]
+        assert detail["code"] == "MODULE_NOT_FOUND"
+        assert "not found" in detail["message"].lower()
 
     def test_start_run_dry_run_false_also_accepted(
         self, client_with_module: TestClient

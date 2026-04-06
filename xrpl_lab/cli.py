@@ -60,7 +60,15 @@ def _detect_camp_certificate() -> Path | None:
 @click.group()
 @click.version_option(version=__version__, prog_name="xrpl-lab")
 def main():
-    """XRPL Lab — learn by doing, prove by artifact."""
+    """XRPL Lab — learn by doing, prove by artifact.
+
+Quick start:
+  xrpl-lab start           Interactive guided tour
+  xrpl-lab list            Show all modules
+  xrpl-lab run MODULE_ID   Run a specific module
+  xrpl-lab doctor          Check your setup
+  xrpl-lab serve           Start the web dashboard
+"""
 
 
 @main.command()
@@ -188,7 +196,7 @@ def list_modules():
 @click.option("--dry-run", is_flag=True, help="Run without network")
 @click.option("--force", is_flag=True, help="Re-run even if already completed")
 def run(module_id: str, dry_run: bool, force: bool):
-    """Run a specific module by ID."""
+    """Run a specific module by ID (e.g., xrpl-lab run receipt_literacy)."""
     modules = load_all_modules()
 
     if module_id not in modules:
@@ -476,7 +484,10 @@ def last_run():
 @click.option('--host', default='127.0.0.1', help='API server host')
 @click.option('--dry-run', is_flag=True, help='Use dry-run transport for all operations')
 def serve(port: int, host: str, dry_run: bool):
-    """Start the XRPL Lab web dashboard and API server."""
+    """Start the XRPL Lab web dashboard and API server.
+
+API docs available at http://localhost:{port}/docs after starting.
+"""
     import uvicorn
 
     from .server import create_app

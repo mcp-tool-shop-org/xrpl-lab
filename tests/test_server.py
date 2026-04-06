@@ -194,7 +194,9 @@ class TestGetModule:
     def test_invalid_id_returns_404(self, client_with_modules: TestClient) -> None:
         resp = client_with_modules.get("/api/modules/nonexistent_module_xyz")
         assert resp.status_code == 404
-        assert "not found" in resp.json()["detail"].lower()
+        detail = resp.json()["detail"]
+        assert detail["code"] == "MODULE_NOT_FOUND"
+        assert "not found" in detail["message"].lower()
 
 
 # ── GET /api/artifacts/proof-pack ─────────────────────────────────────

@@ -62,7 +62,11 @@ def get_module(module_id: str) -> ModuleDetail:
     all_mods = load_all_modules()
     mod = all_mods.get(module_id)
     if mod is None:
-        raise HTTPException(status_code=404, detail=f"Module '{module_id}' not found")
+        raise HTTPException(status_code=404, detail={
+            "code": "MODULE_NOT_FOUND",
+            "message": f"Module '{module_id}' not found",
+            "hint": "Use GET /api/modules to see available module IDs",
+        })
 
     state = load_state()
     completed_ids = {cm.module_id for cm in state.completed_modules}
