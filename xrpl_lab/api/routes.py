@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -31,7 +33,7 @@ def list_modules() -> list[dict[str, Any]]:
                 "id": mod.id,
                 "title": mod.title,
                 "level": mod.level,
-                "time": mod.time,
+                "time_estimate": mod.time,
                 "requires": mod.requires,
                 "produces": mod.produces,
                 "checks": mod.checks,
@@ -55,24 +57,29 @@ def get_module(module_id: str) -> dict[str, Any]:
     state = load_state()
     completed_ids = {cm.module_id for cm in state.completed_modules}
 
-    steps = [
-        {
-            "text": step.text,
-            "action": step.action,
-            "action_args": step.action_args,
-        }
-        for step in mod.steps
-    ]
+    # Extract step text as string[]
+    steps = [step.text for step in mod.steps]
+
+    # Derive description from raw_body or first step text
+    description = ""
+    if mod.raw_body:
+        # Use first paragraph of raw_body
+        paragraphs = mod.raw_body.strip().split("\n\n")
+        if paragraphs:
+            description = paragraphs[0].strip()
+    if not description and mod.steps:
+        description = mod.steps[0].text
 
     return {
         "id": mod.id,
         "title": mod.title,
         "level": mod.level,
-        "time": mod.time,
-        "requires": mod.requires,
-        "produces": mod.produces,
+        "time_estimate": mod.time,
+        "prerequisites": mod.requires,
+        "artifacts": mod.produces,
         "checks": mod.checks,
         "completed": mod.id in completed_ids,
+        "description": description,
         "steps": steps,
     }
 
@@ -82,26 +89,28 @@ def get_module(module_id: str) -> dict[str, Any]:
 
 @router.get("/status")
 def get_status() -> dict[str, Any]:
-    """Return overall lab status: completion counts, wallet info, version."""
-    from .. import __version__
-
+    """Return overall lab status: completion counts, wallet info, workspace."""
     state = load_state()
     all_mods = load_all_modules()
 
-    last_run: str | None = None
+    last_run: dict[str, Any] | None = None
     if state.completed_modules:
         latest = max(state.completed_modules, key=lambda m: m.completed_at)
-        from datetime import UTC, datetime
+        last_run = {
+            "module": latest.module_id,
+            "timestamp": datetime.fromtimestamp(latest.completed_at, tz=UTC).isoformat(),
+            "success": True,
+        }
 
-        last_run = datetime.fromtimestamp(latest.completed_at, tz=UTC).isoformat()
+    ws = get_workspace_dir()
 
     return {
-        "version": __version__,
-        "network": state.network,
+        "modules_completed": len(state.completed_modules),
+        "modules_total": len(all_mods),
+        "wallet_configured": state.wallet_address is not None and len(state.wallet_address) > 0,
         "wallet_address": state.wallet_address,
-        "completed_modules": len(state.completed_modules),
-        "total_modules": len(all_mods),
         "last_run": last_run,
+        "workspace": str(ws),
     }
 
 
@@ -129,13 +138,28 @@ def get_certificate() -> dict[str, Any]:
 
 
 @router.get("/artifacts/reports")
-def list_reports() -> list[str]:
-    """Return a list of available module report file names."""
+def list_reports() -> list[dict[str, Any]]:
+    """Return a list of available module reports with title, generated timestamp, and content."""
     ws = get_workspace_dir()
     reports_dir = ws / "reports"
     if not reports_dir.is_dir():
         return []
-    return sorted(p.name for p in reports_dir.glob("*.md"))
+
+    result: list[dict[str, Any]] = []
+    for p in sorted(reports_dir.glob("*.md")):
+        # Title from filename (strip .md, replace underscores with spaces, title-case)
+        title = p.stem.replace("_", " ").replace("-", " ").title()
+        # Generated timestamp from file mtime
+        mtime = os.path.getmtime(p)
+        generated = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
+        # Read content
+        content = p.read_text(encoding="utf-8")
+        result.append({
+            "title": title,
+            "generated": generated,
+            "content": content,
+        })
+    return result
 
 
 @router.get("/artifacts/reports/{module_id}")
@@ -165,16 +189,36 @@ def get_report(module_id: str) -> dict[str, Any]:
 async def get_doctor() -> dict[str, Any]:
     """Run diagnostic checks and return results."""
     report = await run_doctor()
+
+    # Map checks to canonical shape
+    checks: list[dict[str, str]] = []
+    has_failure = False
+    for c in report.checks:
+        if c.passed:
+            status = "pass"
+        else:
+            status = "fail"
+            has_failure = True
+
+        message = c.detail
+        if c.hint:
+            message = f"{message}. {c.hint}" if message else c.hint
+
+        checks.append({
+            "name": c.name,
+            "status": status,
+            "message": message,
+        })
+
+    # Determine overall status
+    if has_failure:
+        overall = "error"
+    elif report.all_passed:
+        overall = "healthy"
+    else:
+        overall = "warning"
+
     return {
-        "all_passed": report.all_passed,
-        "summary": report.summary,
-        "checks": [
-            {
-                "name": c.name,
-                "passed": c.passed,
-                "detail": c.detail,
-                "hint": c.hint,
-            }
-            for c in report.checks
-        ],
+        "overall": overall,
+        "checks": checks,
     }

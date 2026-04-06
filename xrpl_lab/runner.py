@@ -58,18 +58,38 @@ from .reporting import write_module_report
 from .state import LabState, ensure_workspace, load_state, save_state
 from .transport.base import Transport
 
+
+class _SecretValue:
+    """Wrapper that hides secret values from repr/str to prevent traceback leaks."""
+
+    def __init__(self, value: str):
+        self._value = value
+
+    def get(self) -> str:
+        return self._value
+
+    def __repr__(self) -> str:
+        return "***"
+
+    def __str__(self) -> str:
+        return "***"
+
+    def __bool__(self) -> bool:
+        return bool(self._value)
+
+
 console = Console()
 
 
-async def _ensure_wallet(state: LabState, transport: Transport) -> tuple[LabState, str]:
-    """Make sure we have a wallet; return (state, seed)."""
+async def _ensure_wallet(state: LabState, transport: Transport) -> tuple[LabState, _SecretValue]:
+    """Make sure we have a wallet; return (state, wrapped_seed)."""
     wallet_path = Path(state.wallet_path) if state.wallet_path else None
 
     if wallet_path and wallet_exists(wallet_path):
         wallet = load_wallet(wallet_path)
         if wallet:
             console.print(f"  Wallet loaded: [cyan]{wallet.address}[/]")
-            return state, wallet.seed
+            return state, _SecretValue(wallet.seed)
     elif wallet_exists():
         wallet = load_wallet()
         if wallet:
@@ -77,7 +97,7 @@ async def _ensure_wallet(state: LabState, transport: Transport) -> tuple[LabStat
             state.wallet_address = wallet.address
             state.wallet_path = str(default_wallet_path())
             save_state(state)
-            return state, wallet.seed
+            return state, _SecretValue(wallet.seed)
 
     console.print("  No wallet found. Creating a new one...")
     wallet = create_wallet()
@@ -93,7 +113,7 @@ async def _ensure_wallet(state: LabState, transport: Transport) -> tuple[LabStat
     state.wallet_address = wallet.address
     state.wallet_path = str(path)
     save_state(state)
-    return state, wallet.seed
+    return state, _SecretValue(wallet.seed)
 
 
 async def _ensure_funded(
@@ -124,7 +144,7 @@ async def _execute_action(
     step: ModuleStep,
     state: LabState,
     transport: Transport,
-    wallet_seed: str,
+    wallet_seed: str | _SecretValue,
     context: dict,
 ) -> dict:
     """Execute an action embedded in a module step. Returns updated context.
@@ -139,7 +159,9 @@ async def _execute_action(
 
     # PH-005: resolve wallet_seed safely from context, falling back to the
     # parameter so callers that pass it directly still work.
-    wallet_seed = context.get('wallet_seed', wallet_seed) or wallet_seed
+    _raw = context.get('wallet_seed', wallet_seed) or wallet_seed
+    # Unwrap _SecretValue to a plain string for action dispatch
+    wallet_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
 
     _WALLET_REQUIRED_ACTIONS = {
         "submit_payment", "submit_payment_fail",
@@ -155,8 +177,9 @@ async def _execute_action(
         return context
 
     if action == "ensure_wallet":
-        state, wallet_seed = await _ensure_wallet(state, transport)
-        context["wallet_seed"] = wallet_seed
+        state, wrapped_seed = await _ensure_wallet(state, transport)
+        context["wallet_seed"] = wrapped_seed
+        wallet_seed = wrapped_seed.get()
 
     elif action == "ensure_funded":
         address = state.wallet_address
@@ -285,7 +308,7 @@ async def _execute_action(
         )
         console.print(f"  Limit: {limit}")
         result = await set_trust_line(
-            transport, context["wallet_seed"], issuer_address, currency, limit
+            transport, context["wallet_seed"].get(), issuer_address, currency, limit
         )
 
         if result.success:
@@ -446,7 +469,7 @@ async def _execute_action(
             f"(setting limit to 0)"
         )
         result = await remove_trust_line(
-            transport, context["wallet_seed"], issuer_address, currency
+            transport, context["wallet_seed"].get(), issuer_address, currency
         )
 
         if result.success:
@@ -517,7 +540,7 @@ async def _execute_action(
             f"to get {pays_value} {pays_currency}"
         )
         result = await create_offer(
-            transport, context["wallet_seed"],
+            transport, context["wallet_seed"].get(),
             pays_currency, pays_value, pays_issuer,
             gets_currency, gets_value, gets_issuer,
         )
@@ -594,7 +617,7 @@ async def _execute_action(
 
         console.print(f"  Cancelling offer seq {offer_seq}...")
         result = await cancel_offer(
-            transport, context["wallet_seed"], offer_seq
+            transport, context["wallet_seed"].get(), offer_seq
         )
 
         if result.success:
@@ -761,7 +784,7 @@ async def _execute_action(
         )
 
         amm_info, create_result = await ensure_amm_pair(
-            transport, context["wallet_seed"],
+            transport, context["wallet_seed"].get(),
             a_currency, a_value, a_issuer,
             b_currency, b_value, b_issuer,
         )
@@ -845,7 +868,7 @@ async def _execute_action(
         )
 
         result = await amm_deposit(
-            transport, context["wallet_seed"],
+            transport, context["wallet_seed"].get(),
             a_currency, a_value, a_issuer,
             b_currency, b_value, b_issuer,
         )
@@ -911,7 +934,7 @@ async def _execute_action(
             console.print("  (returning all LP tokens)")
 
         result = await amm_withdraw(
-            transport, context["wallet_seed"],
+            transport, context["wallet_seed"].get(),
             a_currency, a_issuer,
             b_currency, b_issuer,
             lp_token_value=lp_value,
@@ -1011,7 +1034,7 @@ async def _execute_action(
         console.print(f"  Memo: [dim]{memo}[/]")
 
         result = await create_offer(
-            transport, context["wallet_seed"],
+            transport, context["wallet_seed"].get(),
             pays_currency, pays_value, pays_issuer,
             gets_currency, gets_value, gets_issuer,
         )
@@ -1076,7 +1099,7 @@ async def _execute_action(
         console.print(f"  Memo: [dim]{memo}[/]")
 
         result = await create_offer(
-            transport, context["wallet_seed"],
+            transport, context["wallet_seed"].get(),
             pays_currency, pays_value, pays_issuer,
             gets_currency, gets_value, gets_issuer,
         )
@@ -1149,7 +1172,7 @@ async def _execute_action(
 
         console.print(f"  Cancelling {len(seqs)} offer(s)...")
         results = await cancel_module_offers(
-            transport, context["wallet_seed"], seqs,
+            transport, context["wallet_seed"].get(), seqs,
         )
 
         cancelled = 0
@@ -1301,7 +1324,7 @@ async def _execute_action(
             console.print(f"  Memo: [dim]{memo}[/]")
 
             result = await create_offer(
-                transport, context["wallet_seed"],
+                transport, context["wallet_seed"].get(),
                 pays_currency, bid_value, pays_issuer,
                 gets_currency, bid_price, gets_issuer,
             )
@@ -1345,7 +1368,7 @@ async def _execute_action(
             console.print(f"  Memo: [dim]{memo}[/]")
 
             result = await create_offer(
-                transport, context["wallet_seed"],
+                transport, context["wallet_seed"].get(),
                 pays_currency, ask_value, pays_issuer,
                 gets_currency, ask_price, gets_issuer,
             )
@@ -1485,7 +1508,7 @@ async def run_module(
     # Initialize context
     context: dict = {
         "module_id": module.id,
-        "wallet_seed": "",
+        "wallet_seed": _SecretValue(""),
         "txids": [],
         "failed_txids": [],
         "run_id": time.strftime('%Y%m%dT%H%M%S', time.gmtime()),
@@ -1494,7 +1517,7 @@ async def run_module(
     # Load wallet seed if available
     wallet = load_wallet()
     if wallet:
-        context["wallet_seed"] = wallet.seed
+        context["wallet_seed"] = _SecretValue(wallet.seed)
 
     report_sections: list[tuple[str, str]] = []
 
@@ -1508,7 +1531,7 @@ async def run_module(
             console.print(f"[dim]  → {step.action}...[/]")
             try:
                 context = await _execute_action(
-                    step, state, transport, context.get("wallet_seed", ""), context
+                    step, state, transport, context.get("wallet_seed", _SecretValue("")), context
                 )
             except Exception as exc:
                 console.print(f"[red]Step failed unexpectedly: {exc}[/]")

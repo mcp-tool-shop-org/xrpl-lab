@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from xrpl_lab import __version__
 from xrpl_lab.doctor import Check, DoctorReport
 from xrpl_lab.modules import ModuleDef, ModuleStep
 from xrpl_lab.server import create_app
@@ -93,7 +92,7 @@ class TestListModules:
         mod = next(m for m in resp.json() if m["id"] == "receipt_literacy")
         assert mod["title"] == "Receipt Literacy"
         assert mod["level"] == "beginner"
-        assert mod["time"] == "15 min"
+        assert mod["time_estimate"] == "15 min"
         assert isinstance(mod["requires"], list)
         assert isinstance(mod["completed"], bool)
 
@@ -128,17 +127,20 @@ class TestListModules:
 
 
 class TestStatus:
-    def test_returns_version(self, client_with_modules: TestClient) -> None:
+    def test_returns_canonical_status_fields(self, client_with_modules: TestClient) -> None:
         resp = client_with_modules.get("/api/status")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["version"] == __version__
+        assert "modules_completed" in data
+        assert "modules_total" in data
+        assert "wallet_configured" in data
+        assert "workspace" in data
 
     def test_returns_module_counts(self, client_with_modules: TestClient) -> None:
         resp = client_with_modules.get("/api/status")
         data = resp.json()
-        assert data["total_modules"] == 2
-        assert data["completed_modules"] == 1
+        assert data["modules_total"] == 2
+        assert data["modules_completed"] == 1
 
     def test_returns_wallet_address(self, client_with_modules: TestClient) -> None:
         resp = client_with_modules.get("/api/status")
@@ -175,12 +177,12 @@ class TestGetModule:
         assert isinstance(data["steps"], list)
         assert len(data["steps"]) == 1
 
-    def test_steps_have_expected_keys(self, client_with_modules: TestClient) -> None:
+    def test_steps_are_strings(self, client_with_modules: TestClient) -> None:
         resp = client_with_modules.get("/api/modules/receipt_literacy")
-        step = resp.json()["steps"][0]
-        assert "text" in step
-        assert "action" in step
-        assert "action_args" in step
+        steps = resp.json()["steps"]
+        assert len(steps) == 1
+        assert isinstance(steps[0], str)
+        assert steps[0] == "Intro text"
 
     def test_completed_flag_on_detail(self, client_with_modules: TestClient) -> None:
         resp = client_with_modules.get("/api/modules/receipt_literacy")
@@ -206,7 +208,7 @@ class TestProofPack:
         assert resp.status_code == 200
         data = resp.json()
         assert data["xrpl_lab_proof_pack"] is True
-        assert data["version"] == __version__
+        assert isinstance(data["version"], str)
         assert data["completed_modules"] == []
         assert data["transactions"] == []
         assert "sha256" in data
@@ -241,7 +243,7 @@ class TestCertificate:
         assert resp.status_code == 200
         data = resp.json()
         assert data["xrpl_lab_certificate"] is True
-        assert data["version"] == __version__
+        assert isinstance(data["version"], str)
         assert "sha256" in data
         assert "modules_completed" in data
 
@@ -294,9 +296,16 @@ class TestReports:
         app = create_app()
         resp = TestClient(app).get("/api/artifacts/reports")
         assert resp.status_code == 200
-        names = resp.json()
-        assert "receipt_literacy.md" in names
-        assert "failure_literacy.md" in names
+        reports = resp.json()
+        assert isinstance(reports, list)
+        assert len(reports) == 2
+        titles = [r["title"] for r in reports]
+        assert "Receipt Literacy" in titles
+        assert "Failure Literacy" in titles
+        for r in reports:
+            assert "title" in r
+            assert "generated" in r
+            assert "content" in r
 
     def test_get_report_content(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -365,8 +374,8 @@ class TestDoctor:
         assert "checks" in data
         assert isinstance(data["checks"], list)
         assert len(data["checks"]) == 4
-        assert "all_passed" in data
-        assert "summary" in data
+        assert "overall" in data
+        assert data["overall"] in ("healthy", "warning", "error")
 
     def test_checks_have_expected_fields(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -391,13 +400,12 @@ class TestDoctor:
         resp = TestClient(app).get("/api/doctor")
         check = resp.json()["checks"][0]
         assert "name" in check
-        assert "passed" in check
-        assert "detail" in check
-        assert "hint" in check
+        assert "status" in check
+        assert "message" in check
         assert check["name"] == "Wallet"
-        assert check["passed"] is True
+        assert check["status"] == "pass"
 
-    def test_all_passed_reflects_check_results(
+    def test_overall_reflects_check_results(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
@@ -422,8 +430,11 @@ class TestDoctor:
         app = create_app()
         resp = TestClient(app).get("/api/doctor")
         data = resp.json()
-        assert data["all_passed"] is False
-        assert "1/2" in data["summary"]
+        assert data["overall"] == "error"
+        checks = data["checks"]
+        statuses = [c["status"] for c in checks]
+        assert "pass" in statuses
+        assert "fail" in statuses
 
 
 # ── create_app dry_run state ──────────────────────────────────────────

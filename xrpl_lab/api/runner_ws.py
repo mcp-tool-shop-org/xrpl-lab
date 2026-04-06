@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import io
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -19,6 +20,15 @@ router = APIRouter(prefix="/api")
 # In-memory store of active and recently completed run sessions
 _sessions: dict[str, ModuleRunSession] = {}
 
+# Max sessions cap — evict oldest completed when exceeded
+_MAX_SESSIONS = 100
+
+# Grace period (seconds) before cleaning up a disconnected session
+_CLEANUP_GRACE_SECONDS = 60
+
+# Lock to serialize monkey-patching of runner_mod.console and _execute_action
+_runner_patch_lock = asyncio.Lock()
+
 
 @dataclass
 class ModuleRunSession:
@@ -32,6 +42,37 @@ class ModuleRunSession:
     txids: list[str] = field(default_factory=list)
     report_path: str = ""
     error: str = ""
+    created_at: float = field(default_factory=time.monotonic)
+
+
+def _evict_oldest_completed() -> None:
+    """If _sessions exceeds _MAX_SESSIONS, evict the oldest completed session."""
+    if len(_sessions) <= _MAX_SESSIONS:
+        return
+
+    # Find completed/error sessions sorted by creation time
+    completed = [
+        (sid, s) for sid, s in _sessions.items()
+        if s.status in ("complete", "error")
+    ]
+    completed.sort(key=lambda pair: pair[1].created_at)
+
+    # Evict oldest completed sessions until under limit
+    while len(_sessions) > _MAX_SESSIONS and completed:
+        sid, _ = completed.pop(0)
+        _sessions.pop(sid, None)
+
+
+def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS) -> None:
+    """Schedule removal of a session after a grace period."""
+
+    async def _cleanup() -> None:
+        await asyncio.sleep(delay)
+        session = _sessions.get(run_id)
+        if session and session.status in ("complete", "error"):
+            _sessions.pop(run_id, None)
+
+    asyncio.ensure_future(_cleanup())
 
 
 def _make_capture_console(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
@@ -73,102 +114,104 @@ async def _run_module_task(session: ModuleRunSession) -> None:
 
     session.status = "running"
 
-    # Emit step events by wrapping the runner's console output
-    # We intercept at the run_module level by patching the console in runner module
-    import xrpl_lab.runner as runner_mod
+    # Serialize access to monkey-patched runner globals
+    async with _runner_patch_lock:
+        # Emit step events by wrapping the runner's console output
+        # We intercept at the run_module level by patching the console in runner module
+        import xrpl_lab.runner as runner_mod
 
-    loop = asyncio.get_event_loop()
-    capture_console = _make_capture_console(session.queue, loop)
+        loop = asyncio.get_event_loop()
+        capture_console = _make_capture_console(session.queue, loop)
 
-    # Count steps for progress messages
-    total_steps = len(mod.steps)
+        # Count steps for progress messages
+        total_steps = len(mod.steps)
 
-    # Emit step start events alongside the regular execution
-    # We wrap _execute_action to emit step events
-    original_execute = runner_mod._execute_action
+        # Emit step start events alongside the regular execution
+        # We wrap _execute_action to emit step events
+        original_execute = runner_mod._execute_action
 
-    step_counter = [0]
+        step_counter = [0]
 
-    async def _tracked_execute(step, state, transport_inner, wallet_seed, context):
-        idx = step_counter[0]
-        step_counter[0] += 1
-        action = step.action or "read"
-        await session.queue.put({
-            "type": "step",
-            "action": action,
-            "index": idx,
-            "total": total_steps,
-        })
-        result_ctx = await original_execute(step, state, transport_inner, wallet_seed, context)
+        async def _tracked_execute(step, state, transport_inner, wallet_seed, context):
+            idx = step_counter[0]
+            step_counter[0] += 1
+            action = step.action or "read"
+            await session.queue.put({
+                "type": "step",
+                "action": action,
+                "index": idx,
+                "total": total_steps,
+            })
+            result_ctx = await original_execute(step, state, transport_inner, wallet_seed, context)
 
-        # Emit tx events for any new txids
-        new_txids = result_ctx.get("txids", [])
-        for txid in new_txids:
-            if txid not in session.txids:
-                session.txids.append(txid)
-                last_submit = result_ctx.get("last_submit")
-                result_code = ""
-                if last_submit and hasattr(last_submit, "result_code"):
-                    result_code = last_submit.result_code or ""
-                await session.queue.put({
-                    "type": "tx",
-                    "txid": txid,
-                    "result_code": result_code,
-                })
+            # Emit tx events for any new txids
+            new_txids = result_ctx.get("txids", [])
+            for txid in new_txids:
+                if txid not in session.txids:
+                    session.txids.append(txid)
+                    last_submit = result_ctx.get("last_submit")
+                    result_code = ""
+                    if last_submit and hasattr(last_submit, "result_code"):
+                        result_code = last_submit.result_code or ""
+                    await session.queue.put({
+                        "type": "tx",
+                        "txid": txid,
+                        "result_code": result_code,
+                    })
 
-        success = True
-        last_submit = result_ctx.get("last_submit")
-        if last_submit and hasattr(last_submit, "success"):
-            success = bool(last_submit.success)
+            success = True
+            last_submit = result_ctx.get("last_submit")
+            if last_submit and hasattr(last_submit, "success"):
+                success = bool(last_submit.success)
 
-        await session.queue.put({
-            "type": "step_complete",
-            "action": action,
-            "success": success,
-        })
-        return result_ctx
+            await session.queue.put({
+                "type": "step_complete",
+                "action": action,
+                "success": success,
+            })
+            return result_ctx
 
-    original_console = runner_mod.console
-    runner_mod.console = capture_console
-    runner_mod._execute_action = _tracked_execute
+        original_console = runner_mod.console
+        runner_mod.console = capture_console
+        runner_mod._execute_action = _tracked_execute
 
-    try:
-        # run_module calls console.input for step pauses — we skip interactive mode
-        # by patching console.input to return "" automatically
-        capture_console.input = lambda _prompt="": ""  # type: ignore[method-assign]
-
-        success = await run_module(mod, transport, dry_run=session.dry_run)
-
-        # Collect report path from state
         try:
-            from ..state import load_state as _load_state
-            state = _load_state()
-            for cm in state.completed_modules:
-                if cm.module_id == session.module_id:
-                    session.report_path = cm.report_path or ""
-                    if not session.txids:
-                        session.txids = list(cm.txids)
-                    break
-        except Exception:
-            pass
+            # run_module calls console.input for step pauses — we skip interactive mode
+            # by patching console.input to return "" automatically
+            capture_console.input = lambda _prompt="": ""  # type: ignore[method-assign]
 
-        session.status = "complete"
-        await session.queue.put({
-            "type": "complete",
-            "success": success,
-            "txids": session.txids,
-            "report_path": session.report_path,
-        })
-    except Exception as exc:
-        session.status = "error"
-        session.error = str(exc)
-        await session.queue.put({
-            "type": "error",
-            "message": str(exc),
-        })
-    finally:
-        runner_mod.console = original_console
-        runner_mod._execute_action = original_execute
+            success = await run_module(mod, transport, dry_run=session.dry_run)
+
+            # Collect report path from state
+            try:
+                from ..state import load_state as _load_state
+                state = _load_state()
+                for cm in state.completed_modules:
+                    if cm.module_id == session.module_id:
+                        session.report_path = cm.report_path or ""
+                        if not session.txids:
+                            session.txids = list(cm.txids)
+                        break
+            except Exception:
+                pass
+
+            session.status = "complete"
+            await session.queue.put({
+                "type": "complete",
+                "success": success,
+                "txids": session.txids,
+                "report_path": session.report_path,
+            })
+        except Exception as exc:
+            session.status = "error"
+            session.error = str(exc)
+            await session.queue.put({
+                "type": "error",
+                "message": str(exc),
+            })
+        finally:
+            runner_mod.console = original_console
+            runner_mod._execute_action = original_execute
 
 
 # ── POST /api/run/{module_id} ────────────────────────────────────────
@@ -192,6 +235,9 @@ async def start_run(request: Request, module_id: str, dry_run: bool = False) -> 
     all_mods = load_all_modules()
     if module_id not in all_mods:
         raise HTTPException(status_code=404, detail=f"Module '{module_id}' not found")
+
+    # Evict oldest completed sessions if at capacity
+    _evict_oldest_completed()
 
     run_id = str(uuid.uuid4())
     session = ModuleRunSession(run_id=run_id, module_id=module_id, dry_run=dry_run)
@@ -245,3 +291,5 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
     finally:
         with contextlib.suppress(Exception):
             await websocket.close()
+        # Schedule cleanup of this session after grace period
+        _schedule_session_cleanup(run_id)

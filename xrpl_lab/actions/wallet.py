@@ -1,18 +1,31 @@
-"""Wallet management — create, load, save, show."""
+"""Wallet management — create, load, save, show.
+
+# WARNING: Wallet seeds are stored in plaintext JSON on disk.
+# This is acceptable for testnet-only training but NEVER for mainnet.
+"""
 
 from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import stat
+import sys
 from pathlib import Path
 
 from xrpl.wallet import Wallet
 
 from ..state import get_home_dir
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_WALLET_FILENAME = "wallet.json"
+
+_TESTNET_ONLY_WARNING = (
+    "This wallet is for TESTNET use only. "
+    "Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext."
+)
 
 
 def default_wallet_path() -> Path:
@@ -22,6 +35,7 @@ def default_wallet_path() -> Path:
 
 def create_wallet() -> Wallet:
     """Generate a new XRPL wallet."""
+    print(_TESTNET_ONLY_WARNING)
     return Wallet.create()
 
 
@@ -38,8 +52,14 @@ def save_wallet(wallet: Wallet, path: Path | None = None) -> Path:
     p.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     # Restrict permissions (best-effort on Windows)
-    with contextlib.suppress(OSError):
-        os.chmod(p, stat.S_IRUSR | stat.S_IWUSR)
+    if sys.platform == "win32":
+        logger.warning(
+            "Wallet file permissions cannot be restricted on Windows. "
+            "This wallet is for testnet use only."
+        )
+    else:
+        with contextlib.suppress(OSError):
+            os.chmod(p, stat.S_IRUSR | stat.S_IWUSR)
 
     return p
 
