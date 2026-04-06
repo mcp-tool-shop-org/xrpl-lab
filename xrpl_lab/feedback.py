@@ -16,7 +16,9 @@ def generate_feedback() -> str:
     """Generate an issue-ready markdown block pulling from doctor, state, and env."""
     state = load_state()
 
-    # Run doctor (async)
+    # Run doctor (async).  generate_feedback() is only called from the CLI
+    # (sync click command), so asyncio.run() is safe here.  If this is ever
+    # called from an already-running event loop, refactor to await instead.
     report = asyncio.run(run_doctor())
 
     lines: list[str] = []

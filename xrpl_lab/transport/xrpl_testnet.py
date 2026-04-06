@@ -62,7 +62,7 @@ def _memo_field(text: str) -> list[Memo]:
     """Create a memo from plain text."""
     if not text:
         return []
-    return [Memo(memo_data=text.encode("utf-8").hex())]
+    return [Memo(memo_data=text.encode("utf-8").hex(), memo_type=b"text/plain".hex())]
 
 
 def _decode_memos(memos_raw: list | None) -> list[str]:
@@ -698,7 +698,7 @@ class XRPLTestnetTransport(Transport):
             offers = response.result.get("offers", [])
             return [
                 OfferInfo(
-                    sequence=o.get("seq", 0),
+                    sequence=o.get("Sequence", o.get("seq", 0)),
                     taker_pays=self._format_amount(o.get("taker_pays")),
                     taker_gets=self._format_amount(o.get("taker_gets")),
                     quality=str(o.get("quality", "")),
@@ -778,6 +778,9 @@ class XRPLTestnetTransport(Transport):
             return "0"
 
     # ── AMM stubs (not yet implemented for testnet) ──────────────────
+    # TODO: XRPL testnet supports AMM natively. Implement real AMM
+    # integration (AMMCreate, AMMDeposit, AMMWithdraw, AMMInfo) in a
+    # future Feature Pass. For now these return clear stub errors.
 
     async def get_amm_info(
         self,
@@ -802,7 +805,7 @@ class XRPLTestnetTransport(Transport):
         return SubmitResult(
             success=False,
             result_code="notSupported",
-            error="AMM not yet implemented for testnet transport. Use --dry-run.",
+            error="AMM not yet implemented for testnet transport. Use --dry-run for AMM modules.",
         )
 
     async def submit_amm_deposit(
@@ -818,7 +821,7 @@ class XRPLTestnetTransport(Transport):
         return SubmitResult(
             success=False,
             result_code="notSupported",
-            error="AMM not yet implemented for testnet transport. Use --dry-run.",
+            error="AMM not yet implemented for testnet transport. Use --dry-run for AMM modules.",
         )
 
     async def submit_amm_withdraw(
@@ -833,7 +836,7 @@ class XRPLTestnetTransport(Transport):
         return SubmitResult(
             success=False,
             result_code="notSupported",
-            error="AMM not yet implemented for testnet transport. Use --dry-run.",
+            error="AMM not yet implemented for testnet transport. Use --dry-run for AMM modules.",
         )
 
     async def get_lp_token_balance(

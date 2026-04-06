@@ -135,7 +135,6 @@ class TestErrorConstructors:
     def test_no_wallet_message(self):
         err = no_wallet()
         assert err.message
-        assert len(err.message) > 0
 
     def test_no_wallet_hint(self):
         err = no_wallet()

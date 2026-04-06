@@ -59,6 +59,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
   </div>
 
   <script>
+    // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
 
     const statusConfig: Record<string, { icon: string; border: string; dot: string; text: string }> = {

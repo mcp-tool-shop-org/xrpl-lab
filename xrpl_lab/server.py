@@ -39,5 +39,7 @@ def create_app(dry_run: bool = False) -> FastAPI:
     return app
 
 
-# Module-level app instance for uvicorn (uvicorn xrpl_lab.server:app)
+# Module-level app instance for uvicorn discovery (e.g. `uvicorn xrpl_lab.server:app`).
+# Defaults to non-dry-run (testnet).  The CLI `serve` command creates its own
+# app via create_app(dry_run=...) so this default only applies to bare uvicorn use.
 app = create_app()

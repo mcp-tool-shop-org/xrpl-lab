@@ -10,6 +10,7 @@ echo "--- test ---"
 pytest tests/ -v --tb=short
 
 echo "--- build ---"
+pip install build -q
 python -m build --sdist --wheel
 
 echo "=== All checks passed ==="

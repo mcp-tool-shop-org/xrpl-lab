@@ -54,6 +54,8 @@ class TestDEXTransport:
             "sFAKE", "LAB", "50", "rISSUER",
             "XRP", "10", "",
         )
+        # 'rANY' works here because DryRunTransport returns all offers
+        # regardless of address (global offer pool, not per-address scoped).
         offers = await transport.get_account_offers("rANY")
         assert len(offers) == 1
         assert offers[0].sequence == 100

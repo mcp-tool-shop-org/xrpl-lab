@@ -22,6 +22,7 @@ from .reporting import write_certificate, write_proof_pack
 from .state import (
     ensure_home_dir,
     ensure_workspace,
+    get_workspace_dir,
     load_state,
     reset_state,
     save_state,
@@ -258,7 +259,7 @@ def status():
             console.print(f"  {status_icon} {tx.txid[:16]}... ({tx.module_id})")
 
     # Workspace
-    ws = Path(".xrpl-lab")
+    ws = get_workspace_dir()
     if ws.exists():
         reports = list((ws / "reports").glob("*.md")) if (ws / "reports").exists() else []
         proofs = list((ws / "proofs").glob("*.json")) if (ws / "proofs").exists() else []

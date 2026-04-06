@@ -2,6 +2,7 @@
 
 import json
 import time
+from datetime import datetime
 
 import pytest
 
@@ -32,7 +33,7 @@ class TestStrategyMemo:
         # Auto-generated run ID should be a timestamp
         parts = memo.split("|")
         assert len(parts) == 5
-        assert "T" in parts[4]  # ISO-like timestamp
+        datetime.fromisoformat(parts[4])  # Raises ValueError if not valid ISO timestamp
 
     def test_memo_prefix(self):
         memo = strategy_memo("FOO", "BAR", "x")
@@ -339,7 +340,7 @@ class TestWriteLastRun:
             workspace=ws,
         )
         meta = json.loads((ws / "last_run_meta.json").read_text(encoding="utf-8"))
-        assert "T" in meta["run_id"]  # ISO-ish timestamp
+        datetime.fromisoformat(meta["run_id"])  # Raises ValueError if not valid ISO timestamp
 
     def test_overwrites_previous(self, tmp_path):
         ws = tmp_path / ".xrpl-lab"

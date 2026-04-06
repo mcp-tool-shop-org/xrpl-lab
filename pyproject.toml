@@ -33,6 +33,9 @@ dependencies = [
     "httpx>=0.27",
 ]
 
+[project.optional-dependencies]
+dev = ["ruff", "pytest", "pytest-asyncio"]
+
 [project.scripts]
 xrpl-lab = "xrpl_lab.cli:main"
 

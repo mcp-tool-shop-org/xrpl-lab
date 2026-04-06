@@ -40,12 +40,14 @@ xrpl-lab serve
 
 XRPL Lab ships a browser-based dashboard alongside the CLI. Run `xrpl-lab serve` and open [/xrpl-lab/app/](/xrpl-lab/app/) to get:
 
+> **Note:** The dashboard requires the API server to be running (`xrpl-lab serve` on port 8321). It degrades gracefully when offline, but live data and module execution need an active server.
+
 - Real-time module progress and status cards
 - Interactive module runner
 - Artifact viewer for proof packs and audit packs
 - Health diagnostics (Doctor view)
 
-The dashboard connects to a local API server on port 8321. It degrades gracefully when the server is offline.
+The dashboard connects to a local API server on port 8321.
 
 ## What you walk away with
 

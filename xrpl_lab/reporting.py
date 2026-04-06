@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import __version__
-from .state import LabState, get_workspace_dir
+from .state import LabState, TxRecord, get_workspace_dir
 from .transport.xrpl_testnet import get_rpc_url
 
 
@@ -20,7 +20,7 @@ def _explorer_url(txid: str, network: str) -> str:
     return f"https://xrpl.org/transactions/{txid}"
 
 
-def _tx_detail(tx_record, network: str) -> dict:
+def _tx_detail(tx_record: TxRecord, network: str) -> dict:
     """Build per-tx detail for proof pack."""
     return {
         "txid": tx_record.txid,

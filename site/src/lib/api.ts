@@ -15,25 +15,29 @@ export interface ModuleSummary {
   time_estimate: string;
   completed: boolean;
   description?: string;
+  checks: string[];
+  requires: string[];
+  produces: string[];
 }
 
 export interface ModuleDetail extends ModuleSummary {
+  checks: string[];
   prerequisites: string[];
   steps: string[];
   artifacts: string[];
 }
 
 export interface Status {
-  version: string;
   wallet_configured: boolean;
-  network: string;
+  wallet_address: string | null;
+  workspace: string;
   modules_completed: number;
   modules_total: number;
-  last_run?: {
+  last_run: {
     module: string;
     timestamp: string;
     success: boolean;
-  };
+  } | null;
 }
 
 export interface DoctorResult {
@@ -64,7 +68,6 @@ export interface Certificate {
 }
 
 export interface Report {
-  id: string;
   title: string;
   generated: string;
   content: string;

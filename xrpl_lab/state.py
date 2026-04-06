@@ -140,6 +140,9 @@ def load_state() -> LabState:
     if p.exists():
         try:
             data: dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
+            # The state version tracks when the state was last saved.
+            # Comparing against __version__ detects upgrades so the user
+            # is warned that persisted fields may have changed shape.
             state_version = data.get("version", "unknown")
             if state_version != __version__:
                 print(
