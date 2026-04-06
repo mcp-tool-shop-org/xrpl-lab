@@ -72,7 +72,10 @@ def load_wallet(path: Path | None = None) -> Wallet | None:
 
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
-        return Wallet.from_seed(data["seed"])
+        derived = Wallet.from_seed(data["seed"])
+        if derived.address != data.get("address"):
+            logger.warning("Wallet address mismatch — file may be corrupted")
+        return derived
     except (json.JSONDecodeError, KeyError, ValueError):
         return None
 

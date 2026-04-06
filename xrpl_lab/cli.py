@@ -269,9 +269,8 @@ def status():
     console.print()
 
 
-@main.command()
-def doctor():
-    """Run diagnostic checks on your XRPL Lab environment."""
+def _run_doctor_and_display():
+    """Shared logic for doctor and self-check commands."""
     from .doctor import run_doctor
 
     console.print()
@@ -294,33 +293,18 @@ def doctor():
     else:
         console.print(f"[yellow]{report.summary}[/]")
     console.print()
+
+
+@main.command()
+def doctor():
+    """Run diagnostic checks on your XRPL Lab environment."""
+    _run_doctor_and_display()
 
 
 @main.command("self-check")
 def self_check():
     """Alias for 'doctor' — ecosystem-consistent diagnostic."""
-    from .doctor import run_doctor
-
-    console.print()
-    console.print(Panel("[bold]XRPL Lab Doctor[/]", border_style="blue"))
-    console.print()
-
-    report = asyncio.run(run_doctor())
-
-    for check in report.checks:
-        icon = "[green]\u2713[/]" if check.passed else "[red]\u2717[/]"
-        console.print(f"  {icon} [bold]{check.name}[/]")
-        if check.detail:
-            console.print(f"    {check.detail}")
-        if check.hint and not check.passed:
-            console.print(f"    [yellow]Hint: {check.hint}[/]")
-
-    console.print()
-    if report.all_passed:
-        console.print(f"[green]{report.summary} — all good![/]")
-    else:
-        console.print(f"[yellow]{report.summary}[/]")
-    console.print()
+    _run_doctor_and_display()
 
 
 @main.command("proof-pack")
@@ -618,6 +602,16 @@ def fund(dry_run: bool):
 def send(destination: str, amount: str, memo: str, dry_run: bool):
     """Send a payment transaction."""
     from .actions.wallet import load_wallet
+
+    # Validate amount
+    try:
+        amount_f = float(amount)
+    except ValueError:
+        console.print("[red]Invalid amount — must be a number[/]")
+        raise SystemExit(2) from None
+    if amount_f <= 0:
+        console.print("[red]Amount must be positive[/]")
+        raise SystemExit(2)
 
     w = load_wallet()
     if not w:

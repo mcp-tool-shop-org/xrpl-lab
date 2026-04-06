@@ -195,11 +195,9 @@ async def run_doctor() -> DoctorReport:
     report.checks.append(_check_workspace())
     report.checks.append(_check_env_overrides())
 
-    # Network checks (may be slow)
-    rpc_check = await _check_rpc()
+    # Network checks (run in parallel)
+    rpc_check, faucet_check = await asyncio.gather(_check_rpc(), _check_faucet())
     report.checks.append(rpc_check)
-
-    faucet_check = await _check_faucet()
     report.checks.append(faucet_check)
 
     # Informational

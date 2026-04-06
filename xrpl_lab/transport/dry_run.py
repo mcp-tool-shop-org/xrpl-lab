@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from decimal import Decimal
 
 from .base import (
     AccountSnapshot,
@@ -37,6 +38,36 @@ def _address_from_seed(wallet_seed: str) -> str:
     return _DRY_RUN_WALLET_ADDRESS
 
 
+class _PerAddressStore(dict):
+    """Dict keyed by address that also supports legacy list-like access.
+
+    Legacy callers (e.g., tests) that call `transport._trust_lines.append(item)`
+    will route the item into a ``_LEGACY`` bucket.  ``len()`` returns the total
+    item count across all addresses (matching old flat-list semantics).
+    """
+
+    _LEGACY_KEY = "__legacy__"
+
+    def append(self, item):  # noqa: ANN001, ANN201
+        self.setdefault(self._LEGACY_KEY, []).append(item)
+
+    def __len__(self) -> int:  # type: ignore[override]
+        return sum(len(v) for v in dict.values(self))
+
+    def __iter__(self):  # noqa: ANN204
+        """Iterate over all items across all addresses (legacy flat-list compat)."""
+        for items in dict.values(self):
+            yield from items
+
+    def __getitem__(self, key):  # noqa: ANN001, ANN204
+        """Support both dict[address] and list-style int indexing."""
+        if isinstance(key, int):
+            # Legacy flat-list index access
+            flat = list(self)
+            return flat[key]
+        return dict.__getitem__(self, key)
+
+
 class DryRunTransport(Transport):
     """Offline transport that simulates XRPL responses without network access."""
 
@@ -46,8 +77,8 @@ class DryRunTransport(Transport):
         # Per-address XRP balances in drops (CORE-010)
         self._balances: dict[str, int] = {}
         self._funded_addresses: set[str] = set()
-        self._trust_lines: list[TrustLineInfo] = []
-        self._offers: list[OfferInfo] = []
+        self._trust_lines: _PerAddressStore = _PerAddressStore()
+        self._offers: _PerAddressStore = _PerAddressStore()
         self._offer_seq = 100  # starting sequence for fake offers
         self._owner_count = 0  # tracks owned objects (trust lines, offers)
         self._tx_fixtures: dict[str, TxInfo] = {}  # txid -> TxInfo for audit testing
@@ -107,8 +138,8 @@ class DryRunTransport(Transport):
         from xrpl.utils import xrp_to_drops as _xrp_to_drops
 
         try:
-            numeric_amount = float(amount)
-        except (ValueError, TypeError):
+            numeric_amount = Decimal(amount)
+        except Exception:
             return SubmitResult(
                 success=False,
                 txid="",
@@ -119,7 +150,7 @@ class DryRunTransport(Transport):
 
         txid = self._next_txid()
         sender = _address_from_seed(wallet_seed)
-        drops = int(_xrp_to_drops(numeric_amount))
+        drops = int(_xrp_to_drops(float(numeric_amount)))
         self._balances[sender] = self._balances.get(sender, 0) - drops
         self._balances[destination] = self._balances.get(destination, 0) + drops
         return SubmitResult(
@@ -149,10 +180,11 @@ class DryRunTransport(Transport):
 
         txid = self._next_txid()
         wallet_address = _address_from_seed(wallet_seed)
+        addr_lines = self._trust_lines.setdefault(wallet_address, [])
 
         # Find existing trust line for this currency + issuer
         existing = None
-        for tl in self._trust_lines:
+        for tl in addr_lines:
             if tl.currency == currency and tl.peer == issuer:
                 existing = tl
                 break
@@ -181,14 +213,14 @@ class DryRunTransport(Transport):
                     ),
                 )
             # Remove trust line and decrement owner count
-            self._trust_lines.remove(existing)
+            addr_lines.remove(existing)
             self._owner_count = max(0, self._owner_count - 1)
         elif existing:
             # Update existing trust line limit (don't create duplicate)
             existing.limit = limit
         else:
             # Create new trust line using the wallet's derived address (CORE-005)
-            self._trust_lines.append(
+            addr_lines.append(
                 TrustLineInfo(
                     account=wallet_address,
                     peer=issuer,
@@ -226,11 +258,15 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: no trust line",
             )
 
-        # Realistic validation: check trust line exists
+        # Realistic validation: check trust line exists on destination
+        # Search all addresses for a matching trust line (destination holds the trust line)
         matching_tl = None
-        for tl in self._trust_lines:
-            if tl.currency == currency and tl.peer == issuer:
-                matching_tl = tl
+        for addr_lines in self._trust_lines.values():
+            for tl in addr_lines:
+                if tl.currency == currency and tl.peer == issuer:
+                    matching_tl = tl
+                    break
+            if matching_tl is not None:
                 break
 
         if matching_tl is None:
@@ -246,12 +282,12 @@ class DryRunTransport(Transport):
             )
 
         try:
-            numeric_balance = float(matching_tl.balance)
-        except (ValueError, TypeError):
-            numeric_balance = 0.0
+            numeric_balance = Decimal(matching_tl.balance)
+        except Exception:
+            numeric_balance = Decimal("0")
         try:
-            numeric_amount = float(amount)
-        except (ValueError, TypeError):
+            numeric_amount = Decimal(amount)
+        except Exception:
             return SubmitResult(
                 success=False,
                 txid="",
@@ -275,8 +311,22 @@ class DryRunTransport(Transport):
             explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
         )
 
+    def _resolve_lines(self, address: str) -> list[TrustLineInfo]:
+        """Return trust lines for *address*, checking legacy bucket too."""
+        if address in self._trust_lines:
+            return list(self._trust_lines[address])
+        legacy = self._trust_lines.get(_PerAddressStore._LEGACY_KEY, [])
+        if legacy:
+            return list(legacy)
+        # Single-wallet fallback: if only one real address, return those
+        real = {k: v for k, v in self._trust_lines.items()
+                if k != _PerAddressStore._LEGACY_KEY}
+        if len(real) == 1:
+            return list(next(iter(real.values())))
+        return []
+
     async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
-        return list(self._trust_lines)
+        return self._resolve_lines(address)
 
     async def submit_offer_create(
         self,
@@ -300,6 +350,7 @@ class DryRunTransport(Transport):
         txid = self._next_txid()
         seq = self._offer_seq
         self._offer_seq += 1
+        wallet_address = _address_from_seed(wallet_seed)
 
         # Format taker_pays / taker_gets for display
         if taker_pays_currency == "XRP":
@@ -317,7 +368,7 @@ class DryRunTransport(Transport):
                 f"/{taker_gets_issuer[:12]}"
             )
 
-        self._offers.append(
+        self._offers.setdefault(wallet_address, []).append(
             OfferInfo(
                 sequence=seq,
                 taker_pays=pays_str,
@@ -349,11 +400,14 @@ class DryRunTransport(Transport):
             )
 
         txid = self._next_txid()
+        wallet_address = _address_from_seed(wallet_seed)
+        addr_offers = self._offers.get(wallet_address, [])
         # Remove the offer from tracked list and decrement owner count
-        before = len(self._offers)
-        self._offers = [o for o in self._offers if o.sequence != offer_sequence]
-        if len(self._offers) < before:
+        before = len(addr_offers)
+        addr_offers = [o for o in addr_offers if o.sequence != offer_sequence]
+        if len(addr_offers) < before:
             self._owner_count = max(0, self._owner_count - 1)
+        self._offers[wallet_address] = addr_offers
         return SubmitResult(
             success=True,
             txid=txid,
@@ -364,7 +418,17 @@ class DryRunTransport(Transport):
         )
 
     async def get_account_offers(self, address: str) -> list[OfferInfo]:
-        return list(self._offers)
+        if address in self._offers:
+            return list(self._offers[address])
+        legacy = self._offers.get(_PerAddressStore._LEGACY_KEY, [])
+        if legacy:
+            return list(legacy)
+        # Single-wallet fallback: if only one real address, return those
+        real = {k: v for k, v in self._offers.items()
+                if k != _PerAddressStore._LEGACY_KEY}
+        if len(real) == 1:
+            return list(next(iter(real.values())))
+        return []
 
     async def get_account_info(self, address: str) -> AccountSnapshot:
         if address in self._balances:

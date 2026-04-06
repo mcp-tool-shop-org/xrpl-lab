@@ -128,9 +128,11 @@ class TestRunWebSocket:
         except WebSocketDisconnect as exc:
             # Expected: server closed the connection for unknown run_id
             assert exc.code in (1000, 4004)
-        except Exception:
-            # Any other exception during connect is also acceptable
-            pass
+        except Exception as exc:
+            if "disconnect" in str(exc).lower() or "1000" in str(exc):
+                pass  # Expected WebSocket close
+            else:
+                raise  # Re-raise unexpected exceptions
 
     def test_ws_receives_messages_for_valid_run(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -169,8 +171,10 @@ class TestRunWebSocket:
                     messages.append(msg)
                     if msg.get("type") in ("complete", "error"):
                         break
-                except Exception:
-                    break
+                except Exception as exc:
+                    if "disconnect" in str(exc).lower() or "1000" in str(exc):
+                        break  # Expected WebSocket close
+                    raise  # Re-raise unexpected exceptions
 
         msg_types = {m.get("type") for m in messages}
         assert "complete" in msg_types or "error" in msg_types
@@ -212,8 +216,10 @@ class TestRunWebSocket:
                         break
                     if msg.get("type") == "error":
                         break
-                except Exception:
-                    break
+                except Exception as exc:
+                    if "disconnect" in str(exc).lower() or "1000" in str(exc):
+                        break  # Expected WebSocket close
+                    raise  # Re-raise unexpected exceptions
 
         assert complete_msg is not None, "Expected a 'complete' message"
         assert "success" in complete_msg
@@ -262,15 +268,17 @@ class TestRunWebSocket:
                     messages.append(msg)
                     if msg.get("type") in ("complete", "error"):
                         break
-                except Exception:
-                    break
+                except Exception as exc:
+                    if "disconnect" in str(exc).lower() or "1000" in str(exc):
+                        break  # Expected WebSocket close
+                    raise  # Re-raise unexpected exceptions
 
         step_msgs = [m for m in messages if m.get("type") == "step"]
-        if step_msgs:
-            s = step_msgs[0]
-            assert "action" in s
-            assert "index" in s
-            assert "total" in s
+        assert len(step_msgs) > 0, "Expected at least one step message"
+        s = step_msgs[0]
+        assert "action" in s
+        assert "index" in s
+        assert "total" in s
 
 
 # ── Session store ─────────────────────────────────────────────────────

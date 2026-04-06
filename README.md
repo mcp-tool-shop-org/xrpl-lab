@@ -80,6 +80,7 @@ xrpl-lab self-check         Alias for doctor
 xrpl-lab feedback           Generate issue-ready markdown
 xrpl-lab audit              Batch verify transactions
 xrpl-lab last-run           Show last module run + audit command
+xrpl-lab serve [--port N] [--host H] [--dry-run]  Start web dashboard and API server
 xrpl-lab reset              Wipe local state (requires RESET confirmation)
 
 xrpl-lab wallet create      Create a new wallet

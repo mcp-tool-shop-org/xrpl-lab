@@ -166,15 +166,31 @@ def list_reports() -> list[dict[str, Any]]:
 def get_report(module_id: str) -> dict[str, Any]:
     """Return the content of a specific module report."""
     # Guard against path traversal
-    if "/" in module_id or "\\" in module_id or ".." in module_id:
-        raise HTTPException(status_code=400, detail="Invalid module_id")
+    if "/" in module_id or "\\" in module_id or ".." in module_id or "\x00" in module_id:
+        raise HTTPException(status_code=400, detail={
+            "code": "INVALID_MODULE_ID",
+            "message": "Invalid module_id",
+            "hint": "Module IDs must not contain path separators or special characters",
+        })
 
     ws = get_workspace_dir()
-    report_path = ws / "reports" / f"{module_id}.md"
+    reports_dir = ws / "reports"
+    report_path = reports_dir / f"{module_id}.md"
+
+    # Defense-in-depth: ensure resolved path stays within reports dir
+    if not report_path.resolve().is_relative_to(reports_dir.resolve()):
+        raise HTTPException(status_code=400, detail={
+            "code": "INVALID_MODULE_ID",
+            "message": "Invalid module_id",
+            "hint": "Module IDs must not contain path separators or special characters",
+        })
+
     if not report_path.exists():
-        raise HTTPException(
-            status_code=404, detail=f"Report for '{module_id}' not found"
-        )
+        raise HTTPException(status_code=404, detail={
+            "code": "REPORT_NOT_FOUND",
+            "message": f"Report for '{module_id}' not found",
+            "hint": "Run a module first to generate its report",
+        })
 
     return {
         "module_id": module_id,
