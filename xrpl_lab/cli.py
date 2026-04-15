@@ -21,6 +21,7 @@ from .actions.verify import verify_tx
 from .modules import load_all_modules
 from .reporting import write_certificate, write_proof_pack
 from .state import (
+    LabState,
     ensure_home_dir,
     ensure_workspace,
     get_workspace_dir,
@@ -57,6 +58,49 @@ def _detect_camp_certificate() -> Path | None:
     return None
 
 
+def _detect_camp_wallet() -> Path | None:
+    """Look for an XRPL Camp wallet in common locations."""
+    candidates = [
+        Path.cwd() / ".xrpl-camp" / "wallet.json",
+        Path.home() / ".xrpl-camp" / "wallet.json",
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
+
+
+def _try_import_camp_wallet(state: LabState) -> bool:
+    """Try to import a Camp wallet into Lab state. Returns True if imported."""
+    from .actions.wallet import save_wallet, wallet_exists
+    from .state import save_state
+
+    # Already have a lab wallet — don't overwrite
+    if wallet_exists():
+        return False
+
+    camp_path = _detect_camp_wallet()
+    if not camp_path:
+        return False
+
+    try:
+        data = json.loads(camp_path.read_text(encoding="utf-8"))
+        seed = data.get("seed")
+        if not seed:
+            return False
+
+        from xrpl.wallet import Wallet as XWallet
+        wallet = XWallet.from_seed(seed)
+
+        path = save_wallet(wallet)
+        state.wallet_address = wallet.address
+        state.wallet_path = str(path)
+        save_state(state)
+        return True
+    except (json.JSONDecodeError, KeyError, ValueError, Exception):
+        return False
+
+
 @click.group()
 @click.version_option(version=__version__, prog_name="xrpl-lab")
 def main():
@@ -66,13 +110,18 @@ Quick start:
   xrpl-lab start           Interactive guided tour
   xrpl-lab list            Show all modules
   xrpl-lab run MODULE_ID   Run a specific module
+  xrpl-lab proof verify    Verify a proof pack
+  xrpl-lab cert-verify     Verify a certificate
   xrpl-lab doctor          Check your setup
   xrpl-lab serve           Start the web dashboard
 """
 
 
 @main.command()
-@click.option("--dry-run", is_flag=True, help="Run without network (offline mode)")
+@click.option(
+    "--dry-run", is_flag=True,
+    help="Offline sandbox: simulated transactions, real local persistence",
+)
 def start(dry_run: bool):
     """Guided launcher — pick a module and start learning."""
     console.print()
@@ -88,31 +137,45 @@ def start(dry_run: bool):
     ensure_home_dir()
     state = load_state()
 
-    # Check for XRPL Camp certificate
+    # Check for XRPL Camp continuity
     camp_cert = _detect_camp_certificate()
     if camp_cert:
-        console.print("[green]XRPL Camp detected![/] Starting with your existing wallet.")
         try:
             data = json.loads(camp_cert.read_text(encoding="utf-8"))
-            camp_address = data.get("address")
-            if camp_address and not state.wallet_address:
-                console.print(f"  Camp address: [cyan]{escape(camp_address)}[/]")
-                console.print("  (You can reuse this or create a new wallet)")
+            camp_address = data.get("address", "")
         except (json.JSONDecodeError, KeyError):
+            camp_address = ""
+
+        if not state.wallet_address and _try_import_camp_wallet(state):
+            state = load_state()
             console.print(
-                f"[yellow]Found certificate at {camp_cert} "
-                "but could not read it. Continuing without it.[/]"
+                "[green]XRPL Camp wallet imported.[/] "
+                "Continuing with the same identity."
             )
+            console.print(f"  Address: [cyan]{escape(state.wallet_address or '')}[/]")
+        elif camp_address:
+            console.print(
+                f"[green]XRPL Camp certificate found.[/] "
+                f"Camp address: [cyan]{escape(camp_address)}[/]"
+            )
+            if state.wallet_address and state.wallet_address != camp_address:
+                console.print(
+                    "  [dim]Lab is using a different wallet. "
+                    "Run 'xrpl-lab reset' to start fresh if you want to re-import.[/dim]"
+                )
         console.print()
     else:
         console.print("[dim]No XRPL Camp certificate found (that's fine).[/]")
         console.print()
 
     # Network info
-    network_label = "dry-run (offline)" if dry_run else "XRPL Testnet"
+    network_label = "dry-run (offline sandbox)" if dry_run else "XRPL Testnet"
     console.print(f"Network: [cyan]{network_label}[/]")
     if dry_run:
-        console.print("[yellow]Dry-run mode: no real transactions will be submitted.[/]")
+        console.print(
+            "[yellow]Offline sandbox: transactions are simulated, "
+            "but wallets, state, and reports are saved locally.[/]"
+        )
     console.print()
 
     # Show modules
@@ -126,8 +189,12 @@ def start(dry_run: bool):
 
     for mod in modules.values():
         completed = state.is_module_completed(mod.id)
-        status = "[green]\u2713[/]" if completed else "[dim]\u25cb[/]"
-        console.print(f"  {status} [bold]{mod.id}[/] — {mod.title}  [{mod.level}, ~{mod.time}]")
+        status = "[green]✓[/]" if completed else "[dim]◌[/]"
+        sandbox_tag = " [yellow](dry-run only)[/]" if mod.dry_run_only else ""
+        console.print(
+            f"  {status} [bold]{mod.id}[/] — {mod.title}"
+            f"  [{mod.level}, ~{mod.time}]{sandbox_tag}"
+        )
 
     console.print()
 
@@ -170,18 +237,21 @@ def list_modules():
     table.add_column("Title")
     table.add_column("Level")
     table.add_column("Time")
+    table.add_column("Mode")
     table.add_column("Produces")
 
     for mod in modules.values():
         completed = state.is_module_completed(mod.id)
-        status = "\u2713" if completed else "\u25cb"
+        status = "✓" if completed else "◌"
         style = "green" if completed else ""
+        mode = "dry-run" if mod.dry_run_only else "testnet"
         table.add_row(
             status,
             mod.id,
             mod.title,
             mod.level,
             mod.time,
+            mode,
             ", ".join(mod.produces),
             style=style,
         )
@@ -193,7 +263,10 @@ def list_modules():
 
 @main.command()
 @click.argument("module_id")
-@click.option("--dry-run", is_flag=True, help="Run without network")
+@click.option(
+    "--dry-run", is_flag=True,
+    help="Offline sandbox: simulated transactions, real local persistence",
+)
 @click.option("--force", is_flag=True, help="Re-run even if already completed")
 def run(module_id: str, dry_run: bool, force: bool):
     """Run a specific module by ID (e.g., xrpl-lab run receipt_literacy)."""
@@ -331,6 +404,81 @@ def proof_pack():
     console.print(f"[green]Proof pack written:[/] {path}")
 
 
+# ---------------------------------------------------------------------------
+# Proof subgroup
+# ---------------------------------------------------------------------------
+
+
+@main.group()
+def proof():
+    """Proof pack commands: generate and verify."""
+
+
+@proof.command("generate")
+def proof_generate():
+    """Generate a shareable proof pack (same as proof-pack)."""
+    state = load_state()
+
+    if not state.completed_modules:
+        console.print("[yellow]No completed modules yet. Nothing to export.[/]")
+        return
+
+    ensure_workspace()
+    path = write_proof_pack(state)
+    console.print(f"[green]Proof pack written:[/] {path}")
+
+
+@proof.command("verify")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+def proof_verify(file: str, json_output: bool):
+    """Verify a proof pack's integrity."""
+    from .reporting import verify_proof_pack
+
+    path = Path(file)
+    try:
+        pack = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError) as e:
+        if json_output:
+            print(json.dumps({"valid": False, "message": f"Invalid JSON: {e}"}))
+        else:
+            console.print(f"[red]Invalid JSON: {e}[/]")
+        sys.exit(1)
+
+    valid, message = verify_proof_pack(pack)
+
+    if json_output:
+        result = {
+            "valid": valid,
+            "file": str(path),
+            "version": pack.get("version", ""),
+            "address": pack.get("address", ""),
+            "network": pack.get("network", ""),
+            "modules_completed": len(pack.get("completed_modules", [])),
+            "total_transactions": pack.get("total_transactions", 0),
+            "sha256": pack.get("sha256", ""),
+            "message": message,
+        }
+        print(json.dumps(result, indent=2))
+    else:
+        if valid:
+            console.print("\n  [green]✅ PASS[/] — Proof pack integrity verified.\n")
+        else:
+            console.print(f"\n  [red]❌ FAIL[/] — {message}\n")
+
+        console.print(f"  [bold]File:[/]         {path}")
+        console.print(f"  [bold]Version:[/]      {pack.get('version', '?')}")
+        console.print(f"  [bold]Address:[/]      {pack.get('address', '?')}")
+        console.print(f"  [bold]Network:[/]      {pack.get('network', '?')}")
+        console.print(f"  [bold]Modules:[/]      {len(pack.get('completed_modules', []))}")
+        console.print(f"  [bold]Transactions:[/] {pack.get('total_transactions', 0)}")
+        console.print(f"  [bold]SHA-256:[/]      {pack.get('sha256', 'none')}")
+        console.print()
+
+    if not valid:
+        sys.exit(1)
+
+
 @main.command()
 def certificate():
     """Generate a completion certificate."""
@@ -343,6 +491,62 @@ def certificate():
     ensure_workspace()
     path = write_certificate(state)
     console.print(f"[green]Certificate written:[/] {path}")
+
+
+# ---------------------------------------------------------------------------
+# Certificate verify
+# ---------------------------------------------------------------------------
+
+
+@main.command("cert-verify")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+def cert_verify(file: str, json_output: bool):
+    """Verify a certificate's integrity."""
+    from .reporting import verify_certificate
+
+    path = Path(file)
+    try:
+        cert = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError) as e:
+        if json_output:
+            print(json.dumps({"valid": False, "message": f"Invalid JSON: {e}"}))
+        else:
+            console.print(f"[red]Invalid JSON: {e}[/]")
+        sys.exit(1)
+
+    valid, message = verify_certificate(cert)
+
+    if json_output:
+        result = {
+            "valid": valid,
+            "file": str(path),
+            "version": cert.get("version", ""),
+            "address": cert.get("address", ""),
+            "network": cert.get("network", ""),
+            "modules_completed": cert.get("total_modules", 0),
+            "total_transactions": cert.get("total_transactions", 0),
+            "sha256": cert.get("sha256", ""),
+            "message": message,
+        }
+        print(json.dumps(result, indent=2))
+    else:
+        if valid:
+            console.print("\n  [green]✅ PASS[/] — Certificate integrity verified.\n")
+        else:
+            console.print(f"\n  [red]❌ FAIL[/] — {message}\n")
+
+        console.print(f"  [bold]File:[/]         {path}")
+        console.print(f"  [bold]Version:[/]      {cert.get('version', '?')}")
+        console.print(f"  [bold]Address:[/]      {cert.get('address', '?')}")
+        console.print(f"  [bold]Network:[/]      {cert.get('network', '?')}")
+        console.print(f"  [bold]Modules:[/]      {cert.get('total_modules', 0)}")
+        console.print(f"  [bold]Transactions:[/] {cert.get('total_transactions', 0)}")
+        console.print(f"  [bold]SHA-256:[/]      {cert.get('sha256', 'none')}")
+        console.print()
+
+    if not valid:
+        sys.exit(1)
 
 
 @main.command()
@@ -371,7 +575,7 @@ def feedback():
 )
 @click.option("--csv", "csv_path", default=None, help="Write CSV report to this path")
 @click.option("--md", "md_path", default=None, help="Write markdown report to this path")
-@click.option("--dry-run", is_flag=True, help="Use dry-run transport")
+@click.option("--dry-run", is_flag=True, help="Offline sandbox")
 @click.option("--no-pack", is_flag=True, help="Skip writing audit pack JSON")
 def audit(txids_path: str, expect_path: str | None, csv_path: str | None,
           md_path: str | None, dry_run: bool, no_pack: bool):
@@ -482,7 +686,7 @@ def last_run():
 @main.command()
 @click.option('--port', default=8321, help='API server port')
 @click.option('--host', default='127.0.0.1', help='API server host')
-@click.option('--dry-run', is_flag=True, help='Use dry-run transport for all operations')
+@click.option('--dry-run', is_flag=True, help='Offline sandbox for all operations')
 def serve(port: int, host: str, dry_run: bool):
     """Start the XRPL Lab web dashboard and API server.
 
@@ -590,7 +794,7 @@ def wallet_show():
 
 
 @main.command()
-@click.option("--dry-run", is_flag=True, help="Use dry-run transport")
+@click.option("--dry-run", is_flag=True, help="Offline sandbox")
 def fund(dry_run: bool):
     """Fund your wallet from the testnet faucet."""
     state = load_state()

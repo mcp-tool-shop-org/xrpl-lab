@@ -19,18 +19,20 @@ def test_list():
     runner = CliRunner()
     result = runner.invoke(main, ["list"])
     assert result.exit_code == 0
-    # Rich table truncates IDs — check short prefixes (8 modules = narrower cols)
-    assert "receipt_lit" in result.output
-    assert "failure_lit" in result.output
-    assert "trust_line" in result.output
-    assert "dex_lite" in result.output
+    # Rich table truncates IDs — check shorter prefixes after Mode column added
+    assert "receipt_" in result.output
+    assert "failure_" in result.output
+    assert "trust_li" in result.output
+    assert "dex_lite" in result.output or "dex_lit" in result.output
     assert "reserves" in result.output
-    assert "account_hy" in result.output
-    assert "receipt_au" in result.output
-    assert "amm_liquid" in result.output
-    assert "dex_market" in result.output
-    assert "dex_invent" in result.output
-    assert "dex_vs_amm" in result.output
+    assert "account_" in result.output
+    assert "amm_liqu" in result.output or "amm_liq" in result.output
+    assert "dex_mark" in result.output
+    assert "dex_inve" in result.output or "dex_inv" in result.output
+    assert "dex_vs_a" in result.output
+    # Mode column shows testnet and dry-run
+    assert "testnet" in result.output
+    assert "dry-run" in result.output
 
 
 def test_status(tmp_path, monkeypatch):
@@ -110,6 +112,138 @@ def test_self_check(tmp_path, monkeypatch):
     result = runner.invoke(main, ["self-check"])
     assert result.exit_code == 0
     assert "Doctor" in result.output
+
+
+# ── proof verify ──────────────────────────────────────────────────────
+
+
+def test_proof_verify_valid(tmp_path):
+    """Verify a valid proof pack passes."""
+    import hashlib
+    import json
+
+    pack = {
+        "xrpl_lab_proof_pack": True,
+        "version": "1.0.0",
+        "network": "testnet",
+        "address": "rTest123",
+        "completed_modules": [],
+        "total_transactions": 0,
+    }
+    content = json.dumps(pack, sort_keys=True, separators=(",", ":"))
+    pack["sha256"] = hashlib.sha256(content.encode()).hexdigest()
+
+    path = tmp_path / "proof.json"
+    path.write_text(json.dumps(pack), encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["proof", "verify", str(path)])
+    assert result.exit_code == 0
+    assert "PASS" in result.output
+
+
+def test_proof_verify_tampered(tmp_path):
+    """Verify a tampered proof pack fails."""
+    import hashlib
+    import json
+
+    pack = {
+        "xrpl_lab_proof_pack": True,
+        "version": "1.0.0",
+        "network": "testnet",
+        "address": "rTest123",
+        "completed_modules": [],
+        "total_transactions": 0,
+    }
+    content = json.dumps(pack, sort_keys=True, separators=(",", ":"))
+    pack["sha256"] = hashlib.sha256(content.encode()).hexdigest()
+    pack["address"] = "rTampered"  # tamper after hash
+
+    path = tmp_path / "proof.json"
+    path.write_text(json.dumps(pack), encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["proof", "verify", str(path)])
+    assert result.exit_code == 1
+    assert "FAIL" in result.output
+
+
+def test_proof_verify_json_output(tmp_path):
+    """Verify --json produces machine-readable output."""
+    import hashlib
+    import json
+
+    pack = {
+        "xrpl_lab_proof_pack": True,
+        "version": "1.0.0",
+        "network": "testnet",
+        "address": "rTest123",
+        "completed_modules": [],
+        "total_transactions": 0,
+    }
+    content = json.dumps(pack, sort_keys=True, separators=(",", ":"))
+    pack["sha256"] = hashlib.sha256(content.encode()).hexdigest()
+
+    path = tmp_path / "proof.json"
+    path.write_text(json.dumps(pack), encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["proof", "verify", str(path), "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["valid"] is True
+    assert data["address"] == "rTest123"
+
+
+def test_cert_verify_valid(tmp_path):
+    """Verify a valid certificate passes."""
+    import hashlib
+    import json
+
+    cert = {
+        "xrpl_lab_certificate": True,
+        "version": "1.0.0",
+        "network": "testnet",
+        "address": "rTest123",
+        "total_modules": 3,
+        "total_transactions": 10,
+    }
+    content = json.dumps(cert, sort_keys=True, separators=(",", ":"))
+    cert["sha256"] = hashlib.sha256(content.encode()).hexdigest()
+
+    path = tmp_path / "cert.json"
+    path.write_text(json.dumps(cert), encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["cert-verify", str(path)])
+    assert result.exit_code == 0
+    assert "PASS" in result.output
+
+
+def test_cert_verify_tampered(tmp_path):
+    """Verify a tampered certificate fails."""
+    import hashlib
+    import json
+
+    cert = {
+        "xrpl_lab_certificate": True,
+        "version": "1.0.0",
+        "network": "testnet",
+        "address": "rTest123",
+        "total_modules": 3,
+        "total_transactions": 10,
+    }
+    content = json.dumps(cert, sort_keys=True, separators=(",", ":"))
+    cert["sha256"] = hashlib.sha256(content.encode()).hexdigest()
+    cert["total_modules"] = 99  # tamper
+
+    path = tmp_path / "cert.json"
+    path.write_text(json.dumps(cert), encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["cert-verify", str(path)])
+    assert result.exit_code == 1
+    assert "FAIL" in result.output
 
 
 # ── serve command ─────────────────────────────────────────────────────

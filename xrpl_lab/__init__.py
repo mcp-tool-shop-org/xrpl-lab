@@ -1,3 +1,3 @@
 """XRPL Lab — learn by doing, prove by artifact."""
 
-__version__ = "1.0.6"
+__version__ = "1.1.0"

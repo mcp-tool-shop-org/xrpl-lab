@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.1.0 — 2026-07-23
+
+Truth + Continuity pass — no new modules, tighter semantics.
+
+### Camp Continuity
+- `start` imports camp wallet seed for real (reads `~/.xrpl-camp/wallet.json`, validates via `Wallet.from_seed()`, saves to lab wallet path)
+- Honest messaging: no "Starting with your existing wallet" unless import succeeds
+
+### Proof Verification CLI
+- `proof verify <file>` — verify proof pack integrity (SHA-256 hash check)
+- `cert-verify <file>` — verify certificate integrity
+- Both support `--json` for machine-readable output
+- Exit code 1 on failure
+
+### Dry-Run Semantics
+- All `--dry-run` help strings updated from "Run without network" to "Offline sandbox: simulated transactions, real local persistence"
+- Start banner explains sandbox behavior clearly
+
+### Dry-Run-Only Modules
+- `dry_run_only: true` frontmatter flag for AMM modules (amm_liquidity_101, dex_vs_amm_risk_literacy)
+- `list` command shows Mode column (testnet / dry-run)
+- `start` command shows `(dry-run only)` tag for labeled modules
+
+### Tests
+- 456 → 461 tests (+5 verify command tests)
+
 ## 1.0.6 — 2026-04-05
 
 Dogfood Swarm v2 — deep quality hardening, 456 tests.

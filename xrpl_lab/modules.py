@@ -34,6 +34,7 @@ class ModuleDef:
     steps: list[ModuleStep]
     raw_body: str = ""
     order: int = 99
+    dry_run_only: bool = False
 
     @property
     def summary_line(self) -> str:
@@ -115,6 +116,7 @@ def parse_module(text: str) -> ModuleDef:
         steps=steps,
         raw_body=body,
         order=int(meta.get("order", 99)),
+        dry_run_only=bool(meta.get("dry_run_only", False)),
     )
 
 

@@ -4,6 +4,7 @@ title: "AMM Liquidity 101: Providing Liquidity and Earning Fees"
 order: 9
 time: 20-30 min
 level: advanced
+dry_run_only: true
 requires:
   - wallet
   - trust_lines_101

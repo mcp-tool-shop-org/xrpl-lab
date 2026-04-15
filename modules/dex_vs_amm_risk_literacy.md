@@ -4,6 +4,7 @@ title: "DEX vs AMM Risk Literacy: Comparing Trading Strategies"
 order: 12
 time: 25-35 min
 level: advanced
+dry_run_only: true
 requires:
   - wallet
   - dex_market_making_101

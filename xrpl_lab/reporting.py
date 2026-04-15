@@ -180,3 +180,59 @@ def write_module_report(
 
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
+
+
+# ---------------------------------------------------------------------------
+# Verification — close the trust loop
+# ---------------------------------------------------------------------------
+
+
+def verify_proof_pack(pack: dict) -> tuple[bool, str]:
+    """Verify a proof pack's integrity hash.
+
+    Returns (valid, message).
+    """
+    if not isinstance(pack, dict):
+        return False, "Not a valid JSON object"
+
+    if not pack.get("xrpl_lab_proof_pack"):
+        return False, "Missing xrpl_lab_proof_pack marker"
+
+    stored_hash = pack.get("sha256")
+    if not stored_hash:
+        return False, "No SHA-256 hash found in proof pack"
+
+    # Recompute: hash of the pack content without the hash field
+    check = {k: v for k, v in pack.items() if k != "sha256"}
+    content = json.dumps(check, sort_keys=True, separators=(",", ":"))
+    computed = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    if computed != stored_hash:
+        return False, f"Hash mismatch: expected {stored_hash[:16]}…, got {computed[:16]}…"
+
+    return True, "Integrity verified"
+
+
+def verify_certificate(cert: dict) -> tuple[bool, str]:
+    """Verify a certificate's integrity hash.
+
+    Returns (valid, message).
+    """
+    if not isinstance(cert, dict):
+        return False, "Not a valid JSON object"
+
+    if not cert.get("xrpl_lab_certificate"):
+        return False, "Missing xrpl_lab_certificate marker"
+
+    stored_hash = cert.get("sha256")
+    if not stored_hash:
+        return False, "No SHA-256 hash found in certificate"
+
+    check = {k: v for k, v in cert.items() if k != "sha256"}
+    content = json.dumps(check, sort_keys=True, separators=(",", ":"))
+    computed = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    if computed != stored_hash:
+        return False, f"Hash mismatch: expected {stored_hash[:16]}…, got {computed[:16]}…"
+
+    return True, "Integrity verified"
