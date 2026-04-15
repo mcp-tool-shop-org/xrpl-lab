@@ -47,7 +47,7 @@ class LabState(BaseModel):
     variable (not yet wired) or by patching :func:`get_home_dir` before use.
     """
 
-    version: str = "1.0.6"
+    version: str = "1.2.0"
     network: str = DEFAULT_NETWORK
     wallet_path: str | None = None
     wallet_address: str | None = None

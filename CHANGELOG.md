@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.2.0 — 2026-07-24
+
+Authoring Spine — registry-based dispatch, structured payloads, module linter.
+
+### Action Registry (2A)
+- Central `registry.py` with `ActionDef`, `PayloadField`, `PayloadSchema`, `register()`, `resolve()`
+- All 37 actions registered with metadata (description, wallet_required, payload_fields)
+- `handlers.py` — extracted all action handlers from runner.py into standalone async functions
+- `runtime.py` — shared utilities (_SecretValue, ensure_wallet, ensure_funded)
+- `runner.py` shrunk from ~1750 to ~330 lines: thin `_execute_action()` does registry lookup → wallet gate → validate → dispatch
+
+### Structured Payloads (2B)
+- Quote-aware parser: `_parse_action_args()` supports `key="value with spaces"` and `key='value'`
+- Typed payload validation (str, int, decimal, bool, enum, list) via `PayloadSchema.validate()`
+- Validation wired into dispatch — bad payloads caught before handler runs
+
+### Module Linter (2C)
+- `linter.py` — validate frontmatter, action names, payloads, dry_run_only labeling
+- `xrpl-lab lint [glob] [--json]` CLI command for author-time and CI validation
+- 6 test fixture modules (3 error types + dry-run labeling mismatches + good baseline)
+- JSON output for CI integration
+
+### Tests
+- 478 → 502 tests (+17 registry, +12 payload, +13 linter = +42 net, minus test renumbering)
+
 ## 1.1.0 — 2026-07-23
 
 Truth + Continuity pass — no new modules, tighter semantics.

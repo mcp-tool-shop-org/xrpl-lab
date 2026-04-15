@@ -883,3 +883,60 @@ def verify(txid: str, dry_run: bool):
     console.print(f"  Amount: {tx.amount}")
     if tx.memos:
         console.print(f"  Memos: {', '.join(tx.memos)}")
+
+
+# ── Module linter ───────────────────────────────────────────────────
+
+
+@main.command()
+@click.argument("glob_pattern", default="modules/*.md")
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+def lint(glob_pattern: str, json_output: bool):
+    """Lint module files for authoring errors.
+
+    Validates frontmatter, action names, payloads, and dry_run_only labeling.
+
+    \b
+    Examples:
+      xrpl-lab lint                     # lint all modules
+      xrpl-lab lint modules/dex*.md     # lint a subset
+      xrpl-lab lint --json              # CI-friendly JSON output
+    """
+    from .linter import LintResult, lint_module_file
+
+    paths = sorted(Path(".").glob(glob_pattern))
+    if not paths:
+        if json_output:
+            print(LintResult().to_json())
+        else:
+            console.print(f"[yellow]No files matching '{glob_pattern}'[/]")
+        return
+
+    result = LintResult()
+    for p in paths:
+        result.issues.extend(lint_module_file(p))
+
+    if json_output:
+        print(result.to_json())
+    else:
+        console.print()
+        if result.issues:
+            for issue in result.issues:
+                color = "red" if issue.level == "error" else "yellow"
+                console.print(f"  [{color}]{issue}[/]")
+            console.print()
+
+        console.print(
+            f"  Linted [bold]{len(paths)}[/] module(s): "
+            f"[red]{result.error_count} error(s)[/], "
+            f"[yellow]{result.warning_count} warning(s)[/]"
+        )
+
+        if result.passed:
+            console.print("  [green]PASS[/]")
+        else:
+            console.print("  [red]FAIL[/]")
+        console.print()
+
+    if not result.passed:
+        sys.exit(1)

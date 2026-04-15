@@ -53,18 +53,51 @@ _ACTION_RE = re.compile(r"<!--\s*action:\s*(\w+)(?:\s+(.*?))?\s*-->")
 
 
 def _parse_action_args(raw: str | None) -> dict[str, str]:
-    """Parse 'key=value key2=value2' from action comment.
+    """Parse 'key=value key2="value with spaces"' from action comment.
 
-    Note: values cannot contain spaces — the raw string is split on whitespace
-    before the ``=`` split, so any space in a value will silently truncate it.
+    Supports:
+    - Unquoted values: ``currency=LAB``
+    - Double-quoted values: ``memo="hello world"``
+    - Single-quoted values: ``memo='hello world'``
     """
     if not raw:
         return {}
     args: dict[str, str] = {}
-    for pair in raw.split():
-        if "=" in pair:
-            k, v = pair.split("=", 1)
-            args[k.strip()] = v.strip()
+    i = 0
+    n = len(raw)
+    while i < n:
+        # Skip whitespace
+        while i < n and raw[i] in (" ", "\t"):
+            i += 1
+        if i >= n:
+            break
+        # Read key
+        key_start = i
+        while i < n and raw[i] not in ("=", " ", "\t"):
+            i += 1
+        key = raw[key_start:i].strip()
+        if not key or i >= n or raw[i] != "=":
+            i += 1
+            continue
+        i += 1  # skip '='
+        if i >= n:
+            args[key] = ""
+            break
+        # Read value
+        if raw[i] in ('"', "'"):
+            quote = raw[i]
+            i += 1
+            val_start = i
+            while i < n and raw[i] != quote:
+                i += 1
+            args[key] = raw[val_start:i]
+            if i < n:
+                i += 1  # skip closing quote
+        else:
+            val_start = i
+            while i < n and raw[i] not in (" ", "\t"):
+                i += 1
+            args[key] = raw[val_start:i]
     return args
 
 
