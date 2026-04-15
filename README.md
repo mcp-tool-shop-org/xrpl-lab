@@ -15,7 +15,8 @@
 XRPL training workbook — learn by doing, prove by artifact.
 
 Each module teaches one XRPL skill and produces a verifiable artifact: a transaction ID,
-a signed receipt, or a diagnostic report. No accounts, no fluff — just competence and receipts.
+a signed receipt, or a diagnostic report. No accounts, no fluff, no cloud — just
+competence and receipts.
 
 ## Install
 
@@ -86,13 +87,16 @@ Prerequisites are explicit — the CLI and linter enforce them.
 xrpl-lab start              Guided launcher
 xrpl-lab list               Show all modules with status and progression
 xrpl-lab run <module_id>    Run a specific module
-xrpl-lab status             Progress, wallet, recent txs
+xrpl-lab status [--json]    Progress, curriculum position, blockers, track progress
+xrpl-lab tracks             Track-level completion summaries
+xrpl-lab recovery           Diagnose stuck states, show recovery commands
 xrpl-lab lint [glob] [--json] [--no-curriculum]  Validate module files and curriculum
 xrpl-lab proof-pack         Export shareable proof pack
 xrpl-lab certificate        Export completion certificate
 xrpl-lab doctor             Run diagnostic checks
 xrpl-lab self-check         Alias for doctor
-xrpl-lab feedback           Generate issue-ready markdown
+xrpl-lab feedback           Generate support bundle (markdown)
+xrpl-lab support-bundle [--json] [--verify FILE]  Generate or verify support bundles
 xrpl-lab audit              Batch verify transactions
 xrpl-lab last-run           Show last module run + audit command
 xrpl-lab serve [--port N] [--host H] [--dry-run]  Start web dashboard and API server
@@ -106,6 +110,51 @@ xrpl-lab verify --tx <id>   Verify a transaction on-ledger
 ```
 
 All commands support `--dry-run` for offline mode where applicable.
+
+## Workshop Use
+
+XRPL Lab is designed for real teaching settings. No accounts, no telemetry, no cloud.
+Everything runs locally.
+
+### Facilitator status
+
+```bash
+xrpl-lab status             # Where is this learner? What's blocked? What's next?
+xrpl-lab status --json      # Machine-readable for scripting
+xrpl-lab tracks             # Track-level completion: what was actually practiced
+xrpl-lab recovery           # Stuck? See exactly what to run next
+```
+
+### Support handoff
+
+```bash
+xrpl-lab support-bundle              # Human-readable markdown bundle
+xrpl-lab support-bundle --json       # Machine-parseable JSON
+xrpl-lab support-bundle --verify bundle.json  # Verify a received bundle
+```
+
+A facilitator can diagnose any learner's issue from a support bundle without
+reproducing the whole session. No secrets are included.
+
+### Workshop flows
+
+**All-offline sandbox** — no network required:
+```bash
+xrpl-lab wallet create
+xrpl-lab start --dry-run
+```
+
+**Mixed offline + testnet** — real transactions for basics, sandbox for advanced:
+```bash
+xrpl-lab wallet create
+xrpl-lab fund
+xrpl-lab start
+```
+
+**Camp → Lab progression** — continue from xrpl-camp:
+```bash
+xrpl-lab start    # auto-detects camp wallet and certificate
+```
 
 ## Artifacts
 

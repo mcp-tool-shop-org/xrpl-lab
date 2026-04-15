@@ -21,6 +21,7 @@ from .schemas import (
     ReportDetail,
     ReportSummary,
     StatusResponse,
+    TrackProgressItem,
 )
 
 router = APIRouter(prefix="/api")
@@ -114,9 +115,12 @@ def get_module(module_id: str) -> ModuleDetail:
 
 @router.get("/status")
 def get_status() -> StatusResponse:
-    """Return overall lab status: completion counts, wallet info, workspace."""
+    """Return overall lab status: completion, curriculum position, blockers."""
+    from ..workshop import get_learner_status
+
     state = load_state()
     all_mods = load_all_modules()
+    ls = get_learner_status(state)
 
     last_run: LastRun | None = None
     if state.completed_modules:
@@ -136,6 +140,25 @@ def get_status() -> StatusResponse:
         wallet_address=state.wallet_address,
         last_run=last_run,
         workspace=str(ws),
+        current_module=ls.current_module,
+        current_track=ls.current_track,
+        current_mode=ls.current_mode,
+        blockers=ls.blockers,
+        is_blocked=ls.is_blocked,
+        track_progress=[
+            TrackProgressItem(
+                track=tp.track,
+                completed=tp.completed,
+                remaining=tp.remaining,
+                total=tp.total,
+                done=tp.done,
+                is_complete=tp.is_complete,
+            )
+            for tp in ls.track_progress
+        ],
+        has_proof_pack=ls.has_proof_pack,
+        has_certificate=ls.has_certificate,
+        report_count=ls.report_count,
     )
 
 

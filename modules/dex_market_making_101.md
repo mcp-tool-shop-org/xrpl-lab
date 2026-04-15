@@ -21,9 +21,8 @@ checks:
   - "Owner count returned to baseline"
 ---
 
-Welcome to your first strategy module. You've already built and torn
-down DEX offers in DEX Literacy. Now you use them with **intent**: to
-capture spread.
+You've already built and torn down DEX offers in DEX Literacy. Now you
+use them with **intent**: to capture spread.
 
 Market making means placing a buy (bid) and a sell (ask) on the same
 pair, with a gap between them. If both fill, you profit the gap. If
@@ -33,6 +32,7 @@ sold low — that's **adverse selection**.
 
 This module is not financial advice. It's a controlled exercise in
 placing, verifying, and cleaning up orders with a strategic frame.
+Everything runs on the testnet — no real value at stake.
 
 ## Step 1: Ensure your wallet is ready
 
@@ -164,9 +164,4 @@ Operator checklist for real market making:
   locks significant reserve
 - **Monitor and cancel stale orders**: never leave orders unattended
 
-Your report and transaction IDs are saved. Run `xrpl-lab proof-pack` to
-export a shareable proof. Audit with:
-
-```
-xrpl-lab audit --txids .xrpl-lab/last_run_txids.txt --expect presets/strategy_mm101.json
-```
+Run `xrpl-lab last-run` to see the audit command for this session.

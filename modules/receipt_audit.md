@@ -19,13 +19,13 @@ checks:
   - "Audit pack with integrity hash"
 ---
 
-Welcome to Audit Mode. Earlier modules taught you to verify one
-transaction at a time. Now you learn to verify them in batch — the way
-operators, support teams, and auditors actually work.
+Earlier modules taught you to verify one transaction at a time. Now you
+learn to verify them in batch — the way operators, support teams, and
+auditors actually work.
 
-Audit Mode takes a list of transaction IDs, fetches each one, checks it
-against rules (validated? succeeded? correct type? memo present?), and
-produces a pass/fail report with evidence.
+You give the audit engine a list of transaction IDs. It fetches each one,
+checks it against rules (validated? succeeded? correct type? memo present?),
+and produces a pass/fail report with evidence.
 
 ## Step 1: Ensure your wallet is ready
 
@@ -99,4 +99,4 @@ Operator takeaway:
 - **Audit packs are shareable proof** — attach to issues, hand to auditors
 - **The CLI command**: `xrpl-lab audit --txids txids.txt`
 
-Run `xrpl-lab proof-pack` to add this to your evidence chain.
+This is the skill that turns transaction data into evidence.

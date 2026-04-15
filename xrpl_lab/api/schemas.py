@@ -19,6 +19,15 @@ class LastRun(BaseModel):
     success: bool
 
 
+class TrackProgressItem(BaseModel):
+    track: str
+    completed: list[str] = Field(default_factory=list)
+    remaining: list[str] = Field(default_factory=list)
+    total: int
+    done: int
+    is_complete: bool
+
+
 class StatusResponse(BaseModel):
     modules_completed: int
     modules_total: int
@@ -26,6 +35,15 @@ class StatusResponse(BaseModel):
     wallet_address: str | None
     last_run: LastRun | None
     workspace: str
+    current_module: str | None = None
+    current_track: str | None = None
+    current_mode: str | None = None
+    blockers: list[str] = Field(default_factory=list)
+    is_blocked: bool = False
+    track_progress: list[TrackProgressItem] = Field(default_factory=list)
+    has_proof_pack: bool = False
+    has_certificate: bool = False
+    report_count: int = 0
 
 
 # -- /api/modules ----------------------------------------------------------

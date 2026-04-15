@@ -310,10 +310,11 @@ async def run_module(
     console.print()
 
     # Build completion message with audit hint if last_run exists
+    tx_count = len(context['txids'])
     completion_lines = [
-        f"[bold green]Module completed: {module.title}[/]",
-        f"Report: {report_path}",
-        f"Transactions: {len(context['txids'])}",
+        f"[bold green]{module.title}[/]",
+        f"Report saved to {report_path}",
+        f"{tx_count} transaction{'s' if tx_count != 1 else ''} recorded",
     ]
 
     last_run_txids = Path(".xrpl-lab/last_run_txids.txt")

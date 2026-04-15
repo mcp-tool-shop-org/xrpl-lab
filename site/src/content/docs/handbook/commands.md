@@ -12,9 +12,20 @@ sidebar:
 | `xrpl-lab start` | Guided launcher — walks through wallet setup, funding, and first module |
 | `xrpl-lab list` | Show all modules with completion status in a formatted table |
 | `xrpl-lab run <module_id>` | Run a specific module (add `--force` to redo a completed module) |
-| `xrpl-lab status` | Show progress, wallet info, env overrides, and recent transactions |
+| `xrpl-lab status [--json]` | Progress, curriculum position, blockers, track progress |
+| `xrpl-lab tracks` | Track-level completion summaries — what was actually practiced |
+| `xrpl-lab recovery` | Diagnose stuck states and show recovery commands |
 | `xrpl-lab last-run` | Show details of the last module run + suggested audit command |
 | `xrpl-lab --version` | Print the installed version and exit |
+
+## Workshop commands
+
+| Command | Description |
+|---------|-------------|
+| `xrpl-lab support-bundle` | Generate a support bundle (markdown) for facilitator handoff |
+| `xrpl-lab support-bundle --json` | Machine-parseable JSON support bundle |
+| `xrpl-lab support-bundle --verify <file>` | Verify a received support bundle |
+| `xrpl-lab feedback` | Alias for support-bundle (markdown output) |
 
 ## Artifact commands
 
@@ -50,7 +61,6 @@ sidebar:
 |---------|-------------|
 | `xrpl-lab doctor` | Run diagnostic checks (wallet, state, workspace, env overrides, RPC, faucet, last error) |
 | `xrpl-lab self-check` | Alias for doctor |
-| `xrpl-lab feedback` | Generate issue-ready markdown for bug reports |
 | `xrpl-lab reset` | Wipe local state (requires typing RESET to confirm; add `--keep-wallet` to preserve wallet) |
 
 ## Environment variables

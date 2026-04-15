@@ -18,12 +18,12 @@ checks:
   - "Fix applied and resubmitted successfully"
 ---
 
-Welcome to Failure Literacy. Transactions fail. The difference between a
-beginner and a competent operator is knowing *why* they fail and *how* to fix
-them.
+Transactions fail. The difference between a beginner and a competent
+operator is knowing *why* they fail and *how* to fix them.
 
-In this module you will intentionally break a transaction, read the error,
-then fix and resubmit it.
+In this module you intentionally break a transaction, read the error,
+then fix and resubmit it. Everything here is safe — failed transactions
+on the testnet cost nothing.
 
 ## Step 1: Ensure your wallet is ready
 
@@ -90,8 +90,8 @@ You just completed the debugging workflow:
 3. You identified the fix
 4. You resubmitted successfully
 
-This is real operational skill. Every production system has failures.
-The question is never "will it fail?" — it's "can you diagnose and recover?"
+Every production system has failures. The question is never "will it
+fail?" — it's "can you diagnose and recover?" Now you can.
 
-Your failed and successful transactions are both recorded. Run
-`xrpl-lab proof-pack` to see the full trail.
+Both the failed and successful transactions are in your trail. Run
+`xrpl-lab proof-pack` when you're ready to export.

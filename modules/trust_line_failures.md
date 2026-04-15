@@ -19,12 +19,12 @@ checks:
   - "Trust line verified on-ledger"
 ---
 
-Welcome to Debugging Trust Lines. In this module you will intentionally break
-a token transfer and learn to read the failure — then fix it.
+Most "why won't this token work?" questions come down to one thing:
+the trust line.
 
-On the XRPL, most "why won't this token work?" questions come down to one
-thing: the trust line. This module teaches you to diagnose the three most
-common trust line failures by producing each one on purpose.
+In this module you intentionally break a token transfer — then read the
+failure, fix it, and confirm the fix on-ledger. Breaking things on
+purpose is the fastest way to learn what the error codes actually mean.
 
 ## Step 1: Ensure your wallet is ready
 
@@ -97,15 +97,12 @@ You just debugged the most common trust line failure:
 3. **Reissue** → same payment, now succeeds
 4. **Verified** → the trust line and balance are correct on-ledger
 
-This is the debugging skill that separates operators from tourists:
-- When a token transfer fails, **check the trust line first**
-- The error code tells you exactly what is missing
-- The fix is always the same: set a trust line, then retry
+When a token transfer fails, check the trust line first. The error code
+tells you exactly what is missing, and the fix is always the same: set
+the trust line, then retry.
 
-Common trust line failures you will encounter in the wild:
+Common trust line failures you'll encounter in the wild:
 - `tecPATH_DRY` — no delivery path (missing trust line or no liquidity)
 - `tecNO_LINE` — destination has no trust line for this currency
 - `tecNO_DST` — destination account does not exist
 - `tecUNFUNDED_PAYMENT` — sender does not have enough of the token
-
-Run `xrpl-lab feedback` if you need to report an issue.

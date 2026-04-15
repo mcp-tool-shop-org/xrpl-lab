@@ -105,3 +105,49 @@ All state lives locally:
   - `XRPL_LAB_RPC_URL` — custom RPC endpoint
   - `XRPL_LAB_FAUCET_URL` — custom faucet endpoint
 - Both are optional with `--dry-run`
+
+## Workshop use
+
+XRPL Lab works in real teaching settings — no accounts, no telemetry,
+no cloud. Everything runs locally.
+
+### Facilitator view
+
+Check any learner's status in under 10 seconds:
+
+```bash
+xrpl-lab status        # where are they, what's blocked, what's next
+xrpl-lab tracks        # track-level completion: what was actually practiced
+xrpl-lab recovery      # stuck? see exactly what to run
+```
+
+### Support handoff
+
+When a learner needs help:
+
+```bash
+xrpl-lab support-bundle         # generates a markdown summary
+xrpl-lab support-bundle --json  # or machine-parseable JSON
+```
+
+The bundle includes curriculum position, blockers, environment, doctor results, and recent transactions. No secrets.
+
+### Common workshop flows
+
+**All-offline sandbox** (no internet):
+```bash
+xrpl-lab wallet create
+xrpl-lab start --dry-run
+```
+
+**Mixed offline + testnet** (most common):
+```bash
+xrpl-lab wallet create
+xrpl-lab fund
+xrpl-lab start
+```
+
+**Camp → Lab progression**:
+```bash
+xrpl-lab start    # auto-detects camp wallet and certificate
+```

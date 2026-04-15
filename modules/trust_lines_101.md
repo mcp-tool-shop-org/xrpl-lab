@@ -17,15 +17,15 @@ checks:
   - "Trust line verified: currency, issuer, balance"
 ---
 
-Welcome to Trust Lines 101. In this module you will learn how issued currencies
-work on the XRPL — not as abstract tokens, but as relationships between accounts.
+On the XRPL, only XRP is native. Every other currency — USD, EUR, your own
+token — exists as a balance on a **trust line** between two accounts. Setting
+a trust line means: "I trust this issuer for up to X units of this currency."
 
-On the XRPL, only XRP is native. Every other currency (USD, EUR, your own token)
-exists as a balance on a **trust line** between two accounts. Setting a trust line
-means: "I trust this issuer for up to X units of this currency."
+This module walks you through the full lifecycle: create an issuer, set a
+trust line, receive tokens, and verify the result on-ledger.
 
-By the end you will understand: what a trust line is, how to create one, how tokens
-are issued, and how to verify the result on-ledger.
+Nothing here is permanent or expensive. Trust lines on the testnet are free
+to create and easy to remove later.
 
 ## Step 1: Ensure your wallet is ready
 
@@ -109,5 +109,5 @@ Key concepts to remember:
 - **Reserve costs**: each trust line increases your account reserve (2 XRP on mainnet)
 - **No surprise tokens**: unlike other chains, you cannot receive tokens you didn't agree to
 
-Your report and transaction IDs are saved. Run `xrpl-lab proof-pack` to
-export a shareable proof of what you did here.
+Your report is saved. Run `xrpl-lab proof-pack` when you're ready to
+export your work.

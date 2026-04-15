@@ -20,12 +20,14 @@ checks:
   - "Owner count returned to baseline (C)"
 ---
 
-Welcome to Account Hygiene. You learned in Reserves 101 that owned objects
-lock reserve XRP. Now you learn how to **reclaim** it.
+You learned in Reserves 101 that owned objects lock reserve XRP.
+Now you learn how to **reclaim** it.
 
-This module walks you through creating objects, then systematically removing
-them — cancelling offers and deleting trust lines — and verifying that your
-owner count drops back to baseline.
+This module walks you through creating objects, then systematically
+removing them — cancelling offers and deleting trust lines — and
+verifying that your owner count drops back to baseline.
+
+This is routine maintenance, not surgery. Every step is reversible.
 
 The rule is simple:
 - **Cancel stale offers** to free their reserve
@@ -159,5 +161,4 @@ Operator checklist for real accounts:
 - **Re-check after cleanup**: snapshot before and after to confirm
   reserve was actually released
 
-Your report and transaction IDs are saved. Run `xrpl-lab proof-pack` to
-export a shareable proof of what you did here.
+Run `xrpl-lab proof-pack` when you're ready to export your work.

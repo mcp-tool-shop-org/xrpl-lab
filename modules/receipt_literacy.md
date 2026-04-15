@@ -16,10 +16,10 @@ checks:
   - "Tx verified: amount, destination, fee, result"
 ---
 
-Welcome to Receipt Literacy. In this module you will send a real payment on the
-XRPL Testnet and learn to read every field in the receipt.
+Every blockchain interaction ends the same way: you check the receipt.
 
-By the end you will be able to verify: who sent what, to whom, for how much,
+In this module you send a real payment on the XRPL Testnet and learn to
+read every field in the response — who sent what, to whom, for how much,
 what it cost, and whether it actually worked.
 
 ## Step 1: Ensure your wallet is ready
@@ -68,8 +68,8 @@ You just completed the fundamental workflow of any blockchain interaction:
 2. You submitted a transaction (intent → ledger)
 3. You verified the receipt (ledger → proof)
 
-This is the skill that everything else builds on: trust lines, DEX offers,
+This is the skill that everything else builds on. Trust lines, DEX offers,
 escrows, multi-sig — they all start with "send, receive, verify."
 
-Your report and transaction ID are saved. Run `xrpl-lab proof-pack` to
-export a shareable proof of what you did here.
+Your report is saved. Run `xrpl-lab proof-pack` when you're ready to
+export your work.

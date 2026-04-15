@@ -24,7 +24,6 @@ from .state import (
     LabState,
     ensure_home_dir,
     ensure_workspace,
-    get_workspace_dir,
     load_state,
     reset_state,
     save_state,
@@ -316,24 +315,28 @@ def run(module_id: str, dry_run: bool, force: bool):
 
 
 @main.command()
-def status():
-    """Show progress, wallet, and recent transactions."""
-    state = load_state()
-    modules = load_all_modules()
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+def status(json_output: bool):
+    """Show progress, wallet, curriculum position, and blockers."""
+    from .workshop import get_learner_status
+
+    ls = get_learner_status()
+
+    if json_output:
+        print(json.dumps(ls.to_dict(), indent=2))
+        return
 
     console.print()
-    console.print(Panel("[bold]XRPL Lab Status[/]", border_style="blue"))
+    console.print(Panel("[bold]Status[/]", border_style="blue"))
     console.print()
 
-    # Wallet
-    if state.wallet_address:
-        console.print(f"Wallet: [cyan]{state.wallet_address}[/]")
+    # Wallet + network
+    if ls.wallet_address:
+        console.print(f"Wallet: [cyan]{ls.wallet_address}[/]")
     else:
         console.print("Wallet: [dim]not created yet[/]")
+    console.print(f"Network: [cyan]{ls.network}[/]")
 
-    console.print(f"Network: [cyan]{state.network}[/]")
-
-    # Show env overrides if set
     rpc_override = os.environ.get("XRPL_LAB_RPC_URL")
     faucet_override = os.environ.get("XRPL_LAB_FAUCET_URL")
     if rpc_override:
@@ -342,36 +345,61 @@ def status():
         console.print(f"Faucet: [yellow]{faucet_override}[/] (override)")
     console.print()
 
-    # Module progress
-    total = len(modules)
-    completed = len(state.completed_modules)
-    console.print(f"Modules: {completed}/{total} completed")
+    # Curriculum position
+    console.print(f"Progress: {ls.completed_count}/{ls.total_modules} modules")
+    if ls.current_module:
+        console.print(
+            f"Next up: [bold]{ls.current_module}[/]"
+            f"  [dim]({ls.current_track}, {ls.current_mode})[/]"
+        )
+    else:
+        console.print("[green]All modules completed![/]")
 
-    for mod in modules.values():
-        done = state.is_module_completed(mod.id)
-        icon = "[green]\u2713[/]" if done else "[dim]\u25cb[/]"
-        console.print(f"  {icon} {mod.title}")
-
-    # Recent transactions
-    if state.tx_index:
+    # Blockers
+    if ls.blockers:
         console.print()
-        total_tx = len(state.tx_index)
-        ok_tx = sum(1 for tx in state.tx_index if tx.success)
-        fail_tx = total_tx - ok_tx
-        console.print(f"Transactions: {total_tx} total ({ok_tx} ok, {fail_tx} failed)")
-        recent = state.tx_index[-5:]
-        for tx in reversed(recent):
-            status_icon = "[green]\u2713[/]" if tx.success else "[red]\u2717[/]"
-            console.print(f"  {status_icon} {tx.txid[:16]}... ({tx.module_id})")
+        for b in ls.blockers:
+            if ls.is_blocked:
+                console.print(f"  [red]✗ {b}[/]")
+            else:
+                console.print(f"  [yellow]⚠ {b}[/]")
 
-    # Workspace
-    ws = get_workspace_dir()
-    if ws.exists():
-        reports = list((ws / "reports").glob("*.md")) if (ws / "reports").exists() else []
-        proofs = list((ws / "proofs").glob("*.json")) if (ws / "proofs").exists() else []
+    # Track progress
+    console.print()
+    for tp in ls.track_progress:
+        if tp.total == 0:
+            continue
+        if tp.is_complete:
+            console.print(f"  [green]✓[/] {tp.track}: {tp.done}/{tp.total}")
+        elif tp.done > 0:
+            console.print(f"  [cyan]▸[/] {tp.track}: {tp.done}/{tp.total}")
+        else:
+            console.print(f"  [dim]◌ {tp.track}: {tp.done}/{tp.total}[/]")
+
+    # Activity
+    if ls.last_module:
         console.print()
-        console.print(f"Workspace: {ws.resolve()}")
-        console.print(f"  Reports: {len(reports)}  |  Proofs: {len(proofs)}")
+        console.print(f"Last completed: [dim]{ls.last_module}[/]")
+        if ls.last_activity:
+            console.print(f"  [dim]{ls.last_activity}[/]")
+
+    # Transactions
+    if ls.total_transactions > 0:
+        ok = ls.total_transactions - ls.failed_transactions
+        console.print()
+        console.print(
+            f"Transactions: {ls.total_transactions} "
+            f"({ok} ok, {ls.failed_transactions} failed)"
+        )
+
+    # Artifacts
+    console.print()
+    parts = []
+    if ls.report_count:
+        parts.append(f"Reports: {ls.report_count}")
+    parts.append(f"Proof pack: {'yes' if ls.has_proof_pack else 'no'}")
+    parts.append(f"Certificate: {'yes' if ls.has_certificate else 'no'}")
+    console.print("  |  ".join(parts))
 
     console.print()
 
@@ -392,11 +420,11 @@ def _run_doctor_and_display():
         if check.detail:
             console.print(f"    {check.detail}")
         if check.hint and not check.passed:
-            console.print(f"    [yellow]Hint: {check.hint}[/]")
+            console.print(f"    [yellow]{check.hint}[/]")
 
     console.print()
     if report.all_passed:
-        console.print(f"[green]{report.summary} — all good![/]")
+        console.print(f"[green]{report.summary} — all good.[/]")
     else:
         console.print(f"[yellow]{report.summary}[/]")
     console.print()
@@ -576,15 +604,114 @@ def cert_verify(file: str, json_output: bool):
 @main.command()
 def feedback():
     """Generate an issue-ready feedback block (markdown)."""
-    from .feedback import generate_feedback
+    from .workshop import generate_support_bundle
 
-    md = generate_feedback()
+    bundle = generate_support_bundle()
+    md = bundle.to_markdown()
     console.print()
     console.print(md)
     console.print()
-
-    # Also copy to clipboard hint
     console.print("[dim]Copy the block above into a GitHub issue or support message.[/]")
+    console.print()
+
+
+@main.command("support-bundle")
+@click.option("--json", "json_output", is_flag=True, help="JSON output instead of markdown")
+@click.option("--verify", "verify_path", type=click.Path(exists=True),
+              help="Verify an existing support bundle file")
+def support_bundle(json_output: bool, verify_path: str | None):
+    """Generate or verify a support bundle for facilitator handoff."""
+    from .workshop import generate_support_bundle, verify_support_bundle
+
+    if verify_path:
+        raw = Path(verify_path).read_text(encoding="utf-8")
+        valid, message = verify_support_bundle(raw)
+        if json_output:
+            print(json.dumps({"valid": valid, "message": message}))
+        else:
+            if valid:
+                console.print(f"\n  [green]✅ PASS[/] — {message}\n")
+            else:
+                console.print(f"\n  [red]❌ FAIL[/] — {message}\n")
+        if not valid:
+            sys.exit(1)
+        return
+
+    bundle = generate_support_bundle()
+
+    if json_output:
+        print(bundle.to_json())
+    else:
+        console.print()
+        console.print(bundle.to_markdown())
+        console.print()
+
+
+@main.command("tracks")
+def tracks():
+    """Show track-level completion summaries."""
+    from .workshop import get_track_summaries
+
+    summaries = get_track_summaries()
+
+    console.print()
+    console.print(Panel("[bold]Tracks[/]", border_style="blue"))
+    console.print()
+
+    for ts in summaries:
+        if ts.is_complete:
+            icon = "[green]✓[/]"
+        elif ts.completed_modules:
+            icon = "[cyan]▸[/]"
+        else:
+            icon = "[dim]◌[/]"
+
+        console.print(
+            f"  {icon} [bold]{ts.track}[/]"
+            f"  {len(ts.completed_modules)}/{len(ts.completed_modules) + len(ts.remaining_modules)}"
+            f"  [dim]({ts.mode_breakdown})[/]"
+        )
+
+        if ts.completed_modules:
+            for mid in ts.completed_modules:
+                console.print(f"      [green]✓[/] {mid}")
+        if ts.remaining_modules:
+            for mid in ts.remaining_modules:
+                console.print(f"      [dim]◌ {mid}[/]")
+
+        if ts.skills_practiced:
+            console.print(f"      Skills: {', '.join(ts.skills_practiced[:5])}")
+        if ts.transaction_count:
+            console.print(f"      Transactions: {ts.transaction_count}")
+        if ts.artifacts:
+            console.print(f"      Reports: {', '.join(ts.artifacts[:3])}")
+        console.print()
+
+    console.print()
+
+
+@main.command()
+def recovery():
+    """Diagnose stuck states and show recovery commands."""
+    from .workshop import diagnose_recovery
+
+    hints = diagnose_recovery()
+
+    console.print()
+    if not hints:
+        console.print("[green]No issues found — you're on track.[/]")
+        console.print()
+        return
+
+    console.print(Panel("[bold]Recovery[/]", border_style="yellow"))
+    console.print()
+
+    for h in hints:
+        console.print(f"  [yellow]⚠[/] {h.situation}")
+        console.print(f"    [cyan]{h.command}[/]")
+        console.print(f"    [dim]{h.explanation}[/]")
+        console.print()
+
     console.print()
 
 

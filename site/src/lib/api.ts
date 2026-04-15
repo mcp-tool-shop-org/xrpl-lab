@@ -36,6 +36,15 @@ export interface ModuleDetail extends ModuleSummary {
   steps: string[];
 }
 
+export interface TrackProgressItem {
+  track: string;
+  completed: string[];
+  remaining: string[];
+  total: number;
+  done: number;
+  is_complete: boolean;
+}
+
 export interface Status {
   modules_completed: number;
   modules_total: number;
@@ -47,6 +56,15 @@ export interface Status {
     success: boolean;
   } | null;
   workspace: string;
+  current_module: string | null;
+  current_track: string | null;
+  current_mode: string | null;
+  blockers: string[];
+  is_blocked: boolean;
+  track_progress: TrackProgressItem[];
+  has_proof_pack: boolean;
+  has_certificate: boolean;
+  report_count: number;
 }
 
 export interface DoctorResult {

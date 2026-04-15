@@ -127,5 +127,4 @@ Operator rules for inventory management:
 - **Re-check before every cycle** — balances change after every trade
 - **One-sided is fine** — a single-sided quote is safer than a reckless two-sided one
 
-Your report and transaction IDs are saved. Run `xrpl-lab last-run` to
-see the audit command for this session.
+Run `xrpl-lab last-run` to see the audit command for this session.

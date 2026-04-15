@@ -1,4 +1,75 @@
 # Changelog
+## 1.5.0 — 2026-04-15
+
+Humanization Pass — clearer, steadier, more motivating copy across every learner-facing surface.
+
+### Voice Lock (5A)
+- Canonical voice definition: "clear, steady, respectful, lightly encouraging"
+- Voice constant added to `workshop.py` module docstring as the single reference
+
+### Module Openers + Closers (5B)
+- Removed mechanical "Welcome to X" pattern from all 12 module openers
+- Varied checkpoint closers — no more identical footer boilerplate
+- Dropped repetitive "Your report and transaction IDs are saved" from all modules
+- Each module now opens with what you'll learn and closes with what comes next
+
+### Fear-Point Reassurance (5C)
+- Added "nothing here is permanent" and "testnet costs nothing" at trust line, DEX, reserve, and AMM entry points
+- AMM and DEX vs AMM modules note "no real assets at risk" (dry-run mode)
+- Account hygiene opener: "routine maintenance, not surgery"
+
+### Recovery + Blocker Copy (5D)
+- Humanized all blocker messages in `workshop.py` — less mechanical, more reassuring
+- Recovery hint situations and explanations rewritten for warmth and clarity
+- "No wallet configured" → "No wallet yet"; "Module X requires" → "X builds on Y"
+
+### Completion + Track Recaps (5E)
+- Runner completion panel: cleaner title, grammar-aware transaction count
+- CLI tracks and recovery panel titles simplified ("Tracks", "Recovery")
+
+### CLI/Dashboard Copy Pass (5F)
+- Status panel: "Next up" instead of "Next", "Last completed" instead of "Last"
+- Doctor output: dropped "Hint:" prefix, cleaner pass/fail language
+- Error hints humanized: shorter sentences, warmer tone
+- `tx_failed` message simplified from "Transaction failed with result: X" to "Transaction failed: X"
+
+### Docs Tone Alignment (5G)
+- README tagline: added "no cloud" alongside "no accounts, no fluff"
+- README and handbook workshop sections: "Everything runs locally"
+
+### Tests
+- 564 tests, 0 failures, ruff clean
+
+## 1.4.0 — 2026-04-15
+
+Workshop Spine — facilitator status, support bundles, track summaries, and recovery guidance.
+
+### Facilitator Status Truth (4A)
+- `workshop.py` — `LearnerStatus` dataclass and `get_learner_status()`
+- CLI `status` command with `--json`, curriculum position, blockers, track progress
+- API `/api/status` enriched with curriculum fields
+- TS `Status` interface updated with matching fields
+
+### Support Bundle Truth (4B)
+- `SupportBundle` dataclass with `to_json()`, `to_markdown()`, `verify_support_bundle()`
+- CLI `support-bundle` command with `--json` and `--verify`
+- `feedback` command rewired to use support bundles
+
+### Track Completion Summaries (4C)
+- `TrackSummary` dataclass and `get_track_summaries()`
+- CLI `tracks` command with per-track completion, skills, mode, transactions, artifacts
+
+### Workshop Recovery Guidance (4D)
+- `RecoveryHint` dataclass and `diagnose_recovery()`
+- Detects: no wallet, dry-run modules, missing prereqs, camp wallet mismatch, repeated failures, missing proof pack
+- CLI `recovery` command
+
+### Docs + Surface Alignment (4E)
+- README commands section and Workshop Use section updated
+- Handbook commands.md and getting-started.md workshop sections added
+
+### Tests
+- 534 → 564 tests (+30 workshop tests)
 
 ## 1.3.0 — 2026-04-15
 

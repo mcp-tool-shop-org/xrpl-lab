@@ -19,11 +19,12 @@ checks:
   - "Offer verified as absent"
 ---
 
-Welcome to DEX Literacy. The XRPL has a built-in decentralized exchange — no
-smart contracts, no AMM (for this module), just native order book matching.
+The XRPL has a built-in decentralized exchange — no smart contracts, no AMM
+(for this module), just native order book matching.
 
-In this module you will create an offer to trade XRP for LAB tokens, verify it
-is live on the order book, cancel it, and confirm it is gone.
+You'll create an offer to trade XRP for LAB tokens, verify it on the order
+book, cancel it, and confirm it's gone. Everything is on the testnet, so
+offers here cost nothing real and can be cleaned up at any time.
 
 **Prerequisite**: You must have completed **Trust Lines 101** first. This module
 uses the LAB token and issuer from that module. If you have not completed it,
@@ -118,5 +119,4 @@ Key concepts to remember:
 - **Partial fills**: offers can be partially filled — the remaining amount stays on the book
 - **Self-trading**: you cannot fill your own offers
 
-Your report and transaction IDs are saved. Run `xrpl-lab proof-pack` to
-export a shareable proof of what you did here.
+Run `xrpl-lab proof-pack` when you're ready to export your work.

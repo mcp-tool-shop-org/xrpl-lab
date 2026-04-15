@@ -96,11 +96,11 @@ def test_feedback(tmp_path, monkeypatch):
     monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
     monkeypatch.setattr("xrpl_lab.doctor.get_home_dir", lambda: tmp_path)
     monkeypatch.setattr("xrpl_lab.doctor.get_workspace_dir", lambda: tmp_path / "ws")
-    monkeypatch.setattr("xrpl_lab.feedback.get_workspace_dir", lambda: tmp_path / "ws")
+    monkeypatch.setattr("xrpl_lab.workshop.get_workspace_dir", lambda: tmp_path / "ws")
     runner = CliRunner()
     result = runner.invoke(main, ["feedback"])
     assert result.exit_code == 0
-    assert "XRPL Lab Feedback" in result.output
+    assert "XRPL Lab Support Bundle" in result.output
     assert "Doctor" in result.output
 
 

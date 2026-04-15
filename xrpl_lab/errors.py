@@ -68,7 +68,7 @@ def no_wallet() -> LabError:
     return LabError(
         code="STATE_NO_WALLET",
         message="No wallet found.",
-        hint="Run 'xrpl-lab wallet create' first.",
+        hint="Create one first: xrpl-lab wallet create",
     )
 
 
@@ -76,7 +76,7 @@ def network_error(detail: str) -> LabError:
     return LabError(
         code="RUNTIME_NETWORK",
         message="Network request failed.",
-        hint="Check your connection or use --dry-run for offline mode.",
+        hint="Check your connection, or use --dry-run to work offline.",
         cause=detail,
         retryable=True,
     )
@@ -94,7 +94,7 @@ def corrupt_state(detail: str) -> LabError:
 def tx_failed(result_code: str, detail: str = "") -> LabError:
     return LabError(
         code="RUNTIME_TX_FAILED",
-        message=f"Transaction failed with result: {result_code}",
-        hint="Check the result code reference in 'xrpl-lab doctor'.",
+        message=f"Transaction failed: {result_code}",
+        hint="Check the result code in the XRPL documentation, or run 'xrpl-lab doctor'.",
         cause=detail if detail else None,
     )

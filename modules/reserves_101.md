@@ -19,8 +19,10 @@ checks:
   - "Reserve impact explained"
 ---
 
-Welcome to Reserves 101. This is the module that answers the #1 beginner
-question: "Where did my XRP go?"
+This is the module that answers the #1 beginner question:
+"Where did my XRP go?"
+
+The short answer: it's not gone. It's locked.
 
 The XRPL has two types of reserves:
 
@@ -110,5 +112,5 @@ Operator takeaway:
 - **Trust lines are sticky** — you can only remove a trust line if the
   balance is zero AND the limit is set to zero
 
-Your report and transaction IDs are saved. Run `xrpl-lab proof-pack` to
-export a shareable proof of what you did here.
+The next module (Account Hygiene) walks you through cleaning up.
+Run `xrpl-lab proof-pack` when you're ready to export your work.

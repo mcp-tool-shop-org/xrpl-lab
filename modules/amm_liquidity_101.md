@@ -20,17 +20,17 @@ checks:
   - "Pool balances changed proportionally"
 ---
 
-Welcome to AMM Liquidity 101. You've already worked with trust lines and
-the DEX order book. Now you meet the other side of XRPL trading:
-**Automated Market Makers**.
+You've already worked with trust lines and the DEX order book. Now you
+meet the other side of XRPL trading: **Automated Market Makers**.
 
 LP is not staking. You are depositing real assets into a shared pool.
 Traders swap against your pool, and you earn a slice of every swap fee.
 The tradeoff: if the price ratio moves, you may end up with less total
 value than if you'd just held the assets — that's **impermanent loss**.
 
-This module walks you through the full lifecycle:
-create a pool (if needed) -> deposit -> verify -> withdraw -> verify.
+This module runs in dry-run mode — no real assets at risk. You'll walk
+through the full lifecycle: create a pool, deposit, verify, withdraw,
+verify.
 
 ## Step 1: Ensure your wallet is ready
 
@@ -172,5 +172,4 @@ Operator checklist for real AMM usage:
 - **One AMM per pair**: you can't create a competing pool for the
   same asset pair — all liquidity is concentrated
 
-Your report and transaction IDs are saved. Run `xrpl-lab proof-pack` to
-export a shareable proof of what you did here.
+Run `xrpl-lab proof-pack` when you're ready to export your work.

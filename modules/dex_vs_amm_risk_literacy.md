@@ -27,6 +27,7 @@ compare risks, costs, and behavior.
 
 This is not about which is "better." It's about understanding the
 tradeoffs so you can choose the right tool for the situation.
+Everything runs in dry-run mode — no real assets at risk.
 
 **DEX order book:**
 - You control the exact price
@@ -186,5 +187,5 @@ Operator rules:
 - **Neither is free**: you always pay transaction fees to enter and exit
 - **Know your strategy before you start**: don't mix approaches without understanding why
 
-Your report and transaction IDs are saved. Run `xrpl-lab last-run` to
-see the audit command for this session.
+This completes the XRPL Lab curriculum. Run `xrpl-lab proof-pack` to
+seal your completion record, or `xrpl-lab last-run` to audit this session.
