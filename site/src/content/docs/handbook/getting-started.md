@@ -59,6 +59,36 @@ The `doctor` command checks your wallet, state file, workspace, RPC endpoint, an
 5. You choose a module and work through it
 6. Each module produces a verifiable artifact (transaction ID, report, etc.)
 
+## Curriculum and tracks
+
+Modules are organized into five tracks with explicit prerequisites:
+
+- **foundations** — wallet, payments, trust lines, error handling
+- **dex** — offers, order books, market making, inventory management
+- **reserves** — account reserves, owner count, cleanup
+- **audit** — batch verification, audit reports
+- **amm** — automated market maker liquidity (dry-run only)
+
+Prerequisites are enforced: `xrpl-lab start` always suggests the next valid module
+based on what you've completed. Use `xrpl-lab list` to see all modules with track,
+mode, and progression status.
+
+Each module has a **mode**: `testnet` (real transactions) or `dry-run` (offline sandbox).
+Some modules (AMM) require dry-run because the testnet may not have AMM pairs.
+
+## Validating modules
+
+Authors can lint module files for correctness:
+
+```bash
+xrpl-lab lint                     # lint all modules
+xrpl-lab lint modules/dex*.md     # lint a subset
+xrpl-lab lint --json              # CI-friendly JSON output
+```
+
+The linter validates frontmatter, action names, payload schemas, mode labeling,
+prerequisite references, and curriculum structure.
+
 ## Data storage
 
 All state lives locally:

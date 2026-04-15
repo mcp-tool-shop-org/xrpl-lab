@@ -35,6 +35,9 @@ class ModuleDef:
     raw_body: str = ""
     order: int = 99
     dry_run_only: bool = False
+    track: str = ""
+    summary: str = ""
+    mode: str = "testnet"
 
     @property
     def summary_line(self) -> str:
@@ -110,7 +113,7 @@ def parse_module(text: str) -> ModuleDef:
     meta = yaml.safe_load(fm_match.group(1))
     body = text[fm_match.end() :]
 
-    required_keys = {"id", "title", "time", "level"}
+    required_keys = {"id", "title", "time", "level", "track", "summary"}
     missing = required_keys - set(meta.keys())
     if missing:
         raise ValueError(f"Module front-matter missing keys: {', '.join(sorted(missing))}")
@@ -138,18 +141,32 @@ def parse_module(text: str) -> ModuleDef:
 
         steps.append(ModuleStep(text=full_text, action=action, action_args=action_args))
 
+    # Derive mode from explicit field or dry_run_only flag
+    explicit_mode = meta.get("mode", "")
+    dry_run_only = bool(meta.get("dry_run_only", False))
+    if explicit_mode:
+        mode = explicit_mode
+        dry_run_only = mode == "dry-run"
+    elif dry_run_only:
+        mode = "dry-run"
+    else:
+        mode = "testnet"
+
     return ModuleDef(
         id=meta["id"],
         title=meta["title"],
         time=str(meta.get("time", "?")),
         level=meta.get("level", "beginner"),
-        requires=meta.get("requires", []),
-        produces=meta.get("produces", []),
-        checks=meta.get("checks", []),
+        requires=meta.get("requires", []) or [],
+        produces=meta.get("produces", []) or [],
+        checks=meta.get("checks", []) or [],
         steps=steps,
         raw_body=body,
         order=int(meta.get("order", 99)),
-        dry_run_only=bool(meta.get("dry_run_only", False)),
+        dry_run_only=dry_run_only,
+        track=meta.get("track", ""),
+        summary=meta.get("summary", ""),
+        mode=mode,
     )
 
 

@@ -1,11 +1,13 @@
 ---
 id: dex_market_making_101
 title: "DEX Market Making 101: Earning Spread on the Order Book"
+track: dex
+summary: Place bid and ask offers, verify spread, and clean up — your first strategy.
 order: 10
 time: 20-30 min
 level: advanced
+mode: testnet
 requires:
-  - wallet
   - dex_literacy
 produces:
   - txid

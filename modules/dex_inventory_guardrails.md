@@ -1,11 +1,13 @@
 ---
 id: dex_inventory_guardrails
 title: "DEX Inventory Guardrails: Don't Get Lopsided"
+track: dex
+summary: Check inventory before quoting and skip dangerous sides of the book.
 order: 11
 time: 15-20 min
 level: advanced
+mode: testnet
 requires:
-  - wallet
   - dex_market_making_101
 produces:
   - txid

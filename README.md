@@ -49,30 +49,45 @@ No network required. Simulated transactions for learning the workflow.
 
 ## Modules
 
-12 modules across three tracks: Beginner, Intermediate, and Advanced.
+12 modules across five tracks: Foundations, DEX, Reserves, Audit, and AMM.
+Prerequisites are explicit — the CLI and linter enforce them.
 
-| # | Module | Track | What you learn | What you prove |
-|---|--------|-------|----------------|----------------|
-| 1 | Receipt Literacy | Beginner | Send a payment, read every receipt field | txid + verification report |
-| 2 | Failure Literacy | Beginner | Break a tx on purpose, diagnose, fix, resubmit | failed + fixed txid trail |
-| 3 | Trust Lines 101 | Beginner | Create issuer, set trust line, issue tokens | trust line + token balance |
-| 4 | Debugging Trust Lines | Beginner | Intentional trust line failure, error decode, fix | error → fix txid trail |
-| 5 | DEX Literacy | Intermediate | Create offers, read order books, cancel | offer create + cancel txids |
-| 6 | Reserves 101 | Intermediate | Account snapshots, owner count, reserve math | before/after snapshot delta |
-| 7 | Account Hygiene | Intermediate | Cancel offers, remove trust lines, free reserves | cleanup verification report |
-| 8 | Receipt Audit | Intermediate | Batch verify transactions with expectations | audit pack (MD + CSV + JSON) |
-| 9 | AMM Liquidity 101 | Advanced | Create pool, deposit, earn LP, withdraw | AMM lifecycle txids |
-| 10 | DEX Market Making 101 | Advanced | Bid/ask offers, position snapshots, cleanup | strategy txids + hygiene report |
-| 11 | Inventory Guardrails | Advanced | Threshold-based quoting, safe-side-only placement | inventory check + guarded txids |
-| 12 | DEX vs AMM Risk Literacy | Advanced | Side-by-side DEX and AMM lifecycle comparison | comparison report + audit trail |
+| # | Module | Track | Mode | What you learn | What you prove |
+|---|--------|-------|------|----------------|----------------|
+| 1 | Receipt Literacy | foundations | testnet | Send a payment, read every receipt field | txid + verification report |
+| 2 | Failure Literacy | foundations | testnet | Break a tx on purpose, diagnose, fix, resubmit | failed + fixed txid trail |
+| 3 | Trust Lines 101 | foundations | testnet | Create issuer, set trust line, issue tokens | trust line + token balance |
+| 4 | Debugging Trust Lines | foundations | testnet | Intentional trust line failure, error decode, fix | error → fix txid trail |
+| 5 | DEX Literacy | dex | testnet | Create offers, read order books, cancel | offer create + cancel txids |
+| 6 | Reserves 101 | reserves | testnet | Account snapshots, owner count, reserve math | before/after snapshot delta |
+| 7 | Account Hygiene | reserves | testnet | Cancel offers, remove trust lines, free reserves | cleanup verification report |
+| 8 | Receipt Audit | audit | testnet | Batch verify transactions with expectations | audit pack (MD + CSV + JSON) |
+| 9 | AMM Liquidity 101 | amm | dry-run | Create pool, deposit, earn LP, withdraw | AMM lifecycle txids |
+| 10 | DEX Market Making 101 | dex | testnet | Bid/ask offers, position snapshots, cleanup | strategy txids + hygiene report |
+| 11 | Inventory Guardrails | dex | testnet | Threshold-based quoting, safe-side-only placement | inventory check + guarded txids |
+| 12 | DEX vs AMM Risk Literacy | amm | dry-run | Side-by-side DEX and AMM lifecycle comparison | comparison report + audit trail |
+
+### Tracks
+
+- **foundations** — wallet, payments, trust lines, error handling
+- **dex** — offers, order books, market making, inventory management
+- **reserves** — account reserves, owner count, cleanup
+- **audit** — batch verification, audit reports
+- **amm** — automated market maker liquidity, DEX vs AMM comparison
+
+### Modes
+
+- **testnet** — real transactions on the XRPL Testnet
+- **dry-run** — offline sandbox with simulated transactions (no network required)
 
 ## Commands
 
 ```
 xrpl-lab start              Guided launcher
-xrpl-lab list               Show all modules with status
+xrpl-lab list               Show all modules with status and progression
 xrpl-lab run <module_id>    Run a specific module
 xrpl-lab status             Progress, wallet, recent txs
+xrpl-lab lint [glob] [--json] [--no-curriculum]  Validate module files and curriculum
 xrpl-lab proof-pack         Export shareable proof pack
 xrpl-lab certificate        Export completion certificate
 xrpl-lab doctor             Run diagnostic checks

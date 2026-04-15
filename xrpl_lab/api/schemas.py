@@ -34,12 +34,16 @@ class StatusResponse(BaseModel):
 class ModuleSummary(BaseModel):
     id: str
     title: str
+    track: str = ""
+    summary: str = ""
     level: str
     time_estimate: str
+    mode: str = "testnet"
     requires: list[str] = Field(default_factory=list)
     produces: list[str] = Field(default_factory=list)
     checks: list[str] = Field(default_factory=list)
     completed: bool
+    is_next: bool = False
 
 
 class ModuleDetail(BaseModel):

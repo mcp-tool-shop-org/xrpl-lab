@@ -1,11 +1,13 @@
 ---
 id: receipt_audit
 title: "Audit Mode: Verify Receipts at Scale"
+track: audit
+summary: Batch-verify a set of transactions and produce an audit report.
 order: 8
 time: 10-15 min
 level: intermediate
+mode: testnet
 requires:
-  - wallet
   - receipt_literacy
 produces:
   - report

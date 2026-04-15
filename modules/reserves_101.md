@@ -1,11 +1,13 @@
 ---
 id: reserves_101
 title: "Reserves 101: Where Your XRP 'Went'"
+track: reserves
+summary: See how trust lines and offers lock reserves, and reclaim them.
 order: 6
 time: 10-15 min
 level: intermediate
+mode: testnet
 requires:
-  - wallet
   - trust_lines_101
 produces:
   - txid

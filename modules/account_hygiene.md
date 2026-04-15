@@ -1,11 +1,13 @@
 ---
 id: account_hygiene
 title: "Account Hygiene: Freeing Reserves and Cleaning Up Objects"
+track: reserves
+summary: Clean up ledger objects and free locked reserves on your account.
 order: 7
 time: 15-25 min
 level: intermediate
+mode: testnet
 requires:
-  - wallet
   - reserves_101
 produces:
   - txid

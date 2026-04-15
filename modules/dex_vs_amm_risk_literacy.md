@@ -1,12 +1,13 @@
 ---
 id: dex_vs_amm_risk_literacy
 title: "DEX vs AMM Risk Literacy: Comparing Trading Strategies"
+track: amm
+summary: Run DEX and AMM strategies side by side and compare the tradeoffs.
 order: 12
 time: 25-35 min
 level: advanced
-dry_run_only: true
+mode: dry-run
 requires:
-  - wallet
   - dex_market_making_101
   - amm_liquidity_101
 produces:

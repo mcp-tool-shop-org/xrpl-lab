@@ -1,11 +1,14 @@
 ---
 id: trust_line_failures
 title: "Debugging Trust Lines"
+track: foundations
+summary: Trigger trust-line failures on purpose and learn to diagnose them.
 order: 4
 time: 10-15 min
 level: beginner
+mode: testnet
 requires:
-  - wallet
+  - trust_lines_101
 produces:
   - txid
   - report

@@ -195,3 +195,29 @@ def lint_all_modules(modules_dir: Path | None = None) -> LintResult:
         result.issues.extend(lint_module_file(md_file))
 
     return result
+
+
+def lint_curriculum(modules: dict | None = None) -> list[LintIssue]:
+    """Validate curriculum structure across all modules.
+
+    Checks track/summary presence, prerequisite validity, cycles, and mode.
+    Returns issues as LintIssues (same type as per-module lint).
+    """
+    from .curriculum import build_graph
+    from .modules import load_all_modules
+
+    if modules is None:
+        modules = load_all_modules()
+
+    graph = build_graph(modules)
+    curriculum_issues = graph.validate()
+
+    return [
+        LintIssue(
+            level=ci.level,
+            module=ci.module,
+            location="curriculum",
+            message=ci.message,
+        )
+        for ci in curriculum_issues
+    ]

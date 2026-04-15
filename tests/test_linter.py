@@ -153,3 +153,44 @@ class TestLinterAllModules:
             f"{len(all_errors)} error(s) in bundled modules:\n"
             + "\n".join(str(e) for e in all_errors)
         )
+
+
+# ── Curriculum-aware lint ─────────────────────────────────────────────
+
+
+class TestCurriculumLint:
+    def test_real_curriculum_passes(self):
+        from xrpl_lab.linter import lint_curriculum
+
+        issues = lint_curriculum()
+        errors = [i for i in issues if i.level == "error"]
+        assert not errors, f"Curriculum lint errors: {errors}"
+
+    def test_curriculum_issues_have_location(self):
+        from xrpl_lab.linter import lint_curriculum
+
+        issues = lint_curriculum()
+        for issue in issues:
+            assert issue.location == "curriculum"
+
+    def test_broken_curriculum_detected(self):
+        from xrpl_lab.linter import lint_curriculum
+        from xrpl_lab.modules import ModuleDef
+
+        broken = {
+            "orphan": ModuleDef(
+                id="orphan",
+                title="Orphan",
+                time="5 min",
+                level="beginner",
+                requires=["nonexistent"],
+                produces=[],
+                checks=[],
+                steps=[],
+                track="foundations",
+                summary="Has a broken prereq.",
+            ),
+        }
+        issues = lint_curriculum(broken)
+        errors = [i for i in issues if i.level == "error"]
+        assert any("nonexistent" in i.message for i in errors)

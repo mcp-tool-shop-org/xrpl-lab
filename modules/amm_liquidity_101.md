@@ -1,12 +1,13 @@
 ---
 id: amm_liquidity_101
 title: "AMM Liquidity 101: Providing Liquidity and Earning Fees"
+track: amm
+summary: Deposit into an AMM pool, earn LP tokens, and withdraw — all in sandbox.
 order: 9
 time: 20-30 min
 level: advanced
-dry_run_only: true
+mode: dry-run
 requires:
-  - wallet
   - trust_lines_101
 produces:
   - txid

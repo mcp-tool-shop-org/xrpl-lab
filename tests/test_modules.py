@@ -8,6 +8,8 @@ VALID_MODULE = """\
 ---
 id: test_module
 title: Test Module
+track: foundations
+summary: A test module for unit tests.
 time: 5 min
 level: beginner
 requires:
@@ -106,6 +108,8 @@ class TestLoadModules:
 ---
 id: custom_test
 title: Custom Test
+track: foundations
+summary: A custom test module.
 time: 1 min
 level: beginner
 requires: []

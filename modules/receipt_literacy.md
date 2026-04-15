@@ -1,11 +1,13 @@
 ---
 id: receipt_literacy
 title: Receipt Literacy
+track: foundations
+summary: Send a real payment and learn to read every field in the receipt.
 order: 1
 time: 10-15 min
 level: beginner
-requires:
-  - wallet
+mode: testnet
+requires: []
 produces:
   - txid
   - report

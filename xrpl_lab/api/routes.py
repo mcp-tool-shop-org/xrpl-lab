@@ -31,23 +31,34 @@ router = APIRouter(prefix="/api")
 
 @router.get("/modules")
 def list_modules() -> list[ModuleSummary]:
-    """List all modules with metadata and completion status."""
+    """List all modules with metadata, completion status, and progression."""
+    from ..curriculum import build_graph
+
     all_mods = load_all_modules()
     state = load_state()
     completed_ids = {cm.module_id for cm in state.completed_modules}
 
+    graph = build_graph(all_mods)
+    ordered = graph.canonical_order()
+    next_id = graph.next_module(completed_ids)
+
     result: list[ModuleSummary] = []
-    for mod in all_mods.values():
+    for mid in ordered:
+        mod = all_mods[mid]
         result.append(
             ModuleSummary(
                 id=mod.id,
                 title=mod.title,
+                track=mod.track,
+                summary=mod.summary,
                 level=mod.level,
                 time_estimate=mod.time,
+                mode=mod.mode,
                 requires=mod.requires,
                 produces=mod.produces,
                 checks=mod.checks,
                 completed=mod.id in completed_ids,
+                is_next=mod.id == next_id,
             )
         )
     return result

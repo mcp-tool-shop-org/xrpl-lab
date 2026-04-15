@@ -1,11 +1,13 @@
 ---
 id: failure_literacy
 title: Failure Literacy
+track: foundations
+summary: Submit intentionally broken transactions and learn to decode error codes.
 order: 2
 time: 10-15 min
 level: beginner
+mode: testnet
 requires:
-  - wallet
   - receipt_literacy
 produces:
   - txid

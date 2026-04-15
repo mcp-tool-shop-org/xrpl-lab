@@ -1,11 +1,13 @@
 ---
 id: dex_literacy
 title: "DEX Literacy: Offers, Order Books, and Cancellations"
+track: dex
+summary: Place, verify, and cancel DEX offers on the XRPL order book.
 order: 5
 time: 10-15 min
 level: intermediate
+mode: testnet
 requires:
-  - wallet
   - trust_lines_101
 produces:
   - txid

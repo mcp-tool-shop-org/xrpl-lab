@@ -1,11 +1,13 @@
 ---
 id: trust_lines_101
 title: "Trust Lines 101: Issued Currencies as Relationships"
+track: foundations
+summary: Create a trust line, issue tokens, and verify the relationship on-ledger.
 order: 3
 time: 15-20 min
 level: beginner
-requires:
-  - wallet
+mode: testnet
+requires: []
 produces:
   - txid
   - report

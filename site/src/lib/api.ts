@@ -17,12 +17,16 @@ async function request<T>(path: string): Promise<T> {
 export interface ModuleSummary {
   id: string;
   title: string;
+  track: string;
+  summary: string;
   level: string;
   time_estimate: string;
+  mode: string;
   requires: string[];
   produces: string[];
   checks: string[];
   completed: boolean;
+  is_next: boolean;
 }
 
 export interface ModuleDetail extends ModuleSummary {

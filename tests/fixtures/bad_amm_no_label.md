@@ -1,6 +1,8 @@
 ---
 id: bad_amm_no_label
 title: AMM Without Dry Run Label
+track: amm
+summary: Uses AMM actions but not marked dry-run.
 order: 1
 time: 5 min
 level: advanced

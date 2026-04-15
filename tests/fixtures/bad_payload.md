@@ -1,6 +1,8 @@
 ---
 id: bad_payload
 title: Bad Payload Module
+track: foundations
+summary: Has an action with an invalid payload.
 order: 1
 time: 5 min
 level: beginner

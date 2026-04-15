@@ -1,6 +1,8 @@
 ---
 id: bad_unknown_action
 title: Unknown Action Module
+track: foundations
+summary: References a fake action.
 order: 1
 time: 5 min
 level: beginner

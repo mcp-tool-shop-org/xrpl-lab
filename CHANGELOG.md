@@ -1,5 +1,45 @@
 # Changelog
 
+## 1.3.0 — 2026-04-15
+
+Curriculum Spine — module structure, progression, and learner navigation as first-class truth.
+
+### Module Metadata Lock (3A)
+- New required frontmatter fields: `track`, `summary`, `mode`
+- Five canonical tracks: foundations, dex, reserves, audit, amm
+- `mode` field (testnet/dry-run) replaces inferred `dry_run_only` boolean
+- `requires` cleaned to reference only module IDs (removed `wallet` as implicit)
+- All 12 modules standardized with uniform metadata shape
+
+### Progression Truth (3B)
+- `curriculum.py` — directed graph of modules with prerequisite edges
+- Topological sort respecting track order and module order
+- `next_module(completed)` — deterministic next valid module
+- Cycle detection, orphan detection, transitive prerequisite queries
+- `CurriculumGraph.validate()` — checks tracks, summaries, prereqs, modes, cycles
+
+### Curriculum-Aware Lint (3C)
+- `xrpl-lab lint` now validates curriculum structure (prereqs, cycles, tracks, modes)
+- `--no-curriculum` flag to skip cross-module checks
+- `lint_curriculum()` function for programmatic use
+- Broken prerequisite references, missing tracks, and cycles caught at author time
+
+### Learner Navigation Surfaces (3D)
+- `list` command shows track column, curriculum-ordered modules, `▸` next-module indicator
+- `start` command uses curriculum graph for next-module selection with summary/track/mode info
+- API `/api/modules` returns curriculum-ordered list with `track`, `summary`, `mode`, `is_next`
+- `ModuleSummary` schema updated (TS + Python in sync, drift test passing)
+
+### Docs Alignment (3E)
+- README modules table updated with track and mode columns
+- Tracks and modes sections added to README
+- `lint` command added to README commands section
+- Handbook modules page reorganized by track with prerequisites
+- Handbook getting-started page documents curriculum, tracks, and lint command
+
+### Tests
+- 502 → 534 tests (+29 curriculum, +3 curriculum-lint = +32)
+
 ## 1.2.0 — 2026-07-24
 
 Authoring Spine — registry-based dispatch, structured payloads, module linter.

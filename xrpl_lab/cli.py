@@ -198,18 +198,28 @@ def start(dry_run: bool):
 
     console.print()
 
-    # Pick a module
-    next_module = None
-    for mod in modules.values():
-        if not state.is_module_completed(mod.id):
-            next_module = mod
-            break
+    # Pick next module using curriculum graph
+    from .curriculum import build_graph
 
-    if next_module is None:
+    graph = build_graph(modules)
+    completed = {m.module_id for m in state.completed_modules}
+    next_id = graph.next_module(completed)
+
+    if next_id is None:
         console.print("[green]All modules completed! Run 'xrpl-lab proof-pack' to export.[/]")
         return
 
+    next_module = modules[next_id]
     console.print(f"Next up: [bold]{next_module.title}[/]")
+    if next_module.summary:
+        console.print(f"  [dim]{next_module.summary}[/]")
+    console.print(
+        f"  Track: [cyan]{next_module.track}[/]  |  "
+        f"Mode: [cyan]{next_module.mode}[/]  |  "
+        f"~{next_module.time}"
+    )
+    if next_module.requires:
+        console.print(f"  Requires: {', '.join(next_module.requires)}")
     console.print()
 
     try:
@@ -227,32 +237,46 @@ def start(dry_run: bool):
 
 @main.command("list")
 def list_modules():
-    """Show all modules with status."""
+    """Show all modules with status, track, and progression info."""
+    from .curriculum import build_graph
+
     modules = load_all_modules()
     state = load_state()
+    graph = build_graph(modules)
+    ordered = graph.canonical_order()
+    completed = {m.module_id for m in state.completed_modules}
+    next_id = graph.next_module(completed)
 
     table = Table(title="XRPL Lab Modules")
-    table.add_column("Status", width=4, justify="center")
+    table.add_column("", width=4, justify="center")
+    table.add_column("Track", style="dim")
     table.add_column("ID", style="bold")
     table.add_column("Title")
     table.add_column("Level")
     table.add_column("Time")
     table.add_column("Mode")
-    table.add_column("Produces")
 
-    for mod in modules.values():
-        completed = state.is_module_completed(mod.id)
-        status = "✓" if completed else "◌"
-        style = "green" if completed else ""
-        mode = "dry-run" if mod.dry_run_only else "testnet"
+    for mid in ordered:
+        mod = modules[mid]
+        done = state.is_module_completed(mid)
+        is_next = mid == next_id
+        if done:
+            icon = "✓"
+            style = "green"
+        elif is_next:
+            icon = "▸"
+            style = "bold cyan"
+        else:
+            icon = "◌"
+            style = ""
         table.add_row(
-            status,
+            icon,
+            mod.track,
             mod.id,
             mod.title,
             mod.level,
             mod.time,
-            mode,
-            ", ".join(mod.produces),
+            mod.mode,
             style=style,
         )
 
@@ -891,18 +915,21 @@ def verify(txid: str, dry_run: bool):
 @main.command()
 @click.argument("glob_pattern", default="modules/*.md")
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
-def lint(glob_pattern: str, json_output: bool):
+@click.option("--no-curriculum", is_flag=True, help="Skip curriculum-level validation")
+def lint(glob_pattern: str, json_output: bool, no_curriculum: bool):
     """Lint module files for authoring errors.
 
-    Validates frontmatter, action names, payloads, and dry_run_only labeling.
+    Validates frontmatter, action names, payloads, mode labeling,
+    and curriculum structure (prerequisites, cycles, tracks).
 
     \b
     Examples:
       xrpl-lab lint                     # lint all modules
       xrpl-lab lint modules/dex*.md     # lint a subset
       xrpl-lab lint --json              # CI-friendly JSON output
+      xrpl-lab lint --no-curriculum     # skip cross-module checks
     """
-    from .linter import LintResult, lint_module_file
+    from .linter import LintResult, lint_curriculum, lint_module_file
 
     paths = sorted(Path(".").glob(glob_pattern))
     if not paths:
@@ -915,6 +942,10 @@ def lint(glob_pattern: str, json_output: bool):
     result = LintResult()
     for p in paths:
         result.issues.extend(lint_module_file(p))
+
+    # Curriculum-level validation (when linting the full set)
+    if not no_curriculum:
+        result.issues.extend(lint_curriculum())
 
     if json_output:
         print(result.to_json())
