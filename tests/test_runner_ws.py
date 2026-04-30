@@ -725,3 +725,128 @@ class TestWebSocketLifecycle:
             "Idle WS produced neither a keepalive ping nor a clean close "
             "— this is the silent-hang regression the test guards against."
         )
+
+
+# ── GET /api/runs facilitator endpoints (F-BRIDGE-B-RUNNER-SESSION-OBS) ──
+
+
+class TestGetRunsEndpoints:
+    """Stage B wave 2 phase 1 — facilitator observability over `_sessions`.
+
+    These endpoints expose a safe-to-expose projection of the in-memory
+    session store so a facilitator can curl/dashboard "which learners
+    are running" without opening a WS per learner.
+
+    All tests use the ``_clear_sessions`` fixture so the module-global
+    ``_sessions`` dict starts empty per-test. Without it, sessions from
+    earlier tests in the file leak across boundaries.
+    """
+
+    def test_get_runs_empty_when_no_sessions(
+        self,
+        client_with_module: TestClient,
+        _clear_sessions,
+    ) -> None:
+        """No active runs → empty list, max_concurrent reported, active_count 0."""
+        from xrpl_lab.api import runner_ws
+
+        resp = client_with_module.get("/api/runs")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["runs"] == []
+        assert data["max_concurrent"] == runner_ws._MAX_CONCURRENT_RUNS
+        assert data["active_count"] == 0
+
+    def test_get_runs_lists_active_sessions(
+        self,
+        client_with_module: TestClient,
+        _clear_sessions,
+    ) -> None:
+        """After two POSTs, GET /api/runs returns 2 entries with the
+        expected fields. Does not assert ``status`` strictly because the
+        background task may have flipped the session to ``running`` /
+        ``completed`` / ``failed`` by the time the GET lands; the field
+        presence and field types are what we lock in here."""
+        r1 = client_with_module.post("/api/run/receipt_literacy?dry_run=true")
+        r2 = client_with_module.post("/api/run/receipt_literacy?dry_run=true")
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        ids = {r1.json()["run_id"], r2.json()["run_id"]}
+
+        resp = client_with_module.get("/api/runs")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # Our two runs must appear (the test fixture's _clear_sessions
+        # ensures no leakage from earlier tests).
+        assert len(data["runs"]) == 2
+        seen_ids = {r["run_id"] for r in data["runs"]}
+        assert seen_ids == ids
+
+        for entry in data["runs"]:
+            # Required field presence.
+            assert "run_id" in entry
+            assert "module_id" in entry
+            assert "status" in entry
+            assert "created_at" in entry
+            assert "elapsed_seconds" in entry
+            assert "queue_size" in entry
+            assert "dry_run" in entry
+            # Field types / values.
+            assert entry["module_id"] == "receipt_literacy"
+            assert entry["status"] in ("running", "completed", "failed")
+            assert isinstance(entry["elapsed_seconds"], (int, float))
+            assert entry["elapsed_seconds"] >= 0.0
+            assert isinstance(entry["queue_size"], int)
+            assert entry["queue_size"] >= 0
+            assert entry["dry_run"] is True
+            # Forbidden-leak fields stay out.
+            assert "error" not in entry
+            assert "txids" not in entry
+            assert "report_path" not in entry
+
+    def test_get_run_detail_returns_404_for_unknown(
+        self,
+        client_with_module: TestClient,
+        _clear_sessions,
+    ) -> None:
+        """Unknown run_id → 404 with structured ``RUN_NOT_FOUND`` envelope."""
+        resp = client_with_module.get("/api/runs/nonexistent-run-id")
+        assert resp.status_code == 404
+        detail = resp.json()["detail"]
+        assert detail["code"] == "RUN_NOT_FOUND"
+        assert "not found" in detail["message"].lower()
+        # Actionable hint for facilitators.
+        assert "hint" in detail and detail["hint"]
+
+    def test_get_run_detail_returns_correct_fields(
+        self,
+        client_with_module: TestClient,
+        _clear_sessions,
+    ) -> None:
+        """Known run_id → 200 with the full RunInfo shape."""
+        start = client_with_module.post(
+            "/api/run/receipt_literacy?dry_run=true"
+        )
+        assert start.status_code == 200
+        run_id = start.json()["run_id"]
+
+        resp = client_with_module.get(f"/api/runs/{run_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert data["run_id"] == run_id
+        assert data["module_id"] == "receipt_literacy"
+        assert data["status"] in ("running", "completed", "failed")
+        # ISO 8601 with timezone — datetime.fromisoformat must parse it.
+        from datetime import datetime as _dt
+        parsed = _dt.fromisoformat(data["created_at"])
+        assert parsed.tzinfo is not None
+        assert isinstance(data["elapsed_seconds"], (int, float))
+        assert data["elapsed_seconds"] >= 0.0
+        assert isinstance(data["queue_size"], int)
+        assert data["dry_run"] is True
+        # Forbidden-leak fields stay out.
+        assert "error" not in data
+        assert "txids" not in data
+        assert "report_path" not in data

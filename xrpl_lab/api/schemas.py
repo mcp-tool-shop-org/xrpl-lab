@@ -118,3 +118,38 @@ class RunStreamMessage(BaseModel):
 
     type: str  # "step" | "output" | "step_complete" | "tx" | "error" | "complete"
     # Remaining fields vary by type -- this is the base envelope
+
+
+# -- /api/runs (facilitator observability) ---------------------------------
+
+
+class RunInfo(BaseModel):
+    """Safe-to-expose snapshot of a single module run session.
+
+    Returned by GET /api/runs (in a list) and GET /api/runs/{run_id}.
+    Deliberately omits queue contents, error detail, txids, and report
+    path — those require the WS connection (under its Origin allow-list)
+    to read. Facilitators get enough to triage, not enough to leak
+    step-level workshop state to a non-owner.
+    """
+
+    run_id: str
+    module_id: str
+    status: str  # "running" | "completed" | "failed"
+    created_at: str  # ISO 8601 UTC
+    elapsed_seconds: float
+    queue_size: int
+    dry_run: bool
+
+
+class RunListResponse(BaseModel):
+    """Aggregate response for GET /api/runs.
+
+    ``runs``           — list of all known sessions (active + recently completed)
+    ``max_concurrent`` — the rate-limit cap (mirrors ``_MAX_CONCURRENT_RUNS``)
+    ``active_count``   — sessions currently in ``running`` state
+    """
+
+    runs: list[RunInfo] = Field(default_factory=list)
+    max_concurrent: int
+    active_count: int

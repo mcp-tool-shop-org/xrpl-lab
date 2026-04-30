@@ -9,6 +9,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -134,7 +135,15 @@ class ModuleRunSession:
     txids: list[str] = field(default_factory=list)
     report_path: str = ""
     error: str = ""
+    # Monotonic clock — used for ordering and elapsed-seconds derivation.
+    # Do NOT change to time.time(): the eviction sort and the GET /api/runs
+    # elapsed_seconds calculation both rely on monotonicity.
     created_at: float = field(default_factory=time.monotonic)
+    # Wall-clock seconds since epoch — used to render an ISO 8601 timestamp
+    # for the GET /api/runs facilitator endpoints. Captured at construction
+    # so /api/runs returns the same value across calls regardless of clock
+    # adjustments after the fact.
+    started_at_wall: float = field(default_factory=time.time)
 
 
 def _evict_oldest_completed() -> None:
@@ -153,6 +162,86 @@ def _evict_oldest_completed() -> None:
     while len(_sessions) > _MAX_SESSIONS and completed:
         sid, _ = completed.pop(0)
         _sessions.pop(sid, None)
+
+
+# ── Session observability (facilitator endpoints) ───────────────────
+
+
+def _public_status(internal_status: str) -> str:
+    """Map internal session status → facilitator-facing status enum.
+
+    Internal: ``started | running | complete | error``
+    Public:   ``running | completed | failed``
+
+    The internal ``started`` state is collapsed into ``running`` for
+    consumers — facilitators don't need to distinguish "task created" from
+    "task currently executing"; both are "in progress."
+    """
+    if internal_status in ("started", "running"):
+        return "running"
+    if internal_status == "complete":
+        return "completed"
+    if internal_status == "error":
+        return "failed"
+    # Defensive default — a future internal status added without updating
+    # this map renders as "running" rather than leaking the new internal
+    # value to the public surface.
+    return "running"
+
+
+def _session_to_public_dict(session: ModuleRunSession) -> dict[str, Any]:
+    """Project a ModuleRunSession to the safe-to-expose subset.
+
+    Deliberately omits queue contents, error detail, txids, report_path,
+    and any internal flags — those require the WS connection (under the
+    Origin allow-list) to read. Facilitators get enough to triage, not
+    enough to leak step-level workshop state to a non-owner.
+    """
+    started_iso = datetime.fromtimestamp(
+        session.started_at_wall, tz=UTC
+    ).isoformat()
+    elapsed = max(0.0, time.monotonic() - session.created_at)
+    return {
+        "run_id": session.run_id,
+        "module_id": session.module_id,
+        "status": _public_status(session.status),
+        "created_at": started_iso,
+        "elapsed_seconds": round(elapsed, 3),
+        "queue_size": session.queue.qsize(),
+        "dry_run": session.dry_run,
+    }
+
+
+def get_session_snapshot() -> list[dict[str, Any]]:
+    """Return a snapshot of all active/recent sessions, safe-to-expose only.
+
+    Used by the GET /api/runs facilitator endpoint. Returns a list copy so
+    callers cannot mutate ``_sessions`` indirectly. Order is insertion
+    order (Python 3.7+ dict guarantee) — newest sessions appear last.
+    """
+    return [_session_to_public_dict(s) for s in _sessions.values()]
+
+
+def get_session_detail(run_id: str) -> dict[str, Any] | None:
+    """Return one session's safe-to-expose snapshot, or None if not found.
+
+    Used by the GET /api/runs/{run_id} facilitator endpoint. The route
+    converts a None return into a structured 404 envelope.
+    """
+    session = _sessions.get(run_id)
+    if session is None:
+        return None
+    return _session_to_public_dict(session)
+
+
+def get_active_count() -> int:
+    """Number of sessions currently in ``running`` or ``started`` state.
+
+    Mirrors the rate-limit check in ``start_run`` so the GET /api/runs
+    endpoint reports the same active-count semantics facilitators see in
+    the 429 response copy.
+    """
+    return sum(1 for s in _sessions.values() if s.status in ("running", "started"))
 
 
 def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS) -> None:

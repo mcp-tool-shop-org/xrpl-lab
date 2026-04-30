@@ -20,6 +20,8 @@ from .schemas import (
     ModuleSummary,
     ReportDetail,
     ReportSummary,
+    RunInfo,
+    RunListResponse,
     StatusResponse,
     TrackProgressItem,
 )
@@ -286,3 +288,54 @@ async def get_doctor() -> DoctorResponse:
         overall=overall,
         checks=checks,
     )
+
+
+# -- /api/runs (facilitator observability) ---------------------------------
+#
+# These endpoints expose a safe-to-expose projection of the in-memory
+# `_sessions` dict in `runner_ws.py`. Facilitators inspecting via the
+# dashboard or curl can ask "which learners are running, who's stuck,
+# what's the cleanup status" without opening a WebSocket per session.
+#
+# Auth model: same as the rest of the HTTP API — `server.py` gates CORS
+# to localhost. Deliberately NOT mirroring the WS Origin allow-list:
+# these are read-only observability endpoints with no step-level state,
+# and HTTP CORS is sufficient. See M1 of F-BRIDGE-B-RUNNER-SESSION-OBS.
+
+
+@router.get("/runs")
+def list_runs() -> RunListResponse:
+    """Return all known module-run sessions plus concurrency metadata.
+
+    Includes both active (``running``) and recently-completed sessions
+    (``completed`` / ``failed``); completed sessions are pruned by the
+    cleanup task scheduled in the WS handler's ``finally`` block.
+    """
+    from . import runner_ws
+
+    return RunListResponse(
+        runs=[RunInfo(**d) for d in runner_ws.get_session_snapshot()],
+        max_concurrent=runner_ws._MAX_CONCURRENT_RUNS,
+        active_count=runner_ws.get_active_count(),
+    )
+
+
+@router.get("/runs/{run_id}")
+def get_run(run_id: str) -> RunInfo:
+    """Return the safe-to-expose snapshot for a single run.
+
+    404 with a structured envelope if ``run_id`` is unknown — sessions
+    expire after ``_CLEANUP_GRACE_SECONDS`` post-completion, so a 404
+    can mean "never existed" or "completed and was cleaned up." The hint
+    points facilitators at GET /api/runs for the live list.
+    """
+    from . import runner_ws
+
+    detail = runner_ws.get_session_detail(run_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail={
+            "code": "RUN_NOT_FOUND",
+            "message": f"Run '{run_id}' not found",
+            "hint": "Use GET /api/runs to list active and recent runs",
+        })
+    return RunInfo(**detail)
