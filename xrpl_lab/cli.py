@@ -96,7 +96,7 @@ def _try_import_camp_wallet(state: LabState) -> bool:
         state.wallet_path = str(path)
         save_state(state)
         return True
-    except (json.JSONDecodeError, KeyError, ValueError, Exception):
+    except (json.JSONDecodeError, KeyError, ValueError):
         return False
 
 

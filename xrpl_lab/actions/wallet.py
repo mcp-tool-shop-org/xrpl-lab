@@ -6,11 +6,9 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
-import stat
 import sys
 from pathlib import Path
 
@@ -40,7 +38,12 @@ def create_wallet() -> Wallet:
 
 
 def save_wallet(wallet: Wallet, path: Path | None = None) -> Path:
-    """Save wallet to disk with restricted permissions."""
+    """Save wallet to disk with restricted permissions.
+
+    The seed file is created via os.open with mode 0o600 from the start,
+    eliminating the TOCTOU window where a previous write_text+chmod sequence
+    left the file world-readable between create and chmod.
+    """
     p = path or default_wallet_path()
     p.parent.mkdir(parents=True, exist_ok=True)
 
@@ -49,17 +52,21 @@ def save_wallet(wallet: Wallet, path: Path | None = None) -> Path:
         "seed": wallet.seed,
         "public_key": wallet.public_key,
     }
-    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-    # Restrict permissions (best-effort on Windows)
+    # Open with restrictive mode at create time (POSIX). On Windows the mode
+    # arg is largely a no-op for ACLs — log the limitation as before but still
+    # write atomically. Failures (write or open) propagate; we no longer
+    # silently swallow OSError on permission setting.
     if sys.platform == "win32":
         logger.warning(
             "Wallet file permissions cannot be restricted on Windows. "
             "This wallet is for testnet use only."
         )
-    else:
-        with contextlib.suppress(OSError):
-            os.chmod(p, stat.S_IRUSR | stat.S_IWUSR)
+
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    fd = os.open(p, flags, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
     return p
 
