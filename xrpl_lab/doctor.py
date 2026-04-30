@@ -5,9 +5,15 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from .state import get_home_dir, get_workspace_dir, load_state, state_path
+
+# Maximum lines retained in the clinic-friendly doctor.log (last-N tail).
+_DOCTOR_LOG_MAX_LINES = 100
+_DOCTOR_LOG_FILENAME = "doctor.log"
 
 
 @dataclass
@@ -184,6 +190,186 @@ def _check_last_error() -> Check:
     )
 
 
+def _check_last_module_state() -> Check:
+    """Surface a breadcrumb trail of curriculum progress for facilitators.
+
+    Reads ``state.json`` and reports:
+
+    * the most recently completed module (id + completion timestamp),
+    * the most recently attempted module that has NOT completed
+      (id + last txid + last error in that module, if any),
+    * curriculum-position drift — any completed module whose declared
+      prerequisites are not also marked completed.
+
+    Returns an informational :class:`Check` (``passed`` reflects whether
+    drift was detected; surface details always populated).
+
+    Stays informational when state is missing — fresh installs are not
+    failures. The state-file integrity check (`_check_state`) covers the
+    corrupt/unreadable case; here we just skip silently if the load
+    returns a fresh state with no modules and no tx history.
+    """
+    if not state_path().exists():
+        return Check(
+            "Last module state",
+            True,
+            "No state yet (fresh install)",
+        )
+
+    try:
+        state = load_state()
+    except Exception as exc:  # noqa: BLE001 — state-file corruption is reported by _check_state
+        return Check(
+            "Last module state",
+            False,
+            f"Could not read state: {exc}",
+            "Run: xrpl-lab reset",
+        )
+
+    parts: list[str] = []
+
+    # Last completed module (most recent by completed_at timestamp)
+    if state.completed_modules:
+        last_done = max(state.completed_modules, key=lambda m: m.completed_at)
+        try:
+            ts = datetime.fromtimestamp(
+                last_done.completed_at, tz=UTC,
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except (OverflowError, OSError, ValueError):
+            ts = f"epoch={last_done.completed_at}"
+        parts.append(f"last completed: {last_done.module_id} ({ts})")
+    else:
+        parts.append("last completed: none")
+
+    # Last attempted-but-incomplete module: walk tx_index in reverse,
+    # find the most recent module_id that is NOT in completed_modules.
+    completed_ids = {m.module_id for m in state.completed_modules}
+    last_incomplete_attempt = None
+    for tx in reversed(state.tx_index):
+        if tx.module_id and tx.module_id not in completed_ids:
+            last_incomplete_attempt = tx
+            break
+
+    if last_incomplete_attempt is not None:
+        # Find the most recent FAILED tx for that module to surface as the
+        # "last error" hint specific to this in-flight module.
+        module_id = last_incomplete_attempt.module_id
+        module_failures = [
+            tx for tx in state.tx_index
+            if tx.module_id == module_id and not tx.success
+        ]
+        last_err = module_failures[-1] if module_failures else None
+        txid_short = (
+            last_incomplete_attempt.txid[:16]
+            + ("..." if len(last_incomplete_attempt.txid) > 16 else "")
+        )
+        if last_err is not None:
+            err_short = (
+                last_err.txid[:16]
+                + ("..." if len(last_err.txid) > 16 else "")
+            )
+            parts.append(
+                f"in-flight: {module_id} (last txid {txid_short}, "
+                f"last failed tx {err_short})"
+            )
+        else:
+            parts.append(
+                f"in-flight: {module_id} (last txid {txid_short}, no failures)"
+            )
+    else:
+        parts.append("in-flight: none")
+
+    # Curriculum-position drift: any completed module whose declared
+    # prerequisites are NOT all in the completed set. Lazy-load curriculum
+    # so this check stays cheap when state is empty.
+    drift_modules: list[str] = []
+    if state.completed_modules:
+        try:
+            from .curriculum import build_graph
+            from .modules import load_all_modules
+
+            mods = load_all_modules()
+            graph = build_graph(mods)
+            for m in state.completed_modules:
+                if m.module_id not in graph.modules:
+                    # Completed module no longer in catalog — also drift.
+                    drift_modules.append(f"{m.module_id} (not in catalog)")
+                    continue
+                missing = [
+                    req for req in graph.prerequisites(m.module_id)
+                    if req not in completed_ids
+                ]
+                if missing:
+                    drift_modules.append(
+                        f"{m.module_id} (missing prereqs: {','.join(missing)})"
+                    )
+        except Exception as exc:  # noqa: BLE001 — curriculum load is best-effort here
+            parts.append(f"curriculum check skipped: {exc}")
+            drift_modules = []
+
+    if drift_modules:
+        parts.append(f"drift: {'; '.join(drift_modules)}")
+        return Check(
+            "Last module state",
+            False,
+            " | ".join(parts),
+            "Run: xrpl-lab curriculum validate",
+        )
+
+    parts.append("drift: none")
+    return Check("Last module state", True, " | ".join(parts))
+
+
+def _append_doctor_log(report: DoctorReport) -> None:
+    """Append a structured JSON-line record to ~/.xrpl-lab/doctor.log.
+
+    Best-effort observability for facilitators reviewing a stuck learner
+    post-hoc. Skips silently if the home dir doesn't exist (first run
+    before any wallet creation) or if the write fails (perms / disk
+    full) — the doctor command itself must never break for a logging
+    side-effect.
+
+    Bounded to the last :data:`_DOCTOR_LOG_MAX_LINES` lines via a simple
+    read-tail / truncate pattern (no log-rotation library; stdlib only).
+    """
+    home = get_home_dir()
+    if not home.exists():
+        # First run before any wallet — don't auto-create the home dir
+        # just for observability. The wallet creation flow owns that.
+        return
+
+    log_path = home / _DOCTOR_LOG_FILENAME
+
+    record = {
+        "ts": datetime.fromtimestamp(time.time(), tz=UTC).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        ),
+        "checks": {
+            c.name: {
+                "passed": c.passed,
+                "detail": c.detail,
+            }
+            for c in report.checks
+        },
+        "summary": report.summary,
+    }
+
+    # Read existing tail, append new record, truncate to last N lines.
+    # ONE try/except OSError per the watchpoint: best-effort observability,
+    # not security state. Comment makes intent explicit (no contextlib.suppress).
+    try:
+        existing: list[str] = []
+        if log_path.exists():
+            existing = log_path.read_text(encoding="utf-8").splitlines()
+        existing.append(json.dumps(record, separators=(",", ":")))
+        # Keep only the last N entries.
+        if len(existing) > _DOCTOR_LOG_MAX_LINES:
+            existing = existing[-_DOCTOR_LOG_MAX_LINES:]
+        log_path.write_text("\n".join(existing) + "\n", encoding="utf-8")
+    except OSError:
+        # Best-effort log; perms or disk-full must not break doctor.
+        pass
+
 
 async def run_doctor() -> DoctorReport:
     """Run all diagnostic checks and return a report."""
@@ -202,6 +388,10 @@ async def run_doctor() -> DoctorReport:
 
     # Informational
     report.checks.append(_check_last_error())
+    report.checks.append(_check_last_module_state())
+
+    # Best-effort clinic log for facilitators (silently skipped on failure).
+    _append_doctor_log(report)
 
     return report
 
