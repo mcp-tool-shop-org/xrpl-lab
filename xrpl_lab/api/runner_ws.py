@@ -104,8 +104,19 @@ def _error_envelope(exc: BaseException) -> dict[str, str]:
     if isinstance(exc, TimeoutError):
         return {
             "code": "RUNTIME_TIMEOUT",
-            "message": "The module run timed out.",
-            "hint": "Try again, or run with --dry-run to bypass the network.",
+            "message": (
+                "The module run timed out — the XRPL testnet did not "
+                "respond within the run window. This usually means the "
+                "testnet is congested or your network is slow, not a "
+                "bug in your module logic."
+            ),
+            "hint": (
+                "Retry the run — testnet load varies and a second attempt "
+                "often succeeds. If it keeps timing out, restart in "
+                "offline mode: from the CLI run "
+                "`xrpl-lab run <module> --dry-run`, or from the dashboard "
+                "select 'Dry Run' on the module page before clicking Start."
+            ),
         }
     if isinstance(exc, asyncio.CancelledError):
         return {
@@ -114,10 +125,23 @@ def _error_envelope(exc: BaseException) -> dict[str, str]:
             "hint": "Restart the run when ready.",
         }
     # Unknown exception — generic envelope, full detail goes to server logs.
+    # Workshop learners don't have server-log access, so route them to the
+    # facilitator who does (server logs + doctor.log live on the host
+    # running `xrpl-lab serve`, not the learner's browser).
     return {
         "code": "RUNTIME_INTERNAL",
-        "message": "An internal error occurred.",
-        "hint": "Check server logs and report via xrpl-lab feedback.",
+        "message": (
+            "An internal server error occurred. This is a server-side "
+            "fault — not something you did wrong in the module."
+        ),
+        "hint": (
+            "Note your run_id (visible in the dashboard URL or the "
+            "POST /api/run response) and notify the workshop "
+            "facilitator. They can check server logs and "
+            "~/.xrpl-lab/doctor.log to diagnose, then point you at a "
+            "fix or workaround (often: re-run the module, or use "
+            "--dry-run to bypass network-dependent steps)."
+        ),
     }
 
 
@@ -456,10 +480,26 @@ async def start_run(request: Request, module_id: str, dry_run: bool = False) -> 
     # Rate limit: cap concurrent runs
     active = sum(1 for s in _sessions.values() if s.status in ("running", "started"))
     if active >= _MAX_CONCURRENT_RUNS:
+        # The cap exists because each run holds its own asyncio task,
+        # event-queue, and Console — without a ceiling, a workshop room
+        # full of learners triggering modules simultaneously would
+        # exhaust server memory. Distinguish transient (1 active run
+        # finishing soon) from sustained (full saturation = workshop
+        # may need more capacity or a faster module rotation).
         raise HTTPException(status_code=429, detail={
             "code": "RATE_LIMIT_RUNS",
-            "message": f"Maximum {_MAX_CONCURRENT_RUNS} concurrent runs reached",
-            "hint": "Wait for a running module to finish, then try again",
+            "message": (
+                f"All {_MAX_CONCURRENT_RUNS} concurrent run slots are in use "
+                f"({active} active). The cap protects the server from "
+                f"memory exhaustion when many learners run modules at once."
+            ),
+            "hint": (
+                f"If only 1-2 runs are active, wait ~30s and retry — they "
+                f"usually finish quickly. If the workshop is at full "
+                f"saturation ({_MAX_CONCURRENT_RUNS}/{_MAX_CONCURRENT_RUNS} "
+                f"sustained), facilitator can stagger learner starts or "
+                f"raise _MAX_CONCURRENT_RUNS in xrpl_lab/api/runner_ws.py."
+            ),
         })
 
     all_mods = load_all_modules()
@@ -503,12 +543,34 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
             origin,
             run_id,
         )
-        await websocket.close(code=4003, reason="origin not allowed")
+        # RFC 6455 caps reason at 123 bytes — surface the canonical
+        # dashboard origins so non-browser clients (curl, wscat, custom
+        # integrations) know where to connect from. The browser dashboard
+        # substitutes its own user-visible message via ws.onclose; this
+        # text is for facilitator-debug.
+        await websocket.close(
+            code=4003,
+            reason=(
+                "origin not in allow-list — connect dashboard from "
+                "http://localhost:4321 or http://localhost:3000"
+            ),
+        )
         return
 
     session = _sessions.get(run_id)
     if session is None:
-        await websocket.close(code=4004, reason=f"Run '{run_id}' not found")
+        # RFC 6455 caps reason at 123 bytes. With a 36-char UUID this
+        # leaves ~85 bytes for teaching — distinguish "never existed"
+        # from "cleaned up after disconnect grace period" so a
+        # facilitator's curl-based debug knows whether the run_id was
+        # wrong or the session expired, and point at the action.
+        await websocket.close(
+            code=4004,
+            reason=(
+                f"run '{run_id}' not found — never existed, or cleaned up "
+                f"{_CLEANUP_GRACE_SECONDS}s after disconnect; POST /api/run"
+            ),
+        )
         return
 
     if session.module_id != module_id:

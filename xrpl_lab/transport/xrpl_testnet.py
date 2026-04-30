@@ -176,7 +176,15 @@ class XRPLTestnetTransport(Transport):
                             message="Funded from testnet faucet",
                         )
                     if resp.status_code == 429:
-                        last_error = "Rate limited by faucet. Wait a minute and try again."
+                        last_error = (
+                            "Faucet rate-limited (HTTP 429). The XRPL "
+                            "testnet faucet caps funding requests per "
+                            "client to prevent abuse and keep test XRP "
+                            "available for everyone. Wait at least 60 "
+                            "seconds before retrying, or use --dry-run "
+                            "to practice this module offline without "
+                            "needing a funded testnet wallet."
+                        )
                         if attempt < MAX_RETRIES:
                             await asyncio.sleep(RETRY_DELAY * (attempt + 1))
                             continue
