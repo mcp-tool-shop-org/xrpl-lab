@@ -1,5 +1,7 @@
 """Tests for AMM liquidity — create, deposit, withdraw, verify, lifecycle."""
 
+from decimal import Decimal
+
 import pytest
 
 from xrpl_lab.actions.amm import (
@@ -390,3 +392,168 @@ class TestAmmLifecycle:
         info = await transport.get_amm_info("LAB", "rISSUER", "XRP", "")
         assert info is not None
         assert info.lp_token_currency != ""
+
+
+# ── F-TESTS-006: AMM boundary tests ─────────────────────────────────
+
+
+class TestAmmBoundaries:
+    """Boundary cases — zero liquidity, XRPL max drops, odd-ratio rounding."""
+
+    @pytest.mark.asyncio
+    async def test_amm_zero_liquidity_pool_boundary(self, transport):
+        """Deposit and withdraw against a zero-liquidity pool must be well-defined.
+
+        Either the operations are rejected with a recognisable ``E_*`` /
+        ``tec*`` code, or they accept with documented zero-amount semantics.
+        Whatever the production code does TODAY, lock it in so future
+        regressions are caught.
+        """
+        # Create a pool seeded with zero on both sides — this is the degenerate
+        # state we want to characterise.
+        create = await transport.submit_amm_create(
+            "sFAKE", "XRP", "0", "", "LAB", "0", "rISSUER",
+        )
+        # Creation does succeed in the current dry-run; lock that in so a
+        # future change that decides to reject zero-asset creates becomes
+        # visible.
+        assert create.success is True
+
+        info = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        assert info is not None
+        # Zero × zero ⇒ sqrt = 0 ⇒ no LP supply.
+        assert Decimal(info.lp_supply) == Decimal("0")
+        assert Decimal(info.pool_a) == Decimal("0")
+        assert Decimal(info.pool_b) == Decimal("0")
+
+        # Deposit into a zero-liquidity pool: production code's special-case
+        # (``ratio = 1`` when ``old_a == 0``) means the pool absorbs the
+        # deposit but mints zero LP.  Lock that behaviour in.
+        dep = await transport.submit_amm_deposit(
+            "sFAKE", "XRP", "10", "", "LAB", "10", "rISSUER",
+        )
+        assert dep.success is True
+        info_after = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        assert Decimal(info_after.pool_a) == Decimal("10")
+        assert Decimal(info_after.pool_b) == Decimal("10")
+        # LP supply is still zero — depositor got nothing for it (this is
+        # the documented degenerate-pool semantic; flag for product review
+        # via wave-2 if undesired).
+        assert Decimal(info_after.lp_supply) == Decimal("0")
+
+        # Withdraw against the zero-LP pool MUST be rejected — there are no
+        # LP tokens to burn.
+        wd = await transport.submit_amm_withdraw(
+            "sFAKE", "XRP", "", "LAB", "rISSUER", "1",
+        )
+        assert wd.success is False
+        assert wd.result_code == "tecAMM_BALANCE"
+
+    @pytest.mark.asyncio
+    async def test_amm_max_xrp_drops_no_overflow(self, transport):
+        """XRPL's hard cap is 100 000 000 000 XRP = 1e17 drops total supply.
+
+        Decimal must handle this without precision loss, integer overflow
+        or unhandled exceptions.  We exercise create + deposit + withdraw
+        at this scale.
+        """
+        # 1e11 XRP — XRPL supply cap.  Use a string so no float ever touches it.
+        max_xrp = "100000000000"  # 1e11 XRP
+
+        create = await transport.submit_amm_create(
+            "sFAKE", "XRP", max_xrp, "", "LAB", max_xrp, "rISSUER",
+        )
+        assert create.success is True
+
+        info = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        assert info is not None
+        # sqrt(1e11 * 1e11) = 1e11
+        assert Decimal(info.lp_supply) == Decimal(max_xrp)
+        assert Decimal(info.pool_a) == Decimal(max_xrp)
+        assert Decimal(info.pool_b) == Decimal(max_xrp)
+
+        # Deposit another 1e11 on each side — pool grows to 2e11 each.
+        dep = await transport.submit_amm_deposit(
+            "sFAKE", "XRP", max_xrp, "", "LAB", max_xrp, "rISSUER",
+        )
+        assert dep.success is True
+
+        info_after = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        assert Decimal(info_after.pool_a) == Decimal("200000000000")
+        assert Decimal(info_after.pool_b) == Decimal("200000000000")
+        # LP supply doubled — 2e11.
+        assert Decimal(info_after.lp_supply) == Decimal("200000000000")
+
+        # Withdraw all and confirm clean unwinding.
+        wd = await transport.submit_amm_withdraw(
+            "sFAKE", "XRP", "", "LAB", "rISSUER",
+        )
+        assert wd.success is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.xfail(
+        reason=(
+            "reveals production bug: submit_amm_deposit mints LP using only "
+            "the asset_a-side ratio (deposit_a / old_a) but accepts the full "
+            "asset_b deposit value, so an unbalanced 7:11 deposit can never "
+            "round-trip cleanly. See wave-2 Backend finding "
+            "F-BACKEND-W2-AMM-DEPOSIT-RATIO."
+        ),
+        strict=True,
+    )
+    async def test_amm_odd_ratio_rounding_bias(self, transport):
+        """Round-trip with prime-ratio amounts must stay within 1 drop.
+
+        If we deposit at a ratio like 7:11 and immediately withdraw the
+        same proportional LP share, the pool should return to (within 1
+        drop of) its pre-deposit state.  Persistent rounding bias across
+        deposit↔withdraw would surface here.
+        """
+        # 1 drop = 1e-6 XRP — the smallest unit XRPL recognises.
+        one_drop = Decimal("0.000001")
+
+        # Seed an existing pool so the deposit takes the "real" ratio path
+        # (not the zero-pool special case).
+        await transport.submit_amm_create(
+            "sFAKE", "XRP", "1000", "", "LAB", "1000", "rISSUER",
+        )
+
+        info_before = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        pool_a_before = Decimal(info_before.pool_a)
+        pool_b_before = Decimal(info_before.pool_b)
+        lp_before = Decimal(info_before.lp_supply)
+
+        # Deposit at a 7:11 prime ratio — no clean factoring, so any
+        # rounding bias compounds.
+        dep = await transport.submit_amm_deposit(
+            "sFAKE", "XRP", "7", "", "LAB", "11", "rISSUER",
+        )
+        assert dep.success is True
+
+        info_mid = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        lp_mid = Decimal(info_mid.lp_supply)
+        # The LP minted by this deposit is the round-trip subject.
+        lp_minted = lp_mid - lp_before
+        assert lp_minted > 0
+
+        # Withdraw exactly that LP share — same proportional stake, immediate.
+        wd = await transport.submit_amm_withdraw(
+            "sFAKE", "XRP", "", "LAB", "rISSUER", str(lp_minted),
+        )
+        assert wd.success is True
+
+        info_after = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        pool_a_after = Decimal(info_after.pool_a)
+        pool_b_after = Decimal(info_after.pool_b)
+        lp_after = Decimal(info_after.lp_supply)
+
+        # Round-trip must stay within 1 drop on every dimension.
+        assert abs(pool_a_after - pool_a_before) <= one_drop, (
+            f"pool_a drift: {pool_a_before} -> {pool_a_after}"
+        )
+        assert abs(pool_b_after - pool_b_before) <= one_drop, (
+            f"pool_b drift: {pool_b_before} -> {pool_b_after}"
+        )
+        assert abs(lp_after - lp_before) <= one_drop, (
+            f"lp_supply drift: {lp_before} -> {lp_after}"
+        )

@@ -76,9 +76,15 @@ class TestDecimalDryRun:
 
     @pytest.mark.asyncio()
     async def test_xrp_payment_rejects_non_numeric(self, transport: DryRunTransport) -> None:
-        """Non-numeric amount must fail gracefully."""
+        """Non-numeric amount must fail gracefully — and tell us WHY (F-TESTS-005)."""
         result = await transport.submit_payment("sEdSEED", "rDest", "not_a_number")
         assert not result.success
+        # Rejection must surface a recognisable XRPL-style code.
+        assert result.result_code == "temBAD_AMOUNT"
+        # And the human-readable error must name the offending value, not just
+        # be a generic "failed" string.
+        assert "not_a_number" in result.error
+        assert "invalid" in result.error.lower()
 
     def test_dry_run_submit_payment_uses_decimal_internally(self) -> None:
         """Verify submit_payment source code uses Decimal, not float."""

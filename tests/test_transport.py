@@ -40,14 +40,24 @@ class TestDryRunTransport:
 
     @pytest.mark.asyncio
     async def test_submit_fail(self, transport):
-        transport.set_fail_next()
+        """Exercise the REAL failure path inside DryRunTransport.submit_payment.
+
+        F-TESTS-004: previously this test toggled ``set_fail_next()`` — a
+        back-door switch — so the production failure code (``Decimal(amount)``
+        validation) was never exercised. We now feed a non-numeric amount,
+        which goes through the actual ``except`` branch in submit_payment and
+        returns ``temBAD_AMOUNT``.
+        """
         result = await transport.submit_payment(
             wallet_seed="sFAKESEED",
             destination="rDEST",
-            amount="10",
+            amount="not_a_number",
         )
         assert result.success is False
-        assert result.result_code == "tecUNFUNDED_PAYMENT"
+        assert result.result_code == "temBAD_AMOUNT"
+        assert result.txid == ""
+        assert "not_a_number" in result.error
+        assert "Invalid amount" in result.error
 
     @pytest.mark.asyncio
     async def test_fail_resets(self, transport):
