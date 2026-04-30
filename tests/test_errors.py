@@ -176,3 +176,50 @@ class TestErrorConstructors:
     def test_tx_failed_no_detail_no_cause(self):
         err = tx_failed("tecNO_DST")
         assert err.cause is None
+
+
+class TestErrorHintPedagogy:
+    """F-TESTS-C-006: pin the actual hint TEXT for LabError types.
+
+    The wave-3 humanization made the structured-error hints into the
+    learner's "what to do next" surface (CLI-rendered + WS event
+    payload). A future refactor that strips a hint to "see docs" or
+    drops the canonical recovery command from a hint would pass the
+    "hint is non-empty" tests above. These pin the load-bearing
+    recovery commands inside hints so the regression is loud.
+    """
+
+    def test_module_not_found_hint_points_at_list(self):
+        """The canonical 'discover modules' command is xrpl-lab list."""
+        err = module_not_found("nonexistent_module")
+        # Pedagogy: the next step is 'xrpl-lab list', not a generic
+        # "check available modules" line.
+        assert "xrpl-lab list" in err.hint
+
+    def test_no_wallet_hint_points_at_wallet_create(self):
+        """Canonical wallet-creation command — pin the exact form."""
+        err = no_wallet()
+        assert "xrpl-lab wallet create" in err.hint
+
+    def test_corrupt_state_hint_offers_reset_or_doctor(self):
+        """Two recovery surfaces: reset (destructive) and doctor
+        (diagnostic). The hint must surface BOTH so a learner has the
+        choice rather than nuking state by default."""
+        err = corrupt_state("bad json")
+        assert "xrpl-lab reset" in err.hint
+        assert "xrpl-lab doctor" in err.hint
+
+    def test_network_error_hint_offers_dry_run_fallback(self):
+        """Network errors aren't dead ends — --dry-run is the offline
+        fallback. Pin that pedagogical contract."""
+        err = network_error("connection refused")
+        # Concept: check connection.
+        assert "connection" in err.hint.lower()
+        # Concept: --dry-run is the offline alternative.
+        assert "--dry-run" in err.hint or "dry-run" in err.hint
+
+    def test_tx_failed_hint_points_at_doctor(self):
+        """Transaction failures route the learner to doctor for
+        diagnosis. Pin the canonical command."""
+        err = tx_failed("tecNO_DST")
+        assert "xrpl-lab doctor" in err.hint

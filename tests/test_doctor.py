@@ -46,6 +46,52 @@ class TestExplainResultCode:
         assert info["category"] == "local"
 
 
+class TestResultCodePedagogy:
+    """F-TESTS-C-001: pin the humanized result-code catalog.
+
+    The wave-3 humanization (commit 76f3ac1) rewrote tecNO_DST,
+    tecNO_LINE, telINSUF_FEE_P, and tecNO_DST_INSUF_XRP to TEACH the
+    XRPL concept the learner just bumped into (reserve activation,
+    trust-line directionality, fee dynamics, base reserve as locked
+    minimum). A future refactor that strips those teachings to a one-
+    liner ("destination not found") would pass the substring-only tests
+    above. These pin the load-bearing pedagogical phrases.
+    """
+
+    def test_tec_no_dst_teaches_reserve_activation(self):
+        info = explain_result_code("tecNO_DST")
+        # Concept: account doesn't exist on the ledger / never been funded.
+        assert "doesn't exist" in info["meaning"] or "never been funded" in info["meaning"]
+        # Concept: send 10 XRP to activate (the base reserve).
+        assert "10 XRP" in info["action"]
+        assert "base reserve" in info["action"] or "activate" in info["action"]
+
+    def test_tec_no_dst_insuf_xrp_teaches_base_reserve(self):
+        info = explain_result_code("tecNO_DST_INSUF_XRP")
+        # Concept: every account must lock up a base reserve.
+        assert "base reserve" in info["meaning"]
+        assert "10 XRP" in info["meaning"]
+        # Concept: reserve is a minimum balance, not a fee.
+        assert "minimum balance" in info["meaning"]
+        assert "not a fee" in info["meaning"]
+
+    def test_tec_no_line_teaches_trust_line_opt_in(self):
+        info = explain_result_code("tecNO_LINE")
+        # Concept: token transfer requires recipient opt-in via a trust line.
+        assert "opt-in" in info["meaning"] or "opt in" in info["meaning"]
+        assert "trust line" in info["meaning"]
+        # Concept: recipient runs the 'set trust line' step first.
+        assert "set trust line" in info["action"]
+
+    def test_tel_insuf_fee_teaches_fee_dynamics(self):
+        info = explain_result_code("telINSUF_FEE_P")
+        # Concept: fee is below the dynamic network minimum.
+        assert "minimum" in info["meaning"]
+        assert "dynamically" in info["meaning"] or "load" in info["meaning"]
+        # Concept: testnet fee spikes recover quickly — wait and retry.
+        assert "Wait" in info["action"] or "retry" in info["action"]
+
+
 class TestDoctorReport:
     def test_all_passed(self):
         report = DoctorReport(
