@@ -632,18 +632,49 @@ class DryRunTransport(Transport):
 
         txid = self._next_txid()
 
-        # Calculate LP tokens to mint (proportional to deposit)
+        # AMM deposit math:
+        #   First-LP (lp_supply == 0): Uniswap V2 sqrt(a*b).
+        #   Subsequent: binding-ratio min(da/pa, db/pb), refund non-binding side
+        #   (matches XRPL AMM testnet behavior).
         _six = Decimal("0.000001")
         old_a = Decimal(pool["pool_a"])
+        old_b = Decimal(pool["pool_b"])
+        old_lp = Decimal(pool["lp_supply"])
         deposit_a = Decimal(asset_a_value)
-        ratio = deposit_a / old_a if old_a > 0 else Decimal("1")
-        lp_minted = (Decimal(pool["lp_supply"]) * ratio).quantize(_six, rounding=ROUND_HALF_UP)
+        deposit_b = Decimal(asset_b_value)
 
-        # Update pool balances
-        pool["pool_a"] = str((old_a + deposit_a).quantize(_six, rounding=ROUND_HALF_UP))
-        new_b = Decimal(pool["pool_b"]) + Decimal(asset_b_value)
-        pool["pool_b"] = str(new_b.quantize(_six, rounding=ROUND_HALF_UP))
-        new_lp = Decimal(pool["lp_supply"]) + lp_minted
+        if old_lp == 0:
+            # First-liquidity case: Uniswap V2 first-LP formula.
+            # The depositor sets the initial price by depositing both sides
+            # in full; LP minted = sqrt(deposit_a * deposit_b).
+            lp_minted = (deposit_a * deposit_b).sqrt().quantize(
+                _six, rounding=ROUND_HALF_UP,
+            )
+            actual_a_taken = deposit_a
+            actual_b_taken = deposit_b
+        else:
+            # Subsequent-liquidity case: binding ratio + refund.
+            # The non-binding side is refunded to the depositor (i.e. not
+            # debited from their wallet); the pool only grows by the
+            # binding-ratio share on each side.
+            ratio_a = deposit_a / old_a if old_a > 0 else Decimal("0")
+            ratio_b = deposit_b / old_b if old_b > 0 else Decimal("0")
+            binding_ratio = min(ratio_a, ratio_b)
+            lp_minted = (old_lp * binding_ratio).quantize(
+                _six, rounding=ROUND_HALF_UP,
+            )
+            actual_a_taken = (old_a * binding_ratio).quantize(
+                _six, rounding=ROUND_HALF_UP,
+            )
+            actual_b_taken = (old_b * binding_ratio).quantize(
+                _six, rounding=ROUND_HALF_UP,
+            )
+
+        # Update pool balances by the actually-taken amounts (refund of the
+        # non-binding side stays with the depositor and is never debited).
+        pool["pool_a"] = str((old_a + actual_a_taken).quantize(_six, rounding=ROUND_HALF_UP))
+        pool["pool_b"] = str((old_b + actual_b_taken).quantize(_six, rounding=ROUND_HALF_UP))
+        new_lp = old_lp + lp_minted
         pool["lp_supply"] = str(new_lp.quantize(_six, rounding=ROUND_HALF_UP))
 
         # Credit LP tokens to depositor

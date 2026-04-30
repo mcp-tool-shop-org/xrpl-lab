@@ -426,9 +426,11 @@ class TestAmmBoundaries:
         assert Decimal(info.pool_a) == Decimal("0")
         assert Decimal(info.pool_b) == Decimal("0")
 
-        # Deposit into a zero-liquidity pool: production code's special-case
-        # (``ratio = 1`` when ``old_a == 0``) means the pool absorbs the
-        # deposit but mints zero LP.  Lock that behaviour in.
+        # Deposit into a zero-liquidity pool now follows the Uniswap V2
+        # first-LP formula: lp_minted = sqrt(deposit_a * deposit_b).
+        # A 10:10 deposit mints sqrt(100) = 10 LP, and the pool grows to
+        # (10, 10).  Depositor receives the LP that represents their
+        # ownership of the freshly-seeded pool.
         dep = await transport.submit_amm_deposit(
             "sFAKE", "XRP", "10", "", "LAB", "10", "rISSUER",
         )
@@ -436,18 +438,18 @@ class TestAmmBoundaries:
         info_after = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
         assert Decimal(info_after.pool_a) == Decimal("10")
         assert Decimal(info_after.pool_b) == Decimal("10")
-        # LP supply is still zero — depositor got nothing for it (this is
-        # the documented degenerate-pool semantic; flag for product review
-        # via wave-2 if undesired).
-        assert Decimal(info_after.lp_supply) == Decimal("0")
+        # First-LP: sqrt(10 * 10) = 10 LP minted to the depositor.
+        assert Decimal(info_after.lp_supply) == Decimal("10")
 
-        # Withdraw against the zero-LP pool MUST be rejected — there are no
-        # LP tokens to burn.
+        # Withdraw against the now-positive LP supply must succeed —
+        # depositor holds 10 LP (the full supply); burning 1 LP returns
+        # 1/10 of each side and leaves 9 LP outstanding.
         wd = await transport.submit_amm_withdraw(
             "sFAKE", "XRP", "", "LAB", "rISSUER", "1",
         )
-        assert wd.success is False
-        assert wd.result_code == "tecAMM_BALANCE"
+        assert wd.success is True
+        info_post_wd = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        assert Decimal(info_post_wd.lp_supply) == Decimal("9")
 
     @pytest.mark.asyncio
     async def test_amm_max_xrp_drops_no_overflow(self, transport):
@@ -491,16 +493,6 @@ class TestAmmBoundaries:
         assert wd.success is True
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(
-        reason=(
-            "reveals production bug: submit_amm_deposit mints LP using only "
-            "the asset_a-side ratio (deposit_a / old_a) but accepts the full "
-            "asset_b deposit value, so an unbalanced 7:11 deposit can never "
-            "round-trip cleanly. See wave-2 Backend finding "
-            "F-BACKEND-W2-AMM-DEPOSIT-RATIO."
-        ),
-        strict=True,
-    )
     async def test_amm_odd_ratio_rounding_bias(self, transport):
         """Round-trip with prime-ratio amounts must stay within 1 drop.
 
