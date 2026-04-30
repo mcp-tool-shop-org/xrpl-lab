@@ -179,10 +179,7 @@ def _norm_py_inner(annotation: object, top: bool = False) -> str:
 
     # list[X] / List[X]
     if origin in (list, typing.List):  # noqa: UP006
-        if args:
-            inner = _norm_py_inner(args[0])
-        else:
-            inner = "any"
+        inner = _norm_py_inner(args[0]) if args else "any"
         return f"list[{inner}]"
 
     # dict[X, Y]
