@@ -479,3 +479,49 @@ class TestAuditCLI:
         result = runner.invoke(main, ["audit", "--txids", str(txids_file)])
         assert result.exit_code == 0
         assert "No txids" in result.output
+
+
+# ── Default-path safety regression (F-TESTS-002) ─────────────────────
+
+
+class TestDefaultPathSafety:
+    """The CLI is the trust boundary for user-supplied paths (--md/--csv/--out
+    accept whatever the user types). These tests lock in that the *default*
+    audit-pack path stays inside the .xrpl-lab/ workspace sandbox so a future
+    refactor cannot silently relocate secrets/proofs to an arbitrary location.
+
+    Scope is intentionally tight (Mike: "if it expands beyond 2-3 assertions,
+    push back"). We do NOT test path-traversal payloads — that's a CLI-trust
+    surface concern out of scope for this regression.
+    """
+
+    @pytest.mark.asyncio
+    async def test_default_audit_pack_path_is_inside_workspace(
+        self, tmp_path
+    ):
+        """write_audit_pack with the CLI default path must resolve inside
+        the .xrpl-lab/ workspace.
+
+        Mirrors the path the CLI/handlers construct:
+        ``.xrpl-lab/proofs/audit_pack_<ts>.json``.
+        """
+        import os
+        from pathlib import Path
+
+        # Run the CLI's pack-write inside tmp_path so we don't pollute the
+        # real .xrpl-lab/ workspace.
+        prev_cwd = Path.cwd()
+        os.chdir(tmp_path)
+        try:
+            transport = DryRunTransport()
+            report = await run_audit(transport, ["TX1"])
+            default_path = Path(".xrpl-lab/proofs/audit_pack_TEST.json")
+            written = write_audit_pack(report, default_path)
+
+            workspace_root = (tmp_path / ".xrpl-lab").resolve()
+            assert written.resolve().is_relative_to(workspace_root), (
+                f"default audit-pack path escaped workspace: "
+                f"{written.resolve()} not under {workspace_root}"
+            )
+        finally:
+            os.chdir(prev_cwd)

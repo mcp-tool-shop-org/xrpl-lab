@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
+from pathlib import Path
 
+import pytest
 from xrpl.wallet import Wallet
 
 from xrpl_lab.actions.wallet import (
@@ -118,6 +122,107 @@ class TestWalletExists:
         assert wallet_exists(path=path) is True
         path.unlink()
         assert wallet_exists(path=path) is False
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX file modes — Windows uses ACLs, not 0o600",
+)
+class TestSaveWalletFileMode:
+    """Regression tests for the wave-1 TOCTOU fix.
+
+    save_wallet now uses os.open(..., O_WRONLY|O_CREAT|O_TRUNC, 0o600) so
+    the seed file is created with restrictive permissions atomically — no
+    world-readable window between write_text() and chmod() as before.
+    """
+
+    def test_file_mode_is_0o600_after_save(self, tmp_path: Path) -> None:
+        """The file's mode bits MUST be exactly 0o600 after save_wallet."""
+        wallet = create_wallet()
+        path = tmp_path / "wallet.json"
+        save_wallet(wallet, path=path)
+        mode = path.stat().st_mode & 0o777
+        assert mode == 0o600, (
+            f"Expected wallet.json mode 0o600 but got 0o{mode:o} — "
+            "atomic os.open(..., 0o600) regressed?"
+        )
+
+    def test_file_mode_is_0o600_even_with_permissive_umask(
+        self, tmp_path: Path
+    ) -> None:
+        """A permissive umask must NOT widen the file mode.
+
+        os.open's mode arg is masked by the active umask, so umask 0o000
+        with explicit mode 0o600 still produces 0o600. This test locks in
+        that contract — a future refactor that drops the explicit mode
+        argument and relies on umask defaults would silently leak the
+        seed to other users on the system.
+        """
+        wallet = create_wallet()
+        path = tmp_path / "wallet_umask.json"
+        prev = os.umask(0o000)
+        try:
+            save_wallet(wallet, path=path)
+        finally:
+            os.umask(prev)
+        mode = path.stat().st_mode & 0o777
+        assert mode == 0o600, (
+            f"Expected 0o600 under permissive umask 0o000 but got 0o{mode:o}"
+        )
+
+    def test_os_open_is_called_with_0o600(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Spy on os.open to capture the mode argument at create time.
+
+        This goes beyond a post-write stat() check — it verifies that the
+        atomic create itself uses 0o600, not that some later operation
+        chmod'd it down. If save_wallet ever reverts to write_text+chmod
+        the spy will record a different (or absent) mode argument.
+        """
+        captured: list[tuple[object, int, int]] = []
+        real_open = os.open
+
+        def spy_open(path, flags, mode=0o777, *args, **kwargs):
+            # Only record opens for our test path so we don't capture
+            # unrelated opens from json/io/etc. (Path objects compare via
+            # equality; coerce to str for safety.)
+            if str(path).endswith("wallet_spy.json"):
+                captured.append((path, flags, mode))
+            return real_open(path, flags, mode, *args, **kwargs)
+
+        monkeypatch.setattr("xrpl_lab.actions.wallet.os.open", spy_open)
+
+        wallet = create_wallet()
+        path = tmp_path / "wallet_spy.json"
+        save_wallet(wallet, path=path)
+
+        assert captured, "save_wallet did not call os.open on the wallet path"
+        # Last call wins — that's the create.
+        _, flags, mode = captured[-1]
+        assert mode == 0o600, f"os.open mode was 0o{mode:o}, expected 0o600"
+        assert flags & os.O_CREAT, "expected O_CREAT in flags"
+        assert flags & os.O_WRONLY, "expected O_WRONLY in flags"
+        assert flags & os.O_TRUNC, "expected O_TRUNC in flags"
+
+    def test_os_open_failure_propagates(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If os.open raises (e.g. EACCES), save_wallet must NOT swallow it.
+
+        The wave-1 fix removed the silent OSError suppression that the
+        old chmod path had. This test asserts the failure surfaces to the
+        caller so misconfigured deployments fail loudly instead of leaving
+        a world-readable seed on disk.
+        """
+        def boom(*args, **kwargs):
+            raise PermissionError("simulated EACCES")
+
+        monkeypatch.setattr("xrpl_lab.actions.wallet.os.open", boom)
+        wallet = create_wallet()
+        path = tmp_path / "wallet_eacces.json"
+        with pytest.raises(PermissionError, match="simulated EACCES"):
+            save_wallet(wallet, path=path)
 
 
 class TestWalletInfo:

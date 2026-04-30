@@ -132,3 +132,32 @@ class TestModuleReport:
         path = write_module_report("test_mod", "Test", [("A", "B")])
         assert path.name == "test_mod.md"
         assert path.parent.name == "reports"
+
+
+# ── Default-path safety regression (F-TESTS-002) ─────────────────────
+
+
+class TestDefaultPathSafety:
+    """Lock in that write_proof_pack's default output stays inside the
+    .xrpl-lab/ workspace sandbox. CLI is the trust boundary for caller-
+    supplied paths; this is purely a regression catch for the default.
+    """
+
+    def test_default_proof_pack_path_is_inside_workspace(
+        self, completed_state, tmp_path, monkeypatch
+    ):
+        """When write_proof_pack uses its default output_dir, the resulting
+        path must resolve under the workspace root."""
+        # Redirect get_workspace_dir() to a tmp .xrpl-lab/ root so we don't
+        # touch the real workspace.
+        ws = tmp_path / ".xrpl-lab"
+        ws.mkdir()
+        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: ws)
+
+        path = write_proof_pack(completed_state)  # no output_dir → default
+
+        workspace_root = ws.resolve()
+        assert path.resolve().is_relative_to(workspace_root), (
+            f"default proof-pack path escaped workspace: "
+            f"{path.resolve()} not under {workspace_root}"
+        )

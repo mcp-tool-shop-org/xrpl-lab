@@ -7,8 +7,16 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from xrpl_lab.api.runner_ws import _ALLOWED_ORIGINS
 from xrpl_lab.modules import ModuleDef, ModuleStep
 from xrpl_lab.server import create_app
+
+# Default Origin header for WS test fixtures. Browsers always send Origin
+# on WS upgrades; Starlette's TestClient does not by default. We pass an
+# allow-listed value so existing tests exercise the post-wave-1 Origin
+# validation path. Use _ALLOWED_ORIGINS[0] so a future allow-list edit
+# automatically updates these tests.
+_TEST_ORIGIN = {"origin": _ALLOWED_ORIGINS[0]}
 
 # ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -123,7 +131,8 @@ class TestRunWebSocket:
 
         try:
             with client_with_module.websocket_connect(
-                "/api/run/receipt_literacy/ws?run_id=bogus-run-id"
+                "/api/run/receipt_literacy/ws?run_id=bogus-run-id",
+                headers=_TEST_ORIGIN,
             ) as ws:
                 # Server closes immediately for unknown run_id
                 ws.receive_json()  # may or may not get a message before close
@@ -165,7 +174,8 @@ class TestRunWebSocket:
 
         messages: list[dict] = []
         with client.websocket_connect(
-            f"/api/run/receipt_literacy/ws?run_id={run_id}"
+            f"/api/run/receipt_literacy/ws?run_id={run_id}",
+            headers=_TEST_ORIGIN,
         ) as ws_conn:
             for _ in range(20):  # read up to 20 messages
                 try:
@@ -208,7 +218,8 @@ class TestRunWebSocket:
 
         complete_msg: dict | None = None
         with client.websocket_connect(
-            f"/api/run/receipt_literacy/ws?run_id={run_id}"
+            f"/api/run/receipt_literacy/ws?run_id={run_id}",
+            headers=_TEST_ORIGIN,
         ) as ws_conn:
             for _ in range(20):
                 try:
@@ -262,7 +273,8 @@ class TestRunWebSocket:
 
         messages: list[dict] = []
         with client.websocket_connect(
-            f"/api/run/receipt_literacy/ws?run_id={run_id}"
+            f"/api/run/receipt_literacy/ws?run_id={run_id}",
+            headers=_TEST_ORIGIN,
         ) as ws_conn:
             for _ in range(30):
                 try:
@@ -308,3 +320,98 @@ class TestSessionStore:
         assert r1["run_id"] in runner_ws._sessions
         assert r2["run_id"] in runner_ws._sessions
         assert r1["run_id"] != r2["run_id"]
+
+
+# ── Origin allow-list (F-TESTS-003-revised) ──────────────────────────
+
+
+class TestWebSocketOrigin:
+    """WebSocket upgrades are not covered by browser CORS — the WS handler
+    must enforce Origin manually to close the CSRF-via-WebSocket vector.
+
+    Wave-1 added the validation but allowed missing Origin so existing
+    test fixtures kept passing. Wave-2 (this) adds explicit accept/reject
+    coverage; the bridge agent will then drop the None-Origin leniency in
+    a follow-up commit without breaking these tests.
+    """
+
+    def test_ws_rejects_disallowed_origin(
+        self, client_with_module: TestClient
+    ) -> None:
+        """A WS upgrade with a non-allow-listed Origin must be closed
+        with code 4003 (RFC 6455 application policy violation)."""
+        from starlette.websockets import WebSocketDisconnect
+
+        # Start a real run so run_id resolves; the rejection must fire on
+        # Origin alone before run_id even matters, but this also guards
+        # against a future refactor that swaps the order of checks.
+        run_id = client_with_module.post(
+            "/api/run/receipt_literacy?dry_run=true"
+        ).json()["run_id"]
+
+        with (
+            pytest.raises(WebSocketDisconnect) as excinfo,
+            client_with_module.websocket_connect(
+                f"/api/run/receipt_literacy/ws?run_id={run_id}",
+                headers={"origin": "https://evil.com"},
+            ) as ws,
+        ):
+            # Should never reach receive — server closes before accept.
+            ws.receive_json()
+
+        assert excinfo.value.code == 4003, (
+            f"Expected close code 4003 for disallowed Origin, "
+            f"got {excinfo.value.code}"
+        )
+
+    @pytest.mark.parametrize("allowed_origin", list(_ALLOWED_ORIGINS))
+    def test_ws_accepts_allowed_origin(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        allowed_origin: str,
+    ) -> None:
+        """Each Origin in _ALLOWED_ORIGINS must be accepted (handshake
+        completes, server emits at least one message before closing)."""
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        ws_dir = tmp_path / "ws"
+        ws_dir.mkdir()
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws_dir)
+        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: ws_dir)
+        monkeypatch.setattr("xrpl_lab.api.routes.get_workspace_dir", lambda: ws_dir)
+
+        mods = {"receipt_literacy": _make_simple_module("receipt_literacy")}
+        monkeypatch.setattr("xrpl_lab.api.runner_ws.load_all_modules", lambda: mods)
+
+        async def _fake_run_module(module, transport, dry_run=False, force=False, **kwargs):
+            return True
+
+        monkeypatch.setattr("xrpl_lab.api.runner_ws.run_module", _fake_run_module)
+
+        app = create_app()
+        client = TestClient(app)
+        run_id = client.post("/api/run/receipt_literacy?dry_run=true").json()["run_id"]
+
+        # If accepted, we should receive at least one message (typically
+        # the 'complete' from _fake_run_module). If rejected, the with
+        # block raises WebSocketDisconnect synchronously.
+        got_message = False
+        with client.websocket_connect(
+            f"/api/run/receipt_literacy/ws?run_id={run_id}",
+            headers={"origin": allowed_origin},
+        ) as ws_conn:
+            for _ in range(5):
+                try:
+                    msg = ws_conn.receive_json()
+                    got_message = True
+                    if msg.get("type") in ("complete", "error"):
+                        break
+                except Exception as exc:
+                    if "disconnect" in str(exc).lower() or "1000" in str(exc):
+                        break
+                    raise
+
+        assert got_message, (
+            f"Allowed origin {allowed_origin!r} did not produce any "
+            "messages — handshake may have been rejected."
+        )
