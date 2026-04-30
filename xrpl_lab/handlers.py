@@ -53,11 +53,44 @@ from .actions.trust_line import (
 from .actions.verify import verify_tx
 from .actions.wallet import create_wallet, save_wallet
 from .audit import run_audit, write_audit_pack, write_audit_report_md
+from .errors import LabError, LabException
 from .modules import ModuleStep
 from .registry import ActionDef, PayloadField, register
 from .runtime import _SecretValue, ensure_funded, ensure_wallet
 from .state import LabState, ensure_workspace, save_state
 from .transport.base import Transport
+
+
+def _require(
+    args: dict,
+    context: dict,
+    key: str,
+    *,
+    action: str,
+    hint: str,
+) -> str:
+    """Resolve a required key from action_args then context, raising on missing/empty.
+
+    Several handlers chain ``args.get(key, context.get(key, ''))`` and then
+    silently degrade or self-send when both are empty (F-BACKEND-B-001).
+    This helper makes empty inputs an explicit, structured failure surfaced
+    via the existing ``LabException`` pipeline (CLI exit codes + WS event
+    framing in ``api/runner_ws.py`` already handle the type).
+
+    Returns the resolved value. The runner's outer try/except logs the
+    exception and saves state so progress isn't lost.
+    """
+    raw = args.get(key, context.get(key, ""))
+    value = "" if raw is None else str(raw).strip()
+    if not value:
+        raise LabException(
+            LabError(
+                code="INPUT_REQUIRED_FIELD",
+                message=f"Missing required '{key}' for action '{action}'.",
+                hint=hint,
+            )
+        )
+    return value
 
 # ---------------------------------------------------------------------------
 # Wallet / setup actions
@@ -100,7 +133,25 @@ async def handle_submit_payment(
 
     if not dest:
         dest = state.wallet_address or ""
-        console.print(f"  Sending to self for practice: [cyan]{dest}[/]")
+        if dest:
+            console.print(f"  Sending to self for practice: [cyan]{dest}[/]")
+
+    # F-BACKEND-B-001: after self-send fallback, dest may still be empty
+    # if no wallet is available. Surface this as a structured error
+    # instead of letting send_payment silently submit a payload with
+    # an empty Destination field.
+    if not str(dest).strip():
+        raise LabException(
+            LabError(
+                code="INPUT_REQUIRED_FIELD",
+                message="Missing required 'destination' for action 'submit_payment'.",
+                hint=(
+                    "Pass `destination: r...` in the module step, set context "
+                    "destination, or run 'xrpl-lab wallet create' so the "
+                    "self-send practice fallback has a target address."
+                ),
+            )
+        )
 
     result = await send_payment(transport, wallet_seed, dest, amount, memo)
     context["last_submit"] = result
@@ -234,7 +285,18 @@ async def handle_set_trust_line(
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
     args = step.action_args
-    currency = args.get("currency", "LAB")
+    # F-BACKEND-B-001: currency is the trust line's identity — silently
+    # falling back to the default LAB when a learner intentionally
+    # cleared it (e.g. typed currency: '' in the module file) lets a
+    # malformed module write a real ledger object under the wrong code.
+    currency = _require(
+        args, context, "currency",
+        action="set_trust_line",
+        hint=(
+            "Pass `currency: <CODE>` in the module step (e.g. LAB, USD). "
+            "Currency codes are 3 characters or a 40-char hex string."
+        ),
+    )
     limit = args.get("limit", "1000")
     issuer_address = context.get("issuer_address", "")
 
@@ -886,9 +948,20 @@ async def handle_amm_deposit(
 ) -> dict:
     args = step.action_args
     a_currency = args.get("a_currency", context.get("a_currency", "XRP"))
-    a_value = args.get("a_value", "10")
+    # F-BACKEND-B-001: AMM deposit amount silently defaulting to "10"
+    # has hit learners as "I deposited and now my proof shows a different
+    # number than I expected." Require explicit amounts.
+    a_value = _require(
+        args, context, "a_value",
+        action="amm_deposit",
+        hint="Pass `a_value: <amount>` (numeric string) in the module step.",
+    )
     b_currency = args.get("b_currency", context.get("b_currency", "LAB"))
-    b_value = args.get("b_value", "10")
+    b_value = _require(
+        args, context, "b_value",
+        action="amm_deposit",
+        hint="Pass `b_value: <amount>` (numeric string) in the module step.",
+    )
     a_issuer = context.get("a_issuer", "")
     b_issuer = context.get("b_issuer", "")
 
@@ -960,10 +1033,23 @@ async def handle_amm_withdraw(
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
     args = step.action_args
-    a_currency = args.get("a_currency", context.get("a_currency", "XRP"))
-    b_currency = args.get("b_currency", context.get("b_currency", "LAB"))
+    # F-BACKEND-B-001: AMM withdraw must identify the pair. Empty
+    # currency on either leg lets the request reach amm_withdraw with
+    # silent defaults that may not match the deposit pair the learner
+    # made earlier in the same module.
+    a_currency = _require(
+        args, context, "a_currency",
+        action="amm_withdraw",
+        hint="Pass `a_currency: <CODE>` (e.g. XRP) in the module step.",
+    )
+    b_currency = _require(
+        args, context, "b_currency",
+        action="amm_withdraw",
+        hint="Pass `b_currency: <CODE>` (e.g. LAB) in the module step.",
+    )
     a_issuer = context.get("a_issuer", "")
     b_issuer = context.get("b_issuer", "")
+    # lp_value is intentionally optional: empty means "withdraw all LP".
     lp_value = args.get("lp_value", "")
 
     console.print(

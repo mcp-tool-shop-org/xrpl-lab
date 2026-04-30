@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -79,13 +80,29 @@ async def ensure_wallet(
     return state, _SecretValue(wallet.seed)
 
 
+# F-BACKEND-B-010: testnet faucet is rate-limited (~1 req/sec/IP) and
+# routinely flakes under load. The previous one-shot call left learners
+# at "ensure_wallet succeeded but I am unfunded" mid-module. Retry the
+# fund call with explicit, in-band exponential backoff (no decorator,
+# no retry library — keep the shape obvious so this code doesn't grow
+# into a generic harness over time).
+_FAUCET_RETRY_DELAYS_S: tuple[float, ...] = (2.0, 4.0, 8.0)
+
+
 async def ensure_funded(
     state: LabState,
     transport: Transport,
     address: str,
     console: Console,
 ) -> bool:
-    """Check balance and fund from faucet if needed. Returns True if funded."""
+    """Check balance and fund from faucet if needed. Returns True if funded.
+
+    F-BACKEND-B-010: faucet calls now retry up to 3 times with 2/4/8s
+    backoff on failure. The retry covers transient testnet-faucet
+    overload; on a truly hard failure (e.g. faucet dead, address
+    blocklisted) the same diagnostic message surfaces but only after
+    the learner has gotten the benefit of a real retry window.
+    """
     balance = await transport.get_balance(address)
     try:
         bal = Decimal(balance) if balance else Decimal("0")
@@ -96,19 +113,34 @@ async def ensure_funded(
         return True
 
     console.print("  Requesting funds from testnet faucet...")
-    result = await transport.fund_from_faucet(address)
-    try:
-        funded_bal = Decimal(result.balance) if result.balance else Decimal("0")
-    except (ValueError, TypeError, InvalidOperation):
-        funded_bal = Decimal("0")
-    if result.success and funded_bal > 0:
-        console.print(f"  Funded! Balance: [green]{result.balance} XRP[/]")
-        return True
-    else:
+    last_result = None
+    for attempt, delay in enumerate(_FAUCET_RETRY_DELAYS_S, start=1):
+        result = await transport.fund_from_faucet(address)
+        last_result = result
+        try:
+            funded_bal = Decimal(result.balance) if result.balance else Decimal("0")
+        except (ValueError, TypeError, InvalidOperation):
+            funded_bal = Decimal("0")
+        if result.success and funded_bal > 0:
+            console.print(f"  Funded! Balance: [green]{result.balance} XRP[/]")
+            return True
+        # Final attempt — fall through without further sleeping.
+        if attempt >= len(_FAUCET_RETRY_DELAYS_S):
+            break
         console.print(
-            "[red]Faucet funding failed.[/] The testnet faucet may be under load."
+            f"  [yellow]Faucet attempt {attempt}/"
+            f"{len(_FAUCET_RETRY_DELAYS_S)} did not fund. "
+            f"Retrying in {delay:g}s...[/]"
         )
-        console.print(
-            "Try: [cyan]xrpl-lab fund[/] manually, or wait a few minutes and retry."
-        )
-        return False
+        await asyncio.sleep(delay)
+
+    console.print(
+        "[red]Faucet funding failed after retries.[/] "
+        "The testnet faucet may be under load."
+    )
+    if last_result is not None and getattr(last_result, "message", ""):
+        console.print(f"  Last response: {last_result.message}")
+    console.print(
+        "Try: [cyan]xrpl-lab fund[/] manually, or wait a few minutes and retry."
+    )
+    return False

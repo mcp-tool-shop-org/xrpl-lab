@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import inspect
 import time
 from collections.abc import Callable
@@ -23,6 +24,33 @@ from .state import LabState, ensure_workspace, load_state, save_state
 from .transport.base import Transport
 
 console = Console()
+
+
+def _snapshot_context(context: dict) -> dict:
+    """Deep-copy ``context`` for step rollback (F-BACKEND-B-004).
+
+    ``_SecretValue`` raises TypeError on pickle/deepcopy by design (it's
+    meant to be unclonable to prevent accidental leak via copy). The
+    runner needs a snapshot of the rest of the context to restore on
+    handler exception, so we walk the top level, hold ``_SecretValue``
+    instances aside as shared references, and ``deepcopy`` everything
+    else. Identity is preserved for the secret wrapper — that's
+    intentional; the wrapper's contained string is immutable, and a
+    handler that mutates it (replaces the slot in context) would
+    correctly be reflected in the snapshot's reference too. What we're
+    actually protecting against is partial appends to ``context['txids']``
+    leaking out when the step itself raises mid-mutation.
+    """
+    secrets: dict = {}
+    safe: dict = {}
+    for k, v in context.items():
+        if isinstance(v, _SecretValue):
+            secrets[k] = v
+        else:
+            safe[k] = v
+    snapshot = copy.deepcopy(safe)
+    snapshot.update(secrets)
+    return snapshot
 
 
 async def _execute_action(
@@ -181,6 +209,13 @@ async def run_module(
                 if inspect.isawaitable(_r):
                     await _r
             console.print(f"[dim]  → {step.action}...[/]")
+            # F-BACKEND-B-004: snapshot context BEFORE the handler runs
+            # so we can roll back partial mutations if the handler
+            # raises mid-step. Without this, a handler that appends a
+            # txid then raises would leak that txid into the saved
+            # state — the txid corresponds to a transaction the real
+            # ledger never accepted.
+            _context_snapshot = _snapshot_context(context)
             try:
                 context = await _execute_action(
                     step, state, transport,
@@ -189,6 +224,10 @@ async def run_module(
                     console=console,
                 )
             except Exception as exc:
+                # F-BACKEND-B-004: restore pre-step context. The state
+                # object's atomic-write fix (wave 1) handles durability;
+                # this handles step-level atomicity at the context layer.
+                context = _context_snapshot
                 if on_step_complete is not None:
                     _r = on_step_complete(step.action, False)
                     if inspect.isawaitable(_r):

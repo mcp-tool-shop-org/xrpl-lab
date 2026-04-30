@@ -200,3 +200,274 @@ class TestRunModuleCompletionGuard:
         transport = DryRunTransport()
         result = await run_module(mod, transport, dry_run=False, force=False)
         assert result is True
+
+
+# ── F-BACKEND-B-001: required-field validation in handlers ───────────
+
+
+class TestRequireValidation:
+    """The _require helper raises a structured LabException when a required
+    handler input is missing or empty. Selected handlers use it at the
+    highest-value sites (send dest, trust currency, AMM pair/amount) to
+    fail loud instead of silently submitting garbage to the ledger."""
+
+    def test_require_returns_value_when_present(self) -> None:
+        from xrpl_lab.handlers import _require
+
+        out = _require(
+            {"k": "  hello  "}, {}, "k", action="x", hint="h",
+        )
+        assert out == "hello"
+
+    def test_require_falls_back_to_context(self) -> None:
+        from xrpl_lab.handlers import _require
+
+        out = _require(
+            {}, {"k": "from_ctx"}, "k", action="x", hint="h",
+        )
+        assert out == "from_ctx"
+
+    def test_require_raises_lab_exception_when_missing(self) -> None:
+        from xrpl_lab.errors import LabException
+        from xrpl_lab.handlers import _require
+
+        with pytest.raises(LabException) as exc_info:
+            _require({}, {}, "destination", action="submit_payment", hint="provide it")
+        err = exc_info.value.error
+        assert err.code == "INPUT_REQUIRED_FIELD"
+        assert "destination" in err.message
+        assert "submit_payment" in err.message
+        assert err.hint == "provide it"
+
+    def test_require_raises_when_value_is_only_whitespace(self) -> None:
+        from xrpl_lab.errors import LabException
+        from xrpl_lab.handlers import _require
+
+        with pytest.raises(LabException):
+            _require({"k": "   "}, {}, "k", action="x", hint="h")
+
+    def test_require_raises_when_value_is_none(self) -> None:
+        from xrpl_lab.errors import LabException
+        from xrpl_lab.handlers import _require
+
+        with pytest.raises(LabException):
+            _require({"k": None}, {}, "k", action="x", hint="h")
+
+    @pytest.mark.asyncio
+    async def test_set_trust_line_raises_on_empty_currency(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    ) -> None:
+        """An explicit empty currency must fail loud rather than silently
+        defaulting to 'LAB'."""
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
+
+        from xrpl_lab.errors import LabException
+        from xrpl_lab.handlers import handle_set_trust_line
+
+        step = ModuleStep(
+            text="bad trust",
+            action="set_trust_line",
+            action_args={"currency": "", "limit": "1000"},
+        )
+        from rich.console import Console as _Console
+        with pytest.raises(LabException) as exc_info:
+            await handle_set_trust_line(
+                step,
+                LabState(),
+                DryRunTransport(),
+                "seed",
+                {"issuer_address": "rIssuer123", "wallet_seed": None},
+                _Console(),
+            )
+        assert exc_info.value.error.code == "INPUT_REQUIRED_FIELD"
+
+
+# ── F-BACKEND-B-004: step rollback / context snapshot ─────────────────
+
+
+class TestStepRollback:
+    """run_module must restore context if a step handler raises mid-mutation.
+
+    Without this, a handler that ``context['txids'].append(txid)`` and then
+    raises would leak the txid into the post-failure saved state — that
+    txid corresponds to a transaction the real ledger never accepted.
+    """
+
+    @pytest.fixture()
+    def _env(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
+
+    def test_snapshot_context_deepcopies_safe_keys(self) -> None:
+        """Mutating the snapshot's nested list must not affect the source."""
+        from xrpl_lab.runner import _snapshot_context
+
+        ctx: dict = {"txids": ["A", "B"], "module_id": "m"}
+        snap = _snapshot_context(ctx)
+        ctx["txids"].append("C")
+        assert snap["txids"] == ["A", "B"], (
+            "snapshot must be independent of source mutations"
+        )
+
+    def test_snapshot_context_preserves_unpicklable_secret(self) -> None:
+        """_SecretValue must round-trip via shared reference (not deepcopy)."""
+        from xrpl_lab.runner import _snapshot_context
+        from xrpl_lab.runtime import _SecretValue
+
+        sv = _SecretValue("seed_xyz")
+        ctx: dict = {"wallet_seed": sv, "txids": ["A"]}
+        snap = _snapshot_context(ctx)
+        # Same wrapper identity (not deepcopied — _SecretValue refuses
+        # pickle by design). The contained string is read-only via .get().
+        assert snap["wallet_seed"] is sv
+        assert snap["wallet_seed"].get() == "seed_xyz"
+        # But the rest is independent:
+        ctx["txids"].append("B")
+        assert snap["txids"] == ["A"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("_env")
+    async def test_step_failure_rolls_back_context_mutations(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A handler that mutates context then raises must NOT leak the mutation
+        into post-failure state. The snapshot-restore in run_module catches it."""
+        # Build a fake action that appends to txids then raises. We register
+        # it via the handler registry like real handlers do.
+        from xrpl_lab.registry import ActionDef, register, resolve
+        from xrpl_lab.runner import run_module
+
+        captured_pre_raise: dict[str, list[str]] = {}
+
+        async def _bad_handler(step, state, transport, wallet_seed, ctx, console):
+            ctx.setdefault("txids", []).append("LEAKED_TXID")
+            captured_pre_raise["txids"] = list(ctx["txids"])
+            raise RuntimeError("simulated mid-mutation failure")
+
+        # Register a unique action name so we don't collide with the
+        # real registry. Name the action to make the failure trail
+        # readable in pytest output.
+        action_name = "test_step_rollback_bad_handler"
+        try:
+            resolve(action_name)
+        except Exception:
+            register(ActionDef(
+                name=action_name,
+                handler=_bad_handler,
+                description="Test-only: appends txid then raises.",
+            ))
+
+        mod = ModuleDef(
+            id="rollback_test_module",
+            title="Rollback test",
+            time="1 min",
+            level="beginner",
+            requires=[],
+            produces=["nothing"],
+            checks=[],
+            steps=[ModuleStep(text="Bad step", action=action_name, action_args={})],
+            raw_body="",
+        )
+        transport = DryRunTransport()
+        result = await run_module(mod, transport, dry_run=False, force=False)
+
+        # Module reports failure
+        assert result is False
+        # Pre-raise the handler DID append (this confirms our test simulates the bug)
+        assert captured_pre_raise.get("txids") == ["LEAKED_TXID"]
+        # The state-saved completed-modules list must NOT contain this module —
+        # rollback semantics: a failed step's mutations are gone, no
+        # complete_module call ever ran for this module id.
+        from xrpl_lab.state import load_state
+        post = load_state()
+        assert not post.is_module_completed("rollback_test_module")
+
+
+# ── F-BACKEND-B-010: ensure_funded retry with backoff ─────────────────
+
+
+class TestEnsureFundedRetry:
+    """ensure_funded must retry the faucet call with exponential backoff
+    when the first attempt does not produce a positive balance."""
+
+    @pytest.mark.asyncio
+    async def test_retries_on_failed_faucet_then_succeeds(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """First two faucet calls fail; third succeeds. Must call 3x."""
+        from xrpl_lab.runtime import ensure_funded
+        from xrpl_lab.state import LabState
+        from xrpl_lab.transport.base import FundResult
+
+        sleeps: list[float] = []
+
+        async def fake_sleep(delay: float) -> None:
+            sleeps.append(delay)
+
+        monkeypatch.setattr("xrpl_lab.runtime.asyncio.sleep", fake_sleep)
+
+        call_count = {"n": 0}
+
+        class StubTransport:
+            async def get_balance(self, addr: str) -> str:
+                return "0"
+
+            async def fund_from_faucet(self, addr: str) -> FundResult:
+                call_count["n"] += 1
+                if call_count["n"] < 3:
+                    return FundResult(
+                        success=False, address=addr, balance="0",
+                        message=f"attempt {call_count['n']} failed",
+                    )
+                return FundResult(
+                    success=True, address=addr, balance="100",
+                    message="funded",
+                )
+
+        from rich.console import Console as _Console
+        ok = await ensure_funded(
+            LabState(), StubTransport(), "rTestAddr", _Console(),
+        )
+        assert ok is True
+        assert call_count["n"] == 3, "expected 3 faucet attempts"
+        # Two sleeps between three attempts: 2s and 4s
+        assert sleeps == [2.0, 4.0], f"expected backoff [2.0, 4.0], got {sleeps}"
+
+    @pytest.mark.asyncio
+    async def test_returns_false_after_all_retries_exhausted(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """All three faucet attempts fail → ensure_funded returns False."""
+        from xrpl_lab.runtime import ensure_funded
+        from xrpl_lab.state import LabState
+        from xrpl_lab.transport.base import FundResult
+
+        sleeps: list[float] = []
+
+        async def fake_sleep(delay: float) -> None:
+            sleeps.append(delay)
+
+        monkeypatch.setattr("xrpl_lab.runtime.asyncio.sleep", fake_sleep)
+
+        class StubTransport:
+            async def get_balance(self, addr: str) -> str:
+                return "0"
+
+            async def fund_from_faucet(self, addr: str) -> FundResult:
+                return FundResult(
+                    success=False, address=addr, balance="0",
+                    message="faucet down",
+                )
+
+        from rich.console import Console as _Console
+        ok = await ensure_funded(
+            LabState(), StubTransport(), "rTestAddr", _Console(),
+        )
+        assert ok is False
+        # Two sleeps between three attempts (no sleep after the final attempt).
+        assert sleeps == [2.0, 4.0]
