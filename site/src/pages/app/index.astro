@@ -108,6 +108,8 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
   </div>
 
   <script>
+    import { fetchWithTimeout } from '../../lib/api';
+
     // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
 
@@ -121,7 +123,8 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
     async function hydrateDashboard() {
       // Fetch status
       try {
-        const status = await fetch(`${API_BASE}/api/status`).then(r => r.json());
+        const statusRes = await fetchWithTimeout(`${API_BASE}/api/status`);
+        const status = await statusRes.json();
 
         // Progress bar
         const progressArea = document.getElementById('progress-area');
@@ -180,7 +183,8 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
 
       // Doctor check
       try {
-        const doctor = await fetch(`${API_BASE}/api/doctor`).then(r => r.json());
+        const doctorRes = await fetchWithTimeout(`${API_BASE}/api/doctor`);
+        const doctor = await doctorRes.json();
         const cards = document.getElementById('status-cards');
         if (cards) {
           const doctorCard = cards.children[2];

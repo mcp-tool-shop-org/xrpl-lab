@@ -59,8 +59,16 @@ import JsonViewer from '../../components/dashboard/JsonViewer.astro';
   </div>
 
   <script>
+    import { fetchWithTimeout } from '../../lib/api';
+
     // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
+
+    function describeFetchError(err: any, fallback: string): string {
+      if (err?.name === 'AbortError') return 'Request timed out — check API server is responsive.';
+      if (err instanceof TypeError) return 'Could not reach API server — is it running?';
+      return fallback;
+    }
 
     // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -102,31 +110,34 @@ import JsonViewer from '../../components/dashboard/JsonViewer.astro';
     // Load proof pack
     async function loadProofPack() {
       try {
-        const data = await fetch(`${API_BASE}/api/artifacts/proof-pack`).then(r => r.json());
+        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/proof-pack`);
+        const data = await res.json();
         setJsonContent('proof-json', data);
         const integrity = document.getElementById('proof-integrity');
         if (integrity && data.integrity) {
           integrity.textContent = `SHA-256: ${data.integrity.substring(0, 16)}...`;
         }
-      } catch {
-        setJsonError('proof-json', 'Could not load proof pack. Is the API running?');
+      } catch (err: any) {
+        setJsonError('proof-json', describeFetchError(err, 'Could not load proof pack. Is the API running?'));
       }
     }
 
     // Load certificate
     async function loadCertificate() {
       try {
-        const data = await fetch(`${API_BASE}/api/artifacts/certificate`).then(r => r.json());
+        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/certificate`);
+        const data = await res.json();
         setJsonContent('cert-json', data);
-      } catch {
-        setJsonError('cert-json', 'Could not load certificate. Is the API running?');
+      } catch (err: any) {
+        setJsonError('cert-json', describeFetchError(err, 'Could not load certificate. Is the API running?'));
       }
     }
 
     // Load reports
     async function loadReports() {
       try {
-        const reports = await fetch(`${API_BASE}/api/artifacts/reports`).then(r => r.json());
+        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/reports`);
+        const reports = await res.json();
         const list = document.getElementById('reports-list');
         if (!list) return;
 
@@ -144,13 +155,14 @@ import JsonViewer from '../../components/dashboard/JsonViewer.astro';
             <div class="prose prose-invert prose-sm max-w-none text-slate-300 whitespace-pre-wrap font-mono text-xs bg-slate-900 rounded p-3 max-h-64 overflow-y-auto">${escapeHtml(r.content)}</div>
           </div>
         `).join('');
-      } catch {
+      } catch (err: any) {
         const list = document.getElementById('reports-list');
         if (list) {
+          const msg = describeFetchError(err, 'Could not load reports. Is the API running?');
           list.innerHTML = `
             <div class="flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
               <span>&#9888;</span>
-              <span>Could not load reports. Is the API running?</span>
+              <span>${escapeHtml(msg)}</span>
             </div>
           `;
         }

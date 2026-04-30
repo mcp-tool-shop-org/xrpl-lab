@@ -59,6 +59,8 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
   </div>
 
   <script>
+    import { fetchWithTimeout } from '../../lib/api';
+
     // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
 
@@ -93,7 +95,8 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       error?.classList.add('hidden');
 
       try {
-        const result = await fetch(`${API_BASE}/api/doctor`).then(r => r.json());
+        const res = await fetchWithTimeout(`${API_BASE}/api/doctor`);
+        const result = await res.json();
 
         // Banner
         if (banner) {
@@ -127,9 +130,19 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
         loading?.classList.add('hidden');
 
-      } catch {
+      } catch (err: any) {
         loading?.classList.add('hidden');
         error?.classList.remove('hidden');
+        const errMsgEl = error?.querySelector('span:last-child');
+        if (errMsgEl) {
+          if (err?.name === 'AbortError') {
+            errMsgEl.textContent = 'Doctor checks timed out — check API server is responsive.';
+          } else if (err instanceof TypeError) {
+            errMsgEl.textContent = 'Could not reach API server — is it running?';
+          } else {
+            errMsgEl.textContent = 'Could not run doctor checks. Is the API running?';
+          }
+        }
       }
     }
 

@@ -107,6 +107,8 @@ const { id } = Astro.params;
   </div>
 
   <script>
+    import { fetchWithTimeout } from '../../../lib/api';
+
     const API_BASE = 'http://localhost:8321';
 
     function escapeHtml(str: any): string {
@@ -131,7 +133,8 @@ const { id } = Astro.params;
       if (!moduleId) return;
 
       try {
-        const mod = await fetch(`${API_BASE}/api/modules/${moduleId}`).then(r => r.json());
+        const modRes = await fetchWithTimeout(`${API_BASE}/api/modules/${moduleId}`);
+        const mod = await modRes.json();
 
         // Populate fields
         const title = document.getElementById('mod-title');
@@ -189,7 +192,8 @@ const { id } = Astro.params;
           const prereqsList = document.getElementById('prereqs-list');
           if (prereqsSection && prereqsList) {
             try {
-              const allModules = await fetch(`${API_BASE}/api/modules`).then(r => r.json());
+              const allModulesRes = await fetchWithTimeout(`${API_BASE}/api/modules`);
+              const allModules = await allModulesRes.json();
               const moduleMap = new Map(allModules.map((m: any) => [m.id, m]));
               prereqsList.innerHTML = mod.prerequisites.map((pid: string) => {
                 const pm = moduleMap.get(pid) as any;

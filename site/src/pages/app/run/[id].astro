@@ -99,6 +99,8 @@ const { id } = Astro.params;
   </div>
 
   <script>
+    import { fetchWithTimeout } from '../../../lib/api';
+
     const API_BASE = 'http://localhost:8321';
 
     function escapeHtml(str: any): string {
@@ -155,7 +157,8 @@ const { id } = Astro.params;
     // Load module info
     async function loadModuleInfo() {
       try {
-        const mod = await fetch(`${API_BASE}/api/modules/${moduleId}`).then(r => r.json());
+        const modRes = await fetchWithTimeout(`${API_BASE}/api/modules/${moduleId}`);
+        const mod = await modRes.json();
         const title = document.getElementById('run-title');
         if (title) title.textContent = mod.title || moduleId;
         const badge = document.getElementById('run-badge');
@@ -313,7 +316,7 @@ const { id } = Astro.params;
       termAppend(`[${modeLabel}] Starting module: ${moduleId}`, 'text-slate-400');
 
       try {
-        const res = await fetch(`${API_BASE}/api/run/${moduleId}?dry_run=${dryRun}`, { method: 'POST' });
+        const res = await fetchWithTimeout(`${API_BASE}/api/run/${moduleId}?dry_run=${dryRun}`, { method: 'POST' });
         if (!res.ok) {
           throw new Error(`API returned ${res.status}`);
         }
@@ -327,7 +330,15 @@ const { id } = Astro.params;
         connectWS();
 
       } catch (err: any) {
-        termAppend(`[error] ${err.message || 'Failed to start run'}`, 'text-red-400');
+        let msg: string;
+        if (err?.name === 'AbortError') {
+          msg = 'Request timed out — check API server is responsive.';
+        } else if (err instanceof TypeError) {
+          msg = 'Could not reach API server — is it running?';
+        } else {
+          msg = err.message || 'Failed to start run';
+        }
+        termAppend(`[error] ${msg}`, 'text-red-400');
         statusLabel.textContent = 'Failed to start';
         statusLabel.className = 'text-sm text-red-400 ml-2';
         running = false;

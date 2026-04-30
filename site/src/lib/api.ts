@@ -6,8 +6,35 @@
 
 const API_BASE = 'http://localhost:8321';
 
+/**
+ * fetch() with a hard timeout via AbortController.
+ *
+ * If `timeoutMs` elapses before the response begins, the fetch is aborted
+ * and the returned promise rejects with a DOMException whose `name` is
+ * `'AbortError'` — distinguishable from network failures (which surface as
+ * `TypeError`). Default 10s; one knob, no per-call overrides.
+ *
+ * Smallest-correct-change resilience for dashboard fetches (F-FE-B-005):
+ * a hung API server no longer locks the dashboard tab indefinitely. Retry
+ * and backoff are intentionally NOT layered here — WS reconnect already
+ * carries the resilience story for live runs.
+ */
+export async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = 10000
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function request<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetchWithTimeout(`${API_BASE}${path}`);
   if (!res.ok) {
     throw new Error(`API ${path} returned ${res.status}: ${res.statusText}`);
   }
@@ -145,7 +172,7 @@ export interface RunHandlers {
 }
 
 export async function startModuleRun(id: string, dryRun: boolean): Promise<RunResult> {
-  const res = await fetch(`${API_BASE}/api/run/${id}?dry_run=${dryRun}`, {
+  const res = await fetchWithTimeout(`${API_BASE}/api/run/${id}?dry_run=${dryRun}`, {
     method: 'POST',
   });
   if (!res.ok) {

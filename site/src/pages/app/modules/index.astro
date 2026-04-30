@@ -39,6 +39,8 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
   </div>
 
   <script>
+    import { fetchWithTimeout } from '../../../lib/api';
+
     const API_BASE = 'http://localhost:8321';
 
     function escapeHtml(str: any): string {
@@ -120,15 +122,24 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 
     async function loadModules() {
       try {
-        allModules = await fetch(`${API_BASE}/api/modules`).then(r => r.json());
+        const res = await fetchWithTimeout(`${API_BASE}/api/modules`);
+        allModules = await res.json();
         renderModules(allModules);
-      } catch {
+      } catch (err: any) {
         const grid = document.getElementById('module-grid');
         if (grid) {
+          let msg: string;
+          if (err?.name === 'AbortError') {
+            msg = 'Request timed out — check the API server is responsive.';
+          } else if (err instanceof TypeError) {
+            msg = `API is offline. Start the backend with <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code>`;
+          } else {
+            msg = `API is offline. Start the backend with <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code>`;
+          }
           grid.innerHTML = `
             <div class="col-span-full flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
               <span>&#9888;</span>
-              <span>API is offline. Start the backend with <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code></span>
+              <span>${msg}</span>
             </div>
           `;
         }

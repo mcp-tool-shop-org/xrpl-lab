@@ -93,6 +93,8 @@ const navLinks = [
 
   <!-- Sidebar + footer hydration -->
   <script>
+    import { fetchWithTimeout } from '../lib/api';
+
     const API_BASE = 'http://localhost:8321';
 
     function escapeHtml(str: any): string {
@@ -108,7 +110,8 @@ const navLinks = [
     async function hydrateLayout() {
       // Sidebar modules
       try {
-        const modules = await fetch(`${API_BASE}/api/modules`).then(r => r.json());
+        const modulesRes = await fetchWithTimeout(`${API_BASE}/api/modules`);
+        const modules = await modulesRes.json();
         const list = document.getElementById('sidebar-modules');
         if (list && Array.isArray(modules)) {
           list.innerHTML = modules.map((m: any) => {
@@ -130,7 +133,8 @@ const navLinks = [
 
       // Footer version
       try {
-        const status = await fetch(`${API_BASE}/api/status`).then(r => r.json());
+        const statusRes = await fetchWithTimeout(`${API_BASE}/api/status`);
+        const status = await statusRes.json();
         const el = document.getElementById('footer-version');
         if (el && status.version) el.textContent = `v${status.version}`;
       } catch {
