@@ -415,3 +415,41 @@ class TestWebSocketOrigin:
             f"Allowed origin {allowed_origin!r} did not produce any "
             "messages — handshake may have been rejected."
         )
+
+    def test_ws_rejects_missing_origin(
+        self, client_with_module: TestClient
+    ) -> None:
+        """A WS upgrade with no Origin header must be closed with code
+        4003. Browsers always send Origin on WS upgrades, so a missing
+        Origin means a non-browser client (CLI, integration test,
+        server-to-server) — which we treat as the same CSRF risk as a
+        disallowed Origin. Wave-2-phase-2 (commit 03e7a5f) tightened the
+        check to drop the prior None-leniency; this test guards against
+        a refactor accidentally re-introducing it.
+
+        ``headers={}`` suppresses Starlette TestClient's default header
+        injection and reaches the server with no ``origin`` key — verified
+        empirically (server logs ``origin=None`` on this path).
+        """
+        from starlette.websockets import WebSocketDisconnect
+
+        # Start a real run so run_id resolves; the rejection must fire on
+        # missing Origin alone before run_id even matters.
+        run_id = client_with_module.post(
+            "/api/run/receipt_literacy?dry_run=true"
+        ).json()["run_id"]
+
+        with (
+            pytest.raises(WebSocketDisconnect) as excinfo,
+            client_with_module.websocket_connect(
+                f"/api/run/receipt_literacy/ws?run_id={run_id}",
+                headers={},  # explicitly no Origin — exercises the `is None` branch
+            ) as ws,
+        ):
+            # Should never reach receive — server closes before accept.
+            ws.receive_json()
+
+        assert excinfo.value.code == 4003, (
+            f"Expected close code 4003 for missing Origin, "
+            f"got {excinfo.value.code}"
+        )
