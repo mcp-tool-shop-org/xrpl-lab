@@ -5,7 +5,7 @@
 | File | Location | Contains |
 |------|----------|----------|
 | `state.json` | `~/.xrpl-lab/` | Module progress, txids, wallet address, timestamps |
-| `wallet.json` | `~/.xrpl-lab/` | Wallet seed (encrypted with file permissions) |
+| `wallet.json` | `~/.xrpl-lab/` | Wallet seed (plaintext, protected by file permissions) |
 | Reports | `./.xrpl-lab/reports/` | Human-readable markdown summaries |
 | Proofs | `./.xrpl-lab/proofs/` | Shareable JSON (no secrets) |
 
