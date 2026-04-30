@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff", "pytest", "pytest-asyncio"]
+dev = ["ruff", "pytest", "pytest-asyncio", "pip-audit"]
 
 [project.scripts]
 xrpl-lab = "xrpl_lab.cli:main"

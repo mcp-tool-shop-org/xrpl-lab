@@ -44,7 +44,22 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Lint with ruff
-        run: ruff check xrpl_lab/ tests/
+        run: |
+          ruff check xrpl_lab/ tests/ > ruff.log 2>&1 || RUFF_EXIT=$?
+          cat ruff.log
+          exit ${RUFF_EXIT:-0}
 
       - name: Run tests
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=short --junitxml=pytest-report.xml
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-artifacts-${{ matrix.python-version }}
+          path: |
+            pytest-report.xml
+            ruff.log
+            .pytest_cache/lastfailed
+          retention-days: 14
+          if-no-files-found: ignore
