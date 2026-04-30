@@ -338,6 +338,13 @@ async def handle_set_trust_line(
         context.setdefault("txids", []).append(result.txid)
     else:
         console.print(f"  [red]Trust line failed: {result.error}[/]")
+        if getattr(result, "result_code", None) == "tecNO_LINE":
+            console.print(
+                "  [yellow]Hint: Trust lines are directional — the recipient "
+                "must set up the trust line BEFORE you can send them this "
+                "token. If you're issuing, run the recipient through the "
+                "'set trust line' step first.[/]"
+            )
         state.record_tx(
             txid=result.txid or "failed",
             module_id=context.get("module_id", ""),

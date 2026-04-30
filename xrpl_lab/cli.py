@@ -119,7 +119,12 @@ Quick start:
 @main.command()
 @click.option(
     "--dry-run", is_flag=True,
-    help="Offline sandbox: simulated transactions, real local persistence",
+    help=(
+        "Offline sandbox mode: transactions are simulated (won't execute on "
+        "testnet), but state and progress are saved locally. Use this to "
+        "learn without network access, or to repeat modules without "
+        "consuming testnet faucet requests."
+    ),
 )
 def start(dry_run: bool):
     """Guided launcher — pick a module and start learning."""
@@ -288,9 +293,20 @@ def list_modules():
 @click.argument("module_id")
 @click.option(
     "--dry-run", is_flag=True,
-    help="Offline sandbox: simulated transactions, real local persistence",
+    help=(
+        "Offline sandbox mode: transactions are simulated (won't execute on "
+        "testnet), but state and progress are saved locally. Use this to "
+        "learn without network access, or to repeat modules without "
+        "consuming testnet faucet requests."
+    ),
 )
-@click.option("--force", is_flag=True, help="Re-run even if already completed")
+@click.option(
+    "--force", is_flag=True,
+    help=(
+        "Re-run a completed module — useful for practice or retrying with "
+        "different values"
+    ),
+)
 def run(module_id: str, dry_run: bool, force: bool):
     """Run a specific module by ID (e.g., xrpl-lab run receipt_literacy)."""
     modules = load_all_modules()
@@ -303,7 +319,9 @@ def run(module_id: str, dry_run: bool, force: bool):
     state = load_state()
     if state.is_module_completed(module_id) and not force:
         console.print(
-            f"[yellow]Module '{module_id}' already completed. Use --force to redo.[/]"
+            f"[yellow]Module '{module_id}' already completed. "
+            f"Run with --force to redo (progress and reports update; previous "
+            f"transaction IDs are preserved in the proof pack).[/]"
         )
         return
 
@@ -699,7 +717,11 @@ def recovery():
 
     console.print()
     if not hints:
-        console.print("[green]No issues found — you're on track.[/]")
+        console.print("[green]No known blockers found.[/]")
+        console.print(
+            "Next: run [cyan]xrpl-lab start[/] to see your next module, or "
+            "[cyan]xrpl-lab status[/] for detailed progress."
+        )
         console.print()
         return
 

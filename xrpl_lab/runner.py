@@ -232,14 +232,25 @@ async def run_module(
                     _r = on_step_complete(step.action, False)
                     if inspect.isawaitable(_r):
                         await _r
-                console.print(
-                    f"[red]Step failed:[/] "
-                    f"{type(exc).__name__}: {exc}"
-                )
-                console.print(
-                    "[yellow]Hint: Run 'xrpl-lab doctor' "
-                    "to diagnose the issue.[/]"
-                )
+                # F-BACKEND-C-005: action errors come with structured
+                # code/message/hint; surface those directly. Generic
+                # exception fallback retains the doctor suggestion (the
+                # right move for infrastructure issues).
+                from .errors import LabException
+                if isinstance(exc, LabException):
+                    console.print(f"[red]Step failed:[/] {exc.error.code}")
+                    console.print(f"  {exc.error.message}")
+                    if exc.error.hint:
+                        console.print(f"  [yellow]Hint:[/] {exc.error.hint}")
+                else:
+                    console.print(
+                        f"[red]Step failed:[/] "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                    console.print(
+                        "[yellow]Hint: Run 'xrpl-lab doctor' "
+                        "to diagnose the issue.[/]"
+                    )
                 save_state(state)
                 console.print(
                     f"[yellow]Progress saved. You can resume with: "

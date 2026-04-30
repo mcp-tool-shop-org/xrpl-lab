@@ -514,8 +514,12 @@ def diagnose_recovery(state: LabState | None = None) -> list[RecoveryHint]:
         hints.append(RecoveryHint(
             situation="No wallet yet",
             command="xrpl-lab wallet create",
-            explanation="You need a wallet before running any modules. "
-                        "This creates a testnet wallet stored locally.",
+            explanation=(
+                "Every account on XRPL needs a wallet — the seed file that "
+                "signs your transactions and proves you control the address. "
+                "Lab creates one locally (~/.xrpl-lab/wallet.json, owner-only "
+                "permissions) and never shares it."
+            ),
         ))
 
     # Next module requires dry-run
