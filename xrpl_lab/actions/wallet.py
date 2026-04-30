@@ -37,15 +37,40 @@ def create_wallet() -> Wallet:
     return Wallet.create()
 
 
+def _ensure_secure_parent(path: Path) -> None:
+    """Create ``path.parent`` at mode 0o700 (POSIX) and tighten if it already exists looser.
+
+    ``Path.mkdir(mode=...)`` only honors ``mode`` on creation, so directories
+    left over from earlier xrpl-lab versions stay at their original (often
+    0o755, world-searchable) mode. Tightening on every save closes the
+    upgrade-path information-disclosure gap where a local user could
+    enumerate ``wallet.json`` in a shared-system home directory.
+
+    chmod failures propagate intentionally — wave 1 set the discipline that
+    the user must know when their wallet directory is in a state we cannot
+    secure. Windows uses ACLs rather than POSIX modes, so the chmod step is
+    skipped there; the existing Windows warning in :func:`save_wallet`
+    covers the limitation.
+    """
+    parent = path.parent
+    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if sys.platform != "win32":
+        current = parent.stat().st_mode & 0o777
+        if current != 0o700:
+            os.chmod(parent, 0o700)
+
+
 def save_wallet(wallet: Wallet, path: Path | None = None) -> Path:
     """Save wallet to disk with restricted permissions.
 
     The seed file is created via os.open with mode 0o600 from the start,
     eliminating the TOCTOU window where a previous write_text+chmod sequence
-    left the file world-readable between create and chmod.
+    left the file world-readable between create and chmod. The parent
+    directory is also tightened to 0o700 (covering both new installs and
+    the upgrade path from earlier versions that created it at 0o755).
     """
     p = path or default_wallet_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_secure_parent(p)
 
     data = {
         "address": wallet.address,

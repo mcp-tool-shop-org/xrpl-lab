@@ -224,6 +224,47 @@ class TestSaveWalletFileMode:
         with pytest.raises(PermissionError, match="simulated EACCES"):
             save_wallet(wallet, path=path)
 
+    def test_save_wallet_parent_dir_mode_is_0o700(self, tmp_path: Path) -> None:
+        """Parent directory of a freshly-created wallet must be 0o700.
+
+        SECURITY.md promises restricted permissions; the wallet file is
+        already 0o600 (wave 1) but the directory it sits in was left at
+        0o755 by ``Path.mkdir`` defaults — world-searchable, so a local
+        user on a shared system could enumerate the wallet.json filename.
+        F-BACKEND-W3-001: parent dir must be 0o700 on creation.
+        """
+        wallet = create_wallet()
+        target = tmp_path / "subdir" / "wallet.json"
+        save_wallet(wallet, path=target)
+        mode = target.parent.stat().st_mode & 0o777
+        assert mode == 0o700, (
+            f"Expected parent dir mode 0o700 but got 0o{mode:o} — "
+            "_ensure_secure_parent regressed?"
+        )
+
+    def test_save_wallet_tightens_existing_loose_parent_dir(
+        self, tmp_path: Path
+    ) -> None:
+        """Upgrade path: an existing 0o755 parent dir must be tightened to 0o700.
+
+        ``Path.mkdir(mode=0o700)`` only honors ``mode`` on creation, so
+        directories left over from earlier xrpl-lab versions stay at the
+        looser default unless explicitly chmod'd. This test asserts the
+        post-mkdir chmod fixes those existing installs on next save.
+        """
+        target_parent = tmp_path / "loose"
+        target_parent.mkdir(mode=0o755)
+        # Confirm setup — guard against umask interference on the test host.
+        os.chmod(target_parent, 0o755)
+        assert (target_parent.stat().st_mode & 0o777) == 0o755
+
+        wallet = create_wallet()
+        save_wallet(wallet, path=target_parent / "wallet.json")
+        mode = target_parent.stat().st_mode & 0o777
+        assert mode == 0o700, (
+            f"Expected loose 0o755 parent to be tightened to 0o700, got 0o{mode:o}"
+        )
+
 
 class TestWalletInfo:
     def test_has_address_and_public_key(self):
