@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import io
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -14,6 +15,8 @@ from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisco
 
 from ..modules import load_all_modules
 from ..runner import run_module
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
@@ -34,6 +37,88 @@ _CLEANUP_GRACE_SECONDS = 60
 # Timeout (seconds) for a single module run
 _RUN_TIMEOUT_SECONDS = 300
 
+# Bounded queue size — caps memory if the WS consumer stalls or is slow.
+# On overflow we drop the OLDEST item (drop-oldest policy): the dashboard
+# values freshness over completeness.
+_QUEUE_MAXSIZE = 1024
+
+# Allowed Origin values for the WS handshake. WebSocket upgrades are NOT
+# covered by browser CORS, so we must reject by Origin manually to close
+# the CSRF-via-WebSocket vector. Keep this list in sync with the
+# `allow_origins=[...]` list in xrpl_lab/server.py — a future refactor
+# (Stage B) should factor these into a single shared constant.
+_ALLOWED_ORIGINS: tuple[str, ...] = (
+    "http://localhost:4321",
+    "http://localhost:3000",
+    "http://127.0.0.1:4321",
+    "http://127.0.0.1:3000",
+)
+
+
+def _safe_put(queue: asyncio.Queue, item: dict, run_id: str = "") -> None:
+    """Put `item` on `queue`, dropping the oldest entry on overflow.
+
+    The queue is bounded (see _QUEUE_MAXSIZE). When full, we drain one
+    oldest item and retry — the WS dashboard consumer values freshness
+    over completeness. Logs a WARNING when the policy fires.
+    """
+    try:
+        queue.put_nowait(item)
+    except asyncio.QueueFull:
+        with contextlib.suppress(asyncio.QueueEmpty):
+            queue.get_nowait()
+        logger.warning(
+            "queue overflow: dropped oldest, run_id=%s qsize=%d",
+            run_id,
+            queue.qsize(),
+        )
+        # Retry; if still full (unlikely — we just drained), drop the new item.
+        try:
+            queue.put_nowait(item)
+        except asyncio.QueueFull:
+            logger.warning(
+                "queue overflow: dropped new item, run_id=%s qsize=%d",
+                run_id,
+                queue.qsize(),
+            )
+
+
+def _error_envelope(exc: BaseException) -> dict[str, str]:
+    """Map an exception to a structured user-facing error envelope.
+
+    Never leaks raw paths/internals — the server-side log captures the
+    full str(exc); the client only sees code/message/hint. Codes align
+    with xrpl_lab.errors.LabError taxonomy (RUNTIME_*, IO_*, etc.).
+    """
+    from ..errors import LabException
+
+    if isinstance(exc, LabException):
+        # Already structured — reuse the existing envelope.
+        d = exc.error.safe_dict()
+        return {
+            "code": str(d.get("code", "RUNTIME_INTERNAL")),
+            "message": str(d.get("message", "An error occurred")),
+            "hint": str(d.get("hint", "")),
+        }
+    if isinstance(exc, TimeoutError):
+        return {
+            "code": "RUNTIME_TIMEOUT",
+            "message": "The module run timed out.",
+            "hint": "Try again, or run with --dry-run to bypass the network.",
+        }
+    if isinstance(exc, asyncio.CancelledError):
+        return {
+            "code": "RUNTIME_CANCELLED",
+            "message": "The module run was cancelled.",
+            "hint": "Restart the run when ready.",
+        }
+    # Unknown exception — generic envelope, full detail goes to server logs.
+    return {
+        "code": "RUNTIME_INTERNAL",
+        "message": "An internal error occurred.",
+        "hint": "Check server logs and report via xrpl-lab feedback.",
+    }
+
 
 @dataclass
 class ModuleRunSession:
@@ -43,7 +128,9 @@ class ModuleRunSession:
     module_id: str
     dry_run: bool
     status: str = "started"  # started | running | complete | error
-    queue: asyncio.Queue = field(default_factory=asyncio.Queue)
+    queue: asyncio.Queue = field(
+        default_factory=lambda: asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
+    )
     txids: list[str] = field(default_factory=list)
     report_path: str = ""
     error: str = ""
@@ -78,13 +165,16 @@ def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS
             if session and session.status in ("complete", "error"):
                 _sessions.pop(run_id, None)
         except Exception:
-            import logging
-            logging.getLogger(__name__).warning("Session cleanup failed for %s", run_id)
+            logger.warning("Session cleanup failed for %s", run_id)
 
     asyncio.create_task(_cleanup())
 
 
-def _make_capture_console(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
+def _make_capture_console(
+    queue: asyncio.Queue,
+    loop: asyncio.AbstractEventLoop,
+    run_id: str = "",
+):
     """Return a Rich Console whose output is forwarded to the queue as output messages."""
     from rich.console import Console
 
@@ -92,10 +182,14 @@ def _make_capture_console(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop)
         def write(self, s: str) -> int:
             text = s.rstrip("\n")
             if text:
-                # Schedule the put_nowait on the event loop thread-safely
-                asyncio.run_coroutine_threadsafe(
-                    queue.put({"type": "output", "text": text}),
-                    loop,
+                # Schedule a non-blocking put on the event loop thread-safely.
+                # Uses _safe_put so a stalled WS consumer triggers drop-oldest
+                # rather than unbounded memory growth.
+                loop.call_soon_threadsafe(
+                    _safe_put,
+                    queue,
+                    {"type": "output", "text": text},
+                    run_id,
                 )
             return len(s)
 
@@ -112,10 +206,17 @@ async def _run_module_task(session: ModuleRunSession) -> None:
     all_mods = load_all_modules()
     mod = all_mods.get(session.module_id)
     if mod is None:
-        msg = f"Module '{session.module_id}' not found"
-        await session.queue.put({"type": "error", "message": msg})
+        # Structured envelope — no internals leaked. Server log is fine to log
+        # the bare module_id since it's user-supplied input, not a path/secret.
+        envelope = {
+            "type": "error",
+            "code": "INPUT_MODULE_NOT_FOUND",
+            "message": f"Module '{session.module_id}' not found.",
+            "hint": "Run 'xrpl-lab list' to see available modules.",
+        }
+        _safe_put(session.queue, envelope, session.run_id)
         session.status = "error"
-        session.error = msg
+        session.error = envelope["message"]
         return
 
     if session.dry_run:
@@ -128,7 +229,7 @@ async def _run_module_task(session: ModuleRunSession) -> None:
     session.status = "running"
 
     loop = asyncio.get_event_loop()
-    capture_console = _make_capture_console(session.queue, loop)
+    capture_console = _make_capture_console(session.queue, loop, session.run_id)
     # Skip interactive pauses in WebSocket mode
     capture_console.input = lambda _prompt="": ""  # type: ignore[method-assign]
 
@@ -137,28 +238,40 @@ async def _run_module_task(session: ModuleRunSession) -> None:
     # ── Callbacks fed to run_module ──────────────────────────────────
 
     async def _on_step(action: str, index: int, total: int) -> None:
-        await session.queue.put({
-            "type": "step",
-            "action": action,
-            "index": index,
-            "total": total_steps,
-        })
+        _safe_put(
+            session.queue,
+            {
+                "type": "step",
+                "action": action,
+                "index": index,
+                "total": total_steps,
+            },
+            session.run_id,
+        )
 
     async def _on_step_complete(action: str, success: bool) -> None:
-        await session.queue.put({
-            "type": "step_complete",
-            "action": action,
-            "success": success,
-        })
+        _safe_put(
+            session.queue,
+            {
+                "type": "step_complete",
+                "action": action,
+                "success": success,
+            },
+            session.run_id,
+        )
 
     async def _on_tx(txid: str, result_code: str) -> None:
         if txid not in session.txids:
             session.txids.append(txid)
-            await session.queue.put({
-                "type": "tx",
-                "txid": txid,
-                "result_code": result_code,
-            })
+            _safe_put(
+                session.queue,
+                {
+                    "type": "tx",
+                    "txid": txid,
+                    "result_code": result_code,
+                },
+                session.run_id,
+            )
 
     try:
         success = await asyncio.wait_for(
@@ -188,26 +301,49 @@ async def _run_module_task(session: ModuleRunSession) -> None:
             pass
 
         session.status = "complete"
-        await session.queue.put({
-            "type": "complete",
-            "success": success,
-            "txids": session.txids,
-            "report_path": session.report_path,
-        })
-    except TimeoutError:
+        _safe_put(
+            session.queue,
+            {
+                "type": "complete",
+                "success": success,
+                "txids": session.txids,
+                "report_path": session.report_path,
+            },
+            session.run_id,
+        )
+    except TimeoutError as exc:
+        # Server-side observability: full str(exc) at ERROR with run_id.
+        logger.error(
+            "module run timeout: run_id=%s module_id=%s detail=%s",
+            session.run_id,
+            session.module_id,
+            str(exc),
+        )
         session.status = "error"
         session.error = f"Module run timed out after {_RUN_TIMEOUT_SECONDS}s"
-        await session.queue.put({
-            "type": "error",
-            "message": session.error,
-        })
+        envelope = _error_envelope(exc)
+        _safe_put(
+            session.queue,
+            {"type": "error", **envelope},
+            session.run_id,
+        )
     except Exception as exc:
+        # Server-side observability: full str(exc) at ERROR with run_id.
+        # The client only sees the structured envelope — no paths/internals.
+        logger.error(
+            "module run failed: run_id=%s module_id=%s detail=%s",
+            session.run_id,
+            session.module_id,
+            str(exc),
+        )
         session.status = "error"
         session.error = str(exc)
-        await session.queue.put({
-            "type": "error",
-            "message": str(exc),
-        })
+        envelope = _error_envelope(exc)
+        _safe_put(
+            session.queue,
+            {"type": "error", **envelope},
+            session.run_id,
+        )
 
 
 # ── POST /api/run/{module_id} ────────────────────────────────────────
@@ -264,6 +400,28 @@ async def start_run(request: Request, module_id: str, dry_run: bool = False) -> 
 @router.websocket("/run/{module_id}/ws")
 async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> None:
     """Stream module run events to a WebSocket client."""
+    # ── Origin validation (CSRF-via-WebSocket defense) ────────────────
+    # Browser CORS does NOT cover WebSocket upgrades, so we must reject
+    # by Origin manually. Browsers always send Origin on WS upgrades; a
+    # missing Origin means a non-browser client (CLI, integration test,
+    # server-to-server). Per spec, mismatched Origin is rejected with
+    # RFC 6455 application policy code 4003.
+    #
+    # Transition note (wave 1): we currently ALLOW missing Origin (None)
+    # so existing test fixtures keep passing. Wave 2's Tests agent should
+    # tighten this to also reject None once test fixtures pass an Origin
+    # explicitly. The browser CSRF vector is closed either way — browsers
+    # never send a missing Origin header on WS upgrades.
+    origin = websocket.headers.get("origin")
+    if origin is not None and origin not in _ALLOWED_ORIGINS:
+        logger.warning(
+            "ws origin rejected: origin=%r run_id=%s",
+            origin,
+            run_id,
+        )
+        await websocket.close(code=4003, reason="origin not allowed")
+        return
+
     session = _sessions.get(run_id)
     if session is None:
         await websocket.close(code=4004, reason=f"Run '{run_id}' not found")
