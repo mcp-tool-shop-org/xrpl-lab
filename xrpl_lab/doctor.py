@@ -424,13 +424,27 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
     },
     "tecNO_DST": {
         "category": "claimed",
-        "meaning": "Destination account not found on ledger",
-        "action": "Verify the destination address exists and is funded",
+        "meaning": (
+            "Destination account not found on ledger — either the address "
+            "doesn't exist yet or has never been funded."
+        ),
+        "action": (
+            "Verify the address. If it's new, send at least 10 XRP first "
+            "(XRPL's base reserve) to activate it on the ledger."
+        ),
     },
     "tecNO_DST_INSUF_XRP": {
         "category": "claimed",
-        "meaning": "Destination exists but below reserve requirement",
-        "action": "Send enough XRP to meet the reserve (currently 10 XRP)",
+        "meaning": (
+            "Destination exists but doesn't hold enough XRP. XRPL requires "
+            "every account to lock up a base reserve (10 XRP) — this is a "
+            "minimum balance, not a fee. Additional reserves apply per owned "
+            "object (trust line, offer)."
+        ),
+        "action": (
+            "Send enough XRP so the account has 10 XRP available "
+            "(excluding any locked in trust lines or offers)."
+        ),
     },
     "tecPATH_DRY": {
         "category": "claimed",
@@ -439,8 +453,16 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
     },
     "tecNO_LINE": {
         "category": "claimed",
-        "meaning": "Destination has no trust line for this currency",
-        "action": "Recipient must create a trust line first",
+        "meaning": (
+            "Token transfer requires recipient opt-in. In XRPL you must "
+            "explicitly create a trust line before someone can send you an "
+            "issued token — this is a security model where you decide what "
+            "currencies you accept."
+        ),
+        "action": (
+            "Ask the recipient to run the 'set trust line' step first, "
+            "then retry the transfer."
+        ),
     },
     # Failed (not applied)
     "tefBAD_AUTH": {
@@ -456,8 +478,15 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
     # Local rejection
     "telINSUF_FEE_P": {
         "category": "local",
-        "meaning": "Fee below the server's current minimum",
-        "action": "Increase the fee or wait for load to decrease",
+        "meaning": (
+            "Your fee is below the current network minimum. XRPL adjusts the "
+            "minimum dynamically with load — testnet often spikes during high "
+            "activity and resets every few minutes."
+        ),
+        "action": (
+            "Wait briefly and retry — fees usually drop. If persistent, "
+            "increase the fee manually."
+        ),
     },
     # Malformed
     "temBAD_AMOUNT": {
