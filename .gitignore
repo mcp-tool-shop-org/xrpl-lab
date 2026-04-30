@@ -20,6 +20,10 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+._*
+
+# Swarm working state (manifests, findings, evidence)
+swarms/
 
 # Testing / Coverage
 .coverage
