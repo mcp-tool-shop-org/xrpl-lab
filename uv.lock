@@ -705,7 +705,7 @@ requires-dist = [
     { name = "rich", specifier = ">=13.0" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "uvicorn", specifier = ">=0.30" },
-    { name = "xrpl-py", specifier = ">=4.0.0" },
+    { name = "xrpl-py", specifier = ">=4.0.0,<5.0.0" },
 ]
 provides-extras = ["dev"]
 

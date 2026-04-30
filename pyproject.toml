@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Education",
 ]
 dependencies = [
-    "xrpl-py>=4.0.0",
+    "xrpl-py>=4.0.0,<5.0.0",
     "click>=8.1",
     "rich>=13.0",
     "pydantic>=2.0",

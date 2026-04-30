@@ -17,6 +17,7 @@ concurrency:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -59,6 +60,7 @@ jobs:
           echo "ASSET_NAME=${OUTNAME}" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
         with:
           name: binary-${{ matrix.target }}
           path: dist/${{ env.ASSET_NAME }}
