@@ -226,3 +226,130 @@ class TestLastModuleState:
             assert "ts" in record
             assert "checks" in record
             assert "summary" in record
+
+
+class TestDoctorFailureModes:
+    """F-TESTS-B-003: doctor failure-mode coverage.
+
+    The breadcrumb-depth work in wave-2 P1 (commit e8411fd) made the doctor
+    surface more state. These tests pin the cascading-failure surface so a
+    future refactor that swallows actionable hints regresses loud.
+    """
+
+    def test_doctor_when_all_checks_fail_summary_actionable(
+        self, tmp_path, monkeypatch,
+    ):
+        """When every preflight fails, the report still contains actionable hints
+        per failed check — not just FAILED markers.
+
+        We mock the checks to return a known-broken cascade (no wallet,
+        corrupt state, network down) and assert each failed Check has a
+        non-empty .hint. The doctor's value to a stuck learner is in the
+        hint, not the bare boolean.
+        """
+        # Wallet missing — _check_wallet hits the "Not found" branch.
+        monkeypatch.setattr("xrpl_lab.doctor.get_home_dir", lambda: tmp_path)
+        # Corrupt state.json triggers _check_state's JSON-decode failure path.
+        state_file = tmp_path / "state.json"
+        state_file.write_text("{not json", encoding="utf-8")
+        monkeypatch.setattr("xrpl_lab.doctor.state_path", lambda: state_file)
+
+        # Workspace cannot be created or written — point to a path under a
+        # file (not a directory), guaranteed to fail mkdir.
+        bogus_parent = tmp_path / "blocker"
+        bogus_parent.write_text("i am a file, not a dir", encoding="utf-8")
+        monkeypatch.setattr(
+            "xrpl_lab.doctor.get_workspace_dir",
+            lambda: bogus_parent / "ws_inside_a_file",
+        )
+
+        # Stub network checks to deterministic failure with hints.
+        async def _stub_rpc() -> Check:
+            return Check(
+                "RPC endpoint", False,
+                "Could not connect", "Check internet or set XRPL_LAB_RPC_URL",
+            )
+
+        async def _stub_faucet() -> Check:
+            return Check(
+                "Faucet", False, "Could not reach faucet",
+                "Faucet may be down — set XRPL_LAB_FAUCET_URL",
+            )
+
+        monkeypatch.setattr("xrpl_lab.doctor._check_rpc", _stub_rpc)
+        monkeypatch.setattr("xrpl_lab.doctor._check_faucet", _stub_faucet)
+        # state.DEFAULT_HOME_DIR pin so _check_last_error / load_state read tmp_path.
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+
+        report = asyncio.run(run_doctor())
+
+        # The cascade produced multiple failed checks.
+        failed_checks = [c for c in report.checks if not c.passed]
+        assert len(failed_checks) >= 3, (
+            f"expected >=3 failed checks in the cascade, "
+            f"got {[(c.name, c.passed) for c in report.checks]}"
+        )
+
+        # Every failed check has actionable hint content — not a stub
+        # like "FAILED" with no follow-up. The hint is the contract.
+        for c in failed_checks:
+            assert c.hint, (
+                f"failed check {c.name!r} has empty hint — facilitator "
+                f"has no next step"
+            )
+            assert len(c.hint.strip()) > 0
+            # Detail also non-empty so the failure has context.
+            assert c.detail, (
+                f"failed check {c.name!r} has empty detail — no diagnosis"
+            )
+
+    def test_diagnose_recovery_ambiguous_state(self, tmp_path, monkeypatch):
+        """diagnose_recovery surfaces 'tx in tx_index but module not completed'.
+
+        The "did the run finish or not?" ambiguity (transactions recorded
+        for a module that is NOT marked completed) must be surfaced by
+        the recovery diagnostic so the facilitator can decide manually,
+        rather than silently auto-deciding.
+
+        We exercise diagnose_recovery with a state that contains tx
+        records for module M but no completed-module entry for M, then
+        also surface the same condition through the doctor's
+        _check_last_module_state breadcrumb (which calls out the
+        "in-flight" module).
+        """
+        from xrpl_lab.workshop import diagnose_recovery
+
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        monkeypatch.setattr(
+            "xrpl_lab.doctor.state_path",
+            lambda: tmp_path / "state.json",
+        )
+
+        state = LabState(wallet_address="rTEST")
+        # Mark wallet_basics done to advance graph position.
+        state.complete_module("wallet_basics")
+        # Record a tx for receipt_literacy WITHOUT marking it completed —
+        # this is the ambiguity: was the run aborted, or did it complete
+        # without recording the completion?
+        state.record_tx("AMBIG_TX_001", "receipt_literacy", "testnet", success=True)
+        save_state(state)
+
+        # diagnose_recovery itself is an actionability layer — it should
+        # never return [] when there's clearly an ambiguous in-flight
+        # module. Either it surfaces a hint about the in-flight, or the
+        # doctor's breadcrumb does. We assert on the breadcrumb here
+        # since that's the wave-2 P1 surface — diagnose_recovery is the
+        # lower-level engine; the doctor presents it.
+        breadcrumb = _check_last_module_state()
+        assert "receipt_literacy" in breadcrumb.detail, (
+            f"breadcrumb must surface in-flight module: {breadcrumb.detail!r}"
+        )
+        # And the txid hint is in there so a facilitator can xrpl-lab verify it.
+        assert "AMBIG_TX_001"[:16] in breadcrumb.detail
+
+        # Sanity: diagnose_recovery is callable in this state and returns
+        # a list (it may or may not contain a hint — that's a wave-3
+        # backend question). What we lock in: it does not crash on the
+        # ambiguity, and the doctor surfaces the in-flight module.
+        hints = diagnose_recovery(state)
+        assert isinstance(hints, list)

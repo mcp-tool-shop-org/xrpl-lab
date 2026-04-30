@@ -207,3 +207,182 @@ class TestStateAtomicWrite:
         assert (tmp_path / "state.json").read_bytes() == original_bytes
         # The orphan .tmp must be cleaned up
         assert not (tmp_path / "state.json.tmp").exists()
+
+
+class TestStatePartialWriteRecovery:
+    """F-TESTS-B-002: partial-write recovery scenarios for the wave-1 atomic-write fix.
+
+    The wave-1 fix (commit 138ef95) made save_state survive process death
+    mid-write by using O_EXCL temp + os.replace. These tests pin the
+    recovery behavior so a future refactor that drops the pre-clean of a
+    stale .tmp, or the versioned corrupt-backup naming, breaks loud.
+    """
+
+    def test_save_state_recovers_from_stale_tmp_orphan(
+        self, tmp_path, monkeypatch,
+    ):
+        """A stale state.json.tmp from a previously-killed process is pre-cleaned.
+
+        Simulates the kill-before-rename failure mode: previous process
+        opened state.json.tmp via O_EXCL, wrote partial bytes, then died
+        before os.replace ran. The next save must succeed (not block on
+        O_EXCL "file exists"), produce a valid state.json, and leave no
+        orphan .tmp behind.
+        """
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+
+        from xrpl_lab.state import load_state, save_state
+
+        # Establish a valid baseline state.json on disk.
+        baseline = LabState(wallet_address="rBASELINE")
+        baseline.complete_module("receipt_literacy")
+        save_state(baseline)
+        assert (tmp_path / "state.json").exists()
+
+        # Manually create a stale tmp (as if a previous process died after
+        # os.open / O_EXCL + before os.replace). Contents are partial /
+        # garbage by definition.
+        stale_tmp = tmp_path / "state.json.tmp"
+        stale_tmp.write_text('{"version":"1.5.0","partial', encoding="utf-8")
+        assert stale_tmp.exists()
+
+        # Save again — this must NOT block on O_EXCL (would raise FileExistsError).
+        new_state = LabState(wallet_address="rNEW")
+        new_state.complete_module("receipt_literacy")
+        new_state.complete_module("failure_literacy")
+        save_state(new_state)  # must not raise
+
+        # The previously-stale tmp file must be gone (atomically replaced).
+        assert not (tmp_path / "state.json.tmp").exists()
+
+        # The new state.json contains the new content.
+        loaded = load_state()
+        assert loaded.wallet_address == "rNEW"
+        assert loaded.is_module_completed("failure_literacy")
+
+    def test_concurrent_save_load_no_partial_read(
+        self, tmp_path, monkeypatch,
+    ):
+        """Concurrent save_state + load_state never observe a partial JSON read.
+
+        The atomic write-then-rename guarantees readers either see the
+        previous full state or the new full state, never a half-written
+        document. We exercise that invariant by interleaving a small
+        number of save/load cycles in async tasks and asserting load_state
+        never raises JSONDecodeError.
+
+        This is intentionally NOT a stress test — small iteration count
+        keeps it deterministic in CI.
+        """
+        import asyncio
+
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+
+        from xrpl_lab.state import load_state, save_state
+
+        # Seed an initial valid state so load_state always has a target.
+        save_state(LabState(wallet_address="rSEED"))
+
+        loads_seen: list[LabState] = []
+        load_errors: list[Exception] = []
+
+        async def saver() -> None:
+            for i in range(20):
+                state = LabState(wallet_address=f"rSAVE_{i:03d}")
+                state.complete_module("receipt_literacy")
+                save_state(state)
+                # Yield to the loop so loader gets interleaved scheduling.
+                await asyncio.sleep(0)
+
+        async def loader() -> None:
+            for _ in range(20):
+                try:
+                    s = load_state()
+                    loads_seen.append(s)
+                except Exception as e:  # noqa: BLE001 — explicit capture
+                    load_errors.append(e)
+                await asyncio.sleep(0)
+
+        async def run_both() -> None:
+            await asyncio.gather(saver(), loader())
+
+        asyncio.run(run_both())
+
+        # No load ever raised — partial-read collisions impossible by design.
+        assert not load_errors, (
+            f"unexpected load errors during concurrent save/load: {load_errors}"
+        )
+        # And every load returned a wallet_address that was either the
+        # seed or a saver iteration — never a half-empty default that
+        # could only happen on a partial-write fall-through.
+        for s in loads_seen:
+            assert s.wallet_address is not None
+            assert s.wallet_address.startswith("rSAVE_") or s.wallet_address == "rSEED"
+
+    def test_corrupt_state_writes_versioned_backup_preserves_existing_bak(
+        self, tmp_path, monkeypatch,
+    ):
+        """Corrupt recovery uses state.json.corrupted.<ts>, never overwrites .bak.
+
+        Wave-1 changed corrupt-recovery to write a timestamped
+        ``state.json.corrupted.<ts>`` rather than clobbering a sibling
+        ``.bak``. This test seeds a pre-existing .bak (e.g. from a
+        previous unrelated tool or a manual snapshot) and asserts:
+
+          1. load_state on a corrupt state.json creates a .corrupted.<ts>
+             snapshot of the corrupt data.
+          2. Any pre-existing .bak file is left untouched.
+          3. load_state still returns a fresh fallback LabState.
+        """
+        import time as _time
+
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+
+        from xrpl_lab.state import load_state
+
+        # Pre-existing sibling .bak — represents a previous good snapshot.
+        bak_path = tmp_path / "state.json.bak"
+        bak_content = (
+            '{"version":"1.5.0","network":"testnet","wallet_address":"rPREVGOOD"}'
+        )
+        bak_path.write_text(bak_content, encoding="utf-8")
+        bak_mtime_before = bak_path.stat().st_mtime
+
+        # Now corrupt the active state.json.
+        corrupt_payload = "{this is not json"
+        (tmp_path / "state.json").write_text(corrupt_payload, encoding="utf-8")
+
+        # Capture timestamps before / after to bound the .corrupted.<ts> filename range.
+        ts_before = int(_time.time())
+        loaded = load_state()
+        ts_after = int(_time.time())
+
+        # Fallback is a fresh LabState (no modules completed).
+        assert loaded.completed_modules == []
+
+        # A .corrupted.<ts> file was created with the corrupt payload.
+        # The atomic-write helper appends the suffix via with_suffix,
+        # which replaces the trailing ".json" — so the filename pattern
+        # is ``state.json.corrupted.<ts>`` (parent dir, not nested).
+        corrupted_files = list(tmp_path.glob("state.json.corrupted.*"))
+        assert len(corrupted_files) == 1, (
+            f"expected exactly one corrupted backup, got {corrupted_files}"
+        )
+        corrupted = corrupted_files[0]
+        # The numeric ts suffix is bracketed by the wall-clock window.
+        ts_part = corrupted.name.rsplit(".", 1)[-1]
+        assert ts_part.isdigit(), f"corrupted backup name not ts-suffixed: {corrupted.name}"
+        ts_val = int(ts_part)
+        assert ts_before <= ts_val <= ts_after, (
+            f"corrupted backup ts {ts_val} outside [{ts_before}, {ts_after}]"
+        )
+        # And the corrupted backup contains the corrupt payload (proves
+        # we copied state.json, not garbage).
+        assert corrupted.read_text(encoding="utf-8") == corrupt_payload
+
+        # Pre-existing .bak is untouched (content + mtime).
+        assert bak_path.exists(), ".bak must not be deleted on corrupt recovery"
+        assert bak_path.read_text(encoding="utf-8") == bak_content
+        assert bak_path.stat().st_mtime == bak_mtime_before, (
+            ".bak mtime must not change — corrupt recovery must not overwrite it"
+        )

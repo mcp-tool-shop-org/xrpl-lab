@@ -289,3 +289,263 @@ class TestArtifactsSchema:
         model = ReportDetail(**data)
         assert model.module_id == "my_module"
         assert model.content == "Report body."
+
+
+# ── F-TESTS-B-005: snapshot tests for downstream xrpl-camp consumers ─
+
+
+class TestApiContractSnapshots:
+    """Pin response shapes for the downstream xrpl-camp consumer.
+
+    These tests use INLINE expected key sets (no third-party snapshot lib,
+    no fixture file). A future reader can see the full contract at a
+    glance, and a refactor that adds/removes/renames a field must update
+    the inline expected dict in the same diff — making the contract
+    change explicit and reviewable.
+
+    If a future test surfaces a real production bug, xfail-strict mark
+    it and flag for wave-3 — these tests do NOT modify production code.
+    """
+
+    def test_status_response_schema_locked(self, client: TestClient) -> None:
+        """GET /api/status must expose exactly the documented top-level keys.
+
+        Adding, removing, or renaming a key without updating the expected
+        set fails this test loud. xrpl-camp's TS types mirror this shape.
+        """
+        data = client.get("/api/status").json()
+
+        expected_keys = {
+            "modules_completed",
+            "modules_total",
+            "wallet_configured",
+            "wallet_address",
+            "last_run",
+            "workspace",
+            "current_module",
+            "current_track",
+            "current_mode",
+            "blockers",
+            "is_blocked",
+            "track_progress",
+            "has_proof_pack",
+            "has_certificate",
+            "report_count",
+        }
+
+        actual_keys = set(data.keys())
+        assert actual_keys == expected_keys, (
+            f"status response key drift:\n"
+            f"  added (in response, not expected): {actual_keys - expected_keys}\n"
+            f"  removed (in expected, not response): {expected_keys - actual_keys}\n"
+            f"  full response: {data!r}"
+        )
+
+        # Type contract — the integers are integers, the bools are bools,
+        # the lists are lists. xrpl-camp's TS types depend on these.
+        assert isinstance(data["modules_completed"], int)
+        assert isinstance(data["modules_total"], int)
+        assert isinstance(data["wallet_configured"], bool)
+        assert data["wallet_address"] is None or isinstance(data["wallet_address"], str)
+        assert isinstance(data["workspace"], str)
+        assert isinstance(data["blockers"], list)
+        assert isinstance(data["is_blocked"], bool)
+        assert isinstance(data["track_progress"], list)
+        assert isinstance(data["has_proof_pack"], bool)
+        assert isinstance(data["has_certificate"], bool)
+        assert isinstance(data["report_count"], int)
+
+    def test_doctor_response_schema_locked(
+        self, _env: None, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GET /api/doctor must expose exactly {overall, checks[]}.
+
+        Each check item must have exactly {name, status, message}. The
+        wave-1 schema migration removed legacy passed/detail/hint keys
+        from the response — this test pins that removal.
+        """
+        # Build a deterministic doctor report for stable assertion.
+        fake_report = DoctorReport(
+            checks=[
+                Check("Wallet", True, "Found: rZ123", ""),
+                Check("State file", True, "v1.5.0, 0 modules", ""),
+                Check("Workspace", False, "Cannot create", "Check perms"),
+            ]
+        )
+
+        async def _fake_run_doctor() -> DoctorReport:
+            return fake_report
+
+        import xrpl_lab.api.routes as routes_mod
+        monkeypatch.setattr(routes_mod, "run_doctor", _fake_run_doctor)
+
+        data = TestClient(create_app()).get("/api/doctor").json()
+
+        # Top-level keys frozen at exactly these two.
+        assert set(data.keys()) == {"overall", "checks"}, (
+            f"doctor response top-level keys drift: {set(data.keys())}"
+        )
+        # overall is one of the canonical strings.
+        assert data["overall"] in {"healthy", "warning", "error"}
+        # Each check has exactly the canonical 3-key shape.
+        for check in data["checks"]:
+            assert set(check.keys()) == {"name", "status", "message"}, (
+                f"doctor check key drift: {set(check.keys())}"
+            )
+            assert check["status"] in {"pass", "warn", "fail"}
+            assert isinstance(check["name"], str)
+            assert isinstance(check["message"], str)
+
+        # Old field names must be gone (catch a partial revert).
+        assert "all_passed" not in data
+        assert "summary" not in data
+        for check in data["checks"]:
+            assert "passed" not in check
+            assert "detail" not in check
+            assert "hint" not in check
+
+    def test_runs_list_response_schema_locked(self, client: TestClient) -> None:
+        """GET /api/runs (added wave-2 P1, commit d18f137) — locked schema.
+
+        Top-level: ``runs`` (list), ``max_concurrent`` (int), ``active_count`` (int).
+        Each run dict: ``run_id``, ``module_id``, ``status``, ``created_at``,
+        ``elapsed_seconds``, ``queue_size``, ``dry_run``.
+
+        Schema must hold even when no runs are active (the empty-list case
+        is the most common state for a fresh facilitator query).
+        """
+        resp = client.get("/api/runs")
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # Top-level shape locked.
+        assert set(data.keys()) == {"runs", "max_concurrent", "active_count"}, (
+            f"/api/runs top-level keys drift: {set(data.keys())}"
+        )
+        assert isinstance(data["runs"], list)
+        assert isinstance(data["max_concurrent"], int)
+        assert isinstance(data["active_count"], int)
+        assert data["max_concurrent"] >= 1
+        assert data["active_count"] >= 0
+        assert data["active_count"] <= data["max_concurrent"]
+
+        # Per-run-item schema (validate any items present, and seed one
+        # via runner_ws to guarantee at least one run-info dict gets
+        # exercised in this test).
+        # Inject a synthetic session into the in-memory store. Use the
+        # internal Session dataclass to ensure the dict shape matches.
+        from xrpl_lab.api import runner_ws
+
+        synthetic_run_id = "test_runs_schema_lock"
+        sess = runner_ws.ModuleRunSession(
+            run_id=synthetic_run_id,
+            module_id="receipt_literacy",
+            dry_run=False,
+            status="running",
+        )
+        runner_ws._sessions[synthetic_run_id] = sess
+        try:
+            data2 = client.get("/api/runs").json()
+            assert len(data2["runs"]) >= 1
+            expected_run_keys = {
+                "run_id",
+                "module_id",
+                "status",
+                "created_at",
+                "elapsed_seconds",
+                "queue_size",
+                "dry_run",
+            }
+            for run in data2["runs"]:
+                assert set(run.keys()) == expected_run_keys, (
+                    f"run-info key drift: "
+                    f"added {set(run.keys()) - expected_run_keys}, "
+                    f"removed {expected_run_keys - set(run.keys())}"
+                )
+                assert isinstance(run["run_id"], str)
+                assert isinstance(run["module_id"], str)
+                assert isinstance(run["status"], str)
+                assert isinstance(run["created_at"], str)
+                assert isinstance(run["elapsed_seconds"], (int, float))
+                assert isinstance(run["queue_size"], int)
+                assert isinstance(run["dry_run"], bool)
+        finally:
+            runner_ws._sessions.pop(synthetic_run_id, None)
+
+    def test_no_secret_field_in_any_response(
+        self, client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """No API response may include a key matching a secret-like name.
+
+        Belt-and-suspenders for the threat-model promise that wallet
+        secrets never leave the local machine. Iterates a representative
+        set of GET endpoints and recursively scans the JSON for any key
+        in the forbidden set. Catches:
+
+          - accidental serialisation of the wallet seed
+          - leaking ``password`` / ``private_key`` from a future endpoint
+          - inclusion of full wallet.json content in a status response
+        """
+        forbidden_keys = {
+            "seed",
+            "secret",
+            "private_key",
+            "privatekey",
+            "private-key",
+            "password",
+            "passphrase",
+            "mnemonic",
+            "wallet_json",
+            "wallet.json",
+            "encryption_key",
+        }
+
+        def _scan(obj: object, path: str = "$") -> list[str]:
+            """Recursively yield (key-path) for any forbidden key found."""
+            hits: list[str] = []
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    k_norm = str(k).lower().replace("-", "_").replace(".", "_")
+                    if k_norm in {fk.replace("-", "_").replace(".", "_") for fk in forbidden_keys}:
+                        hits.append(f"{path}.{k}")
+                    hits.extend(_scan(v, f"{path}.{k}"))
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    hits.extend(_scan(item, f"{path}[{i}]"))
+            return hits
+
+        # Set up reports to exercise the artifacts/reports list path.
+        ws = tmp_path / "ws"
+        reports_dir = ws / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        (reports_dir / "test_secrets.md").write_text(
+            "Some content.", encoding="utf-8",
+        )
+
+        endpoints_to_scan = [
+            "/api/status",
+            "/api/modules",
+            "/api/modules/receipt_literacy",
+            "/api/artifacts/proof-pack",
+            "/api/artifacts/certificate",
+            "/api/artifacts/reports",
+            "/api/runs",
+        ]
+
+        all_hits: list[tuple[str, str]] = []
+        for endpoint in endpoints_to_scan:
+            resp = client.get(endpoint)
+            # Some endpoints may legitimately 404 in the test env; skip those.
+            if resp.status_code == 404:
+                continue
+            assert resp.status_code == 200, (
+                f"unexpected status {resp.status_code} from {endpoint}"
+            )
+            payload = resp.json()
+            hits = _scan(payload)
+            for h in hits:
+                all_hits.append((endpoint, h))
+
+        assert not all_hits, (
+            f"forbidden secret-like keys found in API responses: {all_hits}"
+        )
