@@ -55,6 +55,9 @@ For workshops on a shared machine where multiple learners share an OS user (e.g.
 ### Threat model summary
 - Local private files (`~/.xrpl-lab/`) protect learner secrets from other OS users.
 - Workspace files (`./.xrpl-lab/`) are designed-readable for workshop handoff.
+
+The two-tier design solves the shared-machine problem: learners keep secrets in their private home directory while sharing evidence (proofs, reports, audit packs) through the workspace directory, so a facilitator giving feedback only needs `cat` permissions on the workspace — never SSH or password access to a learner's account.
+
 - See [the DD-1 implementation in xrpl_lab/state.py](xrpl_lab/state.py) for the per-directory mode policy.
 
 ## Network risks

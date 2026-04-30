@@ -71,6 +71,8 @@ It proves exactly what you checked and what the ledger said.
 
 ## Step 7: What about failures?
 
+**Why audits matter.** Auditing turns raw transaction data into *evidence* — a stable artifact that pairs each txid with the expectation you had for it and the verdict the ledger actually returned. That triple (txid + expectation + verdict) is what a facilitator uses to verify a learner's batch run, what an operator uses to confirm a deploy went through cleanly, and what a compliance hand-off attaches to a case file. Crucially, expectations encode *intent*: "this txid SHOULD have failed with `tecPATH_DRY` because the pool was empty" is a much stronger claim than "this txid failed," and an expectations-aware audit can mark it as a pass. The failure vocabulary below is what those verdicts look like when reality and expectation diverge.
+
 In a real audit, some transactions might fail checks:
 
 - **NOT_FOUND** — the txid doesn't exist on this network

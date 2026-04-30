@@ -29,6 +29,8 @@ This is not about which is "better." It's about understanding the
 tradeoffs so you can choose the right tool for the situation.
 Everything runs in dry-run mode — no real assets at risk.
 
+**Mental model.** A DEX order book makes you a *price-setter*: you decide the rate, post the offer, and wait for a taker. An AMM pool makes you a *formula-follower*: you deposit both sides of a pair into a pool that prices itself by a constant-product invariant (`x*y=k`), and the pool's price moves whenever anyone swaps against it. The differences in the bullets below — control, cost, risk, earnings — are downstream of that one split. Impermanent loss isn't a separate phenomenon you have to learn; it's just what the formula does to your position when the outside price moves and arbitrageurs rebalance the pool.
+
 **DEX order book:**
 - You control the exact price
 - Your offer sits until filled or cancelled
