@@ -406,14 +406,9 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
     # missing Origin means a non-browser client (CLI, integration test,
     # server-to-server). Per spec, mismatched Origin is rejected with
     # RFC 6455 application policy code 4003.
-    #
-    # Transition note (wave 1): we currently ALLOW missing Origin (None)
-    # so existing test fixtures keep passing. Wave 2's Tests agent should
-    # tighten this to also reject None once test fixtures pass an Origin
-    # explicitly. The browser CSRF vector is closed either way — browsers
-    # never send a missing Origin header on WS upgrades.
+    # Origin presence required; reject None or non-allow-listed values with RFC 6455 code 4003.
     origin = websocket.headers.get("origin")
-    if origin is not None and origin not in _ALLOWED_ORIGINS:
+    if origin is None or origin not in _ALLOWED_ORIGINS:
         logger.warning(
             "ws origin rejected: origin=%r run_id=%s",
             origin,
