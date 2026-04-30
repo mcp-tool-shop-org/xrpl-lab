@@ -18,7 +18,7 @@ fi
 
 echo "--- security: lock file integrity ---"
 if [ -f uv.lock ]; then
-    UV_PROJECT_ENVIRONMENT=/Users/michaelfrilot/.venvs/xrpl-lab uv lock --check || { echo "uv.lock out of date with pyproject.toml"; exit 1; }
+    uv lock --check || { echo "uv.lock out of date with pyproject.toml"; exit 1; }
 fi
 
 echo "--- build ---"
