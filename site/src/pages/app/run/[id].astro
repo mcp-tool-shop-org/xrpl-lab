@@ -130,6 +130,18 @@ const { id } = Astro.params;
     let steps: Array<{ action: string; status: 'pending' | 'running' | 'done' | 'failed' }> = [];
     let txids: string[] = [];
 
+    // WS reconnect state (F-FE-B-004)
+    const MAX_RECONNECT = 5;
+    const BASE_DELAY_MS = 500;
+    let reconnectAttempts = 0;
+    let userInitiatedClose = false;
+    let activeRunId: string | null = null;
+
+    // Suppress reconnect on page navigation
+    window.addEventListener('beforeunload', () => {
+      userInitiatedClose = true;
+    });
+
     // Elements
     const terminal = document.getElementById('terminal')!;
     const stepList = document.getElementById('step-list')!;
@@ -196,12 +208,96 @@ const { id } = Astro.params;
       }).join('');
     }
 
+    // Connect (or reconnect) to the run WebSocket. Uses module-scoped
+    // activeRunId so reconnect attempts target the same run.
+    function connectWS() {
+      const wsBase = API_BASE.replace(/^http/, 'ws');
+      ws = new WebSocket(`${wsBase}/api/run/${moduleId}/ws?run_id=${activeRunId}`);
+
+      let firstMessageSeen = false;
+
+      ws.addEventListener('message', (event) => {
+        // Reset reconnect budget once the new socket has actually delivered data,
+        // so a transient blip every ~30s doesn't burn the attempt budget over time.
+        if (!firstMessageSeen) {
+          firstMessageSeen = true;
+          reconnectAttempts = 0;
+        }
+        try {
+          const msg = JSON.parse(event.data);
+          handleMessage(msg);
+        } catch {
+          // ignore
+        }
+      });
+
+      ws.addEventListener('close', (event) => {
+        // Run already finished (complete handler ran) or page is unloading — don't reconnect.
+        if (!running || userInitiatedClose) return;
+
+        // Normal closure (1000) / going-away (1001): server signaled clean end.
+        if (event.code === 1000 || event.code === 1001) {
+          statusLabel.textContent = 'Connection closed';
+          statusLabel.className = 'text-sm text-amber-400 ml-2';
+          termAppend('\n[run complete]', 'text-emerald-400');
+          running = false;
+          btnRun.disabled = false;
+          btnDry.disabled = false;
+          return;
+        }
+
+        // Origin rejection (4003): config error, retrying won't help.
+        if (event.code === 4003) {
+          statusLabel.textContent = 'Origin rejected';
+          statusLabel.className = 'text-sm text-red-400 ml-2';
+          termAppend('\n[disconnected] Origin rejected — server config issue. Refresh after fixing.', 'text-red-400');
+          running = false;
+          btnRun.disabled = false;
+          btnDry.disabled = false;
+          return;
+        }
+
+        if (reconnectAttempts >= MAX_RECONNECT) {
+          statusLabel.textContent = 'Disconnected';
+          statusLabel.className = 'text-sm text-red-400 ml-2';
+          termAppend(`\n[disconnected] Max reconnect attempts (${MAX_RECONNECT}) reached. Refresh to retry.`, 'text-red-400');
+          running = false;
+          btnRun.disabled = false;
+          btnDry.disabled = false;
+          return;
+        }
+
+        const delay = BASE_DELAY_MS * Math.pow(2, reconnectAttempts);
+        const attemptNum = reconnectAttempts + 1;
+        statusLabel.textContent = `Reconnecting (${attemptNum}/${MAX_RECONNECT})...`;
+        statusLabel.className = 'text-sm text-amber-400 ml-2 animate-pulse';
+        termAppend(
+          `\n[reconnecting] WS dropped (code=${event.code}). Retry in ${delay / 1000}s (attempt ${attemptNum}/${MAX_RECONNECT})`,
+          'text-amber-400'
+        );
+        reconnectAttempts++;
+        setTimeout(() => {
+          // Re-check before reconnecting in case state changed during the delay.
+          if (running && !userInitiatedClose) {
+            connectWS();
+          }
+        }, delay);
+      });
+
+      ws.addEventListener('error', () => {
+        termAppend('[error] WebSocket connection failed.', 'text-red-400');
+      });
+    }
+
     // Start a run
     async function startRun(dryRun: boolean) {
       if (running) return;
       running = true;
       steps = [];
       txids = [];
+      reconnectAttempts = 0;
+      userInitiatedClose = false;
+      activeRunId = null;
 
       btnRun.disabled = true;
       btnDry.disabled = true;
@@ -222,38 +318,13 @@ const { id } = Astro.params;
           throw new Error(`API returned ${res.status}`);
         }
         const result = await res.json();
-        const runId = result.run_id;
+        activeRunId = result.run_id;
 
-        termAppend(`[${modeLabel}] Run ID: ${runId}`, 'text-slate-500');
+        termAppend(`[${modeLabel}] Run ID: ${activeRunId}`, 'text-slate-500');
         statusLabel.textContent = `Running...`;
 
-        // Connect WebSocket
-        const wsBase = API_BASE.replace(/^http/, 'ws');
-        ws = new WebSocket(`${wsBase}/api/run/${moduleId}/ws?run_id=${runId}`);
-
-        ws.addEventListener('message', (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            handleMessage(msg);
-          } catch {
-            // ignore
-          }
-        });
-
-        ws.addEventListener('close', () => {
-          if (running) {
-            statusLabel.textContent = 'Connection closed';
-            statusLabel.className = 'text-sm text-amber-400 ml-2';
-            termAppend('\n[disconnected] WebSocket closed. If the run is still going, refresh to reconnect.', 'text-amber-400');
-            running = false;
-            btnRun.disabled = false;
-            btnDry.disabled = false;
-          }
-        });
-
-        ws.addEventListener('error', () => {
-          termAppend('[error] WebSocket connection failed.', 'text-red-400');
-        });
+        // Connect WebSocket (auto-reconnect on transient drop, F-FE-B-004)
+        connectWS();
 
       } catch (err: any) {
         termAppend(`[error] ${err.message || 'Failed to start run'}`, 'text-red-400');
