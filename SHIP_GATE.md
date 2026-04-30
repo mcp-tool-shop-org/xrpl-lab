@@ -7,6 +7,13 @@
 
 **Detected:** `[all]` `[pypi]` `[cli]`
 
+> **Date semantics:** Each item's date reflects the most-recent
+> human verification. SHIP_GATE.md is re-stamped at every release as
+> part of the shipcheck audit pass — items remain checked across
+> releases until shipcheck flags them, at which point dates refresh.
+> Dates older than the current release version indicate items
+> verified at an earlier release that haven't been re-checked since.
+
 ---
 
 ## A. Security Baseline
