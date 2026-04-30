@@ -152,8 +152,13 @@ def load_state() -> LabState:
                 )
             return LabState.model_validate(data)
         except (json.JSONDecodeError, ValueError, ValidationError):
-            # Corrupted state — backup then start fresh
-            bak = p.with_suffix('.json.bak')
+            # Corrupted state — back up to a versioned name so we never clobber
+            # a previous last-good .bak with the corrupt current. The atomic
+            # write path in save_state means an existing state.json.bak from
+            # any earlier run is the most recent intact snapshot we have, and
+            # corrupt-recovery should preserve, not overwrite, that file.
+            ts = int(time.time())
+            bak = p.with_suffix(f'.json.corrupted.{ts}')
             try:
                 shutil.copy2(p, bak)
                 print(
@@ -170,14 +175,55 @@ def load_state() -> LabState:
 
 
 def save_state(state: LabState) -> None:
-    """Persist state to disk."""
+    """Persist state to disk via atomic write-then-rename.
+
+    Writes to ``state.json.tmp`` first, then ``os.replace``s it onto
+    ``state.json``. Process death mid-write leaves the previous
+    ``state.json`` intact (the orphan ``.tmp`` is harmless and gets
+    overwritten on the next save via O_EXCL retry-after-cleanup).
+
+    Same TOCTOU class as the wallet seed file (F-BACKEND-NEW-001):
+    the wallet uses O_TRUNC because a corrupt seed is recoverable from
+    the user's mnemonic; state.json holds incrementally-appended module
+    progress + tx history that has no external recovery source, so we
+    use temp+rename to guarantee the previous good copy survives.
+
+    The orphan ``.tmp`` cleanup unlink propagates a re-raise of the
+    original write exception per wave-1 discipline — no
+    contextlib.suppress, no silent OSError swallow.
+    """
     state.updated_at = time.time()
     p = state_path()
     p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(p.suffix + '.tmp')
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    # If a stale .tmp survived a previous crashed save, O_EXCL would
+    # block us forever. Clear it so the current save can proceed; the
+    # stale data is, by definition, partial/unknown and not safe to keep.
+    # Explicit try/except (not contextlib.suppress) — wave-1 wallet TOCTOU
+    # bug came from broad silent suppression; keep cleanup paths obvious
+    # so a future reader doesn't repeat that mistake.
+    if tmp.exists():
+        try:  # noqa: SIM105 — explicit per wave-1 discipline
+            tmp.unlink()
+        except OSError:
+            pass
+    fd = os.open(tmp, flags, 0o600)
     try:
-        p.write_text(state.model_dump_json(indent=2), encoding="utf-8")
-    except OSError as e:
-        print(f"Warning: could not save state: {e}", file=sys.stderr)
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(state.model_dump_json(indent=2))
+        os.replace(tmp, p)
+    except Exception:
+        # Cleanup orphan tmp on failure, then re-raise. Wave-1 antipattern
+        # was silently swallowing OSError on the WRITE — that's distinct
+        # from the cleanup-of-cleanup OSError here, which we ignore by
+        # design (we're already in an exception path).
+        if tmp.exists():
+            try:  # noqa: SIM105 — explicit per wave-1 discipline
+                tmp.unlink()
+            except OSError:
+                pass
+        raise
 
 
 def reset_state() -> None:

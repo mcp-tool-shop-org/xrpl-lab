@@ -123,3 +123,87 @@ class TestStatePersistence:
 
         assert not (tmp_path / "state.json").exists()
         assert not (tmp_path / "ws").exists()
+
+
+class TestStateAtomicWrite:
+    """Verify save_state uses write-to-temp + atomic rename (F-BACKEND-B-005).
+
+    Same class of bug as the wallet TOCTOU fix in wave 1: process death
+    mid-write must not corrupt the destination file.
+    """
+
+    def test_save_state_creates_intermediate_tmp_file(self, tmp_path, monkeypatch):
+        """save_state opens state.json.tmp before atomically replacing state.json."""
+        import os as _os
+
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+
+        from xrpl_lab.state import save_state
+
+        opened_paths: list[str] = []
+        replaced: list[tuple[str, str]] = []
+
+        real_open = _os.open
+        real_replace = _os.replace
+
+        def spy_open(path, flags, mode=0o777, *args, **kwargs):
+            opened_paths.append(str(path))
+            return real_open(path, flags, mode, *args, **kwargs)
+
+        def spy_replace(src, dst, *args, **kwargs):
+            replaced.append((str(src), str(dst)))
+            return real_replace(src, dst, *args, **kwargs)
+
+        monkeypatch.setattr("xrpl_lab.state.os.open", spy_open)
+        monkeypatch.setattr("xrpl_lab.state.os.replace", spy_replace)
+
+        save_state(LabState(wallet_address="rTEST"))
+
+        # The tmp path must be opened
+        tmp_target = str(tmp_path / "state.json.tmp")
+        final_target = str(tmp_path / "state.json")
+        assert any(p == tmp_target for p in opened_paths), (
+            f"expected os.open of {tmp_target}, saw {opened_paths}"
+        )
+        # And os.replace must have moved tmp -> final
+        assert (tmp_target, final_target) in replaced, (
+            f"expected os.replace({tmp_target!r}, {final_target!r}), saw {replaced}"
+        )
+        # Final file exists, tmp is gone
+        assert (tmp_path / "state.json").exists()
+        assert not (tmp_path / "state.json.tmp").exists()
+
+    def test_save_state_recovers_from_partial_write_via_replace(
+        self, tmp_path, monkeypatch
+    ):
+        """Mid-write failure: previous state.json intact, no orphan .tmp, exception propagates."""
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+
+        from xrpl_lab.state import save_state
+
+        # First save: establish a known-good state.json on disk
+        good = LabState(wallet_address="rGOOD")
+        good.complete_module("receipt_literacy", txids=["GOOD_TX"])
+        save_state(good)
+
+        original_bytes = (tmp_path / "state.json").read_bytes()
+
+        # Now monkeypatch model_dump_json to raise mid-write so the .tmp
+        # file gets opened (O_EXCL succeeds) but the write into it fails.
+        def boom(self, *a, **kw):
+            raise RuntimeError("simulated mid-write failure")
+
+        monkeypatch.setattr(LabState, "model_dump_json", boom)
+
+        bad = LabState(wallet_address="rBAD")
+        try:
+            save_state(bad)
+        except RuntimeError as e:
+            assert "simulated mid-write failure" in str(e)
+        else:
+            raise AssertionError("save_state must re-raise the write failure")
+
+        # The previous good state.json must be untouched (no atomic replace ran)
+        assert (tmp_path / "state.json").read_bytes() == original_bytes
+        # The orphan .tmp must be cleaned up
+        assert not (tmp_path / "state.json.tmp").exists()
