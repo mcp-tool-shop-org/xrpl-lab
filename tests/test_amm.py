@@ -549,3 +549,71 @@ class TestAmmBoundaries:
         assert abs(lp_after - lp_before) <= one_drop, (
             f"lp_supply drift: {lp_before} -> {lp_after}"
         )
+
+    @pytest.mark.asyncio
+    async def test_amm_deposit_too_small_rejects_with_clear_code(self, transport):
+        """F-BRIDGE-B-AMM-ZERO-LP edge 1 — deposit that mints 0 LP rejects.
+
+        With a 1e10:1e10 pool (lp_supply = 1e10) and a sub-drop deposit
+        (1e-7 each side), binding_ratio = 1e-17 → lp_minted = 1e-7, which
+        quantizes to 0 at 6-decimal precision. Previously the deposit
+        ``succeeded`` and the depositor received nothing in exchange. Now
+        we surface tecAMM_INVALID_TOKENS with a hint to deposit more.
+
+        We use sub-drop magnitudes (1e-7) here — at exactly 1 drop both
+        sides, lp_minted == 1 drop and the deposit is correctly accepted.
+        """
+        # Seed an existing pool so we hit the subsequent-LP path.
+        await transport.submit_amm_create(
+            "sFAKE", "XRP", "10000000000", "", "LAB", "10000000000", "rISSUER",
+        )
+
+        # Sub-drop on each side — too small to mint a measurable LP share.
+        result = await transport.submit_amm_deposit(
+            "sFAKE", "XRP", "0.0000001", "", "LAB", "0.0000001", "rISSUER",
+        )
+
+        assert not result.success
+        assert result.result_code == "tecAMM_INVALID_TOKENS"
+        assert "too small" in result.error.lower() or "0 lp" in result.error.lower()
+
+        # Pool must be unchanged.
+        info = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        assert Decimal(info.pool_a) == Decimal("10000000000")
+        assert Decimal(info.pool_b) == Decimal("10000000000")
+
+    @pytest.mark.asyncio
+    async def test_amm_withdraw_below_dust_threshold_rejects(self, transport):
+        """F-BRIDGE-B-AMM-ZERO-LP edge 2 — withdraw leaving sub-dust pool rejects.
+
+        After creation the depositor holds the full LP supply. A withdraw
+        that burns all-but-a-fraction-of-a-drop of LP would leave the pool
+        in a dust state (positive but below 0.000001 LP supply) — pool is
+        effectively unusable from there. We reject with tecAMM_BALANCE and
+        tell the caller to withdraw all remaining LP instead.
+        """
+        # Pool with lp_supply = sqrt(100*100) = 100.
+        await transport.submit_amm_create(
+            "sFAKE", "XRP", "100", "", "LAB", "100", "rISSUER",
+        )
+        info = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        total_lp = Decimal(info.lp_supply)
+        assert total_lp == Decimal("100")
+
+        # Burn (100 - 0.0000005) — leaves 0.0000005 LP, which is positive
+        # but below the 6-decimal floor. Must be rejected.
+        burn = total_lp - Decimal("0.0000005")
+        result = await transport.submit_amm_withdraw(
+            "sFAKE", "XRP", "", "LAB", "rISSUER",
+            lp_token_value=str(burn),
+        )
+
+        assert not result.success
+        assert result.result_code == "tecAMM_BALANCE"
+        assert "dust" in result.error.lower()
+
+        # Pool must be unchanged.
+        info_after = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        assert Decimal(info_after.lp_supply) == Decimal("100")
+        assert Decimal(info_after.pool_a) == Decimal("100")
+        assert Decimal(info_after.pool_b) == Decimal("100")

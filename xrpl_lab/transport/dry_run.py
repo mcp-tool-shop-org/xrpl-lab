@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, getcontext
 
 from .base import (
     AccountSnapshot,
@@ -16,6 +16,16 @@ from .base import (
     Transport,
     TrustLineInfo,
     TxInfo,
+)
+
+# F-BRIDGE-B-AMM-ZERO-LP edge case 3: Decimal context precision sanity check.
+# AMM math (e.g. sqrt of 1e17 * 1e17 at the XRPL drop-supply ceiling) needs
+# at least 18 digits to avoid silent precision loss. The stdlib default is
+# 28; this assertion catches a future module-level caller that lowers it
+# (e.g. ``getcontext().prec = 6``) before we'd otherwise discover the drift
+# through a downstream rounding bug.
+assert getcontext().prec >= 18, (
+    f"Decimal precision must be >=18 for AMM math; got {getcontext().prec}"
 )
 
 # Deterministic fake data for offline use
@@ -146,9 +156,35 @@ class DryRunTransport(Transport):
                 error=f"[dry-run] Invalid amount: {amount}",
             )
 
-        txid = self._next_txid()
         sender = _address_from_seed(wallet_seed)
         drops = int(numeric_amount * Decimal("1000000"))
+
+        # F-BRIDGE-B-DRY-NEG-BAL: pre-validate sender balance before debiting.
+        # Previously the debit ran unconditionally, allowing a funded sender's
+        # balance to go negative; ``get_balance()`` then clamped the display
+        # to "0" and masked the violation. We now match testnet behavior and
+        # return tecUNFUNDED_PAYMENT.
+        #
+        # Scope guard: only enforce when the sender has a tracked balance
+        # (i.e., was funded or previously transacted). Unfunded senders have
+        # never been balance-checked in this transport — leaving that path
+        # alone preserves existing test fixtures that submit_payment without
+        # first calling fund_from_faucet.
+        if sender in self._balances:
+            current_balance = self._balances[sender]
+            if drops > current_balance:
+                return SubmitResult(
+                    success=False,
+                    txid="",
+                    result_code="tecUNFUNDED_PAYMENT",
+                    fee="12",
+                    error=(
+                        f"[dry-run] insufficient XRP balance: "
+                        f"have {current_balance}, need {drops}"
+                    ),
+                )
+
+        txid = self._next_txid()
         self._balances[sender] = self._balances.get(sender, 0) - drops
         self._balances[destination] = self._balances.get(destination, 0) + drops
         return SubmitResult(
@@ -670,6 +706,23 @@ class DryRunTransport(Transport):
                 _six, rounding=ROUND_HALF_UP,
             )
 
+        # F-BRIDGE-B-AMM-ZERO-LP edge case 1: deposit too small for 6-decimal
+        # LP precision. If the quantized lp_minted is 0 (and there was a real
+        # deposit attempt), reject — otherwise balances debit and the
+        # depositor receives nothing in exchange. The ``deposit_a > 0 or
+        # deposit_b > 0`` guard preserves the genuinely-zero-deposit no-op
+        # path (already covered by other validation upstream).
+        if lp_minted == Decimal("0") and (deposit_a > 0 or deposit_b > 0):
+            return SubmitResult(
+                success=False,
+                result_code="tecAMM_INVALID_TOKENS",
+                fee="12",
+                error=(
+                    "[dry-run] deposit too small: would mint 0 LP at "
+                    "6-decimal precision; deposit a larger amount"
+                ),
+            )
+
         # Update pool balances by the actually-taken amounts (refund of the
         # non-binding side stays with the depositor and is never debited).
         pool["pool_a"] = str((old_a + actual_a_taken).quantize(_six, rounding=ROUND_HALF_UP))
@@ -742,11 +795,32 @@ class DryRunTransport(Transport):
                 ),
             )
 
-        txid = self._next_txid()
-
         # Calculate proportional withdrawal
         _six = Decimal("0.000001")
         total_lp = Decimal(pool["lp_supply"])
+
+        # F-BRIDGE-B-AMM-ZERO-LP edge case 2: post-withdraw dust state. If the
+        # raw remaining lp_supply would be positive but below the 6-decimal
+        # floor (0.000001), the pool is unrecoverable — subsequent deposits
+        # would div-by-near-zero on binding_ratio, and further withdraws
+        # can't extract anything meaningful. Reject and tell the caller to
+        # withdraw all remaining LP instead. Check is on the raw (un-quantized)
+        # value so we catch deltas that would round down to zero or up to the
+        # dust floor.
+        raw_lp_after = total_lp - burn_lp
+        if raw_lp_after > Decimal("0") and raw_lp_after < Decimal("0.000001"):
+            return SubmitResult(
+                success=False,
+                result_code="tecAMM_BALANCE",
+                fee="12",
+                error=(
+                    "[dry-run] withdraw would leave pool in dust state "
+                    "(lp_supply < 0.000001); withdraw all remaining LP instead"
+                ),
+            )
+
+        txid = self._next_txid()
+
         ratio = burn_lp / total_lp if total_lp > 0 else Decimal("0")
 
         keep = Decimal("1") - ratio

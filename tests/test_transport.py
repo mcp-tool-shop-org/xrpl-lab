@@ -86,3 +86,34 @@ class TestDryRunTransport:
         r1 = await transport.submit_payment("s", "r", "1")
         r2 = await transport.submit_payment("s", "r", "1")
         assert r1.txid != r2.txid
+
+    @pytest.mark.asyncio
+    async def test_payment_rejects_when_insufficient_balance(self, transport):
+        """F-BRIDGE-B-DRY-NEG-BAL — funded sender can't go negative.
+
+        Previously submit_payment debited unconditionally; the sender's
+        balance went negative and ``get_balance()`` clamped the display to
+        "0", masking the violation. The fix pre-validates the balance and
+        returns tecUNFUNDED_PAYMENT (matching real testnet behavior).
+        """
+        # Fund the sender so its balance is tracked (1000 XRP = 1e9 drops).
+        from xrpl_lab.transport.dry_run import _DRY_RUN_WALLET_ADDRESS
+
+        await transport.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
+
+        # Attempt to send 2000 XRP — double the balance. Must be rejected.
+        result = await transport.submit_payment(
+            wallet_seed="sFAKESEED",
+            destination="rDEST",
+            amount="2000",
+        )
+
+        assert result.success is False
+        assert result.result_code == "tecUNFUNDED_PAYMENT"
+        assert result.txid == ""
+        assert "insufficient" in result.error.lower()
+
+        # Sender balance must NOT have been debited on rejection.
+        balance = await transport.get_balance(_DRY_RUN_WALLET_ADDRESS)
+        # 1000 XRP, untouched.
+        assert balance == "1000.000000"
