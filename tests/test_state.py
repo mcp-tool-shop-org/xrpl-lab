@@ -1,6 +1,9 @@
 """Tests for state management."""
 
+import os
+import sys
 
+import pytest
 
 from xrpl_lab import __version__
 from xrpl_lab.state import LabState
@@ -386,3 +389,176 @@ class TestStatePartialWriteRecovery:
         assert bak_path.stat().st_mtime == bak_mtime_before, (
             ".bak mtime must not change — corrupt recovery must not overwrite it"
         )
+
+
+# ── DD-1: workspace/home dir mode policy ─────────────────────────────
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX file modes — Windows uses ACLs, not 0o700/0o755",
+)
+class TestEnsureDirModeHelper:
+    """The state._ensure_dir_mode helper centralizes the wave-1 wallet
+    upgrade-tighten pattern (mkdir(mode=) + post-mkdir os.chmod) so the
+    other 8 mkdir sites in the package can apply the per-dir threat-model
+    classification without copy-pasting the discipline."""
+
+    def test_creates_dir_with_requested_mode(self, tmp_path):
+        from xrpl_lab.state import _ensure_dir_mode
+
+        target = tmp_path / "fresh"
+        _ensure_dir_mode(target, 0o700)
+        mode = target.stat().st_mode & 0o777
+        assert mode == 0o700, (
+            f"expected 0o700 on creation, got 0o{mode:o}"
+        )
+
+    def test_tightens_existing_loose_dir(self, tmp_path):
+        from xrpl_lab.state import _ensure_dir_mode
+
+        target = tmp_path / "loose"
+        target.mkdir(mode=0o755)
+        os.chmod(target, 0o755)  # guard against umask interference
+        assert (target.stat().st_mode & 0o777) == 0o755
+
+        _ensure_dir_mode(target, 0o700)
+        mode = target.stat().st_mode & 0o777
+        assert mode == 0o700, (
+            f"expected loose 0o755 to be tightened to 0o700, got 0o{mode:o}"
+        )
+
+    def test_loosens_existing_tight_dir_to_match_classification(self, tmp_path):
+        """If a workspace dir was previously 0o700 (e.g. left over from
+        an earlier run that ran issuer-wallet save), DD-1 says workspace
+        is 0o755. The helper must converge to whatever mode is requested."""
+        from xrpl_lab.state import _ensure_dir_mode
+
+        target = tmp_path / "tight"
+        target.mkdir(mode=0o700)
+        os.chmod(target, 0o700)
+        assert (target.stat().st_mode & 0o777) == 0o700
+
+        _ensure_dir_mode(target, 0o755)
+        mode = target.stat().st_mode & 0o777
+        assert mode == 0o755
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX file modes — Windows uses ACLs",
+)
+class TestHomeDirModePrivate:
+    """DD-1: ~/.xrpl-lab/ holds the wallet seed + state — single-user
+    private. Must be 0o700 on creation AND tightened on existing loose
+    installs (upgrade path matches the wave-1 wallet pattern)."""
+
+    def test_ensure_home_dir_creates_at_0o700(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path / "h")
+
+        from xrpl_lab.state import ensure_home_dir
+
+        home = ensure_home_dir()
+        mode = home.stat().st_mode & 0o777
+        assert mode == 0o700
+
+    def test_save_state_parent_dir_is_0o700(self, tmp_path, monkeypatch):
+        """save_state's parent dir creation must classify private."""
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path / "h")
+
+        from xrpl_lab.state import save_state, state_path
+
+        save_state(LabState(wallet_address="rTEST"))
+        parent = state_path().parent
+        mode = parent.stat().st_mode & 0o777
+        assert mode == 0o700, (
+            f"home dir holding state.json must be 0o700, got 0o{mode:o}"
+        )
+
+    def test_save_state_tightens_existing_loose_home(self, tmp_path, monkeypatch):
+        """Upgrade path: an earlier xrpl-lab version left ~/.xrpl-lab at 0o755."""
+        home = tmp_path / "h"
+        home.mkdir(mode=0o755)
+        os.chmod(home, 0o755)
+        assert (home.stat().st_mode & 0o777) == 0o755
+
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", home)
+
+        from xrpl_lab.state import save_state
+
+        save_state(LabState())
+        mode = home.stat().st_mode & 0o777
+        assert mode == 0o700, (
+            f"loose home dir must be tightened to 0o700, got 0o{mode:o}"
+        )
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX file modes — Windows uses ACLs",
+)
+class TestWorkspaceDirModeShareable:
+    """DD-1: ./.xrpl-lab/{proofs,reports,logs,audit_packs}/ is workshop-
+    shareable (facilitator handoff at session end, no secrets per the
+    threat model). Default 0o755.
+
+    These are regression tests: 0o755 stays 0o755 so any future tightening
+    must be intentional (e.g. updating the threat model first)."""
+
+    def test_ensure_workspace_subdirs_are_0o755(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws",
+        )
+
+        from xrpl_lab.state import ensure_workspace
+
+        ws = ensure_workspace()
+        for sub in ("proofs", "reports", "logs", "audit_packs"):
+            mode = (ws / sub).stat().st_mode & 0o777
+            assert mode == 0o755, (
+                f"workspace subdir {sub!r} expected 0o755 (workshop-"
+                f"shareable per DD-1), got 0o{mode:o}"
+            )
+
+    def test_workspace_root_is_0o755(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws",
+        )
+
+        from xrpl_lab.state import ensure_workspace
+
+        ws = ensure_workspace()
+        mode = ws.stat().st_mode & 0o777
+        assert mode == 0o755
+
+    def test_proof_pack_writes_to_0o755_dir(self, tmp_path, monkeypatch):
+        """write_proof_pack creates the proofs/ dir; must land at 0o755."""
+        monkeypatch.setattr(
+            "xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws",
+        )
+
+        from xrpl_lab.reporting import write_proof_pack
+
+        path = write_proof_pack(LabState(wallet_address="rTEST"))
+        mode = path.parent.stat().st_mode & 0o777
+        assert mode == 0o755
+
+    def test_audit_pack_writes_to_0o755_dir(self, tmp_path):
+        """write_audit_pack creates the audit_packs/ dir at 0o755."""
+        from xrpl_lab.audit import (
+            AuditConfig,
+            AuditReport,
+            write_audit_pack,
+        )
+
+        report = AuditReport(
+            verdicts=[],
+            config=AuditConfig(),
+            endpoint="https://test",
+            tool_version=__version__,
+            timestamp="2026-04-30T00:00:00Z",
+        )
+        target = tmp_path / "ws" / "audit_packs" / "audit.json"
+        write_audit_pack(report, target)
+        mode = target.parent.stat().st_mode & 0o777
+        assert mode == 0o755

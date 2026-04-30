@@ -13,6 +13,7 @@ from pathlib import Path
 import click
 
 from . import __version__
+from .state import WORKSPACE_DIR_MODE, _ensure_dir_mode
 from .transport.base import Transport, TxInfo
 
 # ── Failure reason codes ─────────────────────────────────────────────
@@ -333,14 +334,17 @@ def write_audit_report_md(report: AuditReport, path: Path) -> Path:
 
     lines.append("")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
+    # DD-1: audit reports are workshop-shareable (facilitator handoff,
+    # no secrets per threat model). 0o755.
+    _ensure_dir_mode(path.parent, WORKSPACE_DIR_MODE)
     path.write_text("\n".join(lines), encoding="utf-8")
     return path
 
 
 def write_audit_report_csv(report: AuditReport, path: Path) -> Path:
     """Write a CSV audit report."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    # DD-1: audit reports are workshop-shareable. 0o755.
+    _ensure_dir_mode(path.parent, WORKSPACE_DIR_MODE)
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([
@@ -423,7 +427,9 @@ def write_audit_pack(report: AuditReport, path: Path) -> Path:
     sha = hashlib.sha256(canonical.encode()).hexdigest()
     pack["integrity_sha256"] = sha
 
-    path.parent.mkdir(parents=True, exist_ok=True)
+    # DD-1: audit packs are workshop-shareable (facilitator handoff,
+    # no secrets per threat model). 0o755.
+    _ensure_dir_mode(path.parent, WORKSPACE_DIR_MODE)
     path.write_text(
         json.dumps(pack, indent=2, sort_keys=True), encoding="utf-8"
     )

@@ -19,6 +19,34 @@ DEFAULT_HOME_DIR = Path.home() / ".xrpl-lab"
 DEFAULT_WORKSPACE_DIR = Path(".xrpl-lab")
 DEFAULT_NETWORK = "testnet"
 
+# DD-1: per-dir threat-model classification.
+# Home dir holds wallet seed + state — single-user private. The workspace
+# subdirs (proofs/, reports/, audit_packs/, logs/) are workshop-shareable
+# (facilitator handoff at session end; threat model says no secrets in
+# workspace). Mirrors the wave-1 wallet upgrade-tighten pattern: mkdir(mode=)
+# on new install + post-mkdir os.chmod for existing 0o755 dirs from earlier
+# versions. chmod failures propagate per wave-1 discipline.
+HOME_DIR_MODE = 0o700
+WORKSPACE_DIR_MODE = 0o755
+
+
+def _ensure_dir_mode(path: Path, mode: int) -> None:
+    """Create ``path`` at ``mode`` (POSIX) and tighten/loosen if it already exists.
+
+    ``Path.mkdir(mode=...)`` only honors ``mode`` on creation, so directories
+    left over from earlier xrpl-lab versions stay at their original (often
+    0o755) mode. The post-mkdir chmod fixes those existing installs.
+
+    chmod failures propagate intentionally — wave-1 discipline. The user
+    must know when their dir is in a state we cannot secure. Windows uses
+    ACLs rather than POSIX modes so the chmod step is skipped there.
+    """
+    path.mkdir(parents=True, exist_ok=True, mode=mode)
+    if sys.platform != "win32":
+        current = path.stat().st_mode & 0o777
+        if current != mode:
+            os.chmod(path, mode)
+
 
 class CompletedModule(BaseModel):
     """Record of a completed module."""
@@ -115,17 +143,23 @@ def get_workspace_dir() -> Path:
 
 
 def ensure_home_dir() -> Path:
-    """Create home dir if it doesn't exist."""
+    """Create home dir if it doesn't exist (DD-1: 0o700 single-user private)."""
     home = get_home_dir()
-    home.mkdir(parents=True, exist_ok=True)
+    _ensure_dir_mode(home, HOME_DIR_MODE)
     return home
 
 
 def ensure_workspace() -> Path:
-    """Create workspace directories if they don't exist."""
+    """Create workspace directories if they don't exist (DD-1: 0o755 workshop-shareable).
+
+    The workspace + its subdirs (proofs/, reports/, logs/, audit_packs/)
+    are facilitator-shareable at session end and contain no secrets per
+    the threat model. They get 0o755 (owner-write, group/world-read).
+    """
     ws = get_workspace_dir()
-    for sub in ("proofs", "reports", "logs"):
-        (ws / sub).mkdir(parents=True, exist_ok=True)
+    _ensure_dir_mode(ws, WORKSPACE_DIR_MODE)
+    for sub in ("proofs", "reports", "logs", "audit_packs"):
+        _ensure_dir_mode(ws / sub, WORKSPACE_DIR_MODE)
     return ws
 
 
@@ -194,7 +228,9 @@ def save_state(state: LabState) -> None:
     """
     state.updated_at = time.time()
     p = state_path()
-    p.parent.mkdir(parents=True, exist_ok=True)
+    # DD-1: state.json lives in ~/.xrpl-lab/ alongside wallet.json
+    # (single-user private). 0o700 to match the wave-1 wallet upgrade.
+    _ensure_dir_mode(p.parent, HOME_DIR_MODE)
     tmp = p.with_suffix(p.suffix + '.tmp')
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
     # If a stale .tmp survived a previous crashed save, O_EXCL would

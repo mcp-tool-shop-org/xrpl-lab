@@ -2,10 +2,14 @@
 
 import asyncio
 import json
+import sys
+
+import pytest
 
 from xrpl_lab.doctor import (
     Check,
     DoctorReport,
+    _append_doctor_log,
     _check_env_overrides,
     _check_last_error,
     _check_last_module_state,
@@ -353,3 +357,49 @@ class TestDoctorFailureModes:
         # ambiguity, and the doctor surfaces the in-flight module.
         hints = diagnose_recovery(state)
         assert isinstance(hints, list)
+
+
+# ── DD-1: doctor artifacts respect threat-model classification ────────
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX file modes — Windows uses ACLs",
+)
+class TestDoctorLogMode:
+    """DD-1: doctor.log lives in single-user-private ~/.xrpl-lab/.
+    The file itself must be 0o600 (matches wallet.json + state.json
+    discipline) and the parent dir 0o700."""
+
+    def test_doctor_log_file_is_0o600_after_run(self, tmp_path, monkeypatch):
+        from xrpl_lab.state import ensure_home_dir
+
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path / "h")
+        ensure_home_dir()  # create home dir at 0o700
+
+        report = DoctorReport()
+        report.checks.append(Check(name="probe", passed=True, detail="ok"))
+        _append_doctor_log(report)
+
+        log_path = tmp_path / "h" / "doctor.log"
+        assert log_path.exists(), "doctor.log must be written"
+        mode = log_path.stat().st_mode & 0o777
+        assert mode == 0o600, (
+            f"doctor.log must be 0o600 (single-user private), got 0o{mode:o}"
+        )
+
+    def test_doctor_workspace_probe_creates_0o755_dir(
+        self, tmp_path, monkeypatch,
+    ):
+        """When _check_workspace creates the workspace, it must land at
+        the workshop-shareable 0o755 (not the wallet's 0o700)."""
+        ws = tmp_path / "ws"
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
+
+        check = _check_workspace()
+        assert check.passed, f"workspace probe failed: {check.detail!r}"
+        assert ws.exists()
+        mode = ws.stat().st_mode & 0o777
+        assert mode == 0o755, (
+            f"workspace dir created by doctor probe must be 0o755, got 0o{mode:o}"
+        )

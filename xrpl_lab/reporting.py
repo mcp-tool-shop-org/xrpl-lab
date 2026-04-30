@@ -8,7 +8,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from . import __version__
-from .state import LabState, TxRecord, get_workspace_dir
+from .state import (
+    WORKSPACE_DIR_MODE,
+    LabState,
+    TxRecord,
+    _ensure_dir_mode,
+    get_workspace_dir,
+)
 from .transport.xrpl_testnet import get_rpc_url
 
 
@@ -131,7 +137,8 @@ def generate_certificate(state: LabState) -> dict:
 def write_proof_pack(state: LabState, output_dir: Path | None = None) -> Path:
     """Write proof pack to workspace."""
     out = output_dir or (get_workspace_dir() / "proofs")
-    out.mkdir(parents=True, exist_ok=True)
+    # DD-1: proofs/ is workshop-shareable (0o755 — facilitator handoff).
+    _ensure_dir_mode(out, WORKSPACE_DIR_MODE)
     path = out / "xrpl_lab_proof_pack.json"
     pack = generate_proof_pack(state)
     path.write_text(json.dumps(pack, indent=2), encoding="utf-8")
@@ -141,7 +148,8 @@ def write_proof_pack(state: LabState, output_dir: Path | None = None) -> Path:
 def write_certificate(state: LabState, output_dir: Path | None = None) -> Path:
     """Write certificate to workspace."""
     out = output_dir or (get_workspace_dir() / "proofs")
-    out.mkdir(parents=True, exist_ok=True)
+    # DD-1: proofs/ is workshop-shareable (0o755).
+    _ensure_dir_mode(out, WORKSPACE_DIR_MODE)
     path = out / "xrpl_lab_certificate.json"
     cert = generate_certificate(state)
     path.write_text(json.dumps(cert, indent=2), encoding="utf-8")
@@ -161,7 +169,8 @@ def write_module_report(
     if "/" in module_id or "\\" in module_id or ".." in module_id:
         raise ValueError(f"Invalid module_id: {module_id!r}")
     out = output_dir or (get_workspace_dir() / "reports")
-    out.mkdir(parents=True, exist_ok=True)
+    # DD-1: reports/ is workshop-shareable (0o755).
+    _ensure_dir_mode(out, WORKSPACE_DIR_MODE)
     path = out / f"{module_id}.md"
 
     lines = [

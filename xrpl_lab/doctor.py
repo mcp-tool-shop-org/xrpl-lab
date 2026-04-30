@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -81,9 +82,12 @@ def _check_workspace() -> Check:
     """Check if workspace is writable."""
     ws = get_workspace_dir()
     if not ws.exists():
-        # Try to create it
+        # Try to create it. DD-1: workspace is workshop-shareable (0o755),
+        # not single-user private — facilitator handoff path. Use the
+        # state.py helper so the threat-model classification is centralized.
         try:
-            ws.mkdir(parents=True, exist_ok=True)
+            from .state import WORKSPACE_DIR_MODE, _ensure_dir_mode
+            _ensure_dir_mode(ws, WORKSPACE_DIR_MODE)
             (ws / ".doctor-probe").write_text("ok", encoding="utf-8")
             (ws / ".doctor-probe").unlink()
             return Check("Workspace", True, f"Created: {ws.resolve()}")
@@ -366,6 +370,13 @@ def _append_doctor_log(report: DoctorReport) -> None:
         if len(existing) > _DOCTOR_LOG_MAX_LINES:
             existing = existing[-_DOCTOR_LOG_MAX_LINES:]
         log_path.write_text("\n".join(existing) + "\n", encoding="utf-8")
+        # DD-1: doctor.log lives in single-user-private home dir but
+        # write_text() defaults to 0o644. Tighten to 0o600 (matches the
+        # wallet.json + state.json discipline). The outer except OSError
+        # catches any chmod failure as well — best-effort logging must
+        # not break doctor itself.
+        if sys.platform != "win32":
+            os.chmod(log_path, 0o600)
     except OSError:
         # Best-effort log; perms or disk-full must not break doctor.
         pass

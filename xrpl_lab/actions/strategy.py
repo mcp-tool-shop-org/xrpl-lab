@@ -301,7 +301,10 @@ def write_last_run(
 ) -> Path:
     """Write last_run_txids.txt and last_run_meta.json."""
     ws = workspace or Path(".xrpl-lab")
-    ws.mkdir(parents=True, exist_ok=True)
+    # DD-1: workspace is workshop-shareable (0o755 — facilitator handoff,
+    # no secrets). Centralized in xrpl_lab.state.
+    from ..state import WORKSPACE_DIR_MODE, _ensure_dir_mode
+    _ensure_dir_mode(ws, WORKSPACE_DIR_MODE)
 
     # txids file
     txids_path = ws / "last_run_txids.txt"

@@ -249,6 +249,15 @@ async def handle_create_issuer_wallet(
     console.print("  Creating issuer wallet...")
     issuer = create_wallet()
     issuer_path = Path(".xrpl-lab") / "issuer_wallet.json"
+    # DD-1: this is a workspace-rooted seed file. save_wallet() will
+    # call _ensure_secure_parent which tightens the parent to 0o700 —
+    # that's intentional because the issuer wallet IS a secret, even
+    # though the rest of the workspace is workshop-shareable. The
+    # mkdir below is redundant with _ensure_secure_parent; we keep
+    # it as a no-op safety net (mkdir(exist_ok=True) is idempotent
+    # and the subsequent _ensure_secure_parent will do the chmod).
+    # Intra-workspace tension noted for the threat-model doc — this
+    # site is the one place the workspace becomes 0o700 at runtime.
     issuer_path.parent.mkdir(parents=True, exist_ok=True)
     save_wallet(issuer, issuer_path)
     console.print(f"  Issuer wallet created: [cyan]{issuer.address}[/]")
