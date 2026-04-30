@@ -18,7 +18,7 @@ Everything runs on the XRPL Testnet, a free sandbox that behaves like the real l
 - **Analysts and auditors** who need to understand XRPL transaction receipts and verification
 - **Anyone curious about the XRP Ledger** who prefers learning by doing over reading specs
 
-No prior blockchain experience is required. The beginner track starts from zero and builds up.
+No prior blockchain experience is required. The earliest modules start from zero and build up.
 
 ## Prerequisites
 
@@ -88,7 +88,7 @@ This shows your wallet address, completed modules, and recent transactions.
 Once you have completed your first module:
 
 - Read the [Getting Started](/xrpl-lab/handbook/getting-started/) guide for details on data storage and network usage
-- Browse the [Modules](/xrpl-lab/handbook/modules/) page to see all 12 modules across the Beginner, Intermediate, and Advanced tracks
+- Browse the [Modules](/xrpl-lab/handbook/modules/) page to see all 12 modules across the Foundations, DEX, Reserves, Audit, and AMM tracks
 - Check the [Commands](/xrpl-lab/handbook/commands/) reference for every CLI command and flag
 - Learn about [Artifacts](/xrpl-lab/handbook/artifacts/) -- proof packs, audit packs, and certificates that prove your work
 

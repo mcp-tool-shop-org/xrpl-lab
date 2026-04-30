@@ -31,7 +31,7 @@ xrpl-lab serve
 | Section | What you'll find |
 |---------|-----------------|
 | **[Getting Started](/xrpl-lab/handbook/getting-started/)** | Install, configure, wallet setup, and first run |
-| **[Modules](/xrpl-lab/handbook/modules/)** | All 12 modules across Beginner, Intermediate, and Advanced tracks |
+| **[Modules](/xrpl-lab/handbook/modules/)** | All 12 modules across the Foundations, DEX, Reserves, Audit, and AMM tracks |
 | **[Commands](/xrpl-lab/handbook/commands/)** | Full CLI reference — every flag, every subcommand |
 | **[Artifacts](/xrpl-lab/handbook/artifacts/)** | Proof packs, audit packs, and certificates explained |
 | **[Beginners](/xrpl-lab/handbook/beginners/)** | New to the XRP Ledger? Start here before running modules |
