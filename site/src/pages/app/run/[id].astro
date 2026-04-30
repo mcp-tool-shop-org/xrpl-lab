@@ -134,8 +134,10 @@ const { id } = Astro.params;
 
     // WS reconnect state (F-FE-B-004)
     const MAX_RECONNECT = 5;
+    const MAX_LIFETIME_RECONNECTS = 20;  // F-FE-B-006: lifetime cap (~5min given exponential backoff)
     const BASE_DELAY_MS = 500;
-    let reconnectAttempts = 0;
+    let reconnectAttempts = 0;            // resets on first message of each cycle (transient blips)
+    let lifetimeReconnects = 0;           // F-FE-B-006: never resets; total since page load
     let userInitiatedClose = false;
     let activeRunId: string | null = null;
 
@@ -260,6 +262,40 @@ const { id } = Astro.params;
           return;
         }
 
+        // Run not found (4004): F-FE-B-006. Bridge sent this because the session
+        // was cleaned up server-side (likely after a transient disconnect that
+        // exceeded _CLEANUP_GRACE_SECONDS). Reconnect won't help — the run is gone.
+        if (event.code === 4004) {
+          statusLabel.textContent = 'Run cleaned up';
+          statusLabel.className = 'text-sm text-amber-400 ml-2';
+          termAppend(
+            '\n[disconnected] This run was cleaned up. Start a new run from the modules page.',
+            'text-amber-400'
+          );
+          running = false;
+          btnRun.disabled = false;
+          btnDry.disabled = false;
+          return;
+        }
+
+        // F-FE-B-006: lifetime cap on total reconnects since page load.
+        // Per-cycle cap (MAX_RECONNECT) intentionally resets on first message
+        // to absorb transient blips; this is the SEPARATE layer that prevents
+        // pathological infinite reconnect (e.g. server drops every connection
+        // on its 1st message).
+        if (lifetimeReconnects >= MAX_LIFETIME_RECONNECTS) {
+          statusLabel.textContent = 'Disconnected';
+          statusLabel.className = 'text-sm text-red-400 ml-2';
+          termAppend(
+            `\n[disconnected] Connection lost (${lifetimeReconnects} reconnects exhausted). Refresh page to retry.`,
+            'text-red-400'
+          );
+          running = false;
+          btnRun.disabled = false;
+          btnDry.disabled = false;
+          return;
+        }
+
         if (reconnectAttempts >= MAX_RECONNECT) {
           statusLabel.textContent = 'Disconnected';
           statusLabel.className = 'text-sm text-red-400 ml-2';
@@ -279,6 +315,7 @@ const { id } = Astro.params;
           'text-amber-400'
         );
         reconnectAttempts++;
+        lifetimeReconnects++;  // F-FE-B-006: increment lifetime counter
         setTimeout(() => {
           // Re-check before reconnecting in case state changed during the delay.
           if (running && !userInitiatedClose) {
