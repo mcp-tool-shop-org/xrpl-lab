@@ -138,7 +138,7 @@ import JsonViewer from '../../components/dashboard/JsonViewer.astro';
         list.innerHTML = reports.map((r: any) => `
           <div class="bg-slate-800 rounded-lg border border-slate-700 p-5">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="text-base font-semibold text-slate-200">${r.title}</h3>
+              <h3 class="text-base font-semibold text-slate-200">${escapeHtml(r.title)}</h3>
               <span class="text-xs text-slate-500">${new Date(r.generated).toLocaleDateString()}</span>
             </div>
             <div class="prose prose-invert prose-sm max-w-none text-slate-300 whitespace-pre-wrap font-mono text-xs bg-slate-900 rounded p-3 max-h-64 overflow-y-auto">${escapeHtml(r.content)}</div>

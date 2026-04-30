@@ -62,6 +62,13 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
     // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
 
+    function escapeHtml(text: any): string {
+      if (text === null || text === undefined) return '';
+      const div = document.createElement('div');
+      div.textContent = String(text);
+      return div.innerHTML;
+    }
+
     const statusConfig: Record<string, { icon: string; border: string; dot: string; text: string }> = {
       ok:   { icon: '&#10003;', border: 'border-emerald-500/30', dot: 'bg-emerald-500', text: 'text-emerald-400' },
       warn: { icon: '&#9888;',  border: 'border-amber-500/30',  dot: 'bg-amber-500',  text: 'text-amber-400' },
@@ -95,6 +102,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
           const icon = document.getElementById('banner-icon');
           const title = document.getElementById('banner-title');
           const subtitle = document.getElementById('banner-subtitle');
+          // innerHTML required to decode HTML entity; bc.icon is hardcoded in bannerConfig so XSS surface is closed
           if (icon) icon.innerHTML = bc.icon;
           if (title) title.textContent = bc.title;
           if (subtitle) subtitle.textContent = bc.subtitle;
@@ -108,10 +116,10 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
             return `<div class="bg-slate-800 rounded-lg border ${sc.border} p-4">
               <div class="flex items-center gap-3">
                 <span class="w-2 h-2 rounded-full ${sc.dot} shrink-0"></span>
-                <span class="font-semibold text-slate-100 text-sm">${c.name}</span>
+                <span class="font-semibold text-slate-100 text-sm">${escapeHtml(c.name)}</span>
                 <span class="ml-auto ${sc.text} text-sm">${sc.icon}</span>
               </div>
-              <p class="text-sm text-slate-400 mt-2 ml-5">${c.message}</p>
+              <p class="text-sm text-slate-400 mt-2 ml-5">${escapeHtml(c.message)}</p>
             </div>`;
           }).join('');
           checks.classList.remove('hidden');

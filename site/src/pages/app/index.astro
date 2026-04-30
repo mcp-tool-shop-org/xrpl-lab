@@ -111,6 +111,13 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
     // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
 
+    function escapeHtml(text: any): string {
+      if (text === null || text === undefined) return '';
+      const div = document.createElement('div');
+      div.textContent = String(text);
+      return div.innerHTML;
+    }
+
     async function hydrateDashboard() {
       // Fetch status
       try {
@@ -141,11 +148,11 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
           const walletStatus = status.wallet_configured ? 'ok' : 'warn';
           const walletVal = status.wallet_configured ? 'Configured' : 'Not set up';
           const lastRun = status.last_run
-            ? `${status.last_run.module} (${status.last_run.success ? 'pass' : 'fail'})`
+            ? `${escapeHtml(status.last_run.module)} (${status.last_run.success ? 'pass' : 'fail'})`
             : 'No runs yet';
 
           cardsEl.innerHTML = buildCard('&#128179;', 'Wallet', walletVal, walletStatus)
-            + buildCard('&#127760;', 'Network', status.network || 'Unknown', 'ok')
+            + buildCard('&#127760;', 'Network', escapeHtml(status.network || 'Unknown'), 'ok')
             + buildCard('&#9889;', 'Doctor', 'Checking...', 'ok')
             + buildCard('&#128337;', 'Last Run', lastRun, status.last_run?.success === false ? 'warn' : 'ok');
         }
@@ -157,9 +164,9 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
             actEl.innerHTML = `
               <div class="flex items-center gap-3">
                 <span class="w-2 h-2 rounded-full ${status.last_run.success ? 'bg-emerald-500' : 'bg-red-500'}"></span>
-                <span class="text-slate-300">${status.last_run.module}</span>
+                <span class="text-slate-300">${escapeHtml(status.last_run.module)}</span>
                 <span class="text-slate-600">&middot;</span>
-                <span class="text-slate-500">${new Date(status.last_run.timestamp).toLocaleString()}</span>
+                <span class="text-slate-500">${escapeHtml(new Date(status.last_run.timestamp).toLocaleString())}</span>
                 <span class="text-xs px-1.5 py-0.5 rounded ${status.last_run.success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${status.last_run.success ? 'passed' : 'failed'}</span>
               </div>
             `;
