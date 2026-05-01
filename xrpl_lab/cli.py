@@ -1368,6 +1368,135 @@ def verify(txid: str, dry_run: bool):
         console.print(f"  Memos: {', '.join(tx.memos)}")
 
 
+# ── Module group: scaffolding + lint helpers ────────────────────────
+
+
+@main.group("module")
+def module_group():
+    """Module authoring helpers (init scaffolder)."""
+
+
+@module_group.command("init")
+@click.option("--id", "module_id", required=True, help="snake_case module ID")
+@click.option(
+    "--track", required=True,
+    type=click.Choice(["foundations", "dex", "reserves", "audit", "amm"]),
+    help="Curriculum track this module belongs to",
+)
+@click.option("--title", required=True, help="Human-readable module title")
+@click.option("--time", required=True, help='Estimated duration (e.g., "20 min")')
+@click.option(
+    "--requires", default="",
+    help="Comma-separated list of prerequisite module IDs (optional)",
+)
+@click.option(
+    "--level",
+    type=click.Choice(["beginner", "intermediate", "advanced"]),
+    default="beginner",
+    help="Difficulty level (default: beginner)",
+)
+@click.option(
+    "--mode", type=click.Choice(["testnet", "dry-run"]), default="testnet",
+    help="Default execution mode",
+)
+@click.option(
+    "--outfile", default=None, type=click.Path(),
+    help="Output path (default: ./<module_id>.md in current directory)",
+)
+def module_init(
+    module_id: str, track: str, title: str, time: str,
+    requires: str, level: str, mode: str, outfile: str | None,
+):
+    """Generate a lint-passing module skeleton.
+
+    F-BACKEND-FT-006: bootstraps community contributions and custom
+    workshop modules. Generates a markdown file with valid frontmatter,
+    three step skeleton sections, and action comment hints. Auto-runs
+    the linter on the result so contributors see a green pass before
+    they edit forward. Pairs with the new CONTRIBUTING.md.
+    """
+    import re
+
+    from .linter import lint_module_file
+    from .modules import render_module_skeleton
+
+    # Validate module ID — snake_case, no spaces
+    if not re.match(r"^[a-z][a-z0-9_]*$", module_id):
+        console.print(
+            f"[red]Invalid module ID: '{module_id}'.[/] "
+            "Must be snake_case (lowercase letters, digits, underscores; "
+            "must start with a letter)."
+        )
+        sys.exit(2)
+
+    # Reject duplicates against the loaded module catalog
+    existing = load_all_modules()
+    if module_id in existing:
+        console.print(
+            f"[red]Module ID '{module_id}' already exists in the catalog.[/] "
+            "Choose a unique ID — or edit the existing module directly:"
+        )
+        # Help the author find the existing file
+        console.print(f"  modules/{module_id}.md")
+        sys.exit(2)
+
+    # Parse requires (comma-separated)
+    require_list = [r.strip() for r in requires.split(",") if r.strip()]
+    # Validate requires reference existing modules (warning, not error —
+    # contributors may be authoring two new modules at once and the
+    # other isn't yet committed; downgrade to warning so the scaffold
+    # still lands).
+    unknown_requires = [r for r in require_list if r not in existing]
+
+    # Generate the skeleton
+    text = render_module_skeleton(
+        module_id=module_id,
+        track=track,
+        title=title,
+        time=time,
+        requires=require_list,
+        level=level,
+        mode=mode,
+    )
+
+    # Write to outfile (default: ./<module_id>.md)
+    out_path = Path(outfile) if outfile else Path(f"{module_id}.md")
+    if out_path.exists():
+        console.print(
+            f"[red]Output file already exists: {out_path}[/] "
+            "Refusing to overwrite. Pass a different --outfile or "
+            "remove the existing file first."
+        )
+        sys.exit(2)
+    out_path.write_text(text, encoding="utf-8")
+
+    console.print()
+    console.print(f"[green]Created:[/] {out_path}")
+    if unknown_requires:
+        console.print(
+            f"[yellow]Note: requires references unknown modules: "
+            f"{', '.join(unknown_requires)}.[/] "
+            "If they are sibling new modules, fine; otherwise fix the IDs."
+        )
+
+    # Auto-lint
+    console.print()
+    console.print("[bold]Auto-lint:[/]")
+    issues = lint_module_file(out_path)
+    if not issues:
+        console.print("  [green]PASS[/] — frontmatter + step skeleton are valid.")
+    else:
+        for issue in issues:
+            color = "red" if issue.level == "error" else "yellow"
+            console.print(f"  [{color}]{issue}[/]")
+
+    console.print()
+    console.print("[dim]Next: edit the TODO sections in the file, then run[/]")
+    console.print(f"[cyan]  xrpl-lab lint {out_path}[/]")
+    console.print("[dim]to validate your edits.[/]")
+    console.print()
+
+
 # ── Module linter ───────────────────────────────────────────────────
 
 

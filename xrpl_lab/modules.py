@@ -180,6 +180,93 @@ def _builtin_modules_dir() -> Path:
     return Path(str(ref))
 
 
+def render_module_skeleton(
+    *,
+    module_id: str,
+    track: str,
+    title: str,
+    time: str,
+    requires: list[str] | None = None,
+    level: str = "beginner",
+    mode: str = "testnet",
+) -> str:
+    """Render a lint-passing module skeleton for the scaffolder.
+
+    Generates a markdown body with valid frontmatter, three numbered
+    step sections, and action comment hints. The output passes
+    ``xrpl-lab lint`` immediately so contributors get a green
+    starting point and edit forward.
+
+    The summary is derived from the title — contributors should
+    rewrite it before publishing, but a real-string default keeps
+    the lint pass clean.
+
+    F-BACKEND-FT-006 (community contribution path; pairs with the
+    CI/Docs CONTRIBUTING.md from the parallel commit).
+    """
+    requires_yaml = (
+        "requires: []"
+        if not requires
+        else "requires:\n" + "\n".join(f"  - {r}" for r in requires)
+    )
+
+    # produces + checks: minimal lint-clean placeholders. Authors edit.
+    frontmatter = (
+        "---\n"
+        f"id: {module_id}\n"
+        f"title: {title}\n"
+        f"track: {track}\n"
+        f"summary: TODO — one-line summary of what the learner will do.\n"
+        f"time: {time}\n"
+        f"level: {level}\n"
+        f"mode: {mode}\n"
+        f"{requires_yaml}\n"
+        "produces:\n"
+        "  - txid\n"
+        "  - report\n"
+        "checks:\n"
+        "  - \"TODO: first verifiable check\"\n"
+        "  - \"TODO: second verifiable check\"\n"
+        "---\n"
+    )
+
+    body = (
+        "\n"
+        f"<!-- TODO: 1-2 sentence intro for '{title}'. Tell the learner\n"
+        f"     what they'll learn and why this module matters. -->\n"
+        "\n"
+        "## Step 1: Ensure your wallet is ready\n"
+        "\n"
+        "<!-- TODO: explain what this step accomplishes. -->\n"
+        "\n"
+        "<!-- action: ensure_wallet -->\n"
+        "\n"
+        "## Step 2: Do the core thing this module teaches\n"
+        "\n"
+        "<!-- TODO: walk through the substantive operation.\n"
+        "     Available actions you can drop in (replace this comment\n"
+        "     with one of the action lines below):\n"
+        "       <!-- action: ensure_funded -->\n"
+        "       <!-- action: submit_payment destination=ADDRESS amount=10 -->\n"
+        "       <!-- action: set_trust_line currency=LAB limit=1000 -->\n"
+        "     Reference the linter (xrpl-lab lint) for the canonical\n"
+        "     payload schema of each registered action. -->\n"
+        "\n"
+        "## Step 3: Verify and reflect\n"
+        "\n"
+        "<!-- TODO: have the learner inspect what just happened.\n"
+        "     A good closing step turns this module's outputs into\n"
+        "     evidence the learner can read on the explorer. -->\n"
+        "\n"
+        "## Checkpoint: You did it\n"
+        "\n"
+        "<!-- TODO: summarize what the learner now knows + name the\n"
+        "     next module to flow into. -->\n"
+    )
+
+    return frontmatter + body
+
+
 def load_all_modules(extra_dirs: list[Path] | None = None) -> dict[str, ModuleDef]:
     """Load all modules from built-in + optional extra directories.
 
