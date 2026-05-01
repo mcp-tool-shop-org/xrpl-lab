@@ -14,6 +14,7 @@ from pathlib import Path
 
 from xrpl.wallet import Wallet
 
+from .._atomic import atomic_write_json
 from ..state import get_home_dir
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,12 @@ def save_wallet(wallet: Wallet, path: Path | None = None) -> Path:
     left the file world-readable between create and chmod. The parent
     directory is also tightened to 0o700 (covering both new installs and
     the upgrade path from earlier versions that created it at 0o755).
+
+    Delegates the create-with-mode + write to ``_atomic.atomic_write_json``
+    in non-atomic mode (O_TRUNC, no tmp+rename): a corrupt seed is
+    recoverable from the user's mnemonic, so we accept the (vanishingly
+    small) torn-write window in exchange for fewer moving parts. The
+    state.json side uses ``atomic=True`` for the same helper.
     """
     p = path or default_wallet_path()
     _ensure_secure_parent(p)
@@ -88,10 +95,7 @@ def save_wallet(wallet: Wallet, path: Path | None = None) -> Path:
             "This wallet is for testnet use only."
         )
 
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-    fd = os.open(p, flags, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    atomic_write_json(p, data, file_mode=0o600, atomic=False)
 
     return p
 

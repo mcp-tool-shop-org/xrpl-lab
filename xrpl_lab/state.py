@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 
 from . import __version__
+from ._atomic import atomic_write_json
 
 # Defaults
 DEFAULT_HOME_DIR = Path.home() / ".xrpl-lab"
@@ -248,6 +249,12 @@ def save_state(state: LabState) -> None:
     progress + tx history that has no external recovery source, so we
     use temp+rename to guarantee the previous good copy survives.
 
+    The actual atomic-write mechanics live in ``_atomic.atomic_write_json``
+    (shared with the wallet seed file's save_wallet). This module retains
+    the dir-mode policy (DD-1, 0o700 for the home dir holding state.json
+    alongside wallet.json) and the Pydantic-aware serializer
+    (``state.model_dump_json(indent=2)``).
+
     The orphan ``.tmp`` cleanup unlink propagates a re-raise of the
     original write exception per wave-1 discipline — no
     contextlib.suppress, no silent OSError swallow.
@@ -257,35 +264,13 @@ def save_state(state: LabState) -> None:
     # DD-1: state.json lives in ~/.xrpl-lab/ alongside wallet.json
     # (single-user private). 0o700 to match the wave-1 wallet upgrade.
     _ensure_dir_mode(p.parent, HOME_DIR_MODE)
-    tmp = p.with_suffix(p.suffix + '.tmp')
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    # If a stale .tmp survived a previous crashed save, O_EXCL would
-    # block us forever. Clear it so the current save can proceed; the
-    # stale data is, by definition, partial/unknown and not safe to keep.
-    # Explicit try/except (not contextlib.suppress) — wave-1 wallet TOCTOU
-    # bug came from broad silent suppression; keep cleanup paths obvious
-    # so a future reader doesn't repeat that mistake.
-    if tmp.exists():
-        try:  # noqa: SIM105 — explicit per wave-1 discipline
-            tmp.unlink()
-        except OSError:
-            pass
-    fd = os.open(tmp, flags, 0o600)
-    try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
-            f.write(state.model_dump_json(indent=2))
-        os.replace(tmp, p)
-    except Exception:
-        # Cleanup orphan tmp on failure, then re-raise. Wave-1 antipattern
-        # was silently swallowing OSError on the WRITE — that's distinct
-        # from the cleanup-of-cleanup OSError here, which we ignore by
-        # design (we're already in an exception path).
-        if tmp.exists():
-            try:  # noqa: SIM105 — explicit per wave-1 discipline
-                tmp.unlink()
-            except OSError:
-                pass
-        raise
+    atomic_write_json(
+        p,
+        state,
+        file_mode=0o600,
+        atomic=True,
+        serialize=lambda s: s.model_dump_json(indent=2),
+    )
 
 
 def reset_state() -> None:
