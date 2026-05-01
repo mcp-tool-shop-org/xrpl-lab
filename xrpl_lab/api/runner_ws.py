@@ -415,17 +415,27 @@ async def cancel_session(run_id: str) -> dict[str, Any] | None:
     # closes the socket with code 1000 (normal closure) — we don't need
     # a separate close here. _safe_put is non-blocking; even a stalled
     # consumer drops-oldest rather than blocking the cancel path.
-    severity, icon_hint = _severity_for_code("RUNTIME_CANCELLED")
+    #
+    # Pattern #3 discipline: route through ``_error_envelope`` rather
+    # than constructing the dict inline — keeps the canonical producer
+    # the single source of truth for severity/icon_hint/shape. The
+    # facilitator-cancellation message and hint are tailored here
+    # (different from a generic asyncio.CancelledError) by passing a
+    # purpose-built LabError through the canonical path.
+    from ..errors import LabError, LabException
+
+    envelope = _error_envelope(
+        LabException(
+            LabError(
+                code="RUNTIME_CANCELLED",
+                message="Run cancelled by facilitator.",
+                hint="Restart the run when ready, or check with the facilitator.",
+            )
+        )
+    )
     _safe_put(
         session.queue,
-        {
-            "type": "error",
-            "code": "RUNTIME_CANCELLED",
-            "message": "Run cancelled by facilitator.",
-            "hint": "Restart the run when ready, or check with the facilitator.",
-            "severity": severity,
-            "icon_hint": icon_hint,
-        },
+        {"type": "error", **envelope},
         run_id,
     )
 
@@ -519,15 +529,20 @@ async def _run_module_task(session: ModuleRunSession) -> None:
     all_mods = load_all_modules()
     mod = all_mods.get(session.module_id)
     if mod is None:
-        # Structured envelope — no internals leaked. Server log is fine to log
-        # the bare module_id since it's user-supplied input, not a path/secret.
-        envelope = {
-            "type": "error",
-            "code": "INPUT_MODULE_NOT_FOUND",
-            "message": f"Module '{session.module_id}' not found.",
-            "hint": "Run 'xrpl-lab list' to see available modules.",
-        }
-        _safe_put(session.queue, envelope, session.run_id)
+        # Structured envelope via the canonical producer — same path every
+        # other error code takes (Pattern #3 discipline: never construct
+        # error envelopes inline; route through ``_error_envelope`` so
+        # severity/icon_hint stay attached and the contract is enforced
+        # by one source of truth). Server log is fine to log the bare
+        # module_id since it's user-supplied input, not a path/secret.
+        from ..errors import LabException, module_not_found
+
+        envelope = _error_envelope(LabException(module_not_found(session.module_id)))
+        _safe_put(
+            session.queue,
+            {"type": "error", **envelope},
+            session.run_id,
+        )
         session.status = "error"
         session.error = envelope["message"]
         return
