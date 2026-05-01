@@ -801,6 +801,31 @@ class TestCohortStatus:
         assert "bob" in result.output
         assert "warning" in result.output.lower()
 
+    def test_reset_module_unknown_id_via_cli(self, tmp_path, monkeypatch):
+        """F-BACKEND-FT-003 (CLI surface): xrpl-lab reset --module
+        nonexistent_id exits non-zero with a clear error before
+        touching state."""
+        from xrpl_lab.state import LabState, save_state
+
+        monkeypatch.setattr(
+            "xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path / "home",
+        )
+        monkeypatch.setattr(
+            "xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws",
+        )
+        s = LabState(wallet_address="rTEST")
+        s.complete_module("receipt_literacy", txids=["TX1"])
+        save_state(s)
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "reset", "--module", "no_such_module", "--confirm",
+        ])
+        assert result.exit_code != 0
+        # Clear error: "Unknown module ID" surfaces the typo
+        assert "Unknown module" in result.output or \
+            "no_such_module" in result.output
+
     def test_cohort_status_json_format(self, tmp_path):
         """F-BACKEND-FT-001: --format json yields parseable output with
         learner-id keyed entries (in sorted order, deterministic)."""

@@ -297,3 +297,72 @@ def reset_state() -> None:
     ws = get_workspace_dir()
     if ws.exists():
         shutil.rmtree(ws)
+
+
+def reset_module(module_id: str) -> dict:
+    """Granularly reset a single module — preserves wallet + other modules.
+
+    F-BACKEND-FT-003 (HIGH-equivalent per advisor): a stuck learner
+    retries one module without losing the rest. The humane fix the
+    wave-1 Stage C recovery messaging exposed but didn't address.
+
+    Removes:
+        - module_id from completed_modules
+        - tx_index entries tagged with module_id (otherwise the retry
+          accumulates duplicate tx history that would confuse audits)
+        - reports/<module_id>.md (the module's report file)
+
+    Preserves:
+        - wallet (file + state.wallet_address + state.wallet_path)
+        - all other completed_modules + their tx_index records
+        - doctor.log + audit_packs/* (audit packs are session-keyed,
+          not module-keyed — leaving them is the correct behavior)
+        - workspace dir + structure (only the matching report is
+          removed; sibling files stay)
+
+    Returns a summary dict for the CLI:
+        {"removed_from_completed": bool, "tx_records_cleared": int,
+         "report_removed": bool}
+
+    Raises:
+        ValueError: if module_id is not currently in completed_modules.
+    """
+    state = load_state()
+    if not state.is_module_completed(module_id):
+        raise ValueError(
+            f"Module '{module_id}' is not in completed_modules — "
+            "nothing to reset for that ID."
+        )
+
+    # Filter out target module from completed list
+    state.completed_modules = [
+        m for m in state.completed_modules if m.module_id != module_id
+    ]
+
+    # Filter tx_index — keep records from other modules
+    before_tx = len(state.tx_index)
+    state.tx_index = [tx for tx in state.tx_index if tx.module_id != module_id]
+    cleared_tx = before_tx - len(state.tx_index)
+
+    state.updated_at = time.time()
+    save_state(state)
+
+    # Clean the module's report from workspace (best-effort; absence is fine)
+    ws = get_workspace_dir()
+    report_path = ws / "reports" / f"{module_id}.md"
+    report_removed = False
+    if report_path.exists():
+        try:
+            report_path.unlink()
+            report_removed = True
+        except OSError:
+            # Workspace cleanup failure is not fatal — the state side
+            # of the reset already landed atomically. Surface to the
+            # caller via the return value, not an exception.
+            report_removed = False
+
+    return {
+        "removed_from_completed": True,
+        "tx_records_cleared": cleared_tx,
+        "report_removed": report_removed,
+    }

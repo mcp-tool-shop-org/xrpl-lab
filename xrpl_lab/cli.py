@@ -1113,9 +1113,89 @@ def session_export(cohort_dir: str, fmt: str, outfile: str | None):
 
 
 @main.command()
-@click.option("--keep-wallet", is_flag=True, help="Keep wallet file, only wipe progress")
-def reset(keep_wallet: bool):
-    """Wipe all local state and workspace (requires confirmation)."""
+@click.option(
+    "--keep-wallet", is_flag=True,
+    help="Keep wallet file, only wipe progress",
+)
+@click.option(
+    "--module", "module_id", default=None,
+    help=(
+        "Granular reset: remove only the specified module from "
+        "completed_modules + clear its workspace artifacts. Preserves "
+        "wallet and all other modules' state. Workshop-day workflow "
+        "for a stuck learner who needs to retry one module without "
+        "losing the rest."
+    ),
+)
+@click.option(
+    "--confirm", "skip_confirm", is_flag=True,
+    help="Skip the confirmation prompt (granular --module mode only).",
+)
+def reset(keep_wallet: bool, module_id: str | None, skip_confirm: bool):
+    """Wipe all local state and workspace (requires confirmation).
+
+    With --module MODULE_ID, removes only that module from completed
+    state and clears its workspace artifacts. Preserves wallet,
+    doctor.log, audit packs, and all other modules.
+    """
+    # Granular path: --module MODULE_ID
+    if module_id:
+        from .state import reset_module
+
+        # Validate against the loaded module catalog so unknown IDs
+        # error before any state mutation. Also catches typos before
+        # the user is asked to confirm.
+        modules = load_all_modules()
+        if module_id not in modules:
+            console.print(
+                f"[red]Unknown module ID: '{module_id}'.[/]"
+            )
+            console.print(
+                f"  Available: {', '.join(sorted(modules.keys()))}"
+            )
+            sys.exit(2)
+
+        # Confirm if not auto-confirmed
+        if not skip_confirm:
+            console.print()
+            console.print(
+                f"[yellow]This will reset module '{module_id}':[/]"
+            )
+            console.print(
+                "  - Remove it from completed_modules"
+            )
+            console.print(
+                "  - Clear its tx_index records + workspace report"
+            )
+            console.print(
+                "[green]Wallet + other modules + audit packs preserved.[/]"
+            )
+            console.print()
+            try:
+                confirm = console.input(
+                    f"Type '{module_id}' to confirm: "
+                ).strip()
+            except (EOFError, KeyboardInterrupt):
+                console.print("\nCancelled.")
+                return
+            if confirm != module_id:
+                console.print(
+                    f"Cancelled. (Must type exactly: {module_id})"
+                )
+                return
+
+        try:
+            summary = reset_module(module_id)
+        except ValueError as e:
+            console.print(f"[yellow]{e}[/]")
+            sys.exit(1)
+        console.print(
+            f"[green]Module '{module_id}' reset.[/] "
+            f"Cleared {summary['tx_records_cleared']} tx record(s); "
+            f"report removed: {summary['report_removed']}."
+        )
+        return
+
     console.print()
     console.print("[yellow]This will delete:[/]")
     console.print("  - State: ~/.xrpl-lab/state.json")

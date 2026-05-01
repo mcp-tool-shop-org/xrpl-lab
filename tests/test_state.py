@@ -562,3 +562,105 @@ class TestWorkspaceDirModeShareable:
         write_audit_pack(report, target)
         mode = target.parent.stat().st_mode & 0o777
         assert mode == 0o755
+
+
+# ── F-BACKEND-FT-003: reset --module granular reset ──────────────────
+
+
+class TestResetModule:
+    """Granular per-module reset that preserves wallet + other modules.
+
+    HIGH-equivalent (per advisor) — the humane fix the wave-1 Stage C
+    recovery messaging exposed but didn't address structurally.
+    """
+
+    def test_reset_module_clears_only_target(self, tmp_path, monkeypatch):
+        """F-BACKEND-FT-003: reset --module B leaves [A, C], B's
+        report gone, wallet + A+C reports preserved."""
+        from xrpl_lab.state import (
+            LabState,
+            get_workspace_dir,
+            load_state,
+            reset_module,
+            save_state,
+        )
+
+        monkeypatch.setattr(
+            "xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path / "home",
+        )
+        ws = tmp_path / "workspace"
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
+
+        # Seed: wallet + 3 completed modules + tx_index for each
+        s = LabState(wallet_address="rWALLET", wallet_path="/wallet")
+        s.complete_module("A", txids=["TX_A1"])
+        s.complete_module("B", txids=["TX_B1", "TX_B2"])
+        s.complete_module("C", txids=["TX_C1"])
+        s.record_tx("TX_A1", "A", "testnet", True)
+        s.record_tx("TX_B1", "B", "testnet", True)
+        s.record_tx("TX_B2", "B", "testnet", False)
+        s.record_tx("TX_C1", "C", "testnet", True)
+        save_state(s)
+
+        # Seed reports for all three modules
+        reports_dir = ws / "reports"
+        reports_dir.mkdir(parents=True)
+        (reports_dir / "A.md").write_text("# A report", encoding="utf-8")
+        (reports_dir / "B.md").write_text("# B report", encoding="utf-8")
+        (reports_dir / "C.md").write_text("# C report", encoding="utf-8")
+        # Audit packs are session-keyed, not module-keyed — they should
+        # survive a per-module reset.
+        audit_dir = ws / "audit_packs"
+        audit_dir.mkdir(parents=True)
+        (audit_dir / "audit_pack_20260430.json").write_text(
+            '{"audit":1}', encoding="utf-8",
+        )
+
+        # Sanity check that get_workspace_dir agrees with our monkey-
+        # patched value (otherwise this test would test nothing).
+        assert get_workspace_dir() == ws
+
+        summary = reset_module("B")
+        assert summary["removed_from_completed"] is True
+        assert summary["tx_records_cleared"] == 2
+        assert summary["report_removed"] is True
+
+        # Verify state surface: A + C remain, B is gone
+        loaded = load_state()
+        completed_ids = [m.module_id for m in loaded.completed_modules]
+        assert sorted(completed_ids) == ["A", "C"]
+        # Wallet preserved
+        assert loaded.wallet_address == "rWALLET"
+        assert loaded.wallet_path == "/wallet"
+        # tx_index preserves A + C records, drops B
+        tx_modules = sorted({tx.module_id for tx in loaded.tx_index})
+        assert tx_modules == ["A", "C"]
+        assert len(loaded.tx_index) == 2
+
+        # Report files: A + C survive, B is gone
+        assert (reports_dir / "A.md").exists()
+        assert (reports_dir / "C.md").exists()
+        assert not (reports_dir / "B.md").exists()
+
+        # Audit pack untouched (session-keyed, not module-keyed)
+        assert (audit_dir / "audit_pack_20260430.json").exists()
+
+    def test_reset_module_unknown_id_errors_clearly(self, tmp_path, monkeypatch):
+        """F-BACKEND-FT-003: reset --module nonexistent_id raises a
+        clear error rather than silently succeeding (which would hide
+        a typo and surprise the learner)."""
+        from xrpl_lab.state import LabState, reset_module, save_state
+
+        monkeypatch.setattr(
+            "xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path / "home",
+        )
+        monkeypatch.setattr(
+            "xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws",
+        )
+
+        s = LabState(wallet_address="rWALLET")
+        s.complete_module("A", txids=["TX_A1"])
+        save_state(s)
+
+        with pytest.raises(ValueError, match="not in completed_modules"):
+            reset_module("does_not_exist")
