@@ -204,7 +204,7 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
         const killBtn = isCancellable(run.status)
           ? `<button
                type="button"
-               class="kill-btn px-3 py-1.5 text-xs font-medium rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
+               class="kill-btn px-3 py-2.5 text-xs font-medium rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
                data-run-id="${runIdFull}"
                data-module-id="${moduleId}"
                aria-label="Cancel run ${moduleId} (${runIdShort})"
@@ -336,7 +336,10 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
     }
 
     // Pause polling when tab is hidden, resume on visibility — saves API + battery.
-    document.addEventListener('visibilitychange', () => {
+    // Named handlers so we can remove them on Astro client-side nav (workshop
+    // facilitators leave this page open 4-8h and may navigate away/back; without
+    // cleanup, listeners + interval timers accumulate per visit).
+    const visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
         // Refresh immediately on return so the user sees current state.
         refresh();
@@ -344,10 +347,21 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
       } else {
         stopPolling();
       }
-    });
+    };
+    const beforeunloadHandler = stopPolling;
+
+    document.addEventListener('visibilitychange', visibilityHandler);
 
     // Cleanup polling on navigation away.
-    window.addEventListener('beforeunload', stopPolling);
+    window.addEventListener('beforeunload', beforeunloadHandler);
+
+    // Astro client-side navigation cleanup — fires before the page unmounts.
+    // Removes listeners + clears the interval so a return visit starts fresh.
+    document.addEventListener('astro:before-swap', () => {
+      document.removeEventListener('visibilitychange', visibilityHandler);
+      window.removeEventListener('beforeunload', beforeunloadHandler);
+      stopPolling();
+    }, { once: true });
 
     // Initial paint + start the polling cadence.
     refresh();
