@@ -28,6 +28,9 @@ concurrency:
 
 jobs:
   publish:
+    # Skip prereleases (alpha/beta/rc) — they must not land on PyPI's stable
+    # index. Manual workflow_dispatch runs are unaffected (no release event).
+    if: ${{ github.event_name != 'release' || !github.event.release.prerelease }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4

@@ -88,6 +88,8 @@ xrpl-lab start              Guided launcher
 xrpl-lab list               Show all modules with status and progression
 xrpl-lab run <module_id>    Run a specific module
 xrpl-lab status [--json]    Progress, curriculum position, blockers, track progress
+xrpl-lab cohort-status [--dir DIR] [--format FORMAT]  Aggregate per-learner status across a cohort directory (facilitator)
+xrpl-lab session-export [--dir DIR] [--format FORMAT] [--outfile FILE]  Archive all learner artifacts with a SHA-256 manifest
 xrpl-lab tracks             Track-level completion summaries
 xrpl-lab recovery           Diagnose stuck states, show recovery commands
 xrpl-lab lint [glob] [--json] [--no-curriculum]  Validate module files and curriculum
@@ -100,7 +102,8 @@ xrpl-lab support-bundle [--json] [--verify FILE]  Generate or verify support bun
 xrpl-lab audit              Batch verify transactions
 xrpl-lab last-run           Show last module run + audit command
 xrpl-lab serve [--port N] [--host H] [--dry-run]  Start web dashboard and API server
-xrpl-lab reset              Wipe local state (requires RESET confirmation)
+xrpl-lab reset [--module MODULE_ID]  Wipe local state OR reset a single module (requires confirmation)
+xrpl-lab module init --id ID --track TRACK --title TITLE --time TIME  Scaffold a lint-passing module skeleton
 
 xrpl-lab wallet create      Create a new wallet
 xrpl-lab wallet show        Show wallet info (no secrets)
