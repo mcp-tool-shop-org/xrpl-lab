@@ -324,3 +324,96 @@ class TestSessionExport:
             names = set(zf.namelist())
         assert "MANIFEST.json" in names
         assert "alice/proofs/p.json" in names
+
+    def test_session_export_extraction_round_trip(self, tmp_path):
+        """F-TESTS-PH8-002 — facilitator-share-then-verify round trip.
+
+        ``test_session_export_manifest_sha256_correct`` proves the
+        write side: source SHA-256s land in MANIFEST.json. This test
+        proves the *read* side: extract the archive to a fresh dir,
+        re-hash the EXTRACTED files, and assert each matches the
+        manifest. That's the path a facilitator actually walks when
+        they receive a session-export from a learner — open the
+        archive, verify integrity, re-read content.
+
+        Without this, a regression that corrupts archive content while
+        keeping the manifest intact (or vice versa) ships silently;
+        the write-side tests can't detect it because they compare
+        against the source files, not the archive entries.
+        """
+        cohort = tmp_path / "cohort"
+        cohort.mkdir()
+        proof_content = '{"proof_pack":"data","sha256":"deadbeef"}'
+        report_content = "# Receipt\n\nA short report with content.\n"
+        cert_content = '{"cert":"value"}'
+        _seed_learner_workspace(
+            cohort, "alice",
+            proofs={"p.json": proof_content},
+            reports={"r.md": report_content},
+            certificates={"c.json": cert_content},
+        )
+        outfile = tmp_path / "session.tar.gz"
+        write_session_export(cohort, outfile, archive_format="tar.gz")
+        assert outfile.exists()
+
+        # Extract the archive to a fresh directory — emulates the
+        # facilitator workflow of "tar -xzf received.tar.gz".
+        extract_dir = tmp_path / "extracted"
+        extract_dir.mkdir()
+        with tarfile.open(outfile, "r:gz") as tar:
+            # Python 3.12+ defaults to data filter; pin explicitly so
+            # the test is deterministic across versions.
+            try:
+                tar.extractall(extract_dir, filter="data")
+            except TypeError:
+                # Older Python without filter kwarg.
+                tar.extractall(extract_dir)
+
+        # Re-read MANIFEST.json from the EXTRACTED copy (not the
+        # in-archive bytes — the round trip must survive disk write).
+        manifest_path = extract_dir / "MANIFEST.json"
+        assert manifest_path.exists(), (
+            "MANIFEST.json missing from extracted archive — extraction "
+            "dropped the integrity manifest."
+        )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["manifest_version"] == 1
+        assert "alice" in manifest["learners"]
+
+        # For each manifest entry, hash the EXTRACTED file and assert
+        # it matches the recorded sha256. Catches:
+        #   * Archive entry corruption on write.
+        #   * Extraction-time content mutation (e.g., line-ending
+        #     conversion if anyone ever swapped to text-mode tar).
+        #   * Manifest drift (wrong path → wrong hash).
+        assert manifest["files"], (
+            "Manifest has no file entries — round trip is meaningless."
+        )
+        for entry in manifest["files"]:
+            extracted = extract_dir / entry["path"]
+            assert extracted.exists(), (
+                f"Manifest references {entry['path']!r} but the file "
+                "is missing from the extracted archive."
+            )
+            actual_sha = hashlib.sha256(
+                extracted.read_bytes()
+            ).hexdigest()
+            assert actual_sha == entry["sha256"], (
+                f"Hash mismatch for {entry['path']}: extracted file "
+                f"hashes to {actual_sha} but manifest claims "
+                f"{entry['sha256']}. Archive content drifted between "
+                "write and extract."
+            )
+            assert extracted.stat().st_size == entry["size"], (
+                f"Size mismatch for {entry['path']}: extracted "
+                f"{extracted.stat().st_size} bytes vs manifest "
+                f"{entry['size']} bytes."
+            )
+
+        # Content integrity sanity: re-parse the proof JSON from the
+        # extracted copy. A round trip that damaged JSON structure but
+        # somehow kept hashes (vanishingly unlikely but cheap to guard)
+        # would fail the parse.
+        extracted_proof = extract_dir / "alice" / "proofs" / "p.json"
+        parsed = json.loads(extracted_proof.read_text(encoding="utf-8"))
+        assert parsed["proof_pack"] == "data"

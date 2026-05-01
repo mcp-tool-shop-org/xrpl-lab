@@ -242,3 +242,91 @@ class TestModuleInitCLI:
         ])
         assert result.exit_code != 0
         assert "Invalid module ID" in result.output
+
+    def test_module_init_passes_full_catalog_lint(self, tmp_path, monkeypatch):
+        """F-TESTS-PH8-004 — module init survives the FULL ``xrpl-lab
+        lint`` CLI surface, not just the per-file unit linter.
+
+        ``test_module_init_creates_lint_passing_skeleton`` calls
+        ``lint_module_file()`` directly — that's frontmatter + step
+        skeleton parse only. The CLI's ``xrpl-lab lint`` subcommand
+        also runs curriculum-level checks and exits non-zero on any
+        error. The scaffolder claims "passes existing linter"; this
+        test pins that claim against the user-facing CLI rather than
+        an internal helper.
+
+        Without this, a regression that adds a new curriculum-level
+        check (or hardens an existing one) could silently break
+        ``module init`` — the per-file unit test still passes, but
+        the CLI a contributor actually runs would exit 1.
+        """
+        from click.testing import CliRunner
+
+        from xrpl_lab.cli import main
+
+        monkeypatch.chdir(tmp_path)
+        runner = CliRunner()
+
+        # 1. Scaffold a fresh module via the same CLI a contributor uses.
+        init_result = runner.invoke(main, [
+            "module", "init",
+            "--id", "catalog_lint_test",
+            "--track", "foundations",
+            "--title", "Catalog Lint Test",
+            "--time", "15 min",
+        ])
+        assert init_result.exit_code == 0, (
+            f"module init failed: {init_result.output}"
+        )
+        out = tmp_path / "catalog_lint_test.md"
+        assert out.exists(), "module init did not write the .md file"
+
+        # 2. Invoke the full ``xrpl-lab lint`` CLI against the new
+        #    scaffold. We point the glob at the file just written
+        #    (``module init`` defaults outfile to cwd, so a glob like
+        #    ``*.md`` from cwd hits exactly one file). Use
+        #    ``--no-curriculum`` because the curriculum validator loads
+        #    the BUILT-IN module catalog — not the cwd file — and the
+        #    new module isn't installed there. The per-file gate is
+        #    what "passes existing linter" actually claims.
+        lint_result = runner.invoke(main, [
+            "lint",
+            "catalog_lint_test.md",
+            "--no-curriculum",
+        ])
+        assert lint_result.exit_code == 0, (
+            "xrpl-lab lint exited non-zero on a freshly-scaffolded "
+            "module. Output:\n" + lint_result.output
+        )
+        # The CLI's PASS line must appear — guards against a future
+        # refactor that swallows errors but still exits 0.
+        assert "PASS" in lint_result.output, (
+            "xrpl-lab lint exit_code=0 but no PASS marker in output:\n"
+            + lint_result.output
+        )
+
+        # 3. JSON-mode lint provides a machine-readable assertion path.
+        #    Re-run the same lint in --json mode and confirm zero
+        #    error-level issues. Catches the case where exit code 0
+        #    is correct but a regression sneaks in warnings that the
+        #    text path glosses over.
+        json_result = runner.invoke(main, [
+            "lint",
+            "catalog_lint_test.md",
+            "--json",
+            "--no-curriculum",
+        ])
+        assert json_result.exit_code == 0, (
+            f"JSON-mode lint exited non-zero: {json_result.output}"
+        )
+        import json as _json
+        # Click captures stdout — strip any trailing newline.
+        report = _json.loads(json_result.output.strip())
+        errors = [
+            i for i in report.get("issues", [])
+            if i.get("level") == "error"
+        ]
+        assert errors == [], (
+            f"JSON lint reports errors on freshly-scaffolded module: "
+            f"{errors}"
+        )

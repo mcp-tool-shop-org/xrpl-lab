@@ -1051,3 +1051,135 @@ class TestDeleteRunEndpoint:
             body = resp.json()
             assert body["run_id"] == run_id
             assert body["status"] == "already_terminated"
+
+    def test_delete_run_emits_cancelled_to_ws_client(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        _clear_sessions,
+    ) -> None:
+        """F-TESTS-PH8-001 — DELETE → WS message delivery.
+
+        DELETE /api/runs/{run_id} must enqueue a final
+        ``RUNTIME_CANCELLED`` envelope BEFORE the run task is cancelled,
+        so any connected WS client sees the terminal frame in-band rather
+        than just a silent close.
+
+        Locks in the production sequence in
+        ``runner_ws.cancel_session``:
+          1. Mark session ``status="cancelled"``.
+          2. ``_safe_put`` a ``{"type":"error", "code":"RUNTIME_CANCELLED",
+             ...}`` envelope onto the WS queue.
+          3. Cancel the underlying asyncio task.
+          4. WS read loop drains the queue, yields the cancel envelope to
+             the client, breaks on ``type=="error"``, and closes the
+             socket cleanly (the finally block does the close — facilitator
+             cancellation is a normal-closure terminal state).
+
+        Without this test, a regression that re-orders the cancel/emit
+        sequence (or drops the envelope) would silently break the
+        dashboard's "you cancelled this run" UX with no signal in CI.
+        """
+        import asyncio as _asyncio
+        import threading as _threading
+
+        from starlette.websockets import WebSocketDisconnect
+
+        # Hanging run keeps the session alive + WS active long enough for
+        # us to issue the DELETE from a parallel request.
+        async def hanging_run_module(
+            module, transport, dry_run=False, force=False, **kwargs
+        ):
+            await _asyncio.Event().wait()
+            return True
+
+        app = self._build_app(
+            tmp_path, monkeypatch, fake_run_module=hanging_run_module
+        )
+
+        with TestClient(app) as client:
+            run_id = client.post(
+                "/api/run/receipt_literacy?dry_run=true"
+            ).json()["run_id"]
+
+            cancel_envelope: dict | None = None
+            close_seen = False
+
+            with client.websocket_connect(
+                f"/api/run/receipt_literacy/ws?run_id={run_id}",
+                headers=_TEST_ORIGIN,
+            ) as ws_conn:
+                # Fire the DELETE from a worker thread — TestClient's
+                # WS context is synchronous and ``receive_json`` blocks
+                # the foreground thread until the next frame arrives.
+                # Background-thread DELETE keeps both halves of the
+                # interaction live concurrently.
+                delete_result: dict = {}
+
+                def _do_delete() -> None:
+                    resp = client.delete(f"/api/runs/{run_id}")
+                    delete_result["status_code"] = resp.status_code
+                    if resp.headers.get("content-type", "").startswith(
+                        "application/json"
+                    ):
+                        delete_result["body"] = resp.json()
+
+                t = _threading.Thread(target=_do_delete, daemon=True)
+                t.start()
+
+                # Read up to 10 frames waiting for the cancellation
+                # envelope. Skip non-terminal frames (step/ping) — the
+                # exact prelude depends on hanging_run_module's timing.
+                close_code: int | None = None
+                for _ in range(10):
+                    try:
+                        msg = ws_conn.receive_json()
+                    except WebSocketDisconnect as exc:
+                        close_seen = True
+                        close_code = exc.code
+                        break
+                    if (
+                        msg.get("type") == "error"
+                        and msg.get("code") == "RUNTIME_CANCELLED"
+                    ):
+                        cancel_envelope = msg
+                        break
+
+                # The WS handler closes after emitting the cancel
+                # envelope (read loop breaks on type=="error"). Drain
+                # any remaining frames to confirm clean closure.
+                if cancel_envelope is not None and not close_seen:
+                    for _ in range(3):
+                        try:
+                            ws_conn.receive_json()
+                        except WebSocketDisconnect as exc:
+                            close_seen = True
+                            close_code = exc.code
+                            break
+
+                t.join(timeout=5.0)
+
+        assert delete_result.get("status_code") == 200, (
+            f"DELETE during active WS expected 200, got "
+            f"{delete_result.get('status_code')!r}"
+        )
+        assert cancel_envelope is not None, (
+            "WS client never received a RUNTIME_CANCELLED envelope after "
+            "DELETE — the cancel-then-emit sequence in cancel_session "
+            "may have regressed (envelope dropped or never enqueued)."
+        )
+        # Envelope shape — the dashboard parses these fields.
+        assert cancel_envelope["type"] == "error"
+        assert cancel_envelope["code"] == "RUNTIME_CANCELLED"
+        assert "message" in cancel_envelope and cancel_envelope["message"]
+        # WS closed cleanly (code 1000 — normal closure for facilitator-
+        # initiated terminal state, NOT an error close).
+        assert close_seen, (
+            "WS did not close after RUNTIME_CANCELLED frame — the read "
+            "loop's break-on-error branch may not be running."
+        )
+        assert close_code == 1000, (
+            f"Expected WS close code 1000 (normal closure) for "
+            f"facilitator cancellation, got {close_code!r}. "
+            "Cancellation is a clean terminal state, not an error close."
+        )
