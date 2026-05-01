@@ -18,12 +18,23 @@ class NetworkInfo:
 
 @dataclass
 class FundResult:
-    """Result of a faucet funding request."""
+    """Result of a faucet funding request.
+
+    ``code`` is an optional structured LabError code (e.g.
+    ``RUNTIME_FAUCET_RATE_LIMITED``) so callers — primarily the
+    dashboard's facilitator UI — can route specific failure modes to
+    distinct treatments without string-matching ``message``. Empty
+    string means "no specific code" (success path, or a generic
+    failure that doesn't map to a LabError taxonomy entry yet).
+    Additive: existing readers of {success, address, balance, message}
+    keep working unchanged.
+    """
 
     success: bool
     address: str
     balance: str = "0"
     message: str = ""
+    code: str = ""
 
 
 @dataclass

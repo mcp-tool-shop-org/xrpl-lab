@@ -339,3 +339,41 @@ def get_run(run_id: str) -> RunInfo:
             "hint": "Use GET /api/runs to list active and recent runs",
         })
     return RunInfo(**detail)
+
+
+@router.delete("/runs/{run_id}")
+async def cancel_run(run_id: str) -> dict[str, str]:
+    """Cancel an in-flight module run; idempotent on terminated runs.
+
+    Facilitator workflow: a learner's run gets stuck (slow testnet, bad
+    input, distracted learner) and the facilitator needs to free the
+    concurrency slot without restarting the server. This endpoint is the
+    surgical cancel for that case.
+
+    Semantics:
+        * ``running`` run — cancels the underlying asyncio task, marks
+          ``status="cancelled"``, emits a final ``RUNTIME_CANCELLED``
+          envelope to any connected WS client, and returns 200 with
+          ``status="cancelled"``. The WS handler closes the socket with
+          code 1000 (normal closure — this is a facilitator-initiated
+          terminal state, not an error).
+        * ``complete | error | cancelled`` run — idempotent. Returns
+          200 with ``status="already_terminated"``. A double-DELETE
+          from a flaky network or a confused facilitator is safe.
+        * Unknown ``run_id`` — 404 with the structured ``RUN_NOT_FOUND``
+          envelope (same shape as GET /api/runs/{run_id}).
+
+    Auth model: same as GET /api/runs — ``server.py`` gates CORS to
+    localhost. A future hardening (F-BRIDGE-FT-004) adds opt-in token
+    auth; this v1.6.0 surface is open under the localhost gate.
+    """
+    from . import runner_ws
+
+    result = await runner_ws.cancel_session(run_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail={
+            "code": "RUN_NOT_FOUND",
+            "message": f"Run '{run_id}' not found",
+            "hint": "Use GET /api/runs to list active and recent runs",
+        })
+    return result

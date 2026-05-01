@@ -374,6 +374,9 @@ class TestErrorEnvelopeBackwardCompat:
             # Specific code overrides (precede prefix mapping).
             ("RUNTIME_TIMEOUT", "warning", "clock"),
             ("RUNTIME_CANCELLED", "info", "x-circle"),
+            # F-BRIDGE-FT-002 — recoverable rate-limit, distinct from
+            # generic RUNTIME_* runtime faults (error/alert-triangle).
+            ("RUNTIME_FAUCET_RATE_LIMITED", "warning", "clock"),
             # User-error prefixes → warning/alert-circle.
             ("INPUT_MODULE_NOT_FOUND", "warning", "alert-circle"),
             ("CONFIG_MISSING_KEY", "warning", "alert-circle"),
@@ -557,3 +560,56 @@ class TestFaucetMessagePedagogy:
         assert "--dry-run" in result.message
         # Negative assertion: the generic fallthrough must NOT win.
         assert "Faucet returned 429:" not in result.message
+
+    @pytest.mark.asyncio
+    async def test_faucet_429_populates_structured_code_on_result(
+        self, monkeypatch
+    ) -> None:
+        """F-BRIDGE-FT-002 — 429 path tags ``FundResult.code`` with
+        ``RUNTIME_FAUCET_RATE_LIMITED`` so dashboards can route to a
+        rate-limit-specific UI distinct from generic network errors.
+
+        Mirrors the runtime-delivery pin above (3 consecutive 429s) and
+        adds the code-field assertion. The humanized message contract
+        is preserved — both fields ship together.
+        """
+        from unittest.mock import AsyncMock, MagicMock
+
+        from xrpl_lab.transport.xrpl_testnet import XRPLTestnetTransport
+
+        fake_429 = MagicMock()
+        fake_429.status_code = 429
+        fake_429.text = "rate limit exceeded"
+
+        fake_client = MagicMock()
+        fake_client.__aenter__ = AsyncMock(return_value=fake_client)
+        fake_client.__aexit__ = AsyncMock(return_value=None)
+        fake_client.post = AsyncMock(return_value=fake_429)
+
+        def _client_factory(*args, **kwargs):
+            return fake_client
+
+        import httpx
+        monkeypatch.setattr(httpx, "AsyncClient", _client_factory)
+
+        import asyncio as _asyncio
+
+        async def _no_sleep(_seconds):
+            return None
+
+        monkeypatch.setattr(_asyncio, "sleep", _no_sleep)
+
+        transport = XRPLTestnetTransport()
+        result = await transport.fund_from_faucet("rTEST_ADDRESS")
+
+        assert result.success is False
+        # Structured-code contract: the dashboard reads result.code to
+        # branch into the rate-limit-specific UI (clock icon, retry
+        # banner, --dry-run callout).
+        assert result.code == "RUNTIME_FAUCET_RATE_LIMITED", (
+            f"Expected code=RUNTIME_FAUCET_RATE_LIMITED, "
+            f"got code={result.code!r}"
+        )
+        # Humanized-message contract still upheld — both ship together.
+        assert "rate-limited" in result.message.lower()
+        assert "--dry-run" in result.message

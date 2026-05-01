@@ -158,6 +158,11 @@ class XRPLTestnetTransport(Transport):
 
         faucet_url = get_faucet_url()
         last_error = ""
+        # Structured LabError code, populated when a specific failure mode
+        # has a dedicated taxonomy entry (e.g. 429 → RUNTIME_FAUCET_RATE_LIMITED).
+        # Empty string for generic failures so existing message-only consumers
+        # still see the humanized text.
+        last_code = ""
 
         for attempt in range(MAX_RETRIES + 1):
             try:
@@ -185,20 +190,31 @@ class XRPLTestnetTransport(Transport):
                             "to practice this module offline without "
                             "needing a funded testnet wallet."
                         )
+                        # Tag the structured code so the dashboard can route
+                        # this to a "rate-limited, retry or use --dry-run" UI
+                        # distinct from a generic RUNTIME_NETWORK failure.
+                        last_code = "RUNTIME_FAUCET_RATE_LIMITED"
                         if attempt < MAX_RETRIES:
                             await asyncio.sleep(RETRY_DELAY * (attempt + 1))
                         continue
                     last_error = f"Faucet returned {resp.status_code}: {resp.text[:200]}"
+                    # Non-429 HTTP error — clear any prior 429 code so the
+                    # final result reflects the latest failure mode.
+                    last_code = ""
             except httpx.TimeoutException:
                 last_error = "Faucet timed out. The testnet faucet may be down."
+                last_code = ""
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
                 last_error = _friendly_error(exc)
+                last_code = ""
                 break
 
-        return FundResult(success=False, address=address, message=last_error)
+        return FundResult(
+            success=False, address=address, message=last_error, code=last_code
+        )
 
     async def submit_payment(
         self,

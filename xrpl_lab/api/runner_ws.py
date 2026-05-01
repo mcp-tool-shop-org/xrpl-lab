@@ -103,6 +103,12 @@ def _severity_for_code(code: str) -> tuple[str, str]:
         return ("warning", "clock")
     if code == "RUNTIME_CANCELLED":
         return ("info", "x-circle")
+    if code == "RUNTIME_FAUCET_RATE_LIMITED":
+        # Rate-limit is recoverable (retry after wait or use --dry-run);
+        # render as warning/clock — same family as RUNTIME_TIMEOUT — so
+        # the dashboard distinguishes it from generic RUNTIME_* runtime
+        # faults (error/alert-triangle).
+        return ("warning", "clock")
 
     # Prefix-based mapping
     if code.startswith("INPUT_") or code.startswith("CONFIG_") or code.startswith("STATE_"):
@@ -216,7 +222,7 @@ class ModuleRunSession:
     run_id: str
     module_id: str
     dry_run: bool
-    status: str = "started"  # started | running | complete | error
+    status: str = "started"  # started | running | complete | error | cancelled
     queue: asyncio.Queue = field(
         default_factory=lambda: asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
     )
@@ -232,21 +238,33 @@ class ModuleRunSession:
     # so /api/runs returns the same value across calls regardless of clock
     # adjustments after the fact.
     started_at_wall: float = field(default_factory=time.time)
+    # Reference to the asyncio task running this module, set by start_run
+    # right after _run_module_task is scheduled. DELETE /api/runs/{run_id}
+    # uses this to cancel the in-flight run; the WS handler reads it only
+    # to know the task exists, never invokes it. Optional so tests that
+    # fabricate sessions without a real task continue to work.
+    task: asyncio.Task | None = None
 
 
 def _evict_oldest_completed() -> None:
-    """If _sessions exceeds _MAX_SESSIONS, evict the oldest completed session."""
+    """If _sessions exceeds _MAX_SESSIONS, evict the oldest terminal session.
+
+    Terminal = ``complete | error | cancelled``. Cancelled runs are
+    eligible for eviction the same as completed/errored ones; a
+    facilitator-initiated DELETE that lands while at session-cap should
+    not block new runs from starting.
+    """
     if len(_sessions) <= _MAX_SESSIONS:
         return
 
-    # Find completed/error sessions sorted by creation time
+    # Find terminal sessions sorted by creation time
     completed = [
         (sid, s) for sid, s in _sessions.items()
-        if s.status in ("complete", "error")
+        if s.status in ("complete", "error", "cancelled")
     ]
     completed.sort(key=lambda pair: pair[1].created_at)
 
-    # Evict oldest completed sessions until under limit
+    # Evict oldest terminal sessions until under limit
     while len(_sessions) > _MAX_SESSIONS and completed:
         sid, _ = completed.pop(0)
         _sessions.pop(sid, None)
@@ -258,12 +276,15 @@ def _evict_oldest_completed() -> None:
 def _public_status(internal_status: str) -> str:
     """Map internal session status → facilitator-facing status enum.
 
-    Internal: ``started | running | complete | error``
-    Public:   ``running | completed | failed``
+    Internal: ``started | running | complete | error | cancelled``
+    Public:   ``running | completed | failed | cancelled``
 
     The internal ``started`` state is collapsed into ``running`` for
     consumers — facilitators don't need to distinguish "task created" from
-    "task currently executing"; both are "in progress."
+    "task currently executing"; both are "in progress." ``cancelled`` is
+    its own public state (distinct from ``failed``) so the dashboard can
+    render facilitator-initiated terminations differently from runtime
+    errors.
     """
     if internal_status in ("started", "running"):
         return "running"
@@ -271,6 +292,8 @@ def _public_status(internal_status: str) -> str:
         return "completed"
     if internal_status == "error":
         return "failed"
+    if internal_status == "cancelled":
+        return "cancelled"
     # Defensive default — a future internal status added without updating
     # this map renders as "running" rather than leaking the new internal
     # value to the public surface.
@@ -332,6 +355,119 @@ def get_active_count() -> int:
     return sum(1 for s in _sessions.values() if s.status in ("running", "started"))
 
 
+# ── Facilitator-initiated cancellation (DELETE /api/runs/{run_id}) ──
+
+
+async def cancel_session(run_id: str) -> dict[str, Any] | None:
+    """Cancel an in-flight run by run_id; idempotent on terminated runs.
+
+    Returns:
+        ``None`` if the run_id is unknown (caller renders 404).
+        A dict ``{run_id, status, message}`` describing the outcome:
+            - ``status == "cancelled"`` — was running, task cancelled,
+              concurrency slot freed, RUNTIME_CANCELLED envelope emitted
+              to the WS queue (so any connected client sees the final
+              frame before close).
+            - ``status == "already_terminated"`` — was already
+              ``complete`` / ``error`` / ``cancelled``; no-op.
+
+    Implementation notes:
+        Calls ``Task.cancel()`` and awaits the task with a short bound
+        so the asyncio.CancelledError fully propagates through the run
+        loop's ``except`` clauses before returning. The run loop's
+        existing ``except Exception`` branch already maps CancelledError
+        to a structured envelope via ``_error_envelope`` — we don't
+        duplicate that emission here, we just guarantee it has a chance
+        to run before the slot is reported as free.
+
+        The session is left in ``_sessions`` with status="cancelled" so
+        subsequent GET /api/runs calls show the terminal state; the
+        existing _schedule_session_cleanup grace-period eviction
+        (triggered by the WS handler's finally block, or by cleanup-on-
+        terminate below) handles long-term removal.
+    """
+    session = _sessions.get(run_id)
+    if session is None:
+        return None
+
+    # Idempotent on already-terminated runs. ``cancelled`` is included so
+    # a double-DELETE returns a stable shape rather than racing the
+    # in-progress cancel.
+    if session.status in ("complete", "error", "cancelled"):
+        return {
+            "run_id": run_id,
+            "status": "already_terminated",
+            "message": (
+                f"Run was already {_public_status(session.status)}; "
+                "nothing to cancel."
+            ),
+        }
+
+    # Mark cancelled BEFORE asking the task to stop — so a concurrent
+    # GET /api/runs that lands during cancellation sees the terminal
+    # state, not a stale "running" snapshot.
+    session.status = "cancelled"
+    session.error = "cancelled by facilitator"
+
+    # Emit a final RUNTIME_CANCELLED envelope to any connected WS so
+    # the dashboard shows the terminal frame instead of a silent close.
+    # The WS read loop breaks on type=="error", then the finally block
+    # closes the socket with code 1000 (normal closure) — we don't need
+    # a separate close here. _safe_put is non-blocking; even a stalled
+    # consumer drops-oldest rather than blocking the cancel path.
+    severity, icon_hint = _severity_for_code("RUNTIME_CANCELLED")
+    _safe_put(
+        session.queue,
+        {
+            "type": "error",
+            "code": "RUNTIME_CANCELLED",
+            "message": "Run cancelled by facilitator.",
+            "hint": "Restart the run when ready, or check with the facilitator.",
+            "severity": severity,
+            "icon_hint": icon_hint,
+        },
+        run_id,
+    )
+
+    task = session.task
+    if task is not None and not task.done():
+        task.cancel()
+        # Bounded wait — the run loop's except handlers complete quickly
+        # (they just write a final envelope to the queue and return).
+        # Suppress CancelledError that propagates here from the awaited
+        # task itself; either branch (timeout, or our own cancellation)
+        # leaves the slot logically free — the session is already marked
+        # cancelled and the task will not resume.
+        with contextlib.suppress(TimeoutError, asyncio.CancelledError):
+            await asyncio.wait_for(asyncio.shield(_await_quietly(task)), timeout=5.0)
+
+    # Schedule grace-period cleanup the same way completed runs are
+    # cleaned up (after the WS handler's finally block runs). For
+    # facilitator-initiated cancellation there may not be a connected
+    # WS, so trigger the cleanup ourselves to avoid leaking a session.
+    _schedule_session_cleanup(run_id)
+
+    return {
+        "run_id": run_id,
+        "status": "cancelled",
+        "message": "Run cancelled by facilitator",
+    }
+
+
+async def _await_quietly(task: asyncio.Task) -> None:
+    """Await ``task`` and swallow ``CancelledError`` from it.
+
+    The cancel path needs to know the task has finished unwinding
+    without re-raising the cancellation that was just requested.
+    """
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    except Exception:  # noqa: BLE001 — task's own exception path already logged.
+        pass
+
+
 def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS) -> None:
     """Schedule removal of a session after a grace period."""
 
@@ -339,7 +475,7 @@ def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS
         try:
             await asyncio.sleep(delay)
             session = _sessions.get(run_id)
-            if session and session.status in ("complete", "error"):
+            if session and session.status in ("complete", "error", "cancelled"):
                 _sessions.pop(run_id, None)
         except Exception:
             logger.warning("Session cleanup failed for %s", run_id)
@@ -504,6 +640,20 @@ async def _run_module_task(session: ModuleRunSession) -> None:
             {"type": "error", **envelope},
             session.run_id,
         )
+    except asyncio.CancelledError:
+        # Facilitator-initiated cancellation via DELETE /api/runs/{run_id}.
+        # ``cancel_session`` has already set session.status="cancelled"
+        # and emitted the RUNTIME_CANCELLED envelope to the queue, so
+        # we must NOT overwrite either here. Re-raise so asyncio's
+        # task-cancellation bookkeeping completes correctly (the
+        # ``cancel_session`` awaiter expects the task to finish in the
+        # cancelled state).
+        logger.info(
+            "module run cancelled: run_id=%s module_id=%s",
+            session.run_id,
+            session.module_id,
+        )
+        raise
     except Exception as exc:
         # Server-side observability: full str(exc) at ERROR with run_id.
         # The client only sees the structured envelope — no paths/internals.
@@ -581,8 +731,13 @@ async def start_run(request: Request, module_id: str, dry_run: bool = False) -> 
     session = ModuleRunSession(run_id=run_id, module_id=module_id, dry_run=dry_run)
     _sessions[run_id] = session
 
-    # Start the module run as a background task
-    asyncio.create_task(_run_module_task(session))
+    # Start the module run as a background task. Stash the task on the
+    # session so DELETE /api/runs/{run_id} can cancel it. The task
+    # reference is also what _cancel_session awaits during cancellation
+    # so the asyncio.CancelledError fully propagates before the response
+    # returns — preventing a race where the freed concurrency slot is
+    # reported before the task actually exits.
+    session.task = asyncio.create_task(_run_module_task(session))
 
     return {"run_id": run_id, "status": "started"}
 

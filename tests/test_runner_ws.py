@@ -850,3 +850,204 @@ class TestGetRunsEndpoints:
         assert "error" not in data
         assert "txids" not in data
         assert "report_path" not in data
+
+
+# ── DELETE /api/runs/{run_id} (F-BRIDGE-FT-001) ──────────────────────
+
+
+class TestDeleteRunEndpoint:
+    """Phase 7 v1.6.0 — facilitator-initiated cancellation.
+
+    DELETE /api/runs/{run_id} cancels an in-flight asyncio task,
+    frees the concurrency slot, and emits a final ``RUNTIME_CANCELLED``
+    envelope to any connected WS client. Idempotent on already-
+    terminated runs (returns 200 with ``status="already_terminated"``).
+    Unknown run_id → 404 with the structured ``RUN_NOT_FOUND`` envelope.
+
+    Workshop workflow: a learner's run gets stuck (slow testnet, bad
+    input, distracted learner). The facilitator clicks "Cancel" on the
+    dashboard or curls DELETE /api/runs/{run_id} to free the slot
+    without restarting the server.
+    """
+
+    def _build_app(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        fake_run_module=None,
+    ):
+        """Mirror of TestWebSocketLifecycle._build_app — same pattern."""
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        ws_dir = tmp_path / "ws"
+        ws_dir.mkdir()
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws_dir)
+        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: ws_dir)
+        monkeypatch.setattr("xrpl_lab.api.routes.get_workspace_dir", lambda: ws_dir)
+
+        mods = {"receipt_literacy": _make_simple_module("receipt_literacy")}
+        monkeypatch.setattr("xrpl_lab.api.runner_ws.load_all_modules", lambda: mods)
+
+        if fake_run_module is None:
+            async def fake_run_module(  # type: ignore[no-redef]
+                module, transport, dry_run=False, force=False, **kwargs
+            ):
+                return True
+
+        monkeypatch.setattr("xrpl_lab.api.runner_ws.run_module", fake_run_module)
+
+        return create_app()
+
+    def test_delete_run_cancels_running_run(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        _clear_sessions,
+    ) -> None:
+        """Start a hanging run, DELETE it, assert 200 + cancelled status.
+
+        Verifies:
+          * 200 with ``status="cancelled"`` and a facilitator-friendly
+            message.
+          * Session status flips to "cancelled" (terminal).
+          * Concurrency slot is freed: starting a new run after the
+            DELETE succeeds even when we previously held _MAX_CONCURRENT
+            saturated by hanging tasks.
+        """
+        import asyncio as _asyncio
+
+        from xrpl_lab.api import runner_ws
+
+        async def hanging_run_module(
+            module, transport, dry_run=False, force=False, **kwargs
+        ):
+            await _asyncio.Event().wait()
+            return True
+
+        app = self._build_app(
+            tmp_path, monkeypatch, fake_run_module=hanging_run_module
+        )
+
+        max_runs = runner_ws._MAX_CONCURRENT_RUNS
+        with TestClient(app) as client:
+            # Saturate the concurrency cap with hanging runs.
+            run_ids: list[str] = []
+            for _ in range(max_runs):
+                r = client.post("/api/run/receipt_literacy?dry_run=true")
+                assert r.status_code == 200
+                run_ids.append(r.json()["run_id"])
+
+            # Pre-condition: any further POST is rate-limited.
+            blocked = client.post("/api/run/receipt_literacy?dry_run=true")
+            assert blocked.status_code == 429, (
+                "Saturation precondition violated — DELETE test is "
+                "meaningless if the cap isn't already in force."
+            )
+
+            # DELETE the first hanging run.
+            target = run_ids[0]
+            resp = client.delete(f"/api/runs/{target}")
+            assert resp.status_code == 200, (
+                f"DELETE expected 200, got {resp.status_code}: {resp.text}"
+            )
+            body = resp.json()
+            assert body["run_id"] == target
+            assert body["status"] == "cancelled"
+            # Facilitator-actionable copy.
+            assert "cancelled" in body["message"].lower()
+
+            # Session is in terminal "cancelled" state (or already evicted
+            # by the cleanup grace period — both are valid post-conditions
+            # for "no longer holding the slot").
+            sess = runner_ws._sessions.get(target)
+            assert sess is None or sess.status == "cancelled", (
+                f"After DELETE, session should be cancelled or evicted; "
+                f"got status={sess.status if sess else None!r}"
+            )
+
+            # Concurrency slot freed: a new POST now succeeds.
+            freed = client.post("/api/run/receipt_literacy?dry_run=true")
+            assert freed.status_code == 200, (
+                f"Concurrency slot was not freed after DELETE — "
+                f"got {freed.status_code}: {freed.text}"
+            )
+
+    def test_delete_run_returns_404_for_unknown(
+        self,
+        client_with_module: TestClient,
+        _clear_sessions,
+    ) -> None:
+        """Unknown run_id → 404 with the structured ``RUN_NOT_FOUND`` envelope.
+
+        Same shape as GET /api/runs/{run_id} so dashboards can share
+        a single error-handling path across the read and write surfaces.
+        """
+        resp = client_with_module.delete("/api/runs/nonexistent-run-id")
+        assert resp.status_code == 404
+        detail = resp.json()["detail"]
+        assert detail["code"] == "RUN_NOT_FOUND"
+        assert "not found" in detail["message"].lower()
+        assert "hint" in detail and detail["hint"]
+        # The hint must point facilitators at the live-list endpoint
+        # so a typo'd run_id has an obvious recovery path.
+        assert "/api/runs" in detail["hint"]
+
+    def test_delete_run_idempotent_on_completed(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        _clear_sessions,
+    ) -> None:
+        """A run that already finished → DELETE returns 200 with
+        ``status="already_terminated"``. No error, no second cancel.
+
+        A double-DELETE from a flaky network or a confused facilitator
+        must be a safe no-op — never a 500 or a 404 (the run still
+        exists in the session map until the grace-period cleanup).
+        """
+        import time as _time
+
+        from xrpl_lab.api import runner_ws
+
+        # Patch grace period to 60s so the completed run stays in
+        # _sessions long enough for our DELETE to land.
+        original_schedule = runner_ws._schedule_session_cleanup
+
+        def long_schedule(run_id: str, delay: float = 60.0) -> None:
+            return original_schedule(run_id, delay=60.0)
+
+        monkeypatch.setattr(
+            runner_ws, "_schedule_session_cleanup", long_schedule
+        )
+
+        app = self._build_app(tmp_path, monkeypatch)
+
+        with TestClient(app) as client:
+            run_id = client.post(
+                "/api/run/receipt_literacy?dry_run=true"
+            ).json()["run_id"]
+
+            # Wait for the fake run_module (returns True quickly) to
+            # flip the session into a terminal state.
+            deadline = _time.monotonic() + 2.0
+            while _time.monotonic() < deadline:
+                sess = runner_ws._sessions.get(run_id)
+                if sess and sess.status in ("complete", "error"):
+                    break
+                _time.sleep(0.05)
+
+            sess = runner_ws._sessions.get(run_id)
+            assert sess is not None, "Session disappeared before DELETE"
+            assert sess.status in ("complete", "error"), (
+                f"Run did not terminate within window; status="
+                f"{sess.status!r}"
+            )
+
+            # First DELETE on a terminated run.
+            resp = client.delete(f"/api/runs/{run_id}")
+            assert resp.status_code == 200, (
+                f"Idempotent DELETE expected 200, got {resp.status_code}"
+            )
+            body = resp.json()
+            assert body["run_id"] == run_id
+            assert body["status"] == "already_terminated"

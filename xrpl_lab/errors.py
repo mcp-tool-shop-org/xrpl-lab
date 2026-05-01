@@ -98,3 +98,27 @@ def tx_failed(result_code: str, detail: str = "") -> LabError:
         hint="Check the result code in the XRPL documentation, or run 'xrpl-lab doctor'.",
         cause=detail if detail else None,
     )
+
+
+def faucet_rate_limited() -> LabError:
+    """Faucet 429 — distinct code so dashboards can route to a specific UI.
+
+    Surfaces alongside the existing humanized prose in
+    ``transport.xrpl_testnet.fund_from_faucet``; the prose still teaches
+    WHY (abuse prevention) and the fallback (--dry-run). The structured
+    code lets the Frontend distinguish "rate-limited, retry or use
+    --dry-run" from a generic ``RUNTIME_NETWORK`` failure so the
+    dashboard can render a clock icon and a wait/retry-cued banner
+    rather than the generic alert-triangle.
+    """
+    return LabError(
+        code="RUNTIME_FAUCET_RATE_LIMITED",
+        message="Faucet rate-limited (HTTP 429).",
+        hint=(
+            "The testnet faucet caps funding requests to keep test XRP "
+            "available for everyone. Wait at least 60 seconds before "
+            "retrying, or use --dry-run to practice this module offline "
+            "without needing a funded testnet wallet."
+        ),
+        retryable=True,
+    )
