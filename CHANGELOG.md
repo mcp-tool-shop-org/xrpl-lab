@@ -1,4 +1,55 @@
 # Changelog
+## 1.6.0 — 2026-05-01
+
+Hardening + Workshop Resilience — security tightening, structured error envelopes, AMM math correction, and four new facilitator commands. Driven by a 10-phase dogfood swarm covering Stage A bugs/security, Stage B proactive defense, Stage C humanization, Stage D visual polish, and a Feature Pass over deliberate workshop gaps.
+
+### Security
+- **WebSocket Origin enforcement** — `/api/run/{id}/ws` rejects non-allow-listed origins with close code 4003 + structured close-reason citing the allow-list. Mitigates cross-origin attack surface against the dashboard runner.
+- **Wallet seed atomic write** — `actions/wallet.py` now uses `os.open(O_WRONLY|O_CREAT|O_TRUNC, 0o600)` instead of `write_text`+`chmod`. Closes the TOCTOU window where another process could read the file between create and chmod.
+- **Workspace mode policy** — home directory `~/.xrpl-lab/` enforced 0o700 (private secrets); workspace `./.xrpl-lab/` left 0o755 (designed-shareable for facilitator review). Two-tier policy documented in `SECURITY.md`.
+- **Structured error envelopes** — every WS error frame now emits `{code, message, hint, severity, icon_hint}` via the canonical `_error_envelope()` producer. No path leakage, no internal-state leakage. Pedagogically routed: `severity` drives dashboard styling, `icon_hint` drives glyph choice.
+- **`RUNTIME_FAUCET_RATE_LIMITED` end-to-end delivery** — testnet faucet 429 responses are humanized at the transport layer, raised as `LabException(faucet_rate_limited())` from runtime `ensure_funded`, and reach the WS envelope with severity=warning + icon_hint=clock. Distinct UI treatment from generic network errors.
+- **Bounded WS queue** — `_safe_put` drops oldest-then-newest under back-pressure; documented per-connection memory ceiling.
+
+### Workshop resilience
+- **State.json atomic writes** — `state.py` write-to-tmp + `os.replace` for crash-safe persistence; stale `.tmp` siblings cleaned up before write to avoid partial-write reuse.
+- **WS reconnect with lifetime cap** — dashboard run page reconnects on transient disconnects with exponential backoff and a 20-attempt lifetime ceiling. Per-cycle budget resets on first successful message.
+- **`doctor` depth** — pedagogical messages for `tecNO_DST` (10-XRP base reserve activation), `tecINSUF_RESERVE` (per-object reserve scaling), `tecNO_LINE` (token opt-in security model), `telINSUF_FEE_P` (testnet fee dynamics).
+- **Recovery + status humanization** — `xrpl-lab status`, `xrpl-lab recovery`, `xrpl-lab tracks` rewritten for warmth and clarity. Trust-line failures explain directionality + opt-in. Already-completed messages clarify `--force` semantics.
+- **Color-independence** — projector-friendly icon + color + text on every status surface (`doctor`, `list`, `status`, `tracks`). Verified under `NO_COLOR=1`.
+
+### New facilitator features
+- **`xrpl-lab cohort-status`** — aggregates per-learner status across a cohort directory. Tolerates corrupt state.json per-learner with a warning row. Table + JSON output.
+- **`xrpl-lab session-export`** — archives all learner artifacts (proofs, reports, audit packs, certificates) with a SHA-256 manifest. Excludes `wallet.json`, `state.json`, `doctor.log` by design. tar.gz + zip formats.
+- **`xrpl-lab reset --module MODULE_ID`** — granular per-module reset that preserves wallet, audit packs, and other modules. Closes the "stuck on one module" recovery gap.
+- **`xrpl-lab module init`** — scaffolds a lint-passing module skeleton with frontmatter, step section, and TODO markers. Validates against curriculum catalog.
+- **DELETE `/api/runs/{run_id}`** — facilitator can cancel a stuck learner run; emits `RUNTIME_CANCELLED` envelope, closes WS with code 1000, frees concurrency slot. Idempotent on already-cleaned runs.
+- **Facilitator dashboard page** — new `/app/facilitator/runs/` lists active learner runs with kill button and cohort capacity badge. Auto-refreshes; pauses polling when tab hidden; cleans up listeners on Astro client-side nav.
+
+### Distribution
+- **Auto-publish to PyPI** — `.github/workflows/publish-pypi.yml` triggers on `release: published`, with prerelease guard (`!github.event.release.prerelease`) preserving `workflow_dispatch` manual fallback.
+- **`verify.sh` uses `uv build`** — single command produces sdist + wheel; works in uv-managed venvs without pip on PATH.
+
+### Pedagogy
+- **AMM math correction** — first-LP deposit uses Uniswap V2 `sqrt(a*b)` (not arithmetic mean); subsequent deposits use binding-ratio `min(da/pa, db/pb)` with refund of the over-provided side. Zero-pool deposits return zero LP per the V2 invariant. Receipt audit module's verdict logic now matches.
+- **Error message humanization with XRPL concepts** — every error path teaches the concept it surfaces (reserves are minimum balance not fee; trust lines are directional; fee dynamics scale per testnet load). Mechanical strings replaced with pedagogically-routed text.
+
+### Documentation
+- **`CONTRIBUTING.md`** — community contributor guide for module authors, including the new `xrpl-lab module init` workflow.
+- **`SECURITY.md` workshop-setup section** — facilitator-facing setup guidance (per DD-4 carry-in resolution).
+- **README Commands block** — 4 new v1.6.0 commands listed with accurate help text.
+- **README threat model paragraph** — refreshed to reflect WS Origin enforcement, atomic writes, workspace mode policy, and the "protected by file permissions, not encrypted" correction.
+
+### Tests
+- **+162 tests across the swarm** (564 → 726). Highlights: `TestErrorEnvelopeBackwardCompat` (parametrized severity-mapping per code prefix), `TestDeleteRunEndpoint` (DELETE → WS message delivery), `TestSessionExport` (extraction round-trip + secret-leakage scan), `TestInputModuleNotFoundEmissionPath` (Pattern #3 production-emission-path closure), `TestWalletParentDirMode` (DD-1 0o700 enforcement), 14 focused tests for the new `_atomic_write_json` helper.
+- **0 xfailed sustained throughout** — strict gate held across all 60+ commits.
+
+### Refactors (Phase 10 carry-in closures)
+- `_atomic_write_json` helper extracted from `wallet.py` + `state.py` (DRY).
+- `_ALLOWED_ORIGINS` single source of truth in `xrpl_lab/api/runner_ws.py`; imported by `xrpl_lab/server.py`.
+- Test-side `._*` AppleDouble glob skip in `tests/test_linter.py` (T9 exFAT defense).
+- Session-isolation fixture applied to `TestRunWebSocket` and `TestStartRun` classes.
+
 ## 1.5.0 — 2026-04-15
 
 Humanization Pass — clearer, steadier, more motivating copy across every learner-facing surface.

@@ -173,8 +173,8 @@ transaction IDs, and explorer links. Includes a SHA-256 integrity hash. No secre
 ## Security and Trust Model
 
 **Data XRPL Lab touches:**
-- Wallet seed (stored locally in `~/.xrpl-lab/wallet.json` with restrictive file permissions)
-- Module progress and transaction IDs (stored in `~/.xrpl-lab/state.json`)
+- Wallet seed (stored locally in `~/.xrpl-lab/wallet.json` as plaintext JSON, protected by 0o600 file permissions and a 0o700 parent directory — not encrypted)
+- Module progress and transaction IDs (stored in `~/.xrpl-lab/state.json`, atomic writes via tmp + rename)
 - XRPL Testnet RPC (public endpoint, transactions signed locally before submission)
 - Testnet faucet (public HTTP, only your address is sent)
 
@@ -182,14 +182,21 @@ transaction IDs, and explorer links. Includes a SHA-256 integrity hash. No secre
 - No mainnet. Testnet only
 - No telemetry, analytics, or phone-home of any kind
 - No cloud accounts, no registration, no third-party APIs
-- No secrets in proof packs, certificates, or reports — ever
+- No secrets in proof packs, certificates, reports, or support bundles — ever
 
-**Permissions:**
-- Filesystem: reads/writes only `~/.xrpl-lab/` and `./.xrpl-lab/` (local workspace)
+**Permissions and storage tiers:**
+- Home `~/.xrpl-lab/` — private secrets tier, 0o700 directory + 0o600 wallet file. Stores wallet seed, doctor log, audit packs.
+- Workspace `./.xrpl-lab/` — designed-shareable tier, 0o755 directory. Stores module reports, proof packs, certificates. Facilitators can review without permission elevation.
+- Filesystem: reads/writes only the two locations above
 - Network: XRPL Testnet RPC + faucet only (both overridable via env vars, both optional with `--dry-run`)
 - No elevated permissions required
 
-See [SECURITY.md](SECURITY.md) for the full security policy.
+**Dashboard surface (when `xrpl-lab serve` is running):**
+- WebSocket runner endpoint enforces an Origin allow-list (closes non-allow-listed connections with code 4003)
+- All error frames emit a structured envelope (`code`, `message`, `hint`, `severity`, `icon_hint`) — no path leakage, no internal-state leakage
+- Bounded per-connection message queue with documented back-pressure behavior
+
+See [SECURITY.md](SECURITY.md) for the full security policy and workshop-setup guidance.
 
 ## Requirements
 
