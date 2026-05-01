@@ -83,7 +83,7 @@ Prerequisites are explicit — the CLI and linter enforce them.
 
 ## Commands
 
-```
+```text
 xrpl-lab start              Guided launcher
 xrpl-lab list               Show all modules with status and progression
 xrpl-lab run <module_id>    Run a specific module
