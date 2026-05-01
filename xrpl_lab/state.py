@@ -168,6 +168,32 @@ def state_path() -> Path:
     return get_home_dir() / "state.json"
 
 
+def load_state_from_path(path: Path) -> LabState:
+    """Load state from an explicit path (read-only).
+
+    Used by cohort-status / session-export to read a learner's
+    state.json directly from a known location without going through
+    XRPL_LAB_HOME / get_home_dir(). No corruption-backup side-effect:
+    callers want a clean ``ValueError`` on malformed JSON so they
+    can surface a per-learner warning row and continue.
+
+    Raises:
+        FileNotFoundError: if ``path`` does not exist.
+        ValueError: if the file is not valid JSON or fails schema.
+    """
+    if not path.exists():
+        raise FileNotFoundError(path)
+    raw = path.read_text(encoding="utf-8")
+    try:
+        data: dict[str, Any] = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in {path}: {e}") from e
+    try:
+        return LabState.model_validate(data)
+    except ValidationError as e:
+        raise ValueError(f"Schema mismatch in {path}: {e}") from e
+
+
 def load_state() -> LabState:
     """Load state from disk, or return fresh state."""
     p = state_path()

@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import time
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -925,6 +926,190 @@ API docs available at http://localhost:{port}/docs after starting.
 
     app = create_app(dry_run=dry_run)
     uvicorn.run(app, host=host, port=port)
+
+
+# ---------------------------------------------------------------------------
+# Cohort + session-export — workshop facilitator commands
+# (F-BACKEND-FT-001 + F-BACKEND-FT-002)
+# ---------------------------------------------------------------------------
+
+
+@main.command("cohort-status")
+@click.option(
+    "--dir", "cohort_dir",
+    default=".", type=click.Path(exists=True, file_okay=False),
+    help="Cohort directory containing per-learner subdirectories.",
+)
+@click.option(
+    "--format", "fmt",
+    type=click.Choice(["table", "json"]), default="table",
+    help="Output format. Use json for scripting.",
+)
+def cohort_status(cohort_dir: str, fmt: str):
+    """Aggregate per-learner status across a cohort directory.
+
+    Walks ``COHORT_DIR/<learner>/.xrpl-lab/state.json`` for each
+    subdir; surfaces completed_count, current module, blockers, and
+    last activity in one row per learner. Subdirs without state.json
+    are skipped silently. A corrupt state.json yields a warning row
+    but never aborts the aggregation — facilitators need the partial
+    view, not a hard fail.
+
+    Single-shared-workspace mode: if ``COHORT_DIR/.xrpl-lab/state.json``
+    exists, reports it as a single row.
+    """
+    from .state import load_state_from_path
+
+    cohort_path = Path(cohort_dir)
+    rows: list[dict] = []
+    warnings: list[tuple[str, str]] = []
+
+    # Single-shared-workspace mode: cohort dir itself has the state.
+    if (cohort_path / ".xrpl-lab" / "state.json").exists():
+        candidates = [cohort_path]
+    else:
+        candidates = sorted(p for p in cohort_path.iterdir() if p.is_dir())
+
+    for sub in candidates:
+        state_file = sub / ".xrpl-lab" / "state.json"
+        if not state_file.exists():
+            continue
+        learner_id = sub.name if sub != cohort_path else "_cohort"
+        try:
+            state = load_state_from_path(state_file)
+        except (FileNotFoundError, ValueError) as e:
+            warnings.append((learner_id, str(e)))
+            continue
+        # Reuse status math: derive minimal facilitator view from the
+        # raw state, mirroring fields exposed by `xrpl-lab status --json`.
+        completed_ids = [m.module_id for m in state.completed_modules]
+        last_activity_ts = max(
+            (m.completed_at for m in state.completed_modules), default=None,
+        )
+        last_activity_iso = (
+            datetime.fromtimestamp(last_activity_ts, tz=UTC).isoformat()
+            if last_activity_ts else None
+        )
+        # Current module + blockers via workshop helper
+        from .workshop import get_learner_status
+        ls = get_learner_status(state)
+        rows.append({
+            "learner_id": learner_id,
+            "wallet_address": state.wallet_address,
+            "network": state.network,
+            "completed_count": len(completed_ids),
+            "total_modules": ls.total_modules,
+            "current_module": ls.current_module,
+            "blockers": ls.blockers,
+            "last_activity": last_activity_iso,
+        })
+
+    # Sort by learner-id alphabetically (deterministic)
+    rows.sort(key=lambda r: r["learner_id"])
+
+    if fmt == "json":
+        out = {
+            "cohort_dir": str(cohort_path.resolve()),
+            "learners": rows,
+            "warnings": [
+                {"learner_id": lid, "error": err} for lid, err in warnings
+            ],
+        }
+        print(json.dumps(out, indent=2))
+        return
+
+    # Rich table for facilitator at-a-glance
+    table = Table(title=f"Cohort Status — {cohort_path}", expand=True)
+    table.add_column("Learner", style="bold")
+    table.add_column("Progress")
+    table.add_column("Current")
+    table.add_column("Blockers")
+    table.add_column("Last activity", style="dim")
+
+    for row in rows:
+        progress = f"{row['completed_count']}/{row['total_modules']}"
+        current = row["current_module"] or "(complete)"
+        blockers = "; ".join(row["blockers"]) if row["blockers"] else "-"
+        last = row["last_activity"] or "-"
+        table.add_row(row["learner_id"], progress, current, blockers, last)
+
+    for lid, err in warnings:
+        table.add_row(
+            f"[yellow]{lid}[/]",
+            "[yellow]?[/]",
+            "[yellow]?[/]",
+            f"[yellow]warning: {err[:60]}[/]",
+            "-",
+        )
+
+    console.print()
+    if not rows and not warnings:
+        console.print(
+            f"[yellow]No learner workspaces found under {cohort_path}.[/] "
+            "Each learner subdir should contain .xrpl-lab/state.json."
+        )
+        console.print()
+        return
+    console.print(table)
+    console.print()
+    if warnings:
+        console.print(
+            f"[yellow]{len(warnings)} learner(s) had unreadable state — "
+            "see warning rows.[/]"
+        )
+        console.print()
+
+
+@main.command("session-export")
+@click.option(
+    "--dir", "cohort_dir",
+    default=".", type=click.Path(exists=True, file_okay=False),
+    help="Cohort directory containing per-learner subdirectories.",
+)
+@click.option(
+    "--format", "fmt",
+    type=click.Choice(["tar.gz", "zip"]), default="tar.gz",
+    help="Archive format.",
+)
+@click.option(
+    "--outfile", default=None, type=click.Path(),
+    help="Output archive path (default: xrpl_lab_session_<timestamp>.<fmt>).",
+)
+def session_export(cohort_dir: str, fmt: str, outfile: str | None):
+    """Archive all learner artifacts with a SHA-256 manifest.
+
+    Walks ``COHORT_DIR`` for per-learner workspaces and packs each
+    learner's proofs/, reports/, audit_packs/, certificates/ into a
+    single archive. wallet.json, state.json, and doctor.log are
+    NEVER archived (workshop threat-model line). MANIFEST.json at the
+    archive root lists every included file with its source SHA-256.
+    """
+    from .reporting import write_session_export
+
+    if outfile is None:
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        ext = "tar.gz" if fmt == "tar.gz" else "zip"
+        outfile = f"xrpl_lab_session_{ts}.{ext}"
+
+    summary = write_session_export(
+        cohort_dir=Path(cohort_dir),
+        outfile=Path(outfile),
+        archive_format=fmt,
+    )
+
+    console.print()
+    if summary["learners"] == 0:
+        console.print(
+            f"[yellow]No learner workspaces found under {cohort_dir}.[/] "
+            "Archive written with empty MANIFEST.json — nothing to share."
+        )
+    else:
+        console.print(
+            f"[green]Exported {summary['learners']} learner(s), "
+            f"{summary['files']} file(s), {summary['bytes']} bytes "
+            f"→ {summary['outfile']}[/]"
+        )
+    console.print()
 
 
 @main.command()

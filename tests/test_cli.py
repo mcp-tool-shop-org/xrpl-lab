@@ -731,3 +731,97 @@ class TestHelpPedagogy:
         # Concept: the proof pack preserves prior txids — historical
         # truth isn't lost.
         assert "preserved" in result.output or "preserve" in result.output
+
+
+# ── F-BACKEND-FT-001: xrpl-lab cohort-status ─────────────────────────
+
+
+def _make_fake_learner(
+    cohort_dir,
+    learner_id: str,
+    *,
+    wallet: str | None = "rFAKE",
+    completed: list[str] | None = None,
+    corrupt: bool = False,
+):
+    """Helper: write a fake learner workspace under cohort_dir."""
+    from xrpl_lab.state import LabState
+
+    learner_dir = cohort_dir / learner_id
+    workspace = learner_dir / ".xrpl-lab"
+    workspace.mkdir(parents=True)
+    state_file = workspace / "state.json"
+    if corrupt:
+        state_file.write_text("{ this is not json", encoding="utf-8")
+        return learner_dir
+    state = LabState(wallet_address=wallet)
+    for mid in completed or []:
+        state.complete_module(mid, txids=[f"TX_{mid}"])
+    state_file.write_text(state.model_dump_json(indent=2), encoding="utf-8")
+    return learner_dir
+
+
+class TestCohortStatus:
+    """Workshop facilitator's single-pulse view of the whole cohort."""
+
+    def test_cohort_status_aggregates_multiple_learners(self, tmp_path):
+        """F-BACKEND-FT-001: three learner subdirs all surface in output."""
+        cohort = tmp_path / "cohort"
+        cohort.mkdir()
+        _make_fake_learner(cohort, "alice", completed=["receipt_literacy"])
+        _make_fake_learner(cohort, "bob", completed=[
+            "receipt_literacy", "failure_literacy",
+        ])
+        _make_fake_learner(cohort, "carol", completed=[])
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["cohort-status", "--dir", str(cohort)])
+        assert result.exit_code == 0
+        # All three learners surface
+        assert "alice" in result.output
+        assert "bob" in result.output
+        assert "carol" in result.output
+
+    def test_cohort_status_handles_corrupt_state_gracefully(self, tmp_path):
+        """F-BACKEND-FT-001: corrupt state.json yields a warning row but
+        does NOT abort — facilitators still see other learners."""
+        cohort = tmp_path / "cohort"
+        cohort.mkdir()
+        _make_fake_learner(cohort, "alice", completed=["receipt_literacy"])
+        _make_fake_learner(cohort, "bob", corrupt=True)
+        _make_fake_learner(cohort, "carol", completed=[])
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["cohort-status", "--dir", str(cohort)])
+        assert result.exit_code == 0
+        # Healthy learners still surface
+        assert "alice" in result.output
+        assert "carol" in result.output
+        # Warning surface for the corrupt one
+        assert "bob" in result.output
+        assert "warning" in result.output.lower()
+
+    def test_cohort_status_json_format(self, tmp_path):
+        """F-BACKEND-FT-001: --format json yields parseable output with
+        learner-id keyed entries (in sorted order, deterministic)."""
+        import json as json_lib
+        cohort = tmp_path / "cohort"
+        cohort.mkdir()
+        _make_fake_learner(cohort, "alice", completed=["receipt_literacy"])
+        _make_fake_learner(cohort, "bob", completed=[])
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "cohort-status", "--dir", str(cohort), "--format", "json",
+        ])
+        assert result.exit_code == 0
+        # Locate the JSON payload — Rich console.print isn't used in
+        # JSON mode, but a stray warning could precede the output.
+        data = json_lib.loads(result.output)
+        assert "learners" in data
+        ids = [r["learner_id"] for r in data["learners"]]
+        assert ids == ["alice", "bob"]
+        alice = data["learners"][0]
+        assert alice["completed_count"] == 1
+        bob = data["learners"][1]
+        assert bob["completed_count"] == 0

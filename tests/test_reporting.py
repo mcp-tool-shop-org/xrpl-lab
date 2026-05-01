@@ -1,6 +1,9 @@
 """Tests for artifact generation."""
 
+import hashlib
 import json
+import tarfile
+import zipfile
 
 import pytest
 
@@ -10,6 +13,7 @@ from xrpl_lab.reporting import (
     write_certificate,
     write_module_report,
     write_proof_pack,
+    write_session_export,
 )
 from xrpl_lab.state import LabState
 
@@ -161,3 +165,162 @@ class TestDefaultPathSafety:
             f"default proof-pack path escaped workspace: "
             f"{path.resolve()} not under {workspace_root}"
         )
+
+
+# ── F-BACKEND-FT-002: session-export ─────────────────────────────────
+
+
+def _seed_learner_workspace(
+    cohort_dir,
+    learner_id: str,
+    *,
+    proofs: dict | None = None,
+    reports: dict | None = None,
+    audit_packs: dict | None = None,
+    certificates: dict | None = None,
+    wallet_seed: str | None = None,
+    state_payload: str | None = None,
+    doctor_log: str | None = None,
+):
+    """Build a fake learner subdir under cohort_dir/<learner-id>/.xrpl-lab/."""
+    workspace = cohort_dir / learner_id / ".xrpl-lab"
+    workspace.mkdir(parents=True)
+    if proofs:
+        (workspace / "proofs").mkdir()
+        for fname, content in proofs.items():
+            (workspace / "proofs" / fname).write_text(content, encoding="utf-8")
+    if reports:
+        (workspace / "reports").mkdir()
+        for fname, content in reports.items():
+            (workspace / "reports" / fname).write_text(content, encoding="utf-8")
+    if audit_packs:
+        (workspace / "audit_packs").mkdir()
+        for fname, content in audit_packs.items():
+            (workspace / "audit_packs" / fname).write_text(content, encoding="utf-8")
+    if certificates:
+        (workspace / "certificates").mkdir()
+        for fname, content in certificates.items():
+            (workspace / "certificates" / fname).write_text(
+                content, encoding="utf-8",
+            )
+    if wallet_seed is not None:
+        (workspace / "wallet.json").write_text(wallet_seed, encoding="utf-8")
+    if state_payload is not None:
+        (workspace / "state.json").write_text(state_payload, encoding="utf-8")
+    if doctor_log is not None:
+        (workspace / "doctor.log").write_text(doctor_log, encoding="utf-8")
+    return workspace
+
+
+class TestSessionExport:
+    """Cohort artifact archive with privacy-preserving manifest."""
+
+    def test_session_export_includes_all_artifact_types(self, tmp_path):
+        """F-BACKEND-FT-002: proofs + reports + audit_packs + certs all
+        land in the archive under <learner-id>/<subdir>/<file>."""
+        cohort = tmp_path / "cohort"
+        cohort.mkdir()
+        _seed_learner_workspace(
+            cohort, "alice",
+            proofs={"proof.json": '{"ok":true}'},
+            reports={"receipt.md": "# done"},
+            audit_packs={"audit.json": '{"audit":1}'},
+            certificates={"cert.json": '{"cert":true}'},
+        )
+        outfile = tmp_path / "session.tar.gz"
+        summary = write_session_export(cohort, outfile, archive_format="tar.gz")
+        assert outfile.exists()
+        assert summary["learners"] == 1
+        with tarfile.open(outfile, "r:gz") as tar:
+            names = set(tar.getnames())
+        assert "MANIFEST.json" in names
+        assert "alice/proofs/proof.json" in names
+        assert "alice/reports/receipt.md" in names
+        assert "alice/audit_packs/audit.json" in names
+        assert "alice/certificates/cert.json" in names
+
+    def test_session_export_excludes_wallet_and_state(self, tmp_path):
+        """F-BACKEND-FT-002: wallet.json + state.json + doctor.log are
+        NEVER archived — workshop threat-model line. Public artifacts
+        still flow through."""
+        cohort = tmp_path / "cohort"
+        cohort.mkdir()
+        _seed_learner_workspace(
+            cohort, "alice",
+            proofs={"proof.json": '{"ok":true}'},
+            wallet_seed='{"seed":"sSECRET"}',
+            state_payload='{"version":"1.5.0","completed_modules":[]}',
+            doctor_log="diagnostic noise",
+        )
+        outfile = tmp_path / "session.tar.gz"
+        write_session_export(cohort, outfile, archive_format="tar.gz")
+        with tarfile.open(outfile, "r:gz") as tar:
+            names = set(tar.getnames())
+            # Public artifact survives
+            assert "alice/proofs/proof.json" in names
+            # Private artifacts are absent — match by basename and full
+            # path to be defensive against future archive-path drift.
+            for forbidden in (
+                "alice/wallet.json", "alice/state.json", "alice/doctor.log",
+            ):
+                assert forbidden not in names, (
+                    f"{forbidden} leaked into session export"
+                )
+            # Also check no entry contains 'seed' content via scan
+            for member in tar.getmembers():
+                if member.isfile() and "wallet" in member.name.lower():
+                    pytest.fail(
+                        f"wallet-named file {member.name} should not be archived"
+                    )
+
+    def test_session_export_manifest_sha256_correct(self, tmp_path):
+        """F-BACKEND-FT-002: MANIFEST.json sha256 fields match archived
+        files' actual SHA-256 — facilitators verifying post-share can
+        trust the manifest as ground truth."""
+        cohort = tmp_path / "cohort"
+        cohort.mkdir()
+        proof_content = '{"proof":"data"}'
+        report_content = "# Receipt\n\nA short report.\n"
+        _seed_learner_workspace(
+            cohort, "alice",
+            proofs={"p.json": proof_content},
+            reports={"r.md": report_content},
+        )
+        outfile = tmp_path / "session.tar.gz"
+        write_session_export(cohort, outfile, archive_format="tar.gz")
+
+        # Extract MANIFEST.json + the archived files; verify hashes match
+        # the original sources.
+        with tarfile.open(outfile, "r:gz") as tar:
+            mf = tar.extractfile("MANIFEST.json")
+            assert mf is not None
+            manifest = json.loads(mf.read().decode("utf-8"))
+        files_by_path = {f["path"]: f for f in manifest["files"]}
+
+        # Each manifest sha256 must equal sha256 of the source file
+        proof_src = cohort / "alice" / ".xrpl-lab" / "proofs" / "p.json"
+        report_src = cohort / "alice" / ".xrpl-lab" / "reports" / "r.md"
+        expected_proof_sha = hashlib.sha256(
+            proof_src.read_bytes()
+        ).hexdigest()
+        expected_report_sha = hashlib.sha256(
+            report_src.read_bytes()
+        ).hexdigest()
+        assert files_by_path["alice/proofs/p.json"]["sha256"] == \
+            expected_proof_sha
+        assert files_by_path["alice/reports/r.md"]["sha256"] == \
+            expected_report_sha
+
+    def test_session_export_zip_format(self, tmp_path):
+        """Sanity: zip variant produces a readable archive too."""
+        cohort = tmp_path / "cohort"
+        cohort.mkdir()
+        _seed_learner_workspace(
+            cohort, "alice", proofs={"p.json": '{"ok":1}'},
+        )
+        outfile = tmp_path / "session.zip"
+        write_session_export(cohort, outfile, archive_format="zip")
+        with zipfile.ZipFile(outfile) as zf:
+            names = set(zf.namelist())
+        assert "MANIFEST.json" in names
+        assert "alice/proofs/p.json" in names
