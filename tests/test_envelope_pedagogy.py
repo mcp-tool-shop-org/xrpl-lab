@@ -613,3 +613,165 @@ class TestFaucetMessagePedagogy:
         # Humanized-message contract still upheld — both ship together.
         assert "rate-limited" in result.message.lower()
         assert "--dry-run" in result.message
+
+
+# ── F-BRIDGE-PH9-001: production emission path for INPUT_MODULE_NOT_FOUND ─
+
+
+class TestInputModuleNotFoundEmissionPath:
+    """Pattern #3 closure: verify INPUT_MODULE_NOT_FOUND envelope reaches the
+    WS consumer boundary with all 5 canonical fields (code, message, hint,
+    severity, icon_hint).
+
+    The existing parametrized test
+    ``TestErrorEnvelopeBackwardCompat.test_severity_mapping_per_code_prefix
+    [INPUT_MODULE_NOT_FOUND-warning-alert-circle]`` exercises
+    ``_error_envelope`` in isolation — it constructs a synthetic
+    ``LabException(LabError(code="INPUT_MODULE_NOT_FOUND"))`` and asserts the
+    canonical producer's output. That test passed even while the production
+    emission path at ``runner_ws._run_module_task`` (lines 524-529 pre-fix)
+    bypassed the canonical producer and emitted a 4-field envelope missing
+    ``severity`` and ``icon_hint``.
+
+    Pattern #3 occurred three times in this swarm:
+      1. Stage C P2 hot-fix — humanized faucet 429 text overwritten by
+         fallthrough.
+      2. Phase 8 wave 2 — RUNTIME_FAUCET_RATE_LIMITED transport→runtime gap.
+      3. Phase 9 wave 1 — INPUT_MODULE_NOT_FOUND envelope manually constructed
+         (this site, fixed by F-BRIDGE-PH9-001 commit 5d89ded).
+
+    Audit-coverage rule (advisor's promoted framing):
+        When ANY code path emits a structured contract surface, the test must
+        exercise that emission path through the actual canonical producer,
+        not the canonical producer in isolation. Tests for any new error
+        code or response shape must verify (a) the canonical producer emits
+        the right shape, AND (b) the production emission path actually
+        invokes the canonical producer.
+
+    This class closes the (b) half for INPUT_MODULE_NOT_FOUND: it triggers
+    the production emission path (POST /api/run + background task), captures
+    the actual frame at the WS consumer boundary, and asserts the canonical
+    5-field shape arrives intact.
+
+    Mirrors the
+    ``test_runner_ws.TestDeleteRunEndpoint.test_delete_run_emits_cancelled_to_ws_client``
+    pattern — connect WS, trigger a server-side action, drain frames, parse
+    envelope, assert canonical shape.
+    """
+
+    def test_input_module_not_found_envelope_reaches_ws_with_full_5_field_shape(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Drive the production WS emission path for INPUT_MODULE_NOT_FOUND
+        and assert the consumer-boundary frame carries all 5 canonical fields.
+
+        Strategy: use a stateful ``load_all_modules`` patch that returns the
+        module on the first call (so ``start_run``'s validation passes and
+        POST /api/run/{module_id} returns 200 + run_id) and an empty dict on
+        subsequent calls (so the background ``_run_module_task`` hits the
+        INPUT_MODULE_NOT_FOUND branch). The WS client then drains the queue
+        and we capture the actual frame at the consumer boundary.
+
+        Without this test, a code path bypassing the canonical producer
+        (manually constructing ``{type, code, message, hint}`` without
+        ``severity``/``icon_hint``) would still pass the existing
+        in-isolation ``test_severity_mapping_per_code_prefix`` entry but
+        ship a 4-field envelope to the dashboard — the Stage D wave 1
+        contract violation that F-BRIDGE-PH9-001 fixed.
+        """
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        ws_dir = tmp_path / "ws"
+        ws_dir.mkdir()
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws_dir)
+        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: ws_dir)
+        monkeypatch.setattr("xrpl_lab.api.routes.get_workspace_dir", lambda: ws_dir)
+
+        # Stateful load_all_modules — first call (start_run validation)
+        # sees the module so POST returns 200 + a run_id; subsequent calls
+        # (background _run_module_task) see an empty registry, driving the
+        # INPUT_MODULE_NOT_FOUND branch. This mirrors the real-world race
+        # where a module disappears between POST and task pickup, AND lets
+        # the test reach the production emission path without depending on
+        # POST returning 404 (which short-circuits before the WS path).
+        mod = _make_simple_module("vanishing_module")
+        call_count = {"n": 0}
+
+        def _stateful_load():
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return {"vanishing_module": mod}
+            return {}
+
+        monkeypatch.setattr(
+            "xrpl_lab.api.runner_ws.load_all_modules", _stateful_load
+        )
+
+        app = create_app()
+        client = TestClient(app)
+
+        start_resp = client.post("/api/run/vanishing_module?dry_run=true")
+        assert start_resp.status_code == 200, (
+            f"start_run validation must pass on first load_all_modules call; "
+            f"got {start_resp.status_code}: {start_resp.text}"
+        )
+        run_id = start_resp.json()["run_id"]
+
+        # Drain the WS queue until we see the error frame.
+        error_frame: dict | None = None
+        with client.websocket_connect(
+            f"/api/run/vanishing_module/ws?run_id={run_id}",
+            headers=_TEST_ORIGIN,
+        ) as ws_conn:
+            for _ in range(20):
+                try:
+                    msg = ws_conn.receive_json()
+                    if msg.get("type") == "error":
+                        error_frame = msg
+                        break
+                    if msg.get("type") == "complete":
+                        break
+                except Exception as exc:
+                    if "disconnect" in str(exc).lower() or "1000" in str(exc):
+                        break
+                    raise
+
+        assert error_frame is not None, (
+            "Expected an 'error' frame on the WS for INPUT_MODULE_NOT_FOUND "
+            "production emission path, but none arrived."
+        )
+
+        # Contract assertion 1: the code is the one we're testing.
+        assert error_frame.get("code") == "INPUT_MODULE_NOT_FOUND", (
+            f"Expected code=INPUT_MODULE_NOT_FOUND at consumer boundary, "
+            f"got {error_frame.get('code')!r}"
+        )
+
+        # Contract assertion 2: ALL 5 canonical envelope fields are present
+        # at the consumer boundary. This is the assertion that fails if a
+        # future change re-introduces the inline-dict antipattern.
+        # (The "type" field is added by the WS layer; the envelope owns the
+        # other five.)
+        for field in ("code", "message", "hint", "severity", "icon_hint"):
+            assert field in error_frame, (
+                f"Canonical envelope field {field!r} missing from WS frame "
+                f"at consumer boundary. Frame keys: {sorted(error_frame)}. "
+                f"This indicates the production emission path bypassed "
+                f"_error_envelope() and constructed the envelope inline — "
+                f"the Pattern #3 antipattern that F-BRIDGE-PH9-001 fixed."
+            )
+
+        # Contract assertion 3: severity + icon_hint match the spec for the
+        # INPUT_ prefix — same values asserted by the in-isolation test
+        # ``test_severity_mapping_per_code_prefix[INPUT_MODULE_NOT_FOUND-...]``.
+        # Pinning them here too proves the production path reaches the
+        # canonical producer (not just that some 5-field envelope arrived).
+        assert error_frame["severity"] == "warning"
+        assert error_frame["icon_hint"] == "alert-circle"
+
+        # Contract assertion 4: the message and hint carry the bug-fix
+        # commit's exact pedagogy — the bogus module_id is named (so the
+        # learner can spot the typo) and the recovery action (xrpl-lab list)
+        # is cited. These come from errors.module_not_found, the canonical
+        # constructor F-BRIDGE-PH9-001 routes through.
+        assert "vanishing_module" in error_frame["message"]
+        assert "xrpl-lab list" in error_frame["hint"]
