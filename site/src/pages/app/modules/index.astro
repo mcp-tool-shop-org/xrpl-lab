@@ -12,11 +12,14 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
     </div>
 
     <!-- Filter bar -->
-    <div class="flex items-center gap-2">
-      <button data-filter="all" class="filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400">All</button>
-      <button data-filter="beginner" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Beginner</button>
-      <button data-filter="intermediate" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Intermediate</button>
-      <button data-filter="advanced" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Advanced</button>
+    <!-- F-FE-C-005: aria-pressed lets screen-reader users hear which filter
+         is active; previously the active state was conveyed by Tailwind
+         class swap (color) only. Updated dynamically in applyFilter(). -->
+    <div class="flex items-center gap-2" role="group" aria-label="Filter modules by level">
+      <button data-filter="all" aria-pressed="true" class="filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400">All</button>
+      <button data-filter="beginner" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Beginner</button>
+      <button data-filter="intermediate" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Intermediate</button>
+      <button data-filter="advanced" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Advanced</button>
     </div>
 
     <!-- Module grid -->
@@ -106,7 +109,11 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 
       document.querySelectorAll('.filter-btn').forEach(btn => {
         const f = (btn as HTMLElement).dataset.filter;
-        if (f === level) {
+        const isActive = f === level;
+        // F-FE-C-005: keep aria-pressed in sync with visual active state
+        // so screen-reader users hear "Beginner, pressed" / "Beginner, not pressed".
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        if (isActive) {
           btn.className = 'filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400';
         } else {
           btn.className = 'filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50';
@@ -126,19 +133,22 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
         allModules = await res.json();
         renderModules(allModules);
       } catch (err: any) {
+        // F-FE-C-003: distinguish AbortError (timeout — retry might work)
+        // from TypeError (network/server down — `xrpl-lab serve` not running)
+        // so the user sees an actionable hint per error class.
         const grid = document.getElementById('module-grid');
         if (grid) {
           let msg: string;
           if (err?.name === 'AbortError') {
-            msg = 'Request timed out — check the API server is responsive.';
+            msg = 'Request timed out. The API may be slow or restarting. Refresh to retry.';
           } else if (err instanceof TypeError) {
-            msg = `API is offline. Start the backend with <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code>`;
+            msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
           } else {
-            msg = `API is offline. Start the backend with <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code>`;
+            msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
           }
           grid.innerHTML = `
-            <div class="col-span-full flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
-              <span>&#9888;</span>
+            <div class="col-span-full flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4" role="status">
+              <span aria-hidden="true">&#9888;</span>
               <span>${msg}</span>
             </div>
           `;

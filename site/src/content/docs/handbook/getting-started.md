@@ -97,6 +97,18 @@ All state lives locally:
 - **Progress** — `~/.xrpl-lab/state.json` (module status, transaction IDs)
 - **Workspace** — `./.xrpl-lab/` in the current directory for module outputs
 
+### What survives a browser close, reboot, or migration
+
+- **Browser close** — progress is saved to `~/.xrpl-lab/state.json` after each
+  module step via atomic write-then-rename. Closing or refreshing the dashboard
+  does not lose progress; reopening picks up where the learner left off.
+- **Machine reboot** — state survives the reboot. Resume by reopening the
+  dashboard or running `xrpl-lab status` to see what's next.
+- **Moving to a new machine** — copy `~/.xrpl-lab/` to the new machine to bring
+  both the wallet and progress with you. There is no separate export command;
+  the directory itself is the portable bundle. Preserve file permissions on
+  `wallet.json` after the copy.
+
 ## Network usage
 
 - **XRPL Testnet RPC** — public endpoint, transactions signed locally before submission

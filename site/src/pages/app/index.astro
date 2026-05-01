@@ -161,24 +161,32 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
         }
 
         // Recent activity
+        // F-FE-C-006: pass/fail conveyed by color dot + visible icon (✓/✗) +
+        // text badge ("passed"/"failed") + aria-label so screen-reader users
+        // and color-blind users get the outcome without relying on hue alone.
         const actEl = document.getElementById('recent-activity');
         if (actEl) {
           if (status.last_run) {
+            const moduleName = escapeHtml(status.last_run.module);
+            const passed = status.last_run.success;
+            const outcome = passed ? 'passed' : 'failed';
+            const icon = passed ? '&#10003;' : '&#10007;';
             actEl.innerHTML = `
-              <div class="flex items-center gap-3">
-                <span class="w-2 h-2 rounded-full ${status.last_run.success ? 'bg-emerald-500' : 'bg-red-500'}"></span>
-                <span class="text-slate-300">${escapeHtml(status.last_run.module)}</span>
-                <span class="text-slate-600">&middot;</span>
+              <div class="flex items-center gap-3" role="status" aria-label="Module ${moduleName}: ${outcome}">
+                <span class="w-2 h-2 rounded-full ${passed ? 'bg-emerald-500' : 'bg-red-500'}" aria-hidden="true"></span>
+                <span class="${passed ? 'text-emerald-500' : 'text-red-500'} text-sm" aria-hidden="true">${icon}</span>
+                <span class="text-slate-300">${moduleName}</span>
+                <span class="text-slate-600" aria-hidden="true">&middot;</span>
                 <span class="text-slate-500">${escapeHtml(new Date(status.last_run.timestamp).toLocaleString())}</span>
-                <span class="text-xs px-1.5 py-0.5 rounded ${status.last_run.success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${status.last_run.success ? 'passed' : 'failed'}</span>
+                <span class="text-xs px-1.5 py-0.5 rounded ${passed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${outcome}</span>
               </div>
             `;
           } else {
             actEl.innerHTML = '<p class="text-slate-600">No activity yet. Run a module to get started.</p>';
           }
         }
-      } catch {
-        showOffline();
+      } catch (err: any) {
+        showOffline(err);
       }
 
       // Doctor check
@@ -226,16 +234,23 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
       </div>`;
     }
 
-    function showOffline() {
+    function showOffline(err?: any) {
       const actEl = document.getElementById('recent-activity');
-      if (actEl) {
-        actEl.innerHTML = `
-          <div class="flex items-center gap-2 text-amber-400">
-            <span>&#9888;</span>
-            <span>API is offline. Start the backend with <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code></span>
-          </div>
-        `;
+      if (!actEl) return;
+      let msg: string;
+      if (err?.name === 'AbortError') {
+        msg = 'Request timed out. The API may be slow or restarting. Refresh to retry.';
+      } else if (err instanceof TypeError) {
+        msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
+      } else {
+        msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
       }
+      actEl.innerHTML = `
+        <div class="flex items-center gap-2 text-amber-400" role="status">
+          <span aria-hidden="true">&#9888;</span>
+          <span>${msg}</span>
+        </div>
+      `;
     }
 
     hydrateDashboard();
