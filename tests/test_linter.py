@@ -33,7 +33,14 @@ class TestLinterGood:
         modules_dir = Path(__file__).parent.parent / "modules"
         if not modules_dir.exists():
             pytest.skip("modules dir not found")
-        first_md = next(modules_dir.glob("*.md"), None)
+        # Filter ``._*`` AppleDouble sidecars that exFAT/macOS emits when
+        # the repo lives on a removable volume (e.g. T9). The linter
+        # itself doesn't filter these in source; this test-side defense
+        # keeps the test deterministic across filesystem hosts.
+        first_md = next(
+            (p for p in modules_dir.glob("*.md") if not p.name.startswith("._")),
+            None,
+        )
         if first_md is None:
             pytest.skip("no modules found")
         issues = lint_module_file(first_md)
@@ -138,7 +145,15 @@ class TestLinterAllModules:
         modules_dir = Path(__file__).parent.parent / "modules"
         if not modules_dir.exists():
             pytest.skip("modules dir not found")
-        md_files = sorted(modules_dir.glob("*.md"))
+        # Skip ``._*`` AppleDouble sidecars (exFAT/macOS removable-volume
+        # artifact). Without this filter, T9-hosted runs spuriously fail
+        # parsing a sidecar that the linter source globs unconditionally.
+        # Source-side glob hardening (xrpl_lab/linter.py, modules.py,
+        # cli.py, workshop.py, api/routes.py) is a separate Backend-domain
+        # follow-up; this test-side filter keeps the suite deterministic.
+        md_files = sorted(
+            p for p in modules_dir.glob("*.md") if not p.name.startswith("._")
+        )
         if not md_files:
             pytest.skip("no modules found")
 

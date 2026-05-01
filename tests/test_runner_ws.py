@@ -70,6 +70,7 @@ def client_with_module(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestC
 # ── POST /api/run/{module_id} ─────────────────────────────────────────
 
 
+@pytest.mark.usefixtures("_clear_sessions")
 class TestStartRun:
     def test_start_run_returns_run_id(
         self, client_with_module: TestClient
@@ -117,6 +118,7 @@ class TestStartRun:
 # ── WS /api/run/{module_id}/ws ────────────────────────────────────────
 
 
+@pytest.mark.usefixtures("_clear_sessions")
 class TestRunWebSocket:
     def _start_run(self, client: TestClient, module_id: str = "receipt_literacy") -> str:
         resp = client.post(f"/api/run/{module_id}?dry_run=true")
