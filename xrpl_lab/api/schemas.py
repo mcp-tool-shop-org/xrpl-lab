@@ -135,7 +135,7 @@ class RunInfo(BaseModel):
 
     run_id: str
     module_id: str
-    status: str  # "running" | "completed" | "failed"
+    status: str  # "running" | "completed" | "failed" | "cancelled"
     created_at: str  # ISO 8601 UTC
     elapsed_seconds: float
     queue_size: int
