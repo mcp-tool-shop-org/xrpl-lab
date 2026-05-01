@@ -105,15 +105,17 @@ def _try_import_camp_wallet(state: LabState) -> bool:
 def main():
     """XRPL Lab — learn by doing, prove by artifact.
 
-Quick start:
-  xrpl-lab start           Interactive guided tour
-  xrpl-lab list            Show all modules
-  xrpl-lab run MODULE_ID   Run a specific module
-  xrpl-lab proof verify    Verify a proof pack
-  xrpl-lab cert-verify     Verify a certificate
-  xrpl-lab doctor          Check your setup
-  xrpl-lab serve           Start the web dashboard
-"""
+    Quick start:
+
+    \b
+        xrpl-lab start           Interactive guided tour
+        xrpl-lab list            Show all modules
+        xrpl-lab run MODULE_ID   Run a specific module
+        xrpl-lab proof verify    Verify a proof pack
+        xrpl-lab cert-verify     Verify a certificate
+        xrpl-lab doctor          Check your setup
+        xrpl-lab serve           Start the web dashboard
+    """
 
 
 @main.command()
@@ -191,9 +193,12 @@ def start(dry_run: bool):
     console.print("[bold]Available modules:[/]")
     console.print()
 
+    # F-BACKEND-D-003: icon + color + TEXT label so color-blind
+    # facilitators can distinguish completed from todo modules in the
+    # start launcher without relying on hue alone.
     for mod in modules.values():
         completed = state.is_module_completed(mod.id)
-        status = "[green]✓[/]" if completed else "[dim]◌[/]"
+        status = "[green]✓ done[/]" if completed else "[dim]◌ todo[/]"
         sandbox_tag = " [yellow](dry-run only)[/]" if mod.dry_run_only else ""
         console.print(
             f"  {status} [bold]{mod.id}[/] — {mod.title}"
@@ -251,15 +256,27 @@ def list_modules():
     completed = {m.module_id for m in state.completed_modules}
     next_id = graph.next_module(completed)
 
-    table = Table(title="XRPL Lab Modules")
+    # F-BACKEND-D-001: expand=True so Title (ratio=2) actually consumes
+    # the leftover horizontal budget instead of auto-shrinking; merge
+    # Track+ID into one stacked column so Title gets enough room to
+    # render short titles ("Receipt Literacy", "Failure Literacy") on
+    # one line at the common 80-char projector terminal width.
+    # Information density is preserved (track on top, ID below) and the
+    # Mode column ("testnet" / "dry-run") stays in view for facilitators
+    # scanning at a glance.
+    table = Table(title="XRPL Lab Modules", expand=True)
     table.add_column("", width=4, justify="center")
-    table.add_column("Track", style="dim")
-    table.add_column("ID", style="bold")
-    table.add_column("Title")
-    table.add_column("Level")
-    table.add_column("Time")
-    table.add_column("Mode")
+    table.add_column("Track / ID", style="dim", ratio=1)
+    table.add_column("Title", ratio=2)
+    table.add_column("Level", ratio=1)
+    table.add_column("Time", ratio=1)
+    table.add_column("Mode", ratio=1)
 
+    # F-BACKEND-D-003: shape-distinct icons (✓ check, → arrow, · dot) so
+    # next-up vs todo is distinguishable WITHOUT color. Previously cyan ▸
+    # and dim ◌ were both circle-like and indistinguishable for color-blind
+    # facilitators. The narrow icon column can't fit DONE/ACTIVE/TODO text
+    # — distinct shapes carry the semantic instead.
     for mid in ordered:
         mod = modules[mid]
         done = state.is_module_completed(mid)
@@ -268,15 +285,17 @@ def list_modules():
             icon = "✓"
             style = "green"
         elif is_next:
-            icon = "▸"
+            icon = "→"
             style = "bold cyan"
         else:
-            icon = "◌"
+            icon = "·"
             style = ""
+        # Track / ID combined cell: "track\n[bold]id[/]" — track on top,
+        # id (the load-bearing identifier for `xrpl-lab run <id>`) below.
+        track_id_cell = f"{mod.track}\n[bold]{mod.id}[/]"
         table.add_row(
             icon,
-            mod.track,
-            mod.id,
+            track_id_cell,
             mod.title,
             mod.level,
             mod.time,
@@ -374,8 +393,11 @@ def status(json_output: bool):
         console.print("[green]All modules completed![/]")
 
     # Blockers
+    # F-BACKEND-D-002: blank line before Blockers always (not just when
+    # present) so facilitators see a consistent rhythm scanning multiple
+    # learners' status output side by side.
+    console.print()
     if ls.blockers:
-        console.print()
         for b in ls.blockers:
             if ls.is_blocked:
                 console.print(f"  [red]✗ {b}[/]")
@@ -383,16 +405,27 @@ def status(json_output: bool):
                 console.print(f"  [yellow]⚠ {b}[/]")
 
     # Track progress
+    # F-BACKEND-D-002: blank line before Tracks summary for breathing room.
     console.print()
+    # F-BACKEND-D-003: icon + color + TEXT label (DONE/ACTIVE/TODO) so
+    # color-blind facilitators (protanopia/deuteranopia) can distinguish
+    # in-progress from not-started without relying on hue alone. Matches
+    # the doctor.py icon+color+text pattern.
     for tp in ls.track_progress:
         if tp.total == 0:
             continue
         if tp.is_complete:
-            console.print(f"  [green]✓[/] {tp.track}: {tp.done}/{tp.total}")
+            console.print(
+                f"  [green]✓ DONE[/]   {tp.track}: {tp.done}/{tp.total}"
+            )
         elif tp.done > 0:
-            console.print(f"  [cyan]▸[/] {tp.track}: {tp.done}/{tp.total}")
+            console.print(
+                f"  [cyan]▸ ACTIVE[/] {tp.track}: {tp.done}/{tp.total}"
+            )
         else:
-            console.print(f"  [dim]◌ {tp.track}: {tp.done}/{tp.total}[/]")
+            console.print(
+                f"  [dim]◌ TODO[/]   {tp.track}: {tp.done}/{tp.total}"
+            )
 
     # Activity
     if ls.last_module:
@@ -676,26 +709,38 @@ def tracks():
     console.print(Panel("[bold]Tracks[/]", border_style="blue"))
     console.print()
 
+    # F-BACKEND-D-003: icon + color + TEXT label (DONE/ACTIVE/TODO) so
+    # color-blind facilitators can distinguish track state without hue.
+    # F-BACKEND-D-005: drop redundant "(none)" mode-breakdown when no
+    # modules are done; keep breakdown when at least one is complete (so
+    # mixed/testnet/dry-run signal stays visible).
     for ts in summaries:
+        done_count = len(ts.completed_modules)
+        total_count = done_count + len(ts.remaining_modules)
         if ts.is_complete:
-            icon = "[green]✓[/]"
+            label = "[green]✓ DONE[/]  "
         elif ts.completed_modules:
-            icon = "[cyan]▸[/]"
+            label = "[cyan]▸ ACTIVE[/]"
         else:
-            icon = "[dim]◌[/]"
+            label = "[dim]◌ TODO[/]  "
+
+        # Suppress (none) when no modules completed; show breakdown otherwise.
+        breakdown_suffix = (
+            "" if done_count == 0 else f"  [dim]({ts.mode_breakdown})[/]"
+        )
 
         console.print(
-            f"  {icon} [bold]{ts.track}[/]"
-            f"  {len(ts.completed_modules)}/{len(ts.completed_modules) + len(ts.remaining_modules)}"
-            f"  [dim]({ts.mode_breakdown})[/]"
+            f"  {label} [bold]{ts.track}[/]"
+            f"  {done_count}/{total_count}"
+            f"{breakdown_suffix}"
         )
 
         if ts.completed_modules:
             for mid in ts.completed_modules:
-                console.print(f"      [green]✓[/] {mid}")
+                console.print(f"      [green]✓ done[/]  {mid}")
         if ts.remaining_modules:
             for mid in ts.remaining_modules:
-                console.print(f"      [dim]◌ {mid}[/]")
+                console.print(f"      [dim]◌ todo[/]  {mid}")
 
         if ts.skills_practiced:
             console.print(f"      Skills: {', '.join(ts.skills_practiced[:5])}")
