@@ -18,6 +18,10 @@ Each module teaches one XRPL skill and produces a verifiable artifact: a transac
 a signed receipt, or a diagnostic report. No accounts, no fluff, no cloud — just
 competence and receipts.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/xrpl-lab/main/docs/images/dashboard-hero.png" width="800" alt="XRPL Lab dashboard showing 11/12 modules completed with quick actions and status panels">
+</p>
+
 ## Install
 
 ```bash
@@ -118,6 +122,10 @@ All commands support `--dry-run` for offline mode where applicable.
 
 XRPL Lab is designed for real teaching settings. No accounts, no telemetry, no cloud.
 Everything runs locally.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/xrpl-lab/main/docs/images/facilitator-active-runs.png" width="800" alt="Facilitator dashboard listing active learner runs with module IDs, dry-run badges, status, queue depth, and run IDs">
+</p>
 
 ### Facilitator status
 
