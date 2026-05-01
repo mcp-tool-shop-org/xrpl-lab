@@ -187,7 +187,7 @@ class XRPLTestnetTransport(Transport):
                         )
                         if attempt < MAX_RETRIES:
                             await asyncio.sleep(RETRY_DELAY * (attempt + 1))
-                            continue
+                        continue
                     last_error = f"Faucet returned {resp.status_code}: {resp.text[:200]}"
             except httpx.TimeoutException:
                 last_error = "Faucet timed out. The testnet faucet may be down."

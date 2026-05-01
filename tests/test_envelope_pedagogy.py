@@ -316,22 +316,19 @@ class TestFaucetMessagePedagogy:
     abuse prevention) and the actionable fallback (--dry-run) so a
     learner hitting the limit isn't stuck refreshing.
 
-    NOTE on the test approach: ``fund_from_faucet`` has a control-flow
-    quirk — on the FINAL retry attempt that hits 429, the humanized
-    string is set into ``last_error`` and then immediately overwritten
-    by the generic ``f"Faucet returned {resp.status_code}: ..."`` line
-    that follows the 429 branch (since the retry ``if attempt <
-    MAX_RETRIES`` guard short-circuits the ``continue`` only on
-    non-final attempts). The humanized text IS reachable on transient
-    paths (429 followed by a different status), but we pin it at the
-    source-text level here to lock the pedagogical prose regardless of
-    how the retry plumbing evolves.
-
-    This mirrors the precedent set in
-    ``test_handlers_py_teaches_trust_line_directionality`` (P1) which
-    reads the source file rather than running the handler end-to-end.
-    Surfacing the control-flow issue is left to a follow-up Bridge
-    revision; the prose itself is correct and worth pinning now.
+    Two-layer pin:
+    1. **Source-text pin** — file content contains the load-bearing
+       phrases. Catches a future revert of the prose itself.
+    2. **Runtime delivery pin** — mock 3 consecutive 429s and assert
+       the returned ``FundResult.message`` contains the humanized text.
+       Catches the case where prose lives in the file but doesn't
+       reach callers (the control-flow defect Stage C P2 surfaced and
+       wave-3 hot-fix closed: the gated ``continue`` was previously
+       inside the retries-remaining branch, so on the final 429 attempt
+       the humanized ``last_error`` was overwritten by the generic
+       ``f"Faucet returned {status}: ..."`` fallthrough. Fix: move the
+       ``continue`` outside the retries-remaining branch so the 429
+       path skips the fallthrough unconditionally).
     """
 
     def test_faucet_429_message_explains_purpose_and_fallback(self) -> None:
@@ -362,3 +359,65 @@ class TestFaucetMessagePedagogy:
         assert "--dry-run" in src
         # Pedagogy: name the reason the cap matters (shared resource).
         assert "everyone" in src or "available for" in src
+
+    @pytest.mark.asyncio
+    async def test_faucet_429_humanized_message_reaches_callers_runtime(
+        self, monkeypatch
+    ) -> None:
+        """Mock 3 consecutive 429s and assert the FundResult.message
+        contains the humanized prose, not the generic fallthrough.
+
+        This is the runtime-delivery pin (counterpart to the source-text
+        pin above). It catches the wave-3 control-flow regression class
+        where humanized prose lives in the file but doesn't reach the
+        caller because a fallthrough overwrites ``last_error`` on the
+        final retry attempt.
+        """
+        from unittest.mock import AsyncMock, MagicMock
+
+        from xrpl_lab.transport.xrpl_testnet import XRPLTestnetTransport
+
+        # Build a fake httpx response object that looks like a 429.
+        fake_429 = MagicMock()
+        fake_429.status_code = 429
+        fake_429.text = "rate limit exceeded"
+
+        # Build a fake AsyncClient that always returns the 429 response.
+        # fund_from_faucet uses `async with httpx.AsyncClient(...) as http`
+        # then `await http.post(...)`, so we mock both the context manager
+        # and the post call.
+        fake_client = MagicMock()
+        fake_client.__aenter__ = AsyncMock(return_value=fake_client)
+        fake_client.__aexit__ = AsyncMock(return_value=None)
+        fake_client.post = AsyncMock(return_value=fake_429)
+
+        def _client_factory(*args, **kwargs):
+            return fake_client
+
+        # Patch httpx.AsyncClient inside the transport module's namespace.
+        # fund_from_faucet imports httpx locally, so patch the actual
+        # httpx.AsyncClient symbol it resolves at call time.
+        import httpx
+        monkeypatch.setattr(httpx, "AsyncClient", _client_factory)
+
+        # Also short-circuit asyncio.sleep so the test doesn't actually
+        # wait through the retry backoff.
+        import asyncio as _asyncio
+
+        async def _no_sleep(_seconds):
+            return None
+
+        monkeypatch.setattr(_asyncio, "sleep", _no_sleep)
+
+        transport = XRPLTestnetTransport()
+        result = await transport.fund_from_faucet("rTEST_ADDRESS")
+
+        assert result.success is False
+        # The runtime delivery contract: the humanized prose reaches
+        # the caller, not the generic "Faucet returned 429: ..." text.
+        assert "rate-limited" in result.message.lower()
+        assert "abuse" in result.message
+        assert "60" in result.message
+        assert "--dry-run" in result.message
+        # Negative assertion: the generic fallthrough must NOT win.
+        assert "Faucet returned 429:" not in result.message
