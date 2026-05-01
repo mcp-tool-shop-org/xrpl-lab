@@ -9,6 +9,10 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v1.6.0). On release events the tag comes from the event.'
+        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,6 +34,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
 
@@ -48,7 +54,8 @@ jobs:
       - name: Build binary
         shell: bash
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          REF_NAME="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION=${REF_NAME#v}
           uv run pyinstaller --onefile --name "xrpl-lab" --console \
             --collect-submodules rich \
             --collect-submodules pydantic \
@@ -92,7 +99,8 @@ jobs:
       - name: Generate checksums
         shell: bash
         run: |
-          VERSION=${GITHUB_REF_NAME#v}
+          REF_NAME="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION=${REF_NAME#v}
           cd artifacts
           sha256sum * > "checksums-${VERSION}.txt"
           cat "checksums-${VERSION}.txt"
