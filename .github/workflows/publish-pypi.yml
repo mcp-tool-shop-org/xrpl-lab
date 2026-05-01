@@ -1,0 +1,52 @@
+# Publish xrpl-lab sdist + wheel to PyPI on release: published.
+#
+# Pre-condition: PYPI_TOKEN repo secret must be set (Settings -> Secrets ->
+# Actions). Uses API-token auth (TWINE_USERNAME=__token__) per current PyPI
+# guidance; never username/password.
+#
+# Concurrency: cancel-in-progress=false because publish is a one-shot
+# operation — interrupting mid-upload corrupts the release flow.
+#
+# This workflow is intentionally separate from release-binaries.yml:
+# binaries are GitHub Release assets for npm-launcher consumers; PyPI is
+# the primary `pipx install xrpl-lab` distribution path. Two distinct
+# concerns, two distinct failure modes.
+
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch: {}  # manual fallback for first-run verification
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build + twine
+        run: pip install build twine
+
+      - name: Build sdist + wheel
+        run: python -m build
+
+      - name: Verify dist
+        run: python -m twine check dist/*
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: python -m twine upload dist/*
