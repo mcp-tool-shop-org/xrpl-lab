@@ -22,7 +22,6 @@ if [ -f uv.lock ]; then
 fi
 
 echo "--- build ---"
-pip install build -q
-python -m build --sdist --wheel
+uv build
 
 echo "=== All checks passed ==="
