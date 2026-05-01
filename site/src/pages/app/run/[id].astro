@@ -28,7 +28,7 @@ const { id } = Astro.params;
 
     <!-- Header (loaded dynamically) -->
     <div>
-      <a href={`/xrpl-lab/app/modules/${id}/`} class="text-sm text-slate-500 hover:text-emerald-400 transition-colors mb-2 inline-block">&larr; Back to Module</a>
+      <a href={`/xrpl-lab/app/modules/${id}/`} class="text-sm text-slate-400 hover:text-emerald-400 transition-colors mb-2 inline-block">&larr; Back to Module</a>
       <div class="flex items-center gap-3 mt-1">
         <h1 id="run-title" class="text-2xl font-bold text-slate-100">Loading...</h1>
         <span id="run-badge" class="inline-block px-2 py-0.5 text-xs font-medium rounded border border-slate-600 text-slate-400"></span>
@@ -55,7 +55,7 @@ const { id } = Astro.params;
       >
         <span aria-hidden="true">&#128203;</span> Dry Run
       </button>
-      <span id="run-status-label" class="text-sm text-slate-500 ml-2" role="status" aria-live="polite"></span>
+      <span id="run-status-label" class="text-sm text-slate-400 ml-2" role="status" aria-live="polite"></span>
     </div>
 
     <!-- Main content area: terminal + sidebar -->
@@ -455,7 +455,7 @@ const { id } = Astro.params;
           const li = document.createElement('li');
           li.className = 'flex items-center gap-2';
           const resultCls = msg.result_code === 'tesSUCCESS' ? 'text-emerald-400' : 'text-amber-400';
-          li.innerHTML = `<span class="text-slate-500">#${txids.length}</span>
+          li.innerHTML = `<span class="text-slate-400">#${txids.length}</span>
             <span class="text-slate-300 truncate">${escapeHtml(msg.txid)}</span>
             <span class="${resultCls}">${escapeHtml(msg.result_code)}</span>`;
           txList.appendChild(li);

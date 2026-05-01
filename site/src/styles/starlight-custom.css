@@ -15,3 +15,24 @@
   --sl-color-text: #e4e4e7;
   --sl-color-text-accent: #6ee7b7;
 }
+
+/* F-FE-D-001: global focus-ring for keyboard users.
+   Every interactive element gets a visible 2px emerald-400 outline with
+   2px offset on :focus-visible. emerald-400 = #34d399 (matches design
+   accent). Applies across dashboard, landing, and handbook surfaces. */
+:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 2px;
+  border-radius: 0.125rem;
+}
+button:focus-visible,
+a:focus-visible,
+.filter-btn:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 2px;
+  border-radius: 0.125rem;
+}
