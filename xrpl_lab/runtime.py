@@ -15,6 +15,7 @@ from .actions.wallet import (
     save_wallet,
     wallet_exists,
 )
+from .errors import LabException, faucet_rate_limited
 from .state import LabState, save_state
 from .transport.base import Transport
 
@@ -133,6 +134,21 @@ async def ensure_funded(
             f"Retrying in {delay:g}s...[/]"
         )
         await asyncio.sleep(delay)
+
+    # F-BRIDGE-PH8-001: when the faucet's final failure is a 429, the
+    # transport tags ``FundResult.code`` with RUNTIME_FAUCET_RATE_LIMITED.
+    # Raise a structured LabException so the WS ``_error_envelope``
+    # surfaces severity=warning + icon_hint=clock to the dashboard
+    # (distinct treatment from generic RUNTIME_NETWORK faults). This wires
+    # the producer→consumer path end-to-end: transport sets the code,
+    # runtime hands it to the API contract surface, dashboard routes UI.
+    # Generic failures (faucet down, timeout, non-429 HTTP error) still
+    # return False so existing learner-facing flows keep working.
+    if (
+        last_result is not None
+        and getattr(last_result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED"
+    ):
+        raise LabException(faucet_rate_limited())
 
     console.print(
         "[red]Faucet funding failed after retries.[/] "

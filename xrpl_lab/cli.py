@@ -19,6 +19,7 @@ from rich.table import Table
 
 from . import __version__
 from .actions.verify import verify_tx
+from .errors import LabException, faucet_rate_limited
 from .modules import load_all_modules
 from .reporting import write_certificate, write_proof_pack
 from .state import (
@@ -1290,8 +1291,19 @@ def fund(dry_run: bool):
 
     if result.success:
         console.print(f"[green]Funded![/] Balance: {result.balance} XRP")
-    else:
-        console.print(f"[red]Funding failed:[/] {result.message}")
+        return
+    # F-BRIDGE-PH8-001: structured ``code`` drives richer CLI behavior than
+    # printing ``message`` alone — the rate-limited path gets a dedicated
+    # banner (clock-cued waiting) + recovery hint + a distinct exit code
+    # so scripts can branch on it. Other failure modes keep their generic
+    # treatment (no exit code change to preserve existing call-site
+    # behavior).
+    if getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        err = faucet_rate_limited()
+        console.print(f"[yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
+        raise SystemExit(LabException(err).exit_code)
+    console.print(f"[red]Funding failed:[/] {result.message}")
 
 
 @main.command()
