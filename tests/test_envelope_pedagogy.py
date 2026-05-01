@@ -48,7 +48,9 @@ from xrpl_lab.api.runner_ws import (
     _ALLOWED_ORIGINS,
     _MAX_CONCURRENT_RUNS,
     _error_envelope,
+    _severity_for_code,
 )
+from xrpl_lab.errors import LabError, LabException
 from xrpl_lab.modules import ModuleDef, ModuleStep
 from xrpl_lab.server import create_app
 
@@ -303,6 +305,140 @@ class TestErrorEnvelopePedagogy:
         assert "--dry-run" in hint
         # Pedagogy (hint): cite the dashboard form (capitalized button label).
         assert "Dry Run" in hint
+
+
+# ── F-BRIDGE-D-001: backward-compat for envelope severity + icon_hint ─
+
+
+class TestErrorEnvelopeBackwardCompat:
+    """Pin Stage D wave 1's optional ``severity`` + ``icon_hint`` fields.
+
+    Bridge's commit 557c290 added two optional fields to
+    ``_error_envelope``. The contract is *additive* — existing
+    consumers reading only ``{code, message, hint}`` keep working.
+    These tests pin both halves of that contract:
+
+    * The original three-field surface is preserved (backward compat).
+    * The new fields map per the spec — RUNTIME_TIMEOUT/CANCELLED have
+      explicit overrides; INPUT_/CONFIG_/STATE_ are warning/alert-circle;
+      PARTIAL_ is info/info; IO_/DEP_/RUNTIME_/PERM_ are
+      error/alert-triangle. An unmapped prefix falls back to
+      error/alert-triangle so a new code never leaks an unmapped value.
+    * ``severity`` is bounded to a known enum — a future typo that
+      introduces a fifth value fails the test loudly rather than
+      silently rendering as an unknown CSS class on the dashboard.
+
+    These complement (not replace) the pedagogy pins in
+    ``TestErrorEnvelopePedagogy`` — the pedagogy class pins WHAT the
+    hint/message strings teach; this class pins the metadata SHAPE
+    Bridge ships for the dashboard's visual treatment.
+    """
+
+    _KNOWN_SEVERITIES = {"info", "warning", "error", "critical"}
+
+    def _envelope_for(self, code: str) -> dict[str, str]:
+        """Build a synthetic LabException-backed envelope for ``code``."""
+        return _error_envelope(
+            LabException(LabError(code=code, message="msg", hint="hint"))
+        )
+
+    def test_existing_three_field_consumers_still_work(self) -> None:
+        """Existing dashboard handlers reading {code, message, hint}
+        must continue to work when the new fields are present.
+
+        Asserts both that all 5 keys exist AND that subsetting to the
+        original three-field surface (the pre-Stage-D consumer
+        pattern) still produces a usable dict.
+        """
+        envelope = self._envelope_for("RUNTIME_TIMEOUT")
+
+        # All five keys present (new fields additive).
+        assert set(envelope) >= {
+            "code",
+            "message",
+            "hint",
+            "severity",
+            "icon_hint",
+        }
+
+        # Backward-compat: a consumer reading only the original three
+        # fields (the pre-Stage-D dashboard surface) succeeds.
+        legacy_view = {k: envelope[k] for k in ("code", "message", "hint")}
+        assert legacy_view["code"] == "RUNTIME_TIMEOUT"
+        assert legacy_view["message"] == "msg"
+        assert legacy_view["hint"] == "hint"
+
+    @pytest.mark.parametrize(
+        ("code", "expected_severity", "expected_icon"),
+        [
+            # Specific code overrides (precede prefix mapping).
+            ("RUNTIME_TIMEOUT", "warning", "clock"),
+            ("RUNTIME_CANCELLED", "info", "x-circle"),
+            # User-error prefixes → warning/alert-circle.
+            ("INPUT_MODULE_NOT_FOUND", "warning", "alert-circle"),
+            ("CONFIG_MISSING_KEY", "warning", "alert-circle"),
+            ("STATE_CORRUPT", "warning", "alert-circle"),
+            # Success-with-degradation → info/info.
+            ("PARTIAL_TX_FAILED", "info", "info"),
+            # Runtime-fault prefixes → error/alert-triangle.
+            ("RUNTIME_INTERNAL", "error", "alert-triangle"),
+            ("IO_READ_FAILED", "error", "alert-triangle"),
+            ("DEP_MISSING", "error", "alert-triangle"),
+            ("PERM_DENIED", "error", "alert-triangle"),
+        ],
+    )
+    def test_severity_mapping_per_code_prefix(
+        self, code: str, expected_severity: str, expected_icon: str
+    ) -> None:
+        """The (severity, icon_hint) mapping matches Bridge's spec.
+
+        Pinning the full table — not just a sample — so a future
+        refactor of ``_severity_for_code`` that drops a prefix or
+        flips a severity (e.g. STATE_ → error) trips the test rather
+        than silently shifting the dashboard's color treatment.
+        """
+        envelope = self._envelope_for(code)
+        assert envelope["severity"] == expected_severity
+        assert envelope["icon_hint"] == expected_icon
+        # Both helpers agree (the helper is what the envelope calls).
+        assert _severity_for_code(code) == (expected_severity, expected_icon)
+
+    def test_unknown_code_prefix_falls_back_to_error_alert_triangle(self) -> None:
+        """An unmapped code prefix must NOT leak an unmapped severity.
+
+        Pedagogy: a future ``RUNTIME_FOOBAR`` or a brand-new prefix
+        added without updating the mapping renders as the safe default
+        (error/alert-triangle) so the dashboard always has *some*
+        valid visual treatment to apply.
+        """
+        envelope = self._envelope_for("ZZZ_UNKNOWN_FUTURE_CODE")
+        assert envelope["severity"] == "error"
+        assert envelope["icon_hint"] == "alert-triangle"
+
+    def test_severity_is_one_of_known_enum_values(self) -> None:
+        """``severity`` must always be one of the four known enum
+        values across every envelope path (LabException, TimeoutError,
+        CancelledError, generic Exception fallthrough).
+
+        Catches a future regression where a typo (``"warn"`` vs
+        ``"warning"``, ``"err"`` vs ``"error"``) introduces a value
+        the dashboard's CSS doesn't know how to style.
+        """
+        import asyncio as _asyncio
+
+        envelopes = [
+            # Each branch in _error_envelope.
+            _error_envelope(
+                LabException(LabError(code="RUNTIME_INTERNAL", message="m", hint="h"))
+            ),
+            _error_envelope(TimeoutError("deadline")),
+            _error_envelope(_asyncio.CancelledError()),
+            _error_envelope(RuntimeError("synthetic")),  # generic fallthrough
+        ]
+        for env in envelopes:
+            assert env["severity"] in self._KNOWN_SEVERITIES, (
+                f"unknown severity {env['severity']!r} in envelope {env!r}"
+            )
 
 
 # ── F-BRIDGE-C-008: faucet 429 message pedagogy ───────────────────────
