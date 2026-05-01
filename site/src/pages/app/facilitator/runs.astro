@@ -111,6 +111,9 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 
     // F-FE-D status-badge pattern: icon + color + TEXT so colorblind users
     // and screen readers get the state without relying on hue alone.
+    // Bridge API _public_status() emits exactly 4 values:
+    // "running" | "completed" | "failed" | "cancelled". All four have explicit
+    // handlers; the default branch is a defensive fallback only.
     function statusBadge(status: string): string {
       const map: Record<string, { icon: string; classes: string; text: string }> = {
         running: {
@@ -128,10 +131,14 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
           classes: 'bg-red-500/20 text-red-400 border-red-500/40',
           text: 'FAILED',
         },
-        queued: {
-          icon: '&#9201;', // hourglass
-          classes: 'bg-amber-500/20 text-amber-400 border-amber-500/40',
-          text: 'QUEUED',
+        cancelled: {
+          // Cancellation is operator action, not internal error — visually
+          // distinct from `failed` (red): slate-400 (neutral, dimmer than
+          // running's emerald) + circled-slash glyph signals "intentionally
+          // stopped, not broken."
+          icon: '&#8856;', // ⊘ circled division slash (universal "prohibited/cancelled")
+          classes: 'bg-slate-600/30 text-slate-400 border-slate-500/40',
+          text: 'CANCELLED',
         },
       };
       const entry = map[status] || {
@@ -160,7 +167,9 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
     }
 
     function isCancellable(status: string): boolean {
-      return status === 'running' || status === 'queued';
+      // Bridge API only emits "running" | "completed" | "failed" | "cancelled".
+      // Only "running" is cancellable; the other three are terminal.
+      return status === 'running';
     }
 
     function renderCapacity(active: number, max: number) {
