@@ -45,9 +45,12 @@ _QUEUE_MAXSIZE = 1024
 
 # Allowed Origin values for the WS handshake. WebSocket upgrades are NOT
 # covered by browser CORS, so we must reject by Origin manually to close
-# the CSRF-via-WebSocket vector. Keep this list in sync with the
-# `allow_origins=[...]` list in xrpl_lab/server.py — a future refactor
-# (Stage B) should factor these into a single shared constant.
+# the CSRF-via-WebSocket vector. This tuple is the single source of truth
+# for both the WS Origin allow-list (here) and the HTTP CORS middleware
+# allow-list — ``xrpl_lab/server.py`` imports this constant and feeds it
+# into ``CORSMiddleware(allow_origins=...)``. Edit the set in one place.
+# Tuple (immutable) signals constant; consumers wrap in ``list(...)``
+# when an API requires a list (FastAPI's CORSMiddleware does).
 _ALLOWED_ORIGINS: tuple[str, ...] = (
     "http://localhost:4321",
     "http://localhost:3000",
