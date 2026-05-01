@@ -181,6 +181,46 @@ export async function startModuleRun(id: string, dryRun: boolean): Promise<RunRe
   return res.json() as Promise<RunResult>;
 }
 
+// --- Runs API (facilitator observability — Stage B wave 2 P1) ---
+
+export interface RunInfo {
+  run_id: string;
+  module_id: string;
+  status: string; // "running" | "completed" | "failed"
+  created_at: string; // ISO 8601 UTC
+  elapsed_seconds: number;
+  queue_size: number;
+  dry_run: boolean;
+}
+
+export interface RunListResponse {
+  runs: RunInfo[];
+  max_concurrent: number;
+  active_count: number;
+}
+
+export async function fetchRuns(): Promise<RunListResponse> {
+  return request<RunListResponse>('/api/runs');
+}
+
+export async function fetchRun(runId: string): Promise<RunInfo> {
+  return request<RunInfo>(`/api/runs/${runId}`);
+}
+
+/**
+ * Cancel an active run (DELETE /api/runs/{run_id}).
+ *
+ * Bridge agent ships this endpoint in parallel during Phase 7 wave 1;
+ * if invoked before that lands, the API returns 404 and the caller
+ * should surface the error gracefully rather than spin.
+ */
+export async function cancelRun(runId: string): Promise<{ ok: boolean; status: number; statusText: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/api/runs/${runId}`, {
+    method: 'DELETE',
+  });
+  return { ok: res.ok, status: res.status, statusText: res.statusText };
+}
+
 export function connectRunWebSocket(id: string, runId: string, handlers: RunHandlers): WebSocket {
   const wsBase = API_BASE.replace(/^http/, 'ws');
   const ws = new WebSocket(`${wsBase}/api/run/${id}/ws?run_id=${runId}`);

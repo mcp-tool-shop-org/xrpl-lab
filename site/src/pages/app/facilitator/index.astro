@@ -1,0 +1,43 @@
+---
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout title="Facilitator" activePage="facilitator">
+
+  <div class="space-y-6">
+
+    <!-- Page header -->
+    <div>
+      <h1 class="text-2xl font-bold text-slate-100">Facilitator</h1>
+      <p class="text-slate-400 mt-1">Workshop monitoring surfaces.</p>
+    </div>
+
+    <!-- Surfaces grid (single card today; v1.7 will add cohort views) -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+      <a
+        href="/xrpl-lab/app/facilitator/runs/"
+        class="block bg-slate-800 rounded-lg border border-slate-700 p-5 hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all group"
+      >
+        <div class="flex items-start gap-3 mb-2">
+          <span class="text-2xl" aria-hidden="true">&#128202;</span>
+          <h2 class="text-base font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">
+            Active Runs
+          </h2>
+        </div>
+        <p class="text-sm text-slate-400">
+          Monitor concurrent learner module runs in real time. Auto-refreshes
+          every 5 seconds while the tab is visible.
+        </p>
+      </a>
+
+    </section>
+
+    <p class="text-xs text-slate-500">
+      More facilitator views (cohort progress, live stuck-learner alerts) ship
+      in v1.7.
+    </p>
+
+  </div>
+
+</DashboardLayout>
