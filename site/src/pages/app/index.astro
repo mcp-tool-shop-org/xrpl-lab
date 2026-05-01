@@ -23,7 +23,12 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
     </section>
 
     <!-- Quick actions -->
-    <section>
+    <!-- F-FE-D-007: bare sections (Quick Actions, Status) gain
+         border-t border-slate-700/50 pt-6 so they visually chunk for
+         time-pressured facilitators. Bordered card sections (Progress,
+         Recent Activity, Getting Started) already self-chunk via their
+         own border so don't get a doubled divider. -->
+    <section class="border-t border-slate-700/50 pt-6">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</h2>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <a href="/xrpl-lab/app/modules/" class="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-emerald-500/50 transition-colors group">
@@ -51,7 +56,7 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
     </section>
 
     <!-- Status cards -->
-    <section>
+    <section class="border-t border-slate-700/50 pt-6">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Status</h2>
       <div id="status-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatusCard icon="&#128179;" label="Wallet" value="--" status="warn" />
@@ -201,7 +206,7 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
             const dotMap: Record<string, string> = { ok: 'bg-emerald-500', warn: 'bg-amber-500', error: 'bg-red-500' };
             const s = statusMap[doctor.overall] || 'ok';
             const borderMap: Record<string, string> = { ok: 'border-emerald-500/30', warn: 'border-amber-500/30', error: 'border-red-500/30' };
-            (doctorCard as HTMLElement).className = `bg-slate-800 rounded-lg border ${borderMap[s]} p-4`;
+            (doctorCard as HTMLElement).className = `bg-slate-800 rounded-lg border ${borderMap[s]} p-5`;
             const dot = doctorCard.querySelector('.status-dot');
             const val = doctorCard.querySelector('.status-value');
             if (dot) (dot as HTMLElement).className = `ml-auto w-2 h-2 rounded-full status-dot ${dotMap[s]}`;
@@ -213,6 +218,10 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
       }
     }
 
+    // F-FE-D-004: status cards (Wallet/Network/Doctor/Last Run) get
+    // breathing room — p-5 (was p-4) and mb-3 (was mb-2) on icon row.
+    // Facilitators reviewing multiple dashboards scan faster with looser
+    // density. Applied uniformly across all 4 status cards via buildCard().
     function buildCard(icon: string, label: string, value: string, status: string) {
       const borderMap: Record<string, string> = {
         ok: 'border-emerald-500/30',
@@ -224,8 +233,8 @@ import StatusCard from '../../components/dashboard/StatusCard.astro';
         warn: 'bg-amber-500',
         error: 'bg-red-500',
       };
-      return `<div class="bg-slate-800 rounded-lg border ${borderMap[status] || borderMap.ok} p-4">
-        <div class="flex items-center gap-2 mb-2">
+      return `<div class="bg-slate-800 rounded-lg border ${borderMap[status] || borderMap.ok} p-5">
+        <div class="flex items-center gap-2 mb-3">
           <span class="text-lg">${icon}</span>
           <span class="text-sm text-slate-400">${label}</span>
           <span class="ml-auto w-2 h-2 rounded-full status-dot ${dotMap[status] || dotMap.ok}"></span>

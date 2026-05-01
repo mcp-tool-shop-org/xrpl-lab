@@ -14,28 +14,47 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
     <!-- Filter bar -->
     <!-- F-FE-C-005: aria-pressed lets screen-reader users hear which filter
          is active; previously the active state was conveyed by Tailwind
-         class swap (color) only. Updated dynamically in applyFilter(). -->
-    <div class="flex items-center gap-2" role="group" aria-label="Filter modules by level">
-      <button data-filter="all" aria-pressed="true" class="filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400">All</button>
-      <button data-filter="beginner" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Beginner</button>
-      <button data-filter="intermediate" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Intermediate</button>
-      <button data-filter="advanced" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50">Advanced</button>
+         class swap (color) only. Updated dynamically in applyFilter().
+         F-FE-D-003: active filter gains border-b-2 border-emerald-400
+         (border-b-2 border-transparent on inactive — same height to
+         avoid layout shift). Active state now distinguishable without
+         relying on color hue alone.
+         F-FE-D-009: filter buttons wrapped in inline-flex container with
+         subtle border + bg, signaling "these are a control set." -->
+    <div class="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-1.5" role="group" aria-label="Filter modules by level">
+      <button data-filter="all" aria-pressed="true" class="filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400 border-b-2 border-emerald-400">All</button>
+      <button data-filter="beginner" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50 border-b-2 border-transparent">Beginner</button>
+      <button data-filter="intermediate" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50 border-b-2 border-transparent">Intermediate</button>
+      <button data-filter="advanced" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50 border-b-2 border-transparent">Advanced</button>
     </div>
 
     <!-- Module grid -->
+    <!-- F-FE-D-011: skeleton mirrors real-card structure (title bar + badge
+         row with badge slot + time slot) so the loading→loaded transition
+         has no layout shift. Real card has h3 title + level badge + time
+         estimate; skeleton bars approximate each. -->
     <div id="module-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <!-- Loading skeletons -->
       <div class="skeleton bg-slate-800 rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-4 bg-slate-700 rounded w-3/4 mb-3"></div>
-        <div class="h-3 bg-slate-700 rounded w-1/2"></div>
+        <div class="h-5 bg-slate-700 rounded w-3/4 mb-3"></div>
+        <div class="flex items-center gap-3">
+          <div class="h-4 bg-slate-700 rounded w-20"></div>
+          <div class="h-3 bg-slate-700 rounded w-16"></div>
+        </div>
       </div>
       <div class="skeleton bg-slate-800 rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-4 bg-slate-700 rounded w-3/4 mb-3"></div>
-        <div class="h-3 bg-slate-700 rounded w-1/2"></div>
+        <div class="h-5 bg-slate-700 rounded w-3/4 mb-3"></div>
+        <div class="flex items-center gap-3">
+          <div class="h-4 bg-slate-700 rounded w-20"></div>
+          <div class="h-3 bg-slate-700 rounded w-16"></div>
+        </div>
       </div>
       <div class="skeleton bg-slate-800 rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-4 bg-slate-700 rounded w-3/4 mb-3"></div>
-        <div class="h-3 bg-slate-700 rounded w-1/2"></div>
+        <div class="h-5 bg-slate-700 rounded w-3/4 mb-3"></div>
+        <div class="flex items-center gap-3">
+          <div class="h-4 bg-slate-700 rounded w-20"></div>
+          <div class="h-3 bg-slate-700 rounded w-16"></div>
+        </div>
       </div>
     </div>
 
@@ -66,10 +85,13 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 
     let allModules: Module[] = [];
 
+    // F-FE-D-012: level badges bump bg from /20 to /30 and border from /30
+    // to /40 — keeps low-contrast aesthetic while improving projector
+    // visibility. Applied to all 3 entries (beginner/intermediate/advanced).
     const levelColors: Record<string, string> = {
-      beginner: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-      intermediate: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-      advanced: 'bg-red-500/20 text-red-400 border-red-500/30',
+      beginner: 'bg-emerald-500/30 text-emerald-400 border-emerald-500/40',
+      intermediate: 'bg-amber-500/30 text-amber-400 border-amber-500/40',
+      advanced: 'bg-red-500/30 text-red-400 border-red-500/40',
     };
 
     function renderModules(modules: Module[]) {
@@ -81,6 +103,10 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
         return;
       }
 
+      // F-FE-D-006: incomplete modules render a low-contrast '○' in the same
+      // top-right slot as the completed-state '✓' so all cards share a
+      // consistent layout slot. Visual rhythm across the module grid is
+      // preserved whether a card is completed or not.
       grid.innerHTML = modules.map(m => `
         <a href="/xrpl-lab/app/modules/${escapeHtml(m.id)}/"
            class="block bg-slate-800 rounded-lg border border-slate-700 p-5 hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all group"
@@ -89,7 +115,9 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
             <h3 class="text-base font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">
               ${escapeHtml(m.title)}
             </h3>
-            ${m.completed ? '<span class="text-emerald-500 text-sm" title="Completed">&#10003;</span>' : ''}
+            ${m.completed
+              ? '<span class="text-emerald-500 text-sm" title="Completed" aria-label="Completed">&#10003;</span>'
+              : '<span class="text-slate-700 text-sm" title="Not yet completed" aria-hidden="true">&#9675;</span>'}
           </div>
           <div class="flex items-center gap-3">
             <span class="inline-block px-2 py-0.5 text-xs font-medium rounded border ${levelColors[m.level] || levelColors.beginner}">
@@ -112,11 +140,14 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
         const isActive = f === level;
         // F-FE-C-005: keep aria-pressed in sync with visual active state
         // so screen-reader users hear "Beginner, pressed" / "Beginner, not pressed".
+        // F-FE-D-003: swap border-b-2 alongside color so active state has a
+        // shape cue (underline) in addition to hue. Inactive uses
+        // border-transparent same width to avoid layout shift on toggle.
         btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
         if (isActive) {
-          btn.className = 'filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400';
+          btn.className = 'filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400 border-b-2 border-emerald-400';
         } else {
-          btn.className = 'filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50';
+          btn.className = 'filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50 border-b-2 border-transparent';
         }
       });
     }
