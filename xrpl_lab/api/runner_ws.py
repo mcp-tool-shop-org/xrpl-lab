@@ -84,26 +84,80 @@ def _safe_put(queue: asyncio.Queue, item: dict, run_id: str = "") -> None:
             )
 
 
+def _severity_for_code(code: str) -> tuple[str, str]:
+    """Map a LabError code → (severity, icon_hint).
+
+    Severity drives the dashboard's visual treatment (color, urgency)
+    so the Frontend's ws.onclose / message handler doesn't have to
+    code-introspect the prefix taxonomy itself. Mapping aligns with
+    xrpl_lab.errors._EXIT_CODES — INPUT_/CONFIG_/STATE_ are user-error
+    (warning, recoverable); IO_/DEP_/RUNTIME_/PERM_ are runtime fault
+    (error, server-side); PARTIAL_ is success-with-degradation (info).
+
+    The taxonomy match is by prefix, not full code — so a future
+    RUNTIME_FOOBAR added without updating this map renders as
+    'error/alert-triangle' rather than leaking an unmapped value.
+    """
+    # Specific code overrides (more specific than the prefix mapping)
+    if code == "RUNTIME_TIMEOUT":
+        return ("warning", "clock")
+    if code == "RUNTIME_CANCELLED":
+        return ("info", "x-circle")
+
+    # Prefix-based mapping
+    if code.startswith("INPUT_") or code.startswith("CONFIG_") or code.startswith("STATE_"):
+        return ("warning", "alert-circle")
+    if code.startswith("PARTIAL_"):
+        return ("info", "info")
+    if (
+        code.startswith("RUNTIME_")
+        or code.startswith("IO_")
+        or code.startswith("DEP_")
+        or code.startswith("PERM_")
+    ):
+        return ("error", "alert-triangle")
+
+    # Default fallback — unknown code prefix
+    return ("error", "alert-triangle")
+
+
 def _error_envelope(exc: BaseException) -> dict[str, str]:
     """Map an exception to a structured user-facing error envelope.
 
     Never leaks raw paths/internals — the server-side log captures the
-    full str(exc); the client only sees code/message/hint. Codes align
-    with xrpl_lab.errors.LabError taxonomy (RUNTIME_*, IO_*, etc.).
+    full str(exc); the client only sees code/message/hint plus the
+    optional severity/icon_hint metadata. Codes align with
+    xrpl_lab.errors.LabError taxonomy (RUNTIME_*, IO_*, etc.).
+
+    Envelope shape (all string-valued):
+        {code, message, hint, severity, icon_hint}
+
+    severity is one of 'info' | 'warning' | 'error' | 'critical' and
+    icon_hint is a generic glyph name (e.g. 'clock', 'alert-triangle')
+    chosen to give the Frontend a hint without locking the dashboard
+    into a specific icon library. Both are derived from ``code`` via
+    ``_severity_for_code`` — they are additive metadata; existing
+    consumers reading only {code, message, hint} continue to work.
     """
     from ..errors import LabException
 
     if isinstance(exc, LabException):
         # Already structured — reuse the existing envelope.
         d = exc.error.safe_dict()
+        code = str(d.get("code", "RUNTIME_INTERNAL"))
+        severity, icon_hint = _severity_for_code(code)
         return {
-            "code": str(d.get("code", "RUNTIME_INTERNAL")),
+            "code": code,
             "message": str(d.get("message", "An error occurred")),
             "hint": str(d.get("hint", "")),
+            "severity": severity,
+            "icon_hint": icon_hint,
         }
     if isinstance(exc, TimeoutError):
+        code = "RUNTIME_TIMEOUT"
+        severity, icon_hint = _severity_for_code(code)
         return {
-            "code": "RUNTIME_TIMEOUT",
+            "code": code,
             "message": (
                 "The module run timed out — the XRPL testnet did not "
                 "respond within the run window. This usually means the "
@@ -117,19 +171,27 @@ def _error_envelope(exc: BaseException) -> dict[str, str]:
                 "`xrpl-lab run <module> --dry-run`, or from the dashboard "
                 "select 'Dry Run' on the module page before clicking Start."
             ),
+            "severity": severity,
+            "icon_hint": icon_hint,
         }
     if isinstance(exc, asyncio.CancelledError):
+        code = "RUNTIME_CANCELLED"
+        severity, icon_hint = _severity_for_code(code)
         return {
-            "code": "RUNTIME_CANCELLED",
+            "code": code,
             "message": "The module run was cancelled.",
             "hint": "Restart the run when ready.",
+            "severity": severity,
+            "icon_hint": icon_hint,
         }
     # Unknown exception — generic envelope, full detail goes to server logs.
     # Workshop learners don't have server-log access, so route them to the
     # facilitator who does (server logs + doctor.log live on the host
     # running `xrpl-lab serve`, not the learner's browser).
+    code = "RUNTIME_INTERNAL"
+    severity, icon_hint = _severity_for_code(code)
     return {
-        "code": "RUNTIME_INTERNAL",
+        "code": code,
         "message": (
             "An internal server error occurred. This is a server-side "
             "fault — not something you did wrong in the module."
@@ -142,6 +204,8 @@ def _error_envelope(exc: BaseException) -> dict[str, str]:
             "fix or workaround (often: re-run the module, or use "
             "--dry-run to bypass network-dependent steps)."
         ),
+        "severity": severity,
+        "icon_hint": icon_hint,
     }
 
 
