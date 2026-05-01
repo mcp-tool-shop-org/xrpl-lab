@@ -62,6 +62,57 @@ sidebar:
 | `xrpl-lab doctor` | Run diagnostic checks (wallet, state, workspace, env overrides, RPC, faucet, last error) |
 | `xrpl-lab self-check` | Alias for doctor |
 | `xrpl-lab reset` | Wipe local state (requires typing RESET to confirm; add `--keep-wallet` to preserve wallet) |
+| `xrpl-lab reset --module <module_id>` | Granular per-module reset — clear one module's state and workspace artifacts only, keep everything else |
+
+### Granular reset flags
+
+| Flag | Description |
+|------|-------------|
+| `--module <module_id>` | Reset only the named module (removes it from `completed_modules`, clears its tx records and workspace report). Wallet, other modules, and audit packs are preserved |
+| `--confirm` | Skip the confirmation prompt (granular `--module` mode only) |
+| `--keep-wallet` | Whole-state reset, but keep the wallet file |
+
+## `xrpl-lab serve` — web dashboard
+
+`xrpl-lab serve` starts the FastAPI backend that drives the bundled web dashboard. Facilitators use it during workshops for at-a-glance cohort monitoring, kill-switch control of in-flight runs, and a click-through artifact viewer; integration users hit the same surface programmatically via REST + WebSocket.
+
+```bash
+# Start the API on the default port
+xrpl-lab serve
+
+# Custom port + offline sandbox for a demo cohort
+xrpl-lab serve --port 9000 --dry-run
+```
+
+API docs are auto-published at `http://<host>:<port>/docs` once the server is running.
+
+### Flags
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--port <N>` | `8321` | API server port. The dashboard's frontend hardcodes `http://localhost:8321` for `fetch` calls, so non-default ports require you to drive the API directly (curl, custom client) rather than the bundled UI |
+| `--host <H>` | `127.0.0.1` | Bind address. Stays on loopback by default — workshop threat-model line. Override only when you understand the exposure (e.g., a trusted LAN-only facilitator station) |
+| `--dry-run` | off | Run the entire dashboard surface in offline-sandbox mode. Useful for projector demos with no internet, or for facilitators rehearsing the workshop flow without funding wallets |
+
+### Dev vs production
+
+In **development**, the Astro site runs separately on port 4321:
+
+```bash
+# Terminal 1 — API
+xrpl-lab serve
+
+# Terminal 2 — Astro dev server (hot reload)
+cd site && npm run dev
+```
+
+Open `http://localhost:4321/xrpl-lab/app/` to use the dashboard.
+
+In **production** (after `cd site && npm run build`), the FastAPI app serves both the API surface and the built dashboard from one process — `xrpl-lab serve` is the only command you need.
+
+### Why this matters for facilitators
+
+The dashboard is the surface most workshop facilitators run on a second monitor while the cohort works in their own terminals. It is the live cohort view: per-run module ID, status, queue depth, kill button on stuck runs, capacity badge. See the [facilitator dashboard](/xrpl-lab/handbook/facilitator-dashboard/) page for what each piece of that surface tells you and how the kill-switch semantics work.
 
 ## Environment variables
 
