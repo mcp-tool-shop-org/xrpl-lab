@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>XRPL Lab — Dashboard (current / "before")</title>
+<!--
+  SELF-CONTAINED "BEFORE" SNAPSHOT of the XRPL Lab web dashboard, for a
+  Claude Design redesign handoff (Stage D). Fully offline — no external
+  resources. Mock data is inline. Three core screens (Overview, Live Runner,
+  Facilitator Runs) switchable via the top tabs. The real app is Astro SSG
+  under site/src/pages/app/* talking to a FastAPI backend at localhost:8321;
+  this file reproduces the CURRENT look + structure so the redesign has a
+  faithful starting point. See claude-design-brief.md for goals + the hard
+  preservation list (the API data shapes MUST NOT change).
+-->
+<style>
+  :root {
+    --bg:        #0b1220;   /* near slate-950 page bg */
+    --panel:     #18212f;   /* slate-800 card */
+    --panel-2:   #0f1722;   /* slate-900 inset (terminal/code) */
+    --border:    #2b3648;   /* slate-700 */
+    --border-2:  #1f2937;   /* slate-700/50 */
+    --text:      #e8edf4;   /* slate-100 */
+    --muted:     #93a1b5;   /* slate-400 */
+    --muted-2:   #5b6678;   /* slate-500 */
+    --accent:    #34d399;   /* emerald-400 */
+    --accent-hi: #10b981;   /* emerald-500 */
+    --warn:      #fbbf24;   /* amber-400 */
+    --err:       #f87171;   /* red-400 */
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+  a { color: var(--accent); text-decoration: none; }
+  .muted { color: var(--muted); }
+  .mono { font-family: var(--mono); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+  /* Header */
+  header { position: sticky; top: 0; z-index: 10; background: var(--panel); border-bottom: 1px solid var(--border); }
+  header .bar { display: flex; align-items: center; gap: 18px; max-width: 1100px; margin: 0 auto; padding: 12px 24px; }
+  .logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+  .badge-xl { width: 26px; height: 26px; border-radius: 7px; background: var(--accent-hi); color: #06241a; display: grid; place-items: center; font-weight: 800; font-size: 12px; }
+  nav.top { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav.top button { background: none; border: 0; color: var(--muted); font: inherit; padding: 6px 10px; border-radius: 7px; cursor: pointer; }
+  nav.top button:hover { background: rgba(255,255,255,.05); color: var(--text); }
+  nav.top button.active { background: var(--border); color: var(--accent); }
+
+  /* Generic card */
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .grid { display: grid; gap: 14px; }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+  .section { margin-bottom: 22px; }
+
+  /* Status dot+icon+text (the accessible pattern: never color-only) */
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .ok   { color: var(--accent); } .ok .dot, .dot.ok { background: var(--accent-hi); }
+  .warn { color: var(--warn); }   .warn .dot, .dot.warn { background: var(--warn); }
+  .err  { color: var(--err); }    .err .dot, .dot.err { background: var(--err); }
+
+  .statuscard { padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+  .statuscard .label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+  .statuscard .value { font-size: 18px; font-weight: 600; margin-top: 6px; }
+
+  .qa { border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: block; }
+  .qa:hover { border-color: rgba(52,211,153,.5); }
+  .qa .t { font-weight: 600; }
+  .qa .s { color: var(--muted); font-size: 12px; }
+
+  .progress { height: 12px; background: var(--border); border-radius: 999px; overflow: hidden; }
+  .progress > span { display: block; height: 100%; background: var(--accent-hi); width: 92%; transition: width .5s; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px; border: 1px solid transparent; }
+  .pill.ok   { background: rgba(16,185,129,.18); color: var(--accent); border-color: rgba(16,185,129,.4); }
+  .pill.warn { background: rgba(251,191,36,.16); color: var(--warn); border-color: rgba(251,191,36,.4); }
+  .pill.err  { background: rgba(248,113,113,.16); color: var(--err); border-color: rgba(248,113,113,.4); }
+  .pill.neutral { background: rgba(148,163,184,.14); color: var(--muted); border-color: rgba(148,163,184,.3); }
+
+  .btn { font: inherit; border-radius: 9px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--border); background: var(--border); color: var(--text); }
+  .btn.primary { background: var(--accent-hi); color: #06241a; border-color: var(--accent-hi); font-weight: 600; }
+  .btn.danger { background: none; border-color: rgba(248,113,113,.4); color: var(--err); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Terminal */
+  .terminal { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }
+  .terminal .tbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .tl { width: 11px; height: 11px; border-radius: 50%; }
+  .tl.r { background: #ef4444; } .tl.y { background: #f59e0b; } .tl.g { background: #22c55e; }
+  .terminal pre { margin: 0; padding: 14px; height: 280px; overflow: auto; font-family: var(--mono); font-size: 12.5px; color: var(--accent); white-space: pre-wrap; }
+  .terminal pre .e { color: var(--err); }
+
+  .steps li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--border-2); list-style: none; }
+  .steps { margin: 0; padding: 0; }
+  .stepicon { width: 18px; text-align: center; }
+
+  .run { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+  .run .meta { display: flex; gap: 14px; color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+  .footer { border-top: 1px solid var(--border); text-align: center; color: var(--muted); font-size: 12px; padding: 14px; margin-top: 28px; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+  @media (max-width: 760px){ .g3,.g4 { grid-template-columns: 1fr 1fr; } .runner-cols { grid-template-columns: 1fr !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <span class="logo"><span class="badge-xl">XL</span> XRPL Lab</span>
+    <nav class="top">
+      <button class="active" data-screen="overview">Dashboard</button>
+      <button data-screen="runner">Run Module</button>
+      <button data-screen="facilitator">Facilitator · Runs</button>
+      <span class="muted" style="padding:6px 4px;">·</span>
+      <button>Modules</button><button>Artifacts</button><button>Doctor</button>
+    </nav>
+  </div>
+</header>
+
+<!-- ───────────── SCREEN 1: OVERVIEW ───────────── -->
+<main class="wrap screen on" id="overview">
+  <div class="section">
+    <h1>Dashboard</h1>
+    <p class="muted">Learn by doing, prove by artifact.</p>
+  </div>
+
+  <div class="card section">
+    <h2>Overall progress</h2>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div class="progress" style="flex:1;"><span></span></div>
+      <span class="mono">11/12</span>
+    </div>
+  </div>
+
+  <div class="grid g3 section">
+    <a class="qa"><div class="t">📚 Browse modules</div><div class="s">12 modules across 5 tracks</div></a>
+    <a class="qa"><div class="t">▶ Run a module</div><div class="s">Live testnet or offline dry-run</div></a>
+    <a class="qa"><div class="t">🧾 View proof pack</div><div class="s">Shareable, SHA-256 sealed</div></a>
+  </div>
+
+  <div class="grid g4 section">
+    <div class="statuscard"><div class="label"><span class="dot ok"></span> Wallet</div><div class="value">rTEST…9aF2</div></div>
+    <div class="statuscard"><div class="label"><span class="dot ok"></span> Network</div><div class="value">testnet</div></div>
+    <div class="statuscard"><div class="label"><span class="dot warn"></span> Doctor</div><div class="value warn">1 warning</div></div>
+    <div class="statuscard"><div class="label"><span class="dot ok"></span> Last run</div><div class="value">receipt_literacy <span class="pill ok">✓ passed</span></div></div>
+  </div>
+
+  <div class="card section">
+    <h2>Recent activity</h2>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="dot ok"></span> <span class="ok">✓</span>
+      <strong>receipt_literacy</strong>
+      <span class="muted">· 2026-06-14 14:31 UTC</span>
+      <span class="pill ok" style="margin-left:auto;">passed</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Getting started</h2>
+    <ol class="muted" style="margin:0; padding-left:18px;">
+      <li>① Create a wallet — <code class="mono" style="color:var(--accent)">xrpl-lab wallet create</code></li>
+      <li>② Fund it from the testnet faucet — <code class="mono" style="color:var(--accent)">xrpl-lab fund</code></li>
+      <li>③ Run your first module — <code class="mono" style="color:var(--accent)">xrpl-lab start</code></li>
+    </ol>
+  </div>
+</main>
+
+<!-- ───────────── SCREEN 2: LIVE RUNNER ───────────── -->
+<main class="wrap screen" id="runner">
+  <div class="section"><a class="muted">← Back to modules</a>
+    <h1 style="margin-top:8px;">Receipt Literacy <span class="pill neutral">beginner</span></h1>
+  </div>
+
+  <div class="section" style="display:flex; gap:12px; align-items:center;">
+    <button class="btn primary">▶ Run</button>
+    <button class="btn">📋 Dry Run</button>
+    <span class="ok" role="status" style="margin-left:6px;">Running step 3 of 7…</span>
+  </div>
+
+  <div class="grid runner-cols" style="grid-template-columns: 280px 1fr;">
+    <div class="card">
+      <h2>Steps</h2>
+      <ul class="steps">
+        <li><span class="stepicon ok">✓</span> Create wallet <span class="muted" style="margin-left:auto;">done</span></li>
+        <li><span class="stepicon ok">✓</span> Fund from faucet <span class="muted" style="margin-left:auto;">done</span></li>
+        <li><span class="stepicon ok">◉</span> Submit payment <span class="ok" style="margin-left:auto;">running</span></li>
+        <li><span class="stepicon muted">○</span> Verify receipt <span class="muted" style="margin-left:auto;">pending</span></li>
+        <li><span class="stepicon muted">○</span> Write report <span class="muted" style="margin-left:auto;">pending</span></li>
+      </ul>
+    </div>
+    <div>
+      <div class="terminal section">
+        <div class="tbar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span><span class="muted" style="margin-left:6px;">output</span></div>
+<pre>→ ensure_wallet… ok (rTEST…9aF2)
+→ ensure_funded… ok (balance 1000 XRP)
+→ submit_payment… submitting to testnet
+  amount=10 XRP  dest=rDEST…7kQ1
+  awaiting validation…</pre>
+      </div>
+      <div class="card">
+        <h2>Transactions</h2>
+        <div class="mono muted" style="font-size:12px;">E3F1…A4545 <span class="ok">tesSUCCESS</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ───────────── SCREEN 3: FACILITATOR RUNS ───────────── -->
+<main class="wrap screen" id="facilitator">
+  <div class="section" style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+    <div><h1>Active runs</h1><p class="muted">Live view of learner module sessions.</p></div>
+    <div class="statuscard" style="text-align:right;"><div class="label" style="justify-content:flex-end;">CAPACITY</div><div class="value mono">3 / 8 active</div></div>
+  </div>
+
+  <div class="grid" style="gap:12px;">
+    <div class="run">
+      <div>
+        <strong>dex_market_making_101</strong>
+        <span class="pill ok">● ACTIVE</span>
+        <div class="meta"><span>⏱ 1m 12s</span><span>queue 2</span><span class="mono">a3f01b2c</span></div>
+      </div>
+      <button class="btn danger">⊘ Kill</button>
+    </div>
+    <div class="run">
+      <div>
+        <strong>amm_liquidity_101</strong>
+        <span class="pill neutral">📋 dry-run</span>
+        <span class="pill ok">● ACTIVE</span>
+        <div class="meta"><span>⏱ 22s</span><span class="mono">7de4c910</span></div>
+      </div>
+      <button class="btn danger">⊘ Kill</button>
+    </div>
+    <div class="run">
+      <div>
+        <strong>trust_lines_101</strong>
+        <span class="pill ok">✓ DONE</span>
+        <div class="meta"><span>⏱ 3m 40s</span><span class="mono">ff09aa31</span></div>
+      </div>
+    </div>
+    <div class="run">
+      <div>
+        <strong>reserves_101</strong>
+        <span class="pill err">✗ FAILED</span>
+        <div class="meta"><span>⏱ 0m 48s</span><span class="mono">c1d2e3f4</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="muted" style="font-size:12px; margin-top:14px;">Auto-refreshes every 5 seconds while this tab is visible. Polling pauses when the tab is hidden.</p>
+</main>
+
+<div class="footer">XRPL Lab · v1.6.0 · MIT · MCP Tool Shop</div>
+
+<script>
+  document.querySelectorAll('nav.top button[data-screen]').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('nav.top button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+      document.getElementById(b.dataset.screen).classList.add('on');
+    });
+  });
+</script>
+</body>
+</html>
