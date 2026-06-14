@@ -1,5 +1,7 @@
 ---
 import '../styles/global.css';
+import '../styles/dashboard-fonts.css';
+import '../styles/dashboard.css';
 
 interface Props {
   title: string;
@@ -9,14 +11,25 @@ interface Props {
 const { title, activePage = '' } = Astro.props;
 const base = '/xrpl-lab';
 
-const navLinks = [
-  { href: `${base}/app/`, label: 'Dashboard', id: 'dashboard' },
-  { href: `${base}/app/modules/`, label: 'Modules', id: 'modules' },
-  { href: `${base}/app/artifacts/`, label: 'Artifacts', id: 'artifacts' },
-  { href: `${base}/app/doctor/`, label: 'Doctor', id: 'doctor' },
-  // F-FE-FT-001: facilitator surface entry — workshop facilitators
-  // monitor 4-8 concurrent learner runs in real time without curl.
-  { href: `${base}/app/facilitator/runs/`, label: 'Facilitator', id: 'facilitator' },
+// SVG icons for the server-rendered sidebar nav (mirrors src/lib/dashboard-ui.ts).
+const ic = {
+  dash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>',
+  seal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V7z"/><path d="M9 12l2 2 4-4"/></svg>',
+  doctor: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v5a4 4 0 0 0 8 0V3"/><path d="M10 16a5 5 0 0 0 10 0v-2"/><circle cx="20" cy="11" r="2"/></svg>',
+  board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="8" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="11" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
+};
+
+const workbook = [
+  { href: `${base}/app/`, label: 'Dashboard', id: 'dashboard', icon: ic.dash },
+  { href: `${base}/app/modules/`, label: 'Modules', id: 'modules', icon: ic.book },
+  { href: `${base}/app/artifacts/`, label: 'Artifacts', id: 'artifacts', icon: ic.seal },
+  { href: `${base}/app/doctor/`, label: 'Doctor', id: 'doctor', icon: ic.doctor },
+];
+// F-FE-FT-001: facilitator surface — monitor concurrent learner runs.
+const facilitator = [
+  { href: `${base}/app/facilitator/runs/`, label: 'Runs', id: 'facilitator', icon: ic.board },
 ];
 ---
 
@@ -26,149 +39,88 @@ const navLinks = [
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{title} - XRPL Lab</title>
+  <meta name="description" content="XRPL Lab — learn by doing, prove by artifact. Testnet-only XRP Ledger training workbook." />
   <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
 </head>
-<body class="bg-slate-900 text-slate-200 min-h-screen flex flex-col">
+<body>
+  <div class="app" id="app" data-nav-open="false">
+    <div class="scrim" id="scrim"></div>
 
-  <!-- F-FE-D-001: global :focus-visible rule gives every interactive element a
-       2px emerald-400 outline (#34d399) with 2px offset. Keyboard users now
-       have visible focus indicators across dashboard surfaces. Mirrors the
-       handbook rule in starlight-custom.css so coverage is consistent. -->
-  <style is:global>
-    :focus-visible {
-      outline: 2px solid #34d399;
-      outline-offset: 2px;
-      border-radius: 0.125rem;
-    }
-    button:focus-visible,
-    a:focus-visible,
-    .filter-btn:focus-visible,
-    [role="button"]:focus-visible,
-    input:focus-visible,
-    select:focus-visible,
-    textarea:focus-visible {
-      outline: 2px solid #34d399;
-      outline-offset: 2px;
-      border-radius: 0.125rem;
-    }
-  </style>
-
-  <!-- Header -->
-  <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-      <a href={`${base}/app/`} class="flex items-center gap-2 text-slate-100 font-bold text-lg hover:text-emerald-400 transition-colors">
-        <span class="bg-emerald-500 text-slate-900 text-xs font-bold px-1.5 py-0.5 rounded">XL</span>
-        XRPL Lab
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar" id="sidebar" aria-label="Primary">
+      <a class="brand" href={`${base}/app/`}>
+        <span class="brand__badge" aria-hidden="true">XL</span>
+        <span class="stack"><span class="brand__name">XRPL Lab</span><span class="brand__tag">learn by doing, prove by artifact.</span></span>
       </a>
-
-      <nav class="flex items-center gap-1">
-        {navLinks.map((link) => (
-          <a
-            href={link.href}
-            class={`px-3 py-1.5 text-sm rounded transition-colors ${
-              activePage === link.id
-                ? 'bg-slate-700 text-emerald-400'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-            }`}
-          >
-            {link.label}
+      <nav class="nav" aria-label="Sections">
+        <span class="nav__label">Workbook</span>
+        {workbook.map((l) => (
+          <a class="navlink" href={l.href} aria-current={activePage === l.id ? 'page' : 'false'}>
+            <Fragment set:html={l.icon} /> {l.label}
           </a>
         ))}
-        <span class="w-px h-5 bg-slate-700 mx-2"></span>
-        <a
-          href={`${base}/`}
-          class="text-sm text-slate-400 hover:text-slate-200 transition-colors"
-        >
-          Home
-        </a>
-        <a
-          href={`${base}/handbook/`}
-          class="text-sm text-slate-400 hover:text-slate-200 transition-colors ml-2"
-        >
-          Handbook
-        </a>
+        <span class="nav__label">Facilitator</span>
+        {facilitator.map((l) => (
+          <a class="navlink" href={l.href} aria-current={activePage === l.id ? 'page' : 'false'}>
+            <Fragment set:html={l.icon} /> {l.label}
+          </a>
+        ))}
       </nav>
-    </div>
-  </header>
-
-  <!-- Body -->
-  <div class="flex-1 flex max-w-7xl mx-auto w-full">
-
-    <!-- Sidebar -->
-    <aside class="hidden lg:block w-56 shrink-0 border-r border-slate-700 p-4 overflow-y-auto">
-      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Modules</h2>
-      <ul id="sidebar-modules" class="space-y-1">
-        <li class="text-sm text-slate-600 animate-pulse">Loading...</li>
-      </ul>
+      <div class="sidebar__foot">
+        <span class="netpill" id="netpill">
+          <span class="statdot statdot--ok" id="netpill-dot"></span> <span id="netpill-text">Connecting…</span>
+        </span>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;">
+          <a href={`${base}/`} class="sidebar__ver" style="color:var(--text-2)">Home</a>
+          <a href={`${base}/handbook/`} class="sidebar__ver" style="color:var(--text-2)">Handbook</a>
+        </div>
+        <span class="sidebar__ver" id="sidebar-ver">XRPL Lab · v… · MIT</span>
+      </div>
     </aside>
 
-    <!-- Main -->
-    <main class="flex-1 p-6 overflow-y-auto">
-      <slot />
-    </main>
+    <!-- ============ MAIN ============ -->
+    <div class="stack" style="min-width:0">
+      <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-controls="sidebar">
+        <Fragment set:html={ic.menu} /><span>Menu</span>
+      </button>
+      <main class="main" id="main">
+        <slot />
+      </main>
+    </div>
   </div>
 
-  <!-- Footer -->
-  <footer class="border-t border-slate-700 py-3 px-6 text-center">
-    <p class="text-xs text-slate-600">
-      XRPL Lab &middot; <span id="footer-version">v-.-.-</span> &middot;
-      MIT Licensed &middot;
-      <a href="https://mcp-tool-shop.github.io/" class="text-slate-400 hover:text-emerald-400 transition-colors">MCP Tool Shop</a>
-    </p>
-  </footer>
+  <!-- branded modal mount + screen-reader live region -->
+  <div id="modal-root"></div>
+  <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
 
-  <!-- Sidebar + footer hydration -->
   <script>
     import { fetchWithTimeout } from '../lib/api';
 
     const API_BASE = 'http://localhost:8321';
 
-    function escapeHtml(str: any): string {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
+    // Mobile nav drawer
+    const app = document.getElementById('app');
+    document.getElementById('navToggle')?.addEventListener('click', () => {
+      app?.setAttribute('data-nav-open', app.getAttribute('data-nav-open') === 'true' ? 'false' : 'true');
+    });
+    document.getElementById('scrim')?.addEventListener('click', () => app?.setAttribute('data-nav-open', 'false'));
 
-    async function hydrateLayout() {
-      // Sidebar modules
+    // Live connection pill + footer version from /api/status
+    (async () => {
+      const dot = document.getElementById('netpill-dot');
+      const text = document.getElementById('netpill-text');
+      const ver = document.getElementById('sidebar-ver');
       try {
-        const modulesRes = await fetchWithTimeout(`${API_BASE}/api/modules`);
-        const modules = await modulesRes.json();
-        const list = document.getElementById('sidebar-modules');
-        if (list && Array.isArray(modules)) {
-          list.innerHTML = modules.map((m: any) => {
-            const dot = m.completed
-              ? '<span class="text-emerald-500 mr-1.5">&#9679;</span>'
-              : '<span class="text-slate-600 mr-1.5">&#9675;</span>';
-            return `<li>
-              <a href="/xrpl-lab/app/modules/${escapeHtml(m.id)}/"
-                 class="flex items-center text-sm text-slate-400 hover:text-emerald-400 py-1 transition-colors">
-                ${dot}${escapeHtml(m.title)}
-              </a>
-            </li>`;
-          }).join('');
-        }
+        const res = await fetchWithTimeout(`${API_BASE}/api/status`);
+        const s = await res.json();
+        if (text) text.innerHTML = `Connected · <span class="mono">${s.network ?? 'testnet'}</span>`;
+        if (dot) { dot.classList.remove('statdot--warn', 'statdot--err'); dot.classList.add('statdot--ok'); }
+        if (ver && s.version) ver.textContent = `XRPL Lab · v${s.version} · MIT`;
       } catch {
-        const list = document.getElementById('sidebar-modules');
-        if (list) list.innerHTML = '<li class="text-sm text-slate-600">API offline</li>';
+        if (text) text.textContent = 'API offline — run xrpl-lab serve';
+        if (dot) { dot.classList.remove('statdot--ok'); dot.classList.add('statdot--err'); }
       }
-
-      // Footer version
-      try {
-        const statusRes = await fetchWithTimeout(`${API_BASE}/api/status`);
-        const status = await statusRes.json();
-        const el = document.getElementById('footer-version');
-        if (el && status.version) el.textContent = `v${status.version}`;
-      } catch {
-        // leave placeholder
-      }
-    }
-
-    hydrateLayout();
+    })();
   </script>
 </body>
 </html>

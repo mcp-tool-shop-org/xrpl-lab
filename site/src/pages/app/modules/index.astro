@@ -3,191 +3,148 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 ---
 
 <DashboardLayout title="Modules" activePage="modules">
+  <div class="screen-head">
+    <h1>Modules</h1>
+    <p class="lede">12 hands-on modules. Pick a track and work through them at your own pace.</p>
+  </div>
 
-  <div class="space-y-6">
-
-    <div>
-      <h1 class="text-2xl font-bold text-slate-100">Modules</h1>
-      <p class="text-slate-400 mt-1">12 hands-on modules.</p>
+  <div class="screen-inner" id="modules-root">
+    <!-- Filter bar — a segmented control (.seg). aria-pressed signals the
+         active level to screen-reader users AND drives the active styling
+         (`.seg button[aria-pressed="true"]`), so the two never drift.
+         Kept in sync in applyFilter(). -->
+    <div class="seg seg--wrap section" role="group" aria-label="Filter modules by level">
+      <button data-filter="all" aria-pressed="true">All</button>
+      <button data-filter="beginner" aria-pressed="false">Beginner</button>
+      <button data-filter="intermediate" aria-pressed="false">Intermediate</button>
+      <button data-filter="advanced" aria-pressed="false">Advanced</button>
     </div>
 
-    <!-- Filter bar -->
-    <!-- F-FE-C-005: aria-pressed lets screen-reader users hear which filter
-         is active; previously the active state was conveyed by Tailwind
-         class swap (color) only. Updated dynamically in applyFilter().
-         F-FE-D-003: active filter gains border-b-2 border-emerald-400
-         (border-b-2 border-transparent on inactive — same height to
-         avoid layout shift). Active state now distinguishable without
-         relying on color hue alone.
-         F-FE-D-009: filter buttons wrapped in inline-flex container with
-         subtle border + bg, signaling "these are a control set." -->
-    <div class="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-1.5" role="group" aria-label="Filter modules by level">
-      <button data-filter="all" aria-pressed="true" class="filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400 border-b-2 border-emerald-400">All</button>
-      <button data-filter="beginner" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50 border-b-2 border-transparent">Beginner</button>
-      <button data-filter="intermediate" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50 border-b-2 border-transparent">Intermediate</button>
-      <button data-filter="advanced" aria-pressed="false" class="filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50 border-b-2 border-transparent">Advanced</button>
-    </div>
-
-    <!-- Module grid -->
-    <!-- F-FE-D-011: skeleton mirrors real-card structure (title bar + badge
-         row with badge slot + time slot) so the loading→loaded transition
-         has no layout shift. Real card has h3 title + level badge + time
-         estimate; skeleton bars approximate each. -->
-    <div id="module-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <!-- Loading skeletons -->
-      <div class="skeleton bg-slate-800 rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-5 bg-slate-700 rounded w-3/4 mb-3"></div>
-        <div class="flex items-center gap-3">
-          <div class="h-4 bg-slate-700 rounded w-20"></div>
-          <div class="h-3 bg-slate-700 rounded w-16"></div>
-        </div>
-      </div>
-      <div class="skeleton bg-slate-800 rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-5 bg-slate-700 rounded w-3/4 mb-3"></div>
-        <div class="flex items-center gap-3">
-          <div class="h-4 bg-slate-700 rounded w-20"></div>
-          <div class="h-3 bg-slate-700 rounded w-16"></div>
-        </div>
-      </div>
-      <div class="skeleton bg-slate-800 rounded-lg border border-slate-700 p-5 animate-pulse">
-        <div class="h-5 bg-slate-700 rounded w-3/4 mb-3"></div>
-        <div class="flex items-center gap-3">
-          <div class="h-4 bg-slate-700 rounded w-20"></div>
-          <div class="h-3 bg-slate-700 rounded w-16"></div>
-        </div>
-      </div>
-    </div>
-
+    <!-- Module grid — skeleton tiles mirror the real-card structure (title
+         row + chip/time row) so the loading→loaded swap has no layout shift. -->
+    <div id="module-grid" class="grid"></div>
   </div>
 
   <script>
     import { fetchWithTimeout } from '../../../lib/api';
+    import { icons, healthIcon, esc } from '../../../lib/dashboard-ui';
 
     const API_BASE = 'http://localhost:8321';
+    const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
 
-    function escapeHtml(str: any): string {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-
+    // API shape is dynamic; keep the field names the backend sends.
     interface Module {
       id: string;
       title: string;
+      track?: string;
       level: string;
-      time_estimate: string;
-      completed: boolean;
+      time_estimate?: string;
+      mode?: string;
+      completed?: boolean;
+      is_next?: boolean;
     }
 
     let allModules: Module[] = [];
 
-    // F-FE-D-012: level badges bump bg from /20 to /30 and border from /30
-    // to /40 — keeps low-contrast aesthetic while improving projector
-    // visibility. Applied to all 3 entries (beginner/intermediate/advanced).
-    const levelColors: Record<string, string> = {
-      beginner: 'bg-emerald-500/30 text-emerald-400 border-emerald-500/40',
-      intermediate: 'bg-amber-500/30 text-amber-400 border-amber-500/40',
-      advanced: 'bg-red-500/30 text-red-400 border-red-500/40',
-    };
+    // Three skeleton tiles, each approximating a real card's title bar +
+    // chip/time row, so the grid doesn't reflow when data lands.
+    function skeletonGrid() {
+      return Array(3).fill(
+        `<div class="card">${sk('17px', '70%')}<div class="row" style="gap:10px;margin-top:14px">${sk('20px', '78px')}${sk('14px', '60px')}</div></div>`
+      ).join('');
+    }
+
+    // F-FE-D-006: every tile carries a completion marker in the same slot —
+    // healthIcon('pass') for completed, a hollow dot for not-started — so the
+    // grid never has a blank slot and both states are labelled for SR users.
+    function completionMark(done: boolean) {
+      return done
+        ? healthIcon('pass')
+        : `<span class="statdot" role="img" aria-label="Not yet completed" style="width:14px;height:14px;background:none;border:1.5px solid var(--line-strong);border-radius:50%"></span>`;
+    }
 
     function renderModules(modules: Module[]) {
       const grid = document.getElementById('module-grid');
       if (!grid) return;
 
       if (modules.length === 0) {
-        grid.innerHTML = '<p class="text-slate-400 col-span-full">No modules found.</p>';
+        grid.innerHTML = `<div class="card"><div class="empty"><span class="empty__ic">${icons.inbox}</span>
+          <div class="empty__t">No modules here</div><div>No modules match this level. Try a different filter.</div></div></div>`;
         return;
       }
 
-      // F-FE-D-006: incomplete modules render a low-contrast '○' in the same
-      // top-right slot as the completed-state '✓' so all cards share a
-      // consistent layout slot. Visual rhythm across the module grid is
-      // preserved whether a card is completed or not.
-      grid.innerHTML = modules.map(m => `
-        <a href="/xrpl-lab/app/modules/${escapeHtml(m.id)}/"
-           class="block bg-slate-800 rounded-lg border border-slate-700 p-5 hover:border-emerald-500/50 hover:bg-slate-800/80 transition-all group"
-           data-level="${escapeHtml(m.level)}">
-          <div class="flex items-start justify-between mb-3">
-            <h3 class="text-base font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">
-              ${escapeHtml(m.title)}
-            </h3>
-            ${m.completed
-              ? '<span class="text-emerald-500 text-sm" title="Completed" aria-label="Completed">&#10003;</span>'
-              : '<span class="text-slate-700 text-sm" title="Not yet completed" aria-hidden="true">&#9675;</span>'}
+      grid.innerHTML = modules.map((m) => {
+        // is_next earns a subtle accent border + an "Up next" label so the
+        // recommended module reads at a glance without relying on hue alone.
+        const next = m.is_next
+          ? ' style="border-color:var(--ok-edge)"'
+          : '';
+        const nextTag = m.is_next
+          ? `<span class="chip" style="background:var(--ok-fill);border-color:var(--ok-edge);color:var(--accent-bright)">Up next</span>`
+          : '';
+        const time = m.time_estimate
+          ? `<span class="muted nowrap" style="font-size:13px">${esc(m.time_estimate)}</span>`
+          : '';
+        return `
+        <a class="qa" href="/xrpl-lab/app/modules/${esc(m.id)}/" data-level="${esc(m.level)}"${next}>
+          <div class="row row--between" style="gap:12px;align-items:flex-start">
+            <span class="qa__t">${esc(m.title)}</span>
+            ${completionMark(!!m.completed)}
           </div>
-          <div class="flex items-center gap-3">
-            <span class="inline-block px-2 py-0.5 text-xs font-medium rounded border ${levelColors[m.level] || levelColors.beginner}">
-              ${escapeHtml(m.level)}
-            </span>
-            <span class="text-xs text-slate-400">${escapeHtml(m.time_estimate)}</span>
+          <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:6px">
+            <span class="chip">${esc(m.level)}</span>
+            ${nextTag}
+            ${time}
           </div>
-        </a>
-      `).join('');
+        </a>`;
+      }).join('');
     }
 
     function applyFilter(level: string) {
       const filtered = level === 'all'
         ? allModules
-        : allModules.filter(m => m.level === level);
+        : allModules.filter((m) => m.level === level);
       renderModules(filtered);
 
-      document.querySelectorAll('.filter-btn').forEach(btn => {
+      document.querySelectorAll('.seg button').forEach((btn) => {
         const f = (btn as HTMLElement).dataset.filter;
-        const isActive = f === level;
-        // F-FE-C-005: keep aria-pressed in sync with visual active state
-        // so screen-reader users hear "Beginner, pressed" / "Beginner, not pressed".
-        // F-FE-D-003: swap border-b-2 alongside color so active state has a
-        // shape cue (underline) in addition to hue. Inactive uses
-        // border-transparent same width to avoid layout shift on toggle.
-        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-        if (isActive) {
-          btn.className = 'filter-btn px-3 py-1.5 text-sm rounded bg-slate-700 text-emerald-400 border-b-2 border-emerald-400';
-        } else {
-          btn.className = 'filter-btn px-3 py-1.5 text-sm rounded text-slate-400 hover:bg-slate-700/50 border-b-2 border-transparent';
-        }
+        // Keep aria-pressed in sync with the active filter — it both tells
+        // SR users "Beginner, pressed" and triggers the .seg active styling.
+        btn.setAttribute('aria-pressed', f === level ? 'true' : 'false');
       });
     }
 
-    document.querySelectorAll('.filter-btn').forEach(btn => {
+    document.querySelectorAll('.seg button').forEach((btn) => {
       btn.addEventListener('click', () => {
         applyFilter((btn as HTMLElement).dataset.filter || 'all');
       });
     });
 
+    function offlineHTML(err: any) {
+      // F-FE-C-003: distinguish AbortError (timeout — retrying may help) from
+      // TypeError (network/server down — `xrpl-lab serve` not running) so the
+      // user gets an actionable hint per error class.
+      const timeout = err?.name === 'AbortError';
+      const msg = timeout
+        ? 'Request timed out. The API may be slow or restarting. Refresh to retry.'
+        : 'API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
+      return `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
+        <div class="empty__t">Can't reach the API</div><div>${msg}</div></div></div>`;
+    }
+
     async function loadModules() {
+      const grid = document.getElementById('module-grid');
+      if (!grid) return;
+      grid.innerHTML = skeletonGrid();
       try {
         const res = await fetchWithTimeout(`${API_BASE}/api/modules`);
         allModules = await res.json();
         renderModules(allModules);
       } catch (err: any) {
-        // F-FE-C-003: distinguish AbortError (timeout — retry might work)
-        // from TypeError (network/server down — `xrpl-lab serve` not running)
-        // so the user sees an actionable hint per error class.
-        const grid = document.getElementById('module-grid');
-        if (grid) {
-          let msg: string;
-          if (err?.name === 'AbortError') {
-            msg = 'Request timed out. The API may be slow or restarting. Refresh to retry.';
-          } else if (err instanceof TypeError) {
-            msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
-          } else {
-            msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
-          }
-          grid.innerHTML = `
-            <div class="col-span-full flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4" role="status">
-              <span aria-hidden="true">&#9888;</span>
-              <span>${msg}</span>
-            </div>
-          `;
-        }
+        grid.innerHTML = offlineHTML(err);
       }
     }
 
     loadModules();
   </script>
-
 </DashboardLayout>

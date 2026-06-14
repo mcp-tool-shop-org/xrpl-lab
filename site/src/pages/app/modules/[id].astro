@@ -24,211 +24,141 @@ const { id } = Astro.params;
 ---
 
 <DashboardLayout title="Module" activePage="modules">
-
-  <div id="module-detail" class="space-y-6" data-module-id={id}>
-
-    <!-- Loading state -->
-    <div id="module-loading" class="space-y-4 animate-pulse">
-      <div class="h-8 bg-slate-700 rounded w-1/2"></div>
-      <div class="h-4 bg-slate-700 rounded w-3/4"></div>
-      <div class="h-4 bg-slate-700 rounded w-2/3"></div>
-    </div>
-
-    <!-- Content (hidden until loaded) -->
-    <div id="module-content" class="hidden space-y-6">
-
-      <!-- Header -->
-      <div>
-        <a href="/xrpl-lab/app/modules/" class="text-sm text-slate-500 hover:text-emerald-400 transition-colors mb-2 inline-block">&larr; Back to Modules</a>
-        <div class="flex items-center gap-3 mt-1">
-          <h1 id="mod-title" class="text-2xl font-bold text-slate-100"></h1>
-          <span id="mod-badge" class="inline-block px-2 py-0.5 text-xs font-medium rounded border"></span>
-          <span id="mod-completed" class="hidden text-emerald-500 text-sm">&#10003; Completed</span>
-        </div>
-        <p id="mod-description" class="text-slate-400 mt-2"></p>
-      </div>
-
-      <!-- Meta -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
-          <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Time Estimate</p>
-          <p id="mod-time" class="text-sm font-semibold text-slate-200"></p>
-        </div>
-        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
-          <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Prerequisites</p>
-          <p id="mod-prereqs" class="text-sm text-slate-200"></p>
-        </div>
-        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4">
-          <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Artifacts</p>
-          <p id="mod-artifacts" class="text-sm text-slate-200"></p>
-        </div>
-      </div>
-
-      <!-- Steps -->
-      <section class="bg-slate-800 rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Steps Preview</h2>
-        <ol id="mod-steps" class="space-y-2 list-decimal list-inside text-sm text-slate-300"></ol>
-      </section>
-
-      <!-- Prerequisites detail -->
-      <section id="prereqs-section" class="hidden bg-slate-800 rounded-lg border border-slate-700 p-6">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Prerequisites</h2>
-        <ul id="prereqs-list" class="space-y-2"></ul>
-      </section>
-
-      <!-- Actions -->
-      <div class="flex items-center gap-3">
-        <a
-          id="btn-run"
-          class="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded transition-colors cursor-pointer"
-        >
-          Run Module
-        </a>
-        <a
-          id="btn-dry"
-          class="inline-block px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded border border-slate-600 transition-colors cursor-pointer"
-        >
-          Run in Dry Mode
-        </a>
-        <span id="mod-done-badge" class="hidden ml-2 px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-semibold rounded border border-emerald-500/30">&#10003; Module Completed</span>
-      </div>
-
-    </div>
-
-    <!-- Error state -->
-    <div id="module-error" class="hidden">
-      <a href="/xrpl-lab/app/modules/" class="text-sm text-slate-500 hover:text-emerald-400 transition-colors mb-4 inline-block">&larr; Back to Modules</a>
-      <div class="flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
-        <span>&#9888;</span>
-        <span>Could not load module details. Is the API running?</span>
-      </div>
-    </div>
-
+  <div class="screen-inner" id="module-root" data-module-id={id}>
+    <div class="card section"><div class="skeleton" style="height:34px;width:45%"></div></div>
   </div>
 
   <script>
     import { fetchWithTimeout } from '../../../lib/api';
+    import { icons, healthIcon, esc } from '../../../lib/dashboard-ui';
 
     const API_BASE = 'http://localhost:8321';
+    const II = (svg: string) =>
+      `<span style="display:inline-flex;width:16px;height:16px;color:var(--text-3)">${svg}</span>`;
+    const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
 
-    function escapeHtml(str: any): string {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    const backLink =
+      `<a class="muted" href="/xrpl-lab/app/modules/" style="font-size:13.5px;text-decoration:none">&larr; Back to Modules</a>`;
+
+    function skeletonDetail() {
+      return `<div class="card section">${sk('14px', '18%')}<div style="height:10px"></div>${sk('30px', '45%')}</div>
+        <div class="grid section grid-stats">${Array(3).fill(`<div class="stat">${sk('13px', '55%')}${sk('22px', '70%')}</div>`).join('')}</div>
+        <div class="card section">${sk('14px', '20%')}<div class="sk-line skeleton"></div><div class="sk-line skeleton" style="width:80%"></div></div>`;
     }
 
-    const levelColors: Record<string, string> = {
-      beginner: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-      intermediate: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-      advanced: 'bg-red-500/20 text-red-400 border-red-500/30',
-    };
+    // 404 / API-unreachable — humanized copy matching the overview page.
+    function errorHTML(err: any) {
+      const timeout = err?.name === 'AbortError';
+      const msg = timeout
+        ? 'Request timed out. The API may be slow or restarting. Refresh to retry.'
+        : 'Could not load module details. The module may not exist, or the API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
+      return `<div class="screen-head">${backLink}</div>
+        <div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
+          <div class="empty__t">Can't load this module</div><div>${msg}</div></div></div>`;
+    }
 
-    async function loadModule() {
-      const container = document.getElementById('module-detail');
-      const moduleId = container?.dataset.moduleId;
-      if (!moduleId) return;
+    function detailHTML(mod: any, prereqsHTML: string) {
+      const prereqList = mod.prerequisites || [];
+      const artifacts = mod.artifacts || [];
 
+      // Level chip (neutral pill) + optional completion marker.
+      const levelChip = mod.level
+        ? `<span class="chip">${esc(mod.level)}</span>`
+        : '';
+      const completedMark = mod.completed
+        ? `<span class="row" style="gap:6px;color:var(--accent-bright);font-size:13.5px;font-weight:600">${healthIcon('pass')} Completed</span>`
+        : '';
+
+      const desc = mod.description
+        ? `<p class="lede">${esc(mod.description)}</p>`
+        : '';
+
+      // Steps preview — ordered list, falls back to an empty note.
+      const steps = mod.steps || [];
+      const stepsBlock = steps.length
+        ? `<ol class="mod-steps" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;font-size:var(--fs-sm);color:var(--text)">${steps.map((s: string) => `<li>${esc(s)}</li>`).join('')}</ol>`
+        : `<p class="muted">No steps listed for this module.</p>`;
+
+      return `
+      <div class="screen-head">
+        ${backLink}
+        <div class="row" style="gap:12px;margin-top:8px;flex-wrap:wrap">
+          <h1 style="margin:0">${esc(mod.title || mod.id)}</h1>
+          ${levelChip}
+          ${completedMark}
+        </div>
+        ${desc}
+      </div>
+
+      <div class="grid section grid-stats">
+        <div class="stat"><span class="stat__label">${II(icons.book)} Time estimate</span><span class="stat__value" style="font-size:18px">${esc(mod.time_estimate || '--')}</span></div>
+        <div class="stat"><span class="stat__label">${II(icons.clip)} Prerequisites</span><span class="stat__value" style="font-size:18px">${prereqList.length || 'None'}</span></div>
+        <div class="stat"><span class="stat__label">${II(icons.seal)} Artifacts</span><span class="stat__value" style="font-size:18px">${artifacts.length || '--'}</span></div>
+      </div>
+
+      <div class="card section">
+        <p class="eyebrow">Steps preview</p>
+        ${stepsBlock}
+      </div>
+
+      ${prereqsHTML}
+
+      <div class="row section" style="gap:12px;flex-wrap:wrap">
+        <a class="btn btn--primary" href="/xrpl-lab/app/run/${esc(mod.id)}/?dry_run=false">${icons.play} Run Module</a>
+        <a class="btn" href="/xrpl-lab/app/run/${esc(mod.id)}/?dry_run=true">Run in Dry Mode</a>
+        ${mod.completed ? `<span class="row" style="gap:6px;margin-left:auto;color:var(--accent-bright);font-size:13.5px;font-weight:600">${healthIcon('pass')} Module completed</span>` : ''}
+      </div>`;
+    }
+
+    // Build the prerequisites card by cross-fetching /api/modules to resolve
+    // each prereq's title + completion. Returns '' when there are none, or a
+    // best-effort card (skipping the detail section) if the cross-fetch fails.
+    async function prereqsCard(mod: any): Promise<string> {
+      const prereqList = mod.prerequisites || [];
+      if (!prereqList.length) return '';
+      let moduleMap: Map<string, any>;
       try {
-        const modRes = await fetchWithTimeout(`${API_BASE}/api/modules/${moduleId}`);
-        const mod = await modRes.json();
-
-        // Populate fields
-        const title = document.getElementById('mod-title');
-        if (title) title.textContent = mod.title;
-
-        const badge = document.getElementById('mod-badge');
-        if (badge) {
-          badge.textContent = mod.level;
-          badge.className = `inline-block px-2 py-0.5 text-xs font-medium rounded border ${levelColors[mod.level] || ''}`;
-        }
-
-        const desc = document.getElementById('mod-description');
-        if (desc) desc.textContent = mod.description || '';
-
-        const time = document.getElementById('mod-time');
-        if (time) time.textContent = mod.time_estimate || '--';
-
-        const prereqs = document.getElementById('mod-prereqs');
-        if (prereqs) {
-          prereqs.textContent = mod.prerequisites?.length > 0
-            ? mod.prerequisites.join(', ')
-            : 'None';
-        }
-
-        const artifacts = document.getElementById('mod-artifacts');
-        if (artifacts) {
-          artifacts.textContent = mod.artifacts?.length > 0
-            ? mod.artifacts.join(', ')
-            : '--';
-        }
-
-        const steps = document.getElementById('mod-steps');
-        if (steps && mod.steps) {
-          steps.innerHTML = mod.steps.map((s: string) =>
-            `<li class="text-slate-300">${escapeHtml(s)}</li>`
-          ).join('');
-        }
-
-        if (mod.completed) {
-          const completedEl = document.getElementById('mod-completed');
-          if (completedEl) completedEl.classList.remove('hidden');
-          const doneBadge = document.getElementById('mod-done-badge');
-          if (doneBadge) doneBadge.classList.remove('hidden');
-        }
-
-        // Wire run buttons
-        const btnRun = document.getElementById('btn-run') as HTMLAnchorElement;
-        const btnDry = document.getElementById('btn-dry') as HTMLAnchorElement;
-        if (btnRun) btnRun.href = `/xrpl-lab/app/run/${moduleId}/?dry_run=false`;
-        if (btnDry) btnDry.href = `/xrpl-lab/app/run/${moduleId}/?dry_run=true`;
-
-        // Load prerequisites with completion status
-        if (mod.prerequisites && mod.prerequisites.length > 0) {
-          const prereqsSection = document.getElementById('prereqs-section');
-          const prereqsList = document.getElementById('prereqs-list');
-          if (prereqsSection && prereqsList) {
-            try {
-              const allModulesRes = await fetchWithTimeout(`${API_BASE}/api/modules`);
-              const allModules = await allModulesRes.json();
-              const moduleMap = new Map(allModules.map((m: any) => [m.id, m]));
-              prereqsList.innerHTML = mod.prerequisites.map((pid: string) => {
-                const pm = moduleMap.get(pid) as any;
-                const completed = pm?.completed;
-                const title = pm?.title || pid;
-                const dot = completed
-                  ? '<span class="text-emerald-500 shrink-0">&#10003;</span>'
-                  : '<span class="text-slate-600 shrink-0">&#9675;</span>';
-                const statusText = completed
-                  ? '<span class="text-xs text-emerald-500">Completed</span>'
-                  : '<span class="text-xs text-amber-400">Not completed</span>';
-                return `<li class="flex items-center gap-2 text-sm">
-                  ${dot}
-                  <a href="/xrpl-lab/app/modules/${escapeHtml(pid)}/" class="text-slate-300 hover:text-emerald-400 transition-colors">${escapeHtml(title)}</a>
-                  ${statusText}
-                </li>`;
-              }).join('');
-              prereqsSection.classList.remove('hidden');
-            } catch {
-              // skip prerequisites detail on error
-            }
-          }
-        }
-
-        // Show content, hide loading
-        document.getElementById('module-loading')?.classList.add('hidden');
-        document.getElementById('module-content')?.classList.remove('hidden');
-
+        const allModules = await (await fetchWithTimeout(`${API_BASE}/api/modules`)).json();
+        moduleMap = new Map(allModules.map((m: any) => [m.id, m]));
       } catch {
-        document.getElementById('module-loading')?.classList.add('hidden');
-        document.getElementById('module-error')?.classList.remove('hidden');
+        // skip prerequisites detail on error
+        return '';
       }
+      const rows = prereqList.map((pid: string) => {
+        const pm = moduleMap.get(pid) as any;
+        const completed = pm?.completed;
+        const title = pm?.title || pid;
+        const status = completed
+          ? `<span style="margin-left:auto;font-size:12px;color:var(--accent-bright);font-weight:600">Completed</span>`
+          : `<span style="margin-left:auto;font-size:12px;color:var(--warn-bright);font-weight:600">Not completed</span>`;
+        return `<div class="check" style="align-items:center">${healthIcon(completed ? 'pass' : 'warn')}
+          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+            <a class="check__name" href="/xrpl-lab/app/modules/${esc(pid)}/" style="text-decoration:none">${esc(title)}</a>
+            ${status}
+          </div></div>`;
+      }).join('');
+      return `<div class="card section"><p class="eyebrow">Prerequisites</p><div class="checks">${rows}</div></div>`;
     }
 
-    loadModule();
-  </script>
+    async function hydrate() {
+      const root = document.getElementById('module-root');
+      if (!root) return;
+      const moduleId = root.dataset.moduleId;
+      if (!moduleId) return;
+      root.innerHTML = skeletonDetail();
 
+      let mod: any;
+      try {
+        mod = await (await fetchWithTimeout(`${API_BASE}/api/modules/${moduleId}`)).json();
+      } catch (err) {
+        root.innerHTML = errorHTML(err);
+        return;
+      }
+
+      const prereqsHTML = await prereqsCard(mod);
+      root.innerHTML = detailHTML(mod, prereqsHTML);
+    }
+
+    hydrate();
+  </script>
 </DashboardLayout>

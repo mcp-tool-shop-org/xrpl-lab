@@ -3,378 +3,195 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 ---
 
 <!--
-  F-FE-FT-001: Facilitator-runs page
-  ----------------------------------
+  F-FE-FT-001: Facilitator-runs page (Stage D reskin)
+  ---------------------------------------------------
   Workshop facilitators monitor 4-8 concurrent learner module runs in real
-  time without falling back to curl. Consumes GET /api/runs (Stage B wave 2
-  P1, commit d18f137) and DELETE /api/runs/{run_id} (Bridge agent shipping
-  parallel — pre-DELETE state surfaces as 404 with the actionable hint).
-
-  Stage C/D accessibility layers preserved:
-   - Status badges use icon + color + TEXT (no color-only signal).
-   - role=region with aria-live="polite" on the runs list so screen readers
-     announce new runs and state changes from the 5s auto-refresh.
-   - Kill button has a clear aria-label that names the run + module.
-   - Auto-refresh pauses on document.visibilityState === 'hidden' to save
-     resources while the tab is in the background.
+  time. Consumes GET /api/runs and DELETE /api/runs/{run_id}. Reskinned to the
+  "calm instrument panel" design system; the native confirm()/alert() kill
+  dialog is now the branded, focus-trapped openModal() (accessible alertdialog).
+  Preserved: 5s auto-refresh, pause-when-hidden, before-swap cleanup, the
+  icon+colour+TEXT status badges (no colour-only signal), and the humanized
+  error copy.
 -->
 
 <DashboardLayout title="Active Runs" activePage="facilitator">
+  <div class="screen-head">
+    <h1>Active runs</h1>
+    <p class="lede">A live board of every learner session in the room.</p>
+  </div>
 
-  <div class="space-y-6">
-
-    <!-- Header + capacity indicator -->
-    <div class="flex items-start justify-between gap-4 flex-wrap">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-100">Active Runs</h1>
-        <p class="text-slate-400 mt-1">Live view of learner module sessions.</p>
-      </div>
-
-      <div
-        id="capacity-badge"
-        class="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2"
-        role="status"
-        aria-live="polite"
-        aria-label="Capacity: loading"
-      >
-        <span class="text-xs uppercase tracking-wider text-slate-500">Capacity</span>
-        <span id="capacity-value" class="text-sm font-mono text-slate-300">--/--</span>
-      </div>
-    </div>
-
-    <!-- Runs list region — aria-live so SR users hear refresh-driven changes -->
-    <section
-      id="runs-region"
-      role="region"
-      aria-label="Active learner runs"
-      aria-live="polite"
-      aria-busy="true"
-    >
-      <div id="runs-list" class="space-y-3">
-        <!-- Skeleton mirrors real-card structure to avoid layout shift -->
-        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 animate-pulse">
-          <div class="h-5 bg-slate-700 rounded w-1/3 mb-2"></div>
-          <div class="flex items-center gap-3">
-            <div class="h-4 bg-slate-700 rounded w-20"></div>
-            <div class="h-3 bg-slate-700 rounded w-16"></div>
-          </div>
-        </div>
-        <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 animate-pulse">
-          <div class="h-5 bg-slate-700 rounded w-1/3 mb-2"></div>
-          <div class="flex items-center gap-3">
-            <div class="h-4 bg-slate-700 rounded w-20"></div>
-            <div class="h-3 bg-slate-700 rounded w-16"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Footer hint -->
-    <p class="text-xs text-slate-500">
-      Auto-refreshes every 5 seconds while this tab is visible. Polling pauses
-      when the tab is hidden.
-    </p>
-
+  <div class="screen-inner" id="fac-root">
+    <div class="skeleton" style="height:78px"></div>
+    <div style="height:16px"></div>
+    <div class="skeleton" style="height:60px;margin-bottom:10px"></div>
+    <div class="skeleton" style="height:60px"></div>
   </div>
 
   <script>
     import { fetchWithTimeout } from '../../../lib/api';
+    import { icons, runBadge, openModal, announce, esc, fmtElapsed, fmtClock } from '../../../lib/dashboard-ui';
 
     const API_BASE = 'http://localhost:8321';
     const POLL_INTERVAL_MS = 5000;
 
-    function escapeHtml(str: any): string {
-      if (str === null || str === undefined) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-
     interface RunInfo {
-      run_id: string;
-      module_id: string;
-      status: string;
-      created_at: string;
-      elapsed_seconds: number;
-      queue_size: number;
-      dry_run: boolean;
+      run_id: string; module_id: string; status: string;
+      created_at: string; elapsed_seconds: number; queue_size: number; dry_run: boolean;
     }
+    interface RunListResponse { runs: RunInfo[]; max_concurrent: number; active_count: number; }
 
-    interface RunListResponse {
-      runs: RunInfo[];
-      max_concurrent: number;
-      active_count: number;
-    }
+    const root = document.getElementById('fac-root')!;
 
-    // F-FE-D status-badge pattern: icon + color + TEXT so colorblind users
-    // and screen readers get the state without relying on hue alone.
-    // Bridge API _public_status() emits exactly 4 values:
-    // "running" | "completed" | "failed" | "cancelled". All four have explicit
-    // handlers; the default branch is a defensive fallback only.
-    function statusBadge(status: string): string {
-      const map: Record<string, { icon: string; classes: string; text: string }> = {
-        running: {
-          icon: '&#9899;', // dot indicator
-          classes: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
-          text: 'ACTIVE',
-        },
-        completed: {
-          icon: '&#10003;', // checkmark
-          classes: 'bg-slate-700/50 text-slate-300 border-slate-600',
-          text: 'DONE',
-        },
-        failed: {
-          icon: '&#10007;', // ballot x
-          classes: 'bg-red-500/20 text-red-400 border-red-500/40',
-          text: 'FAILED',
-        },
-        cancelled: {
-          // Cancellation is operator action, not internal error — visually
-          // distinct from `failed` (red): slate-400 (neutral, dimmer than
-          // running's emerald) + circled-slash glyph signals "intentionally
-          // stopped, not broken."
-          icon: '&#8856;', // ⊘ circled division slash (universal "prohibited/cancelled")
-          classes: 'bg-slate-600/30 text-slate-400 border-slate-500/40',
-          text: 'CANCELLED',
-        },
-      };
-      const entry = map[status] || {
-        icon: '&#9679;',
-        classes: 'bg-slate-700/50 text-slate-300 border-slate-600',
-        text: status.toUpperCase(),
-      };
-      return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded border ${entry.classes}" role="status" aria-label="status: ${escapeHtml(entry.text.toLowerCase())}">
-        <span aria-hidden="true">${entry.icon}</span>
-        <span>${entry.text}</span>
-      </span>`;
-    }
+    // ── render: capacity meter + board ──────────────────────────────────
+    function render(data: RunListResponse) {
+      const active = data.active_count ?? 0;
+      const max = data.max_concurrent ?? 0;
+      const slots = Array.from({ length: max }, (_, i) =>
+        `<span class="slot ${i < active ? 'slot--on' : ''}"></span>`).join('');
 
-    function formatElapsed(seconds: number): string {
-      if (!Number.isFinite(seconds) || seconds < 0) return '--';
-      const total = Math.floor(seconds);
-      const m = Math.floor(total / 60);
-      const s = total % 60;
-      if (m === 0) return `${s}s`;
-      return `${m}m ${s}s`;
-    }
+      const board = (!data.runs || data.runs.length === 0)
+        ? `<div class="card"><div class="empty"><span class="empty__ic">${icons.inbox}</span>
+             <div class="empty__t">No active runs</div>
+             <div>When learners start modules, their sessions appear here in real time.</div></div></div>`
+        : `<div class="board" role="region" aria-label="Active learner runs" aria-live="polite">
+             <div class="board__head"><span>Module · run</span><span>Status</span><span>Elapsed</span><span>Queue</span><span></span></div>
+             <div id="rows">${data.runs.map(runRow).join('')}</div>
+           </div>`;
 
-    function truncateId(runId: string): string {
-      if (!runId) return '';
-      return runId.length <= 8 ? runId : `${runId.slice(0, 8)}...`;
-    }
-
-    function isCancellable(status: string): boolean {
-      // Bridge API only emits "running" | "completed" | "failed" | "cancelled".
-      // Only "running" is cancellable; the other three are terminal.
-      return status === 'running';
-    }
-
-    function renderCapacity(active: number, max: number) {
-      const valueEl = document.getElementById('capacity-value');
-      const badgeEl = document.getElementById('capacity-badge');
-      if (!valueEl || !badgeEl) return;
-      valueEl.textContent = `${active}/${max} active`;
-      badgeEl.setAttribute('aria-label', `Capacity: ${active} of ${max} active`);
-    }
-
-    function renderRuns(data: RunListResponse) {
-      const list = document.getElementById('runs-list');
-      const region = document.getElementById('runs-region');
-      if (!list) return;
-      if (region) region.setAttribute('aria-busy', 'false');
-
-      if (!data.runs || data.runs.length === 0) {
-        // Stage C humanization: friendly empty state, not "no data."
-        list.innerHTML = `
-          <div class="bg-slate-800 rounded-lg border border-slate-700 p-6 text-center">
-            <p class="text-slate-300 font-medium">No runs in flight.</p>
-            <p class="text-slate-500 text-sm mt-1">Learners running modules will appear here.</p>
+      root.innerHTML = `
+        <div class="capbar" role="status" aria-live="polite" aria-label="Capacity: ${active} of ${max} slots active">
+          <div class="cap__meter">
+            <div class="cap__big"><b>${active}</b> / ${max} <small>active</small></div>
+            <div class="cap__slots" aria-hidden="true">${slots}</div>
           </div>
-        `;
-        return;
-      }
+          <span class="cap__poll" id="pollInd"><span class="statdot"></span><span id="pollText">Live · refreshing every 5s</span></span>
+        </div>
+        ${board}`;
 
-      list.innerHTML = data.runs.map((run) => {
-        const moduleId = escapeHtml(run.module_id);
-        const runIdFull = escapeHtml(run.run_id);
-        const runIdShort = escapeHtml(truncateId(run.run_id));
-        const elapsed = escapeHtml(formatElapsed(run.elapsed_seconds));
-        const dryRunBadge = run.dry_run
-          ? `<span class="inline-block px-2 py-0.5 text-xs font-medium rounded border bg-slate-700/50 text-slate-400 border-slate-600" aria-label="dry-run mode">
-               <span aria-hidden="true">&#128203;</span> dry-run
-             </span>`
-          : '';
-        const queueBadge = run.queue_size > 0
-          ? `<span class="text-xs text-slate-400" aria-label="queue size ${run.queue_size}">queue: ${run.queue_size}</span>`
-          : '';
-        const killBtn = isCancellable(run.status)
-          ? `<button
-               type="button"
-               class="kill-btn px-3 py-2.5 text-xs font-medium rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
-               data-run-id="${runIdFull}"
-               data-module-id="${moduleId}"
-               aria-label="Cancel run ${moduleId} (${runIdShort})"
-             >
-               <span aria-hidden="true">&#9986;</span> Kill
-             </button>`
-          : '';
+      // Re-bind kill handlers + reflect poll state after each render.
+      root.querySelectorAll<HTMLButtonElement>('.kill-btn').forEach((b) => b.addEventListener('click', onKillClick));
+      reflectPoll();
+    }
 
-        return `<article class="bg-slate-800 rounded-lg border border-slate-700 p-4">
-          <div class="flex items-start justify-between gap-3 flex-wrap">
-            <div class="flex items-center gap-2 flex-wrap min-w-0">
-              <h3 class="text-base font-semibold text-slate-100 truncate">${moduleId}</h3>
-              ${dryRunBadge}
-              ${statusBadge(run.status)}
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-              ${killBtn}
-            </div>
-          </div>
-          <div class="mt-2 flex items-center gap-3 flex-wrap text-xs text-slate-400">
-            <span aria-label="elapsed time">
-              <span aria-hidden="true">&#9201;</span> ${elapsed}
-            </span>
-            ${queueBadge}
-            <span class="font-mono text-slate-500" title="${runIdFull}" aria-label="run id ${runIdShort}">
-              ${runIdShort}
-            </span>
-          </div>
-        </article>`;
-      }).join('');
+    function runRow(r: RunInfo): string {
+      const killable = r.status === 'running';
+      const dry = r.dry_run ? '<span class="chip chip--dry">dry-run</span>' : '';
+      const queue = r.queue_size > 0 ? `<b>${r.queue_size}</b> queued` : '<span class="faint">—</span>';
+      const kill = killable
+        ? `<button class="btn btn--danger btn--sm kill-btn" data-id="${esc(r.run_id)}" data-mod="${esc(r.module_id)}" aria-label="Kill run ${esc(r.run_id)} (${esc(r.module_id)})">${icons.ban}<span>Kill</span></button>`
+        : '';
+      return `<div class="runrow" data-status="${esc(r.status)}" data-id="${esc(r.run_id)}">
+        <div class="runrow__mod">
+          <span class="runrow__modname" title="${esc(r.module_id)}">${esc(r.module_id)}</span>
+          <span class="runrow__sub"><span class="runrow__id">${esc(r.run_id)}</span>${dry}<span class="runrow__id" title="created_at">started ${esc(fmtClock(r.created_at))}</span></span>
+        </div>
+        <div class="runrow__status">${runBadge(r.status)}</div>
+        <div class="runrow__metric" data-elapsed><b>${esc(fmtElapsed(r.elapsed_seconds))}</b></div>
+        <div class="queue">${queue}</div>
+        <div class="runrow__act">${kill}</div>
+      </div>`;
+    }
 
-      // Wire kill buttons (re-bound after each render so new rows pick up handler).
-      list.querySelectorAll('.kill-btn').forEach((btn) => {
-        btn.addEventListener('click', async (ev) => {
-          ev.preventDefault();
-          const target = ev.currentTarget as HTMLButtonElement;
-          const runId = target.dataset.runId || '';
-          const moduleId = target.dataset.moduleId || '';
-          if (!runId) return;
-          if (!confirm(`Cancel run for "${moduleId}"?\nrun_id: ${runId}`)) return;
-          target.disabled = true;
-          target.textContent = 'Cancelling...';
-          try {
-            const res = await fetchWithTimeout(`${API_BASE}/api/runs/${encodeURIComponent(runId)}`, {
-              method: 'DELETE',
-            });
-            if (res.ok) {
-              // Force a refresh so the row updates.
-              await refresh();
-            } else if (res.status === 404) {
-              // Pre-DELETE state — endpoint not yet shipped, or run already gone.
-              target.disabled = false;
-              target.innerHTML = '<span aria-hidden="true">&#9986;</span> Kill';
-              alert(
-                `Cancel not available (HTTP 404).\n\n` +
-                `Either the run already finished, or the cancel endpoint is not yet available on this API. ` +
-                `Refresh the page to see the latest state.`
-              );
-            } else {
-              target.disabled = false;
-              target.innerHTML = '<span aria-hidden="true">&#9986;</span> Kill';
-              alert(`Cancel failed: HTTP ${res.status} ${res.statusText}`);
-            }
-          } catch (err: any) {
-            target.disabled = false;
-            target.innerHTML = '<span aria-hidden="true">&#9986;</span> Kill';
-            const msg = err?.name === 'AbortError'
-              ? 'Cancel request timed out. The API may be slow or restarting.'
-              : 'Cancel failed: API offline. Run xrpl-lab serve in a terminal.';
-            alert(msg);
-          }
-        });
+    // ── kill flow: branded modal replaces native confirm()/alert() ──────
+    function onKillClick(ev: Event) {
+      const btn = ev.currentTarget as HTMLButtonElement;
+      const runId = btn.dataset.id || '';
+      const moduleId = btn.dataset.mod || '';
+      if (!runId) return;
+      openModal({
+        variant: 'danger', icon: icons.ban, returnTo: btn,
+        title: 'Kill this run?',
+        body: `This cancels run <code class="mono">${esc(runId)}</code> (<code class="mono">${esc(moduleId)}</code>) and ends the learner's session immediately. <span class="mono faint">DELETE /api/runs/${esc(runId)}</span>`,
+        confirmLabel: 'Kill run', cancelLabel: 'Keep running',
+        onConfirm: () => doKill(runId, moduleId, btn),
       });
     }
 
-    function showError(err: any) {
-      const list = document.getElementById('runs-list');
-      const region = document.getElementById('runs-region');
-      if (region) region.setAttribute('aria-busy', 'false');
-      if (!list) return;
-      // F-FE-C-003: split AbortError (timeout — retry might work) vs
-      // TypeError (network/server down — actionable hint to start serve).
-      let msg: string;
-      if (err?.name === 'AbortError') {
-        msg = 'Request timed out. The API may be slow or restarting. Auto-refresh will retry shortly.';
-      } else if (err instanceof TypeError) {
-        msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
-      } else {
-        msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
+    function resetKill(btn: HTMLButtonElement) {
+      btn.disabled = false;
+      btn.innerHTML = `${icons.ban}<span>Kill</span>`;
+    }
+    function errModal(title: string, body: string) {
+      openModal({ variant: 'error', icon: icons.alert, title, body, confirmLabel: 'OK', cancelLabel: 'Dismiss', onConfirm: () => {} });
+    }
+
+    async function doKill(runId: string, moduleId: string, btn: HTMLButtonElement) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="mono">Cancelling…</span>';
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/runs/${encodeURIComponent(runId)}`, { method: 'DELETE' });
+        if (res.ok) {
+          announce(`Run ${moduleId} cancelled.`);
+          await refresh();
+        } else if (res.status === 404) {
+          // Pre-DELETE state — endpoint not shipped, or the run already finished.
+          resetKill(btn);
+          errModal('Cancel not available', 'Either the run already finished, or the cancel endpoint is not available on this API. Refresh to see the latest state.');
+        } else {
+          resetKill(btn);
+          errModal('Cancel failed', `HTTP ${res.status} ${esc(res.statusText)}.`);
+        }
+      } catch (err: any) {
+        resetKill(btn);
+        const msg = err?.name === 'AbortError'
+          ? 'Cancel request timed out. The API may be slow or restarting.'
+          : 'API is offline. Run xrpl-lab serve in a terminal, then try again.';
+        errModal('Could not cancel', msg);
       }
-      list.innerHTML = `
-        <div class="flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4" role="status">
-          <span aria-hidden="true">&#9888;</span>
-          <span>${msg}</span>
-        </div>
-      `;
+    }
+
+    // ── error / offline state ───────────────────────────────────────────
+    function showError(err: any) {
+      const timeout = err?.name === 'AbortError';
+      const msg = timeout
+        ? 'Request timed out. The API may be slow or restarting. Auto-refresh will retry shortly.'
+        : 'API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
+      root.innerHTML = `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
+        <div class="empty__t">Can't reach the API</div><div>${msg}</div></div></div>`;
     }
 
     async function refresh() {
       try {
         const res = await fetchWithTimeout(`${API_BASE}/api/runs`);
-        if (!res.ok) {
-          throw new Error(`API returned ${res.status}: ${res.statusText}`);
-        }
-        const data = (await res.json()) as RunListResponse;
-        renderCapacity(data.active_count ?? 0, data.max_concurrent ?? 0);
-        renderRuns(data);
+        if (!res.ok) throw new Error(`API returned ${res.status}: ${res.statusText}`);
+        render((await res.json()) as RunListResponse);
       } catch (err) {
         showError(err);
       }
     }
 
+    // ── polling cadence (pause when tab hidden) ─────────────────────────
     let timer: number | null = null;
-
+    function reflectPoll() {
+      const t = document.getElementById('pollText');
+      if (t) t.textContent = document.hidden ? 'Paused — tab hidden' : 'Live · refreshing every 5s';
+      const ind = document.getElementById('pollInd');
+      if (ind) ind.setAttribute('data-paused', String(document.hidden));
+    }
     function startPolling() {
       if (timer !== null) return;
-      timer = window.setInterval(() => {
-        if (document.visibilityState === 'visible') {
-          refresh();
-        }
-      }, POLL_INTERVAL_MS);
+      timer = window.setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, POLL_INTERVAL_MS);
     }
+    function stopPolling() { if (timer !== null) { window.clearInterval(timer); timer = null; } }
 
-    function stopPolling() {
-      if (timer !== null) {
-        window.clearInterval(timer);
-        timer = null;
-      }
-    }
-
-    // Pause polling when tab is hidden, resume on visibility — saves API + battery.
-    // Named handlers so we can remove them on Astro client-side nav (workshop
-    // facilitators leave this page open 4-8h and may navigate away/back; without
-    // cleanup, listeners + interval timers accumulate per visit).
     const visibilityHandler = () => {
-      if (document.visibilityState === 'visible') {
-        // Refresh immediately on return so the user sees current state.
-        refresh();
-        startPolling();
-      } else {
-        stopPolling();
-      }
+      if (document.visibilityState === 'visible') { refresh(); startPolling(); }
+      else { stopPolling(); reflectPoll(); }
     };
     const beforeunloadHandler = stopPolling;
 
     document.addEventListener('visibilitychange', visibilityHandler);
-
-    // Cleanup polling on navigation away.
     window.addEventListener('beforeunload', beforeunloadHandler);
 
-    // Astro client-side navigation cleanup — fires before the page unmounts.
-    // Removes listeners + clears the interval so a return visit starts fresh.
+    // Astro client-side nav cleanup — remove listeners + clear interval so a
+    // return visit starts fresh (facilitators leave this tab open for hours).
     document.addEventListener('astro:before-swap', () => {
       document.removeEventListener('visibilitychange', visibilityHandler);
       window.removeEventListener('beforeunload', beforeunloadHandler);
       stopPolling();
     }, { once: true });
 
-    // Initial paint + start the polling cadence.
     refresh();
     startPolling();
   </script>
-
 </DashboardLayout>

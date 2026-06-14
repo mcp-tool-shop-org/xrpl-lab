@@ -1,268 +1,138 @@
 ---
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
-import ProgressBar from '../../components/dashboard/ProgressBar.astro';
-import StatusCard from '../../components/dashboard/StatusCard.astro';
 ---
 
 <DashboardLayout title="Dashboard" activePage="dashboard">
-
-  <div class="space-y-8">
-
-    <!-- Page header -->
-    <div>
-      <h1 class="text-2xl font-bold text-slate-100">Dashboard</h1>
-      <p class="text-slate-400 mt-1">Your XRPL Lab training overview.</p>
-    </div>
-
-    <!-- Progress section -->
-    <section class="bg-slate-800 rounded-lg border border-slate-700 p-6">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Overall Progress</h2>
-      <div id="progress-area">
-        <ProgressBar completed={0} total={12} label="Modules completed" />
-      </div>
-    </section>
-
-    <!-- Quick actions -->
-    <!-- F-FE-D-007: bare sections (Quick Actions, Status) gain
-         border-t border-slate-700/50 pt-6 so they visually chunk for
-         time-pressured facilitators. Bordered card sections (Progress,
-         Recent Activity, Getting Started) already self-chunk via their
-         own border so don't get a doubled divider. -->
-    <section class="border-t border-slate-700/50 pt-6">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <a href="/xrpl-lab/app/modules/" class="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-emerald-500/50 transition-colors group">
-          <span class="text-2xl">&#9654;</span>
-          <div>
-            <p class="text-sm font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">Start Learning</p>
-            <p class="text-xs text-slate-400">Browse modules</p>
-          </div>
-        </a>
-        <a href="/xrpl-lab/app/modules/" class="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-emerald-500/50 transition-colors group">
-          <span class="text-2xl">&#9881;</span>
-          <div>
-            <p class="text-sm font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">Run Module</p>
-            <p class="text-xs text-slate-400">Pick and execute</p>
-          </div>
-        </a>
-        <a href="/xrpl-lab/app/artifacts/" class="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-emerald-500/50 transition-colors group">
-          <span class="text-2xl">&#128196;</span>
-          <div>
-            <p class="text-sm font-semibold text-slate-100 group-hover:text-emerald-400 transition-colors">View Proof Pack</p>
-            <p class="text-xs text-slate-400">Artifacts &amp; certs</p>
-          </div>
-        </a>
-      </div>
-    </section>
-
-    <!-- Status cards -->
-    <section class="border-t border-slate-700/50 pt-6">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Status</h2>
-      <div id="status-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatusCard icon="&#128179;" label="Wallet" value="--" status="warn" />
-        <StatusCard icon="&#127760;" label="Network" value="--" />
-        <StatusCard icon="&#9889;" label="Doctor" value="--" />
-        <StatusCard icon="&#128337;" label="Last Run" value="--" />
-      </div>
-    </section>
-
-    <!-- Recent activity -->
-    <section class="bg-slate-800 rounded-lg border border-slate-700 p-6">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Recent Activity</h2>
-      <div id="recent-activity" class="text-sm text-slate-400">
-        <p class="animate-pulse">Loading...</p>
-      </div>
-    </section>
-
-    <!-- Getting Started -->
-    <section class="bg-slate-800 rounded-lg border border-slate-700 p-6">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Getting Started</h2>
-      <ol class="space-y-4 text-sm">
-        <li class="flex gap-4">
-          <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">1</span>
-          <div>
-            <p class="text-slate-200 font-medium mb-1">Start the API server</p>
-            <code class="bg-slate-900 text-emerald-400 px-2 py-1 rounded text-xs font-mono">xrpl-lab serve</code>
-            <p class="text-slate-400 mt-1">This powers the live status, module runner, and artifact viewer above.</p>
-          </div>
-        </li>
-        <li class="flex gap-4">
-          <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">2</span>
-          <div>
-            <p class="text-slate-200 font-medium mb-1">Start the Astro dev server (development only)</p>
-            <code class="bg-slate-900 text-emerald-400 px-2 py-1 rounded text-xs font-mono">cd site &amp;&amp; npm run dev</code>
-            <p class="text-slate-400 mt-1">Only needed if you are developing the UI locally. The published site is pre-built.</p>
-          </div>
-        </li>
-        <li class="flex gap-4">
-          <span class="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">3</span>
-          <div>
-            <p class="text-slate-200 font-medium mb-1">Run your first module</p>
-            <code class="bg-slate-900 text-emerald-400 px-2 py-1 rounded text-xs font-mono">xrpl-lab run receipt_literacy</code>
-            <p class="text-slate-400 mt-1">Or browse <a href="/xrpl-lab/app/modules/" class="text-emerald-400 hover:underline">Modules</a> to pick one from the list.</p>
-          </div>
-        </li>
-      </ol>
-      <p class="mt-5 text-xs text-slate-400">
-        Need more detail?
-        <a href="/xrpl-lab/handbook/getting-started/" class="text-emerald-400 hover:underline">Read the Getting Started guide</a>
-        in the handbook.
-      </p>
-    </section>
-
+  <div class="screen-head">
+    <h1>Dashboard</h1>
+    <p class="lede">Where you are in the workbook, and what the system thinks of your setup.</p>
+  </div>
+  <div class="screen-inner" id="overview-root">
+    <div class="card section"><div class="skeleton" style="height:46px;width:60%"></div></div>
   </div>
 
   <script>
     import { fetchWithTimeout } from '../../lib/api';
+    import { icons, runBadge, healthIcon, esc } from '../../lib/dashboard-ui';
 
-    // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
+    const II = (svg: string) =>
+      `<span style="display:inline-flex;width:16px;height:16px;color:var(--text-3)">${svg}</span>`;
+    const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
 
-    function escapeHtml(text: any): string {
-      if (text === null || text === undefined) return '';
-      const div = document.createElement('div');
-      div.textContent = String(text);
-      return div.innerHTML;
+    function skeletonOverview() {
+      return `<div class="card section">${sk('46px', '60%')}</div>
+        <div class="grid section grid-stats">${Array(4).fill(`<div class="stat">${sk('13px', '50%')}${sk('22px', '70%')}</div>`).join('')}</div>
+        <div class="card section">${sk('14px', '30%')}<div class="sk-line skeleton"></div><div class="sk-line skeleton" style="width:80%"></div></div>`;
     }
 
-    async function hydrateDashboard() {
-      // Fetch status
-      try {
-        const statusRes = await fetchWithTimeout(`${API_BASE}/api/status`);
-        const status = await statusRes.json();
+    function animateProgress() {
+      document.querySelectorAll('#overview-root .progress').forEach((p) => {
+        const i = p.querySelector('i') as HTMLElement | null;
+        if (i) i.style.width = (p.getAttribute('data-pct') || '0') + '%';
+      });
+    }
 
-        // Progress bar
-        const progressArea = document.getElementById('progress-area');
-        if (progressArea) {
-          const pct = status.modules_total > 0
-            ? Math.round((status.modules_completed / status.modules_total) * 100)
-            : 0;
-          progressArea.innerHTML = `
-            <p class="text-sm text-slate-400 mb-1">Modules completed</p>
-            <div class="flex items-center gap-3">
-              <div class="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden">
-                <div class="h-full bg-emerald-500 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
-              </div>
-              <span class="text-sm font-mono text-slate-300 min-w-[4rem] text-right">
-                ${status.modules_completed}/${status.modules_total}
-              </span>
+    function offlineHTML(err: any) {
+      const timeout = err?.name === 'AbortError';
+      const msg = timeout
+        ? 'Request timed out. The API may be slow or restarting. Refresh to retry.'
+        : 'API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
+      return `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
+        <div class="empty__t">Can't reach the API</div><div>${msg}</div></div></div>`;
+    }
+
+    function overviewHTML(s: any, doctor: any) {
+      const pct = s.modules_total > 0 ? Math.round((s.modules_completed / s.modules_total) * 100) : 0;
+      const walletShort = s.wallet_address
+        ? s.wallet_address.slice(0, 5) + '…' + s.wallet_address.slice(-4)
+        : 'not configured';
+      const checks = (doctor && doctor.checks) || [];
+      const doctorState = !doctor ? 'warn' : doctor.overall === 'healthy' ? 'ok' : doctor.overall === 'warning' ? 'warn' : 'err';
+      const warnCount = checks.filter((c: any) => c.status !== 'pass').length;
+      const doctorVal = !doctor ? 'unavailable' : warnCount ? `${warnCount} warning${warnCount > 1 ? 's' : ''}` : 'all clear';
+      const lr = s.last_run;
+      const tracks = s.track_progress || [];
+
+      const lastRunStat = lr
+        ? `<span class="stat__value" style="font-size:15px">${esc(lr.module)} ${runBadge(lr.success ? 'completed' : 'failed')}</span>`
+        : `<span class="stat__value muted" style="font-size:15px">No runs yet</span>`;
+
+      const recent = lr
+        ? `<div class="row" style="gap:12px">${healthIcon(lr.success ? 'pass' : 'fail')}
+             <div><strong>${esc(lr.module)}</strong><div class="muted" style="font-size:13px">${esc(new Date(lr.timestamp).toLocaleString())}</div></div>
+             <span style="margin-left:auto">${runBadge(lr.success ? 'completed' : 'failed')}</span></div>`
+        : `<p class="muted">No activity yet. Run a module to get started.</p>`;
+
+      const health = !doctor
+        ? `<p class="muted">Doctor unavailable — is the API running? Try <code class="mono">xrpl-lab doctor</code>.</p>`
+        : `<div class="checks">${checks.map((c: any) => `<div class="check">${healthIcon(c.status)}<div><div class="check__name">${esc(c.name)}</div><div class="check__msg">${esc(c.message)}</div></div></div>`).join('')}</div>`;
+
+      const trackGrid = tracks.length
+        ? `<div class="track-grid">${tracks.map((t: any) => {
+            const p = t.total > 0 ? Math.round((t.done / t.total) * 100) : 0;
+            return `<div class="trk"><div class="trk__head"><span class="trk__name">${esc(t.track)}</span><span class="trk__count">${t.done}/${t.total}</span></div><div class="progress" data-pct="${p}" data-complete="${t.is_complete}"><i></i></div></div>`;
+          }).join('')}</div>`
+        : `<p class="muted">No track data yet.</p>`;
+
+      return `
+      <div class="grid section grid-2-wide items-stretch">
+        <div class="card">
+          <p class="eyebrow">Overall progress</p>
+          <div class="bigprog">
+            <div class="bigprog__num">${s.modules_completed}<small>/${s.modules_total}</small></div>
+            <div style="flex:1">
+              <div class="progress" data-pct="${pct}"><i></i></div>
+              <p class="muted" style="margin:9px 0 0;font-size:13.5px">${s.modules_completed} of ${s.modules_total} modules complete · ${pct}% of the workbook</p>
             </div>
-          `;
-        }
-
-        // Status cards
-        const cardsEl = document.getElementById('status-cards');
-        if (cardsEl) {
-          const walletStatus = status.wallet_configured ? 'ok' : 'warn';
-          const walletVal = status.wallet_configured ? 'Configured' : 'Not set up';
-          const lastRun = status.last_run
-            ? `${escapeHtml(status.last_run.module)} (${status.last_run.success ? 'pass' : 'fail'})`
-            : 'No runs yet';
-
-          cardsEl.innerHTML = buildCard('&#128179;', 'Wallet', walletVal, walletStatus)
-            + buildCard('&#127760;', 'Network', escapeHtml(status.network || 'Unknown'), 'ok')
-            + buildCard('&#9889;', 'Doctor', 'Checking...', 'ok')
-            + buildCard('&#128337;', 'Last Run', lastRun, status.last_run?.success === false ? 'warn' : 'ok');
-        }
-
-        // Recent activity
-        // F-FE-C-006: pass/fail conveyed by color dot + visible icon (✓/✗) +
-        // text badge ("passed"/"failed") + aria-label so screen-reader users
-        // and color-blind users get the outcome without relying on hue alone.
-        const actEl = document.getElementById('recent-activity');
-        if (actEl) {
-          if (status.last_run) {
-            const moduleName = escapeHtml(status.last_run.module);
-            const passed = status.last_run.success;
-            const outcome = passed ? 'passed' : 'failed';
-            const icon = passed ? '&#10003;' : '&#10007;';
-            actEl.innerHTML = `
-              <div class="flex items-center gap-3" role="status" aria-label="Module ${moduleName}: ${outcome}">
-                <span class="w-2 h-2 rounded-full ${passed ? 'bg-emerald-500' : 'bg-red-500'}" aria-hidden="true"></span>
-                <span class="${passed ? 'text-emerald-500' : 'text-red-500'} text-sm" aria-hidden="true">${icon}</span>
-                <span class="text-slate-300">${moduleName}</span>
-                <span class="text-slate-600" aria-hidden="true">&middot;</span>
-                <span class="text-slate-400">${escapeHtml(new Date(status.last_run.timestamp).toLocaleString())}</span>
-                <span class="text-xs px-1.5 py-0.5 rounded ${passed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${outcome}</span>
-              </div>
-            `;
-          } else {
-            actEl.innerHTML = '<p class="text-slate-600">No activity yet. Run a module to get started.</p>';
-          }
-        }
-      } catch (err: any) {
-        showOffline(err);
-      }
-
-      // Doctor check
-      try {
-        const doctorRes = await fetchWithTimeout(`${API_BASE}/api/doctor`);
-        const doctor = await doctorRes.json();
-        const cards = document.getElementById('status-cards');
-        if (cards) {
-          const doctorCard = cards.children[2];
-          if (doctorCard) {
-            const statusMap: Record<string, string> = { healthy: 'ok', warning: 'warn', error: 'error' };
-            const dotMap: Record<string, string> = { ok: 'bg-emerald-500', warn: 'bg-amber-500', error: 'bg-red-500' };
-            const s = statusMap[doctor.overall] || 'ok';
-            const borderMap: Record<string, string> = { ok: 'border-emerald-500/30', warn: 'border-amber-500/30', error: 'border-red-500/30' };
-            (doctorCard as HTMLElement).className = `bg-slate-800 rounded-lg border ${borderMap[s]} p-5`;
-            const dot = doctorCard.querySelector('.status-dot');
-            const val = doctorCard.querySelector('.status-value');
-            if (dot) (dot as HTMLElement).className = `ml-auto w-2 h-2 rounded-full status-dot ${dotMap[s]}`;
-            if (val) (val as HTMLElement).textContent = doctor.overall;
-          }
-        }
-      } catch {
-        // leave as-is
-      }
-    }
-
-    // F-FE-D-004: status cards (Wallet/Network/Doctor/Last Run) get
-    // breathing room — p-5 (was p-4) and mb-3 (was mb-2) on icon row.
-    // Facilitators reviewing multiple dashboards scan faster with looser
-    // density. Applied uniformly across all 4 status cards via buildCard().
-    function buildCard(icon: string, label: string, value: string, status: string) {
-      const borderMap: Record<string, string> = {
-        ok: 'border-emerald-500/30',
-        warn: 'border-amber-500/30',
-        error: 'border-red-500/30',
-      };
-      const dotMap: Record<string, string> = {
-        ok: 'bg-emerald-500',
-        warn: 'bg-amber-500',
-        error: 'bg-red-500',
-      };
-      return `<div class="bg-slate-800 rounded-lg border ${borderMap[status] || borderMap.ok} p-5">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="text-lg">${icon}</span>
-          <span class="text-sm text-slate-400">${label}</span>
-          <span class="ml-auto w-2 h-2 rounded-full status-dot ${dotMap[status] || dotMap.ok}"></span>
+          </div>
         </div>
-        <p class="text-lg font-semibold text-slate-100 status-value">${value}</p>
+        <a class="qa" href="/xrpl-lab/app/modules/" style="justify-content:center">
+          <span class="qa__ic">${icons.play}</span>
+          <span class="qa__t">Run a module</span>
+          <span class="qa__s">Live testnet or offline dry-run</span>
+        </a>
+      </div>
+
+      <div class="grid section grid-stats">
+        <div class="stat"><span class="stat__label">${II(icons.wallet)} Wallet</span><span class="stat__value"><span class="statdot statdot--${s.wallet_configured ? 'ok' : 'warn'}"></span><span class="mono nowrap" style="font-size:16px">${esc(walletShort)}</span></span></div>
+        <div class="stat"><span class="stat__label">${II(icons.net)} Network</span><span class="stat__value"><span class="statdot statdot--ok"></span>${esc(s.network || 'unknown')}</span></div>
+        <div class="stat"><span class="stat__label">${II(icons.doctor)} Doctor</span><span class="stat__value"><span class="statdot statdot--${doctorState}"></span>${doctorVal}</span></div>
+        <div class="stat"><span class="stat__label">${II(icons.play)} Last run</span>${lastRunStat}</div>
+      </div>
+
+      <div class="grid section grid-2-wide">
+        <div class="card"><p class="eyebrow">Tracks</p>${trackGrid}</div>
+        <div class="card"><p class="eyebrow">System health <span class="sr-only">— doctor</span></p>${health}</div>
+      </div>
+
+      <div class="grid section grid-2">
+        <div class="card"><p class="eyebrow">Recent activity</p>${recent}</div>
+        <a class="qa" href="/xrpl-lab/app/artifacts/">
+          <span class="qa__ic">${icons.seal}</span>
+          <span class="qa__t">Artifacts</span>
+          <span class="qa__s">${s.has_proof_pack ? 'Proof pack' : 'No proof pack'} · ${s.has_certificate ? 'certificate' : 'no certificate'} · ${s.report_count} report${s.report_count === 1 ? '' : 's'}</span>
+        </a>
       </div>`;
     }
 
-    function showOffline(err?: any) {
-      const actEl = document.getElementById('recent-activity');
-      if (!actEl) return;
-      let msg: string;
-      if (err?.name === 'AbortError') {
-        msg = 'Request timed out. The API may be slow or restarting. Refresh to retry.';
-      } else if (err instanceof TypeError) {
-        msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
-      } else {
-        msg = `API is offline. Run <code class="bg-slate-900 px-1.5 py-0.5 rounded text-xs font-mono">xrpl-lab serve</code> in a terminal, then refresh.`;
+    async function hydrate() {
+      const root = document.getElementById('overview-root');
+      if (!root) return;
+      root.innerHTML = skeletonOverview();
+      let status: any;
+      try {
+        status = await (await fetchWithTimeout(`${API_BASE}/api/status`)).json();
+      } catch (err) {
+        root.innerHTML = offlineHTML(err);
+        return;
       }
-      actEl.innerHTML = `
-        <div class="flex items-center gap-2 text-amber-400" role="status">
-          <span aria-hidden="true">&#9888;</span>
-          <span>${msg}</span>
-        </div>
-      `;
+      let doctor: any = null;
+      try { doctor = await (await fetchWithTimeout(`${API_BASE}/api/doctor`)).json(); } catch { /* best-effort */ }
+      root.innerHTML = overviewHTML(status, doctor);
+      requestAnimationFrame(animateProgress);
     }
 
-    hydrateDashboard();
+    hydrate();
   </script>
-
 </DashboardLayout>

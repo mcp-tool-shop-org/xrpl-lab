@@ -38,3 +38,6 @@ site/node_modules/
 .polyglot-cache.json
 .astro/
 node_modules/
+
+# Raw Claude Design export (reference; integrated copies live in site/src/styles)
+design/redesign/

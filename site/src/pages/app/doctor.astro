@@ -3,151 +3,104 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 ---
 
 <DashboardLayout title="Doctor" activePage="doctor">
+  <div class="screen-head">
+    <h1>Doctor</h1>
+    <p class="lede">Environment health checks for your XRPL Lab setup.</p>
+  </div>
 
-  <div class="space-y-6">
-
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-100">Doctor</h1>
-        <p class="text-slate-400 mt-1">Environment health checks for your XRPL Lab setup.</p>
-      </div>
-      <button
-        id="btn-rerun"
-        class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Re-run Checks
-      </button>
+  <div class="screen-inner" id="doctor-root">
+    <!-- Re-run control lives in the head row of the body, mirroring the
+         segmented filter on the Modules page. It re-fetches /api/doctor and
+         re-renders #doctor-results below. -->
+    <div class="row section" style="justify-content:flex-end">
+      <button id="btn-rerun" class="btn btn--primary" type="button">Re-run checks</button>
     </div>
 
-    <!-- Overall banner -->
-    <div id="doctor-banner" class="hidden rounded-lg border p-4 flex items-center gap-3">
-      <span id="banner-icon" class="text-2xl"></span>
-      <div>
-        <p id="banner-title" class="font-semibold text-lg"></p>
-        <p id="banner-subtitle" class="text-sm opacity-80"></p>
-      </div>
+    <!-- Results region — skeleton on load, then banner + checks, or a graceful
+         error/empty state. Swapped wholesale by runDoctor(). -->
+    <div id="doctor-results">
+      <div class="card section"><div class="skeleton" style="height:46px;width:50%"></div></div>
     </div>
-
-    <!-- Loading state -->
-    <div id="doctor-loading" class="space-y-3">
-      <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 animate-pulse">
-        <div class="h-5 bg-slate-700 rounded w-1/3 mb-2"></div>
-        <div class="h-4 bg-slate-700 rounded w-2/3"></div>
-      </div>
-      <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 animate-pulse">
-        <div class="h-5 bg-slate-700 rounded w-1/4 mb-2"></div>
-        <div class="h-4 bg-slate-700 rounded w-1/2"></div>
-      </div>
-      <div class="bg-slate-800 rounded-lg border border-slate-700 p-4 animate-pulse">
-        <div class="h-5 bg-slate-700 rounded w-2/5 mb-2"></div>
-        <div class="h-4 bg-slate-700 rounded w-3/5"></div>
-      </div>
-    </div>
-
-    <!-- Checks grid -->
-    <div id="doctor-checks" class="hidden space-y-3"></div>
-
-    <!-- Error state -->
-    <div id="doctor-error" class="hidden">
-      <div class="flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
-        <span>&#9888;</span>
-        <span>Could not run doctor checks. Is the API running?</span>
-      </div>
-    </div>
-
   </div>
 
   <script>
     import { fetchWithTimeout } from '../../lib/api';
+    import { icons, healthIcon, announce, esc } from '../../lib/dashboard-ui';
 
     // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
+    const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
 
-    function escapeHtml(text: any): string {
-      if (text === null || text === undefined) return '';
-      const div = document.createElement('div');
-      div.textContent = String(text);
-      return div.innerHTML;
+    // Map the doctor overall verdict onto a banner variant + branded copy.
+    // The CSS exposes --ok / --stalled / --err banner variants.
+    const bannerConfig: Record<string, { variant: string; icon: string; title: string; subtitle: string }> = {
+      healthy: { variant: 'ok',      icon: icons.seal,  title: 'All checks passed', subtitle: 'Your environment is ready.' },
+      warning: { variant: 'stalled', icon: icons.alert, title: 'Some warnings found', subtitle: 'Review the items below.' },
+      error:   { variant: 'err',     icon: icons.alert, title: 'Issues detected', subtitle: 'Fix the failing checks before running modules.' },
+    };
+
+    function skeletonResults() {
+      return `<div class="card section">${sk('46px', '50%')}</div>
+        <div class="card section">${sk('14px', '30%')}<div class="sk-line skeleton"></div><div class="sk-line skeleton" style="width:80%"></div></div>`;
     }
 
-    const statusConfig: Record<string, { icon: string; border: string; dot: string; text: string }> = {
-      ok:   { icon: '&#10003;', border: 'border-emerald-500/30', dot: 'bg-emerald-500', text: 'text-emerald-400' },
-      warn: { icon: '&#9888;',  border: 'border-amber-500/30',  dot: 'bg-amber-500',  text: 'text-amber-400' },
-      fail: { icon: '&#10007;', border: 'border-red-500/30',     dot: 'bg-red-500',     text: 'text-red-400' },
-    };
+    // Humanized offline/error copy — preserved from the original page, routed
+    // through the calm empty state instead of a Tailwind alert box.
+    function errorHTML(err: any) {
+      let msg = 'Could not run doctor checks. Is the API running?';
+      if (err?.name === 'AbortError') {
+        msg = 'Doctor checks timed out — check API server is responsive.';
+      } else if (err instanceof TypeError) {
+        msg = 'Could not reach API server — is it running?';
+      }
+      return `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
+        <div class="empty__t">Can't run the doctor</div><div>${esc(msg)}</div></div></div>`;
+    }
 
-    const bannerConfig: Record<string, { icon: string; bg: string; border: string; title: string; subtitle: string }> = {
-      healthy: { icon: '&#10003;', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', title: 'All checks passed', subtitle: 'Your environment is ready.' },
-      warning: { icon: '&#9888;',  bg: 'bg-amber-500/10',  border: 'border-amber-500/30',  title: 'Some warnings found', subtitle: 'Review the items below.' },
-      error:   { icon: '&#10007;', bg: 'bg-red-500/10',     border: 'border-red-500/30',     title: 'Issues detected', subtitle: 'Fix the failing checks before running modules.' },
-    };
+    function doctorHTML(result: any) {
+      const bc = bannerConfig[result.overall] || bannerConfig.error;
+      const checks = Array.isArray(result.checks) ? result.checks : [];
+
+      const banner = `<div class="banner banner--${bc.variant} section" role="status">
+          <span class="banner__ic">${bc.icon}</span>
+          <div><div class="banner__t">${esc(bc.title)}</div><div class="banner__s">${esc(bc.subtitle)}</div></div>
+        </div>`;
+
+      const rows = checks.length
+        ? `<div class="checks">${checks.map((c: any) =>
+            `<div class="check">${healthIcon(c.status)}<div><div class="check__name">${esc(c.name)}</div><div class="check__msg">${esc(c.message)}</div></div></div>`,
+          ).join('')}</div>`
+        : `<div class="empty"><span class="empty__ic">${icons.inbox}</span>
+            <div class="empty__t">No checks reported</div><div>The doctor returned no checks to display.</div></div>`;
+
+      return `${banner}<div class="card section"><p class="eyebrow">Environment checks</p>${rows}</div>`;
+    }
 
     async function runDoctor() {
-      const loading = document.getElementById('doctor-loading');
-      const checks = document.getElementById('doctor-checks');
-      const banner = document.getElementById('doctor-banner');
-      const error = document.getElementById('doctor-error');
+      const results = document.getElementById('doctor-results');
+      if (!results) return;
+      results.innerHTML = skeletonResults();
 
-      loading?.classList.remove('hidden');
-      checks?.classList.add('hidden');
-      banner?.classList.add('hidden');
-      error?.classList.add('hidden');
+      const btn = document.getElementById('btn-rerun') as HTMLButtonElement | null;
+      if (btn) btn.disabled = true;
 
       try {
         const res = await fetchWithTimeout(`${API_BASE}/api/doctor`);
         const result = await res.json();
-
-        // Banner
-        if (banner) {
-          const bc = bannerConfig[result.overall] || bannerConfig.error;
-          banner.className = `rounded-lg border p-4 flex items-center gap-3 ${bc.bg} ${bc.border}`;
-          const icon = document.getElementById('banner-icon');
-          const title = document.getElementById('banner-title');
-          const subtitle = document.getElementById('banner-subtitle');
-          // innerHTML required to decode HTML entity; bc.icon is hardcoded in bannerConfig so XSS surface is closed
-          if (icon) icon.innerHTML = bc.icon;
-          if (title) title.textContent = bc.title;
-          if (subtitle) subtitle.textContent = bc.subtitle;
-          banner.classList.remove('hidden');
-        }
-
-        // Check cards
-        if (checks && Array.isArray(result.checks)) {
-          checks.innerHTML = result.checks.map((c: any) => {
-            const sc = statusConfig[c.status] || statusConfig.ok;
-            return `<div class="bg-slate-800 rounded-lg border ${sc.border} p-4">
-              <div class="flex items-center gap-3">
-                <span class="w-2 h-2 rounded-full ${sc.dot} shrink-0"></span>
-                <span class="font-semibold text-slate-100 text-sm">${escapeHtml(c.name)}</span>
-                <span class="ml-auto ${sc.text} text-sm">${sc.icon}</span>
-              </div>
-              <p class="text-sm text-slate-400 mt-2 ml-5">${escapeHtml(c.message)}</p>
-            </div>`;
-          }).join('');
-          checks.classList.remove('hidden');
-        }
-
-        loading?.classList.add('hidden');
-
+        results.innerHTML = doctorHTML(result);
+        // Announce the verdict so screen-reader users hear the result of a re-run.
+        const verdict = result?.overall === 'healthy' ? 'all checks passed'
+          : result?.overall === 'warning' ? 'some warnings found' : 'issues detected';
+        announce(`Doctor checks complete — ${verdict}.`);
       } catch (err: any) {
-        loading?.classList.add('hidden');
-        error?.classList.remove('hidden');
-        const errMsgEl = error?.querySelector('span:last-child');
-        if (errMsgEl) {
-          if (err?.name === 'AbortError') {
-            errMsgEl.textContent = 'Doctor checks timed out — check API server is responsive.';
-          } else if (err instanceof TypeError) {
-            errMsgEl.textContent = 'Could not reach API server — is it running?';
-          } else {
-            errMsgEl.textContent = 'Could not run doctor checks. Is the API running?';
-          }
-        }
+        results.innerHTML = errorHTML(err);
+        announce('Doctor checks could not be run.');
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 
     document.getElementById('btn-rerun')?.addEventListener('click', runDoctor);
     runDoctor();
   </script>
-
 </DashboardLayout>

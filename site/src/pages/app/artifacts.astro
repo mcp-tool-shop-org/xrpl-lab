@@ -1,184 +1,255 @@
 ---
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
-import JsonViewer from '../../components/dashboard/JsonViewer.astro';
 ---
 
 <DashboardLayout title="Artifacts" activePage="artifacts">
+  <div class="screen-head">
+    <h1>Artifacts</h1>
+    <p class="lede">Your verifiable training outputs — proof pack, certificate, and reports.</p>
+  </div>
 
-  <div class="space-y-6">
-
-    <div>
-      <h1 class="text-2xl font-bold text-slate-100">Artifacts</h1>
-      <p class="text-slate-400 mt-1">Your verifiable training outputs.</p>
+  <div class="screen-inner" id="artifacts-root">
+    <div class="tabs" role="tablist" aria-label="Artifacts">
+      <button class="tab" role="tab" id="tab-proof" aria-controls="panel-proof" aria-selected="true" tabindex="0"><span class="sr-only">Proof Pack</span></button>
     </div>
-
-    <!-- Tabs -->
-    <div class="border-b border-slate-700">
-      <nav class="flex gap-1">
-        <button data-tab="proof" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400">
-          Proof Pack
-        </button>
-        <button data-tab="certificate" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200">
-          Certificate
-        </button>
-        <button data-tab="reports" class="tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200">
-          Reports
-        </button>
-      </nav>
-    </div>
-
-    <!-- Proof Pack tab -->
-    <div id="tab-proof" class="tab-content">
-      <div class="space-y-4">
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-slate-200">Proof Pack</h2>
-          <span id="proof-integrity" class="text-xs font-mono text-slate-500"></span>
-        </div>
-        <JsonViewer id="proof-json" />
-      </div>
-    </div>
-
-    <!-- Certificate tab -->
-    <div id="tab-certificate" class="tab-content hidden">
-      <div class="space-y-4">
-        <h2 class="text-lg font-semibold text-slate-200">Certificate</h2>
-        <JsonViewer id="cert-json" />
-      </div>
-    </div>
-
-    <!-- Reports tab -->
-    <div id="tab-reports" class="tab-content hidden">
-      <div class="space-y-4">
-        <h2 class="text-lg font-semibold text-slate-200">Reports</h2>
-        <div id="reports-list" class="space-y-4">
-          <p class="text-slate-500 animate-pulse">Loading...</p>
-        </div>
-      </div>
-    </div>
-
+    <div class="card section"><div class="skeleton" style="height:46px;width:60%"></div></div>
   </div>
 
   <script>
     import { fetchWithTimeout } from '../../lib/api';
+    import { icons, healthIcon, esc } from '../../lib/dashboard-ui';
 
     // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
 
+    const II = (svg: string) =>
+      `<span style="display:inline-flex;width:16px;height:16px;color:var(--text-3)">${svg}</span>`;
+    const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
+
+    // Humanized fetch-error copy — mirrors the overview page's tone.
     function describeFetchError(err: any, fallback: string): string {
       if (err?.name === 'AbortError') return 'Request timed out — check API server is responsive.';
       if (err instanceof TypeError) return 'Could not reach API server — is it running?';
       return fallback;
     }
 
-    // Tab switching
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tab = (btn as HTMLElement).dataset.tab;
-        if (!tab) return;
-
-        // Update buttons
-        document.querySelectorAll('.tab-btn').forEach(b => {
-          b.className = 'tab-btn px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200';
-        });
-        btn.className = 'tab-btn px-4 py-2 text-sm font-medium border-b-2 border-emerald-500 text-emerald-400';
-
-        // Show/hide content
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-        document.getElementById(`tab-${tab}`)?.classList.remove('hidden');
-      });
-    });
-
-    function prettyJson(data: unknown): string {
-      return JSON.stringify(data, null, 2);
+    function offlineHTML(err: any) {
+      const timeout = err?.name === 'AbortError';
+      const msg = timeout
+        ? 'Request timed out. The API may be slow or restarting. Refresh to retry.'
+        : 'API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
+      return `<div class="empty"><span class="empty__ic">${icons.alert}</span>
+        <div class="empty__t">Can't reach the API</div><div>${msg}</div></div>`;
     }
 
-    function setJsonContent(containerId: string, data: unknown) {
-      const container = document.getElementById(containerId);
-      const code = container?.querySelector('.json-content');
-      if (code) code.textContent = prettyJson(data);
+    function emptyHTML(icon: string, title: string, help: string) {
+      return `<div class="empty"><span class="empty__ic">${icon}</span>
+        <div class="empty__t">${title}</div><div>${help}</div></div>`;
     }
 
-    function setJsonError(containerId: string, message: string) {
-      const container = document.getElementById(containerId);
-      const code = container?.querySelector('.json-content');
-      if (code) {
-        code.textContent = '';
-        code.innerHTML = `<span class="text-amber-400">&#9888; ${message}</span>`;
+    // A hashbox with an inline copy button + transient "Copied!" feedback.
+    function hashboxHTML(hash: string) {
+      return `<div class="row" style="gap:10px;align-items:flex-start">
+        <div class="hashbox" style="flex:1">${esc(hash)}</div>
+        <button class="btn btn--sm copy-hash" type="button" data-hash="${esc(hash)}" style="flex:none">
+          ${II(icons.clip)}<span>Copy</span></button>
+      </div>`;
+    }
+
+    /* ---------- skeletons ---------- */
+    function skeletonPanel() {
+      return `<p class="eyebrow">${sk('11px', '30%')}</p>
+        <div class="section">${sk('14px', '70%')}</div>
+        <div class="section">${sk('44px', '100%')}</div>
+        ${Array(3).fill(`<div class="proofmod">${sk('20px', '20px')}${sk('13px', '40%')}</div>`).join('')}`;
+    }
+
+    /* ---------- proof pack panel ---------- */
+    function proofHTML(p: any) {
+      if (!p || !p.version) {
+        return emptyHTML(icons.seal, 'No proof pack yet',
+          'Complete modules to generate a verifiable proof pack.');
       }
+      const modules = Array.isArray(p.modules) ? p.modules : [];
+      const generated = p.generated ? new Date(p.generated).toLocaleString() : 'unknown';
+
+      const integrity = p.integrity
+        ? `<p class="eyebrow" style="margin-top:18px">Integrity · SHA-256</p>${hashboxHTML(p.integrity)}`
+        : '';
+
+      const mods = modules.length
+        ? `<p class="eyebrow" style="margin-top:18px">Modules</p>${modules.map((m: any) => {
+            const txCount = Array.isArray(m.txids) ? m.txids.length : 0;
+            return `<div class="proofmod">${healthIcon(m.completed ? 'pass' : 'fail')}
+              <span class="proofmod__id">${esc(m.id)}</span>
+              <span class="proofmod__tx">${txCount} tx${txCount === 1 ? '' : 's'}</span></div>`;
+          }).join('')}`
+        : `<p class="muted" style="margin-top:18px">No modules recorded in this proof pack.</p>`;
+
+      return `<p class="eyebrow">Proof pack · v${esc(p.version)}</p>
+        <dl class="kv"><dt>Generated</dt><dd class="mono">${esc(generated)}</dd></dl>
+        ${integrity}
+        ${mods}`;
     }
 
-    // Load proof pack
-    async function loadProofPack() {
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/proof-pack`);
-        const data = await res.json();
-        setJsonContent('proof-json', data);
-        const integrity = document.getElementById('proof-integrity');
-        if (integrity && data.integrity) {
-          integrity.textContent = `SHA-256: ${data.integrity.substring(0, 16)}...`;
-        }
-      } catch (err: any) {
-        setJsonError('proof-json', describeFetchError(err, 'Could not load proof pack. Is the API running?'));
+    /* ---------- certificate panel ---------- */
+    function certHTML(c: any) {
+      if (!c || !c.holder) {
+        return emptyHTML(icons.award, 'No certificate yet',
+          'Finish the workbook to earn a completion certificate.');
       }
+      const issued = c.issued ? new Date(c.issued).toLocaleString() : 'unknown';
+      const mods = Array.isArray(c.modules_completed) ? c.modules_completed : [];
+      const chips = mods.length
+        ? mods.map((m: any) => `<span class="chip">${esc(m)}</span>`).join(' ')
+        : '<span class="muted">none</span>';
+
+      const hashbox = c.hash
+        ? `<p class="eyebrow" style="margin-top:18px">Certificate hash</p>${hashboxHTML(c.hash)}`
+        : '';
+
+      return `<p class="eyebrow">Certificate of completion</p>
+        <dl class="kv">
+          <dt>${II(icons.award)} Holder</dt><dd>${esc(c.holder)}</dd>
+          <dt>Issued</dt><dd class="mono">${esc(issued)}</dd>
+          <dt>Modules completed</dt><dd>${chips}</dd>
+        </dl>
+        ${hashbox}`;
     }
 
-    // Load certificate
-    async function loadCertificate() {
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/certificate`);
-        const data = await res.json();
-        setJsonContent('cert-json', data);
-      } catch (err: any) {
-        setJsonError('cert-json', describeFetchError(err, 'Could not load certificate. Is the API running?'));
+    /* ---------- reports panel ---------- */
+    function reportsHTML(reports: any) {
+      if (!Array.isArray(reports) || reports.length === 0) {
+        return emptyHTML(icons.file, 'No reports yet',
+          'No reports generated yet. Complete a module to generate reports.');
       }
-    }
-
-    // Load reports
-    async function loadReports() {
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/reports`);
-        const reports = await res.json();
-        const list = document.getElementById('reports-list');
-        if (!list) return;
-
-        if (!Array.isArray(reports) || reports.length === 0) {
-          list.innerHTML = '<p class="text-slate-500">No reports generated yet. Complete a module to generate reports.</p>';
-          return;
-        }
-
-        list.innerHTML = reports.map((r: any) => `
-          <div class="bg-slate-800 rounded-lg border border-slate-700 p-5">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="text-base font-semibold text-slate-200">${escapeHtml(r.title)}</h3>
-              <span class="text-xs text-slate-500">${new Date(r.generated).toLocaleDateString()}</span>
-            </div>
-            <div class="prose prose-invert prose-sm max-w-none text-slate-300 whitespace-pre-wrap font-mono text-xs bg-slate-900 rounded p-3 max-h-64 overflow-y-auto">${escapeHtml(r.content)}</div>
+      return reports.map((r: any) => {
+        const date = r.generated ? new Date(r.generated).toLocaleDateString() : '';
+        return `<div class="report">
+          <div class="report__head">
+            <span class="report__title">${esc(r.title)}</span>
+            <span class="report__date">${esc(date)}</span>
           </div>
-        `).join('');
-      } catch (err: any) {
-        const list = document.getElementById('reports-list');
-        if (list) {
-          const msg = describeFetchError(err, 'Could not load reports. Is the API running?');
-          list.innerHTML = `
-            <div class="flex items-center gap-2 text-amber-400 bg-slate-800 rounded-lg border border-amber-500/30 p-4">
-              <span>&#9888;</span>
-              <span>${escapeHtml(msg)}</span>
-            </div>
-          `;
-        }
+          <pre class="report__body">${esc(r.content)}</pre>
+        </div>`;
+      }).join('');
+    }
+
+    /* ---------- shell: tablist + panels ---------- */
+    function shellHTML(proof: string, cert: string, reports: string) {
+      return `
+      <div class="tabs" role="tablist" aria-label="Artifacts">
+        <button class="tab" role="tab" id="tab-proof" aria-controls="panel-proof" aria-selected="true" tabindex="0">${icons.seal}<span>Proof Pack</span></button>
+        <button class="tab" role="tab" id="tab-cert" aria-controls="panel-cert" aria-selected="false" tabindex="-1">${icons.award}<span>Certificate</span></button>
+        <button class="tab" role="tab" id="tab-reports" aria-controls="panel-reports" aria-selected="false" tabindex="-1">${icons.file}<span>Reports</span></button>
+      </div>
+      <div class="tabpanel card" role="tabpanel" id="panel-proof" aria-labelledby="tab-proof" tabindex="0">${proof}</div>
+      <div class="tabpanel card" role="tabpanel" id="panel-cert" aria-labelledby="tab-cert" tabindex="0" hidden>${cert}</div>
+      <div class="tabpanel" role="tabpanel" id="panel-reports" aria-labelledby="tab-reports" tabindex="0" hidden>${reports}</div>`;
+    }
+
+    /* ---------- accessible tablist: click + arrow-key roving tabindex ---------- */
+    function wireTabs(root: HTMLElement) {
+      const tabs = Array.from(root.querySelectorAll<HTMLElement>('[role="tab"]'));
+      const panels = tabs.map((t) =>
+        document.getElementById(t.getAttribute('aria-controls') || ''),
+      );
+
+      function select(idx: number, focus = true) {
+        tabs.forEach((t, i) => {
+          const on = i === idx;
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+          t.tabIndex = on ? 0 : -1;
+          const panel = panels[i];
+          if (panel) panel.hidden = !on;
+        });
+        if (focus) tabs[idx].focus();
       }
+
+      tabs.forEach((tab, i) => {
+        tab.addEventListener('click', () => select(i));
+        tab.addEventListener('keydown', (e: KeyboardEvent) => {
+          let next = -1;
+          if (e.key === 'ArrowRight') next = (i + 1) % tabs.length;
+          else if (e.key === 'ArrowLeft') next = (i - 1 + tabs.length) % tabs.length;
+          else if (e.key === 'Home') next = 0;
+          else if (e.key === 'End') next = tabs.length - 1;
+          if (next < 0) return;
+          e.preventDefault();
+          select(next);
+        });
+      });
     }
 
-    function escapeHtml(text: string): string {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
+    /* ---------- copy-to-clipboard wiring with styled "Copied!" feedback ---------- */
+    function wireCopy(root: HTMLElement) {
+      root.querySelectorAll<HTMLButtonElement>('.copy-hash').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const hash = btn.dataset.hash || '';
+          try { await navigator.clipboard.writeText(hash); } catch { /* clipboard may be blocked */ }
+          const label = btn.querySelector('span');
+          if (!label) return;
+          const prev = label.textContent;
+          label.textContent = 'Copied!';
+          btn.style.borderColor = 'var(--ok-edge)';
+          btn.style.color = 'var(--accent-bright)';
+          setTimeout(() => {
+            label.textContent = prev;
+            btn.style.borderColor = '';
+            btn.style.color = '';
+          }, 1400);
+        });
+      });
     }
 
-    // Load all artifacts
-    loadProofPack();
-    loadCertificate();
-    loadReports();
+    async function hydrate() {
+      const root = document.getElementById('artifacts-root');
+      if (!root) return;
+
+      // First-paint skeleton inside the live tablist shell.
+      root.innerHTML = shellHTML(skeletonPanel(), skeletonPanel(), skeletonPanel());
+      wireTabs(root);
+
+      // Three independent fetches — each panel degrades on its own.
+      let proof = '';
+      try {
+        const data = await (await fetchWithTimeout(`${API_BASE}/api/artifacts/proof-pack`)).json();
+        proof = proofHTML(data);
+      } catch (err: any) {
+        proof = err instanceof TypeError || err?.name === 'AbortError'
+          ? offlineHTML(err)
+          : emptyHTML(icons.alert, 'Could not load proof pack',
+              describeFetchError(err, 'Could not load proof pack. Is the API running?'));
+      }
+
+      let cert = '';
+      try {
+        const data = await (await fetchWithTimeout(`${API_BASE}/api/artifacts/certificate`)).json();
+        cert = certHTML(data);
+      } catch (err: any) {
+        cert = err instanceof TypeError || err?.name === 'AbortError'
+          ? offlineHTML(err)
+          : emptyHTML(icons.alert, 'Could not load certificate',
+              describeFetchError(err, 'Could not load certificate. Is the API running?'));
+      }
+
+      let reports = '';
+      try {
+        const data = await (await fetchWithTimeout(`${API_BASE}/api/artifacts/reports`)).json();
+        reports = reportsHTML(data);
+      } catch (err: any) {
+        reports = err instanceof TypeError || err?.name === 'AbortError'
+          ? offlineHTML(err)
+          : emptyHTML(icons.alert, 'Could not load reports',
+              describeFetchError(err, 'Could not load reports. Is the API running?'));
+      }
+
+      // Replace the skeleton shell with hydrated panels, re-wire interactions.
+      root.innerHTML = shellHTML(proof, cert, reports);
+      wireTabs(root);
+      wireCopy(root);
+    }
+
+    hydrate();
   </script>
-
 </DashboardLayout>
