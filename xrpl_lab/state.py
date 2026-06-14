@@ -77,7 +77,7 @@ class LabState(BaseModel):
     :func:`get_home_dir` before use.
     """
 
-    version: str = "1.7.0"
+    version: str = "1.7.1"
     network: str = DEFAULT_NETWORK
     wallet_path: str | None = None
     wallet_address: str | None = None

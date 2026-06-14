@@ -54,22 +54,32 @@ jobs:
 
       - name: Dependency audit (pip-audit)
         # Catches known CVEs in the dependency tree. pip-audit is already a dev
-        # dep (installed above via .[dev]) and verify.sh runs the same --strict
-        # gate locally, so CI mirrors local. Gated to a single matrix leg
-        # (3.12) — auditing the resolved tree twice is redundant and the deps
-        # don't differ by interpreter here; this keeps CI minutes lean.
+        # dep (installed above via .[dev]) and verify.sh runs the same gate
+        # locally, so CI mirrors local. Gated to a single matrix leg (3.12) —
+        # auditing the resolved tree twice is redundant and the deps don't
+        # differ by interpreter here; this keeps CI minutes lean.
         if: matrix.python-version == '3.12'
-        # pipefail so a pip-audit non-zero exit (vulns found under --strict)
-        # propagates through the tee and FAILS the job, rather than tee's
-        # success masking it. Without this the step would be cosmetic.
+        # pipefail so a pip-audit non-zero exit (vulns found) propagates through
+        # the tee and FAILS the job, rather than tee's success masking it.
+        #
         # --skip-editable: the project installs itself editable via `pip install
-        # -e ".[dev]"`, and pip-audit would otherwise try to look the editable
-        # xrpl-lab up on PyPI and fail under --strict ("not found") — especially
-        # right after a version bump, before that version is published. We audit
-        # the dependency tree, not the project itself.
+        # -e ".[dev]"`; pip-audit cannot resolve the editable xrpl-lab on PyPI,
+        # so we skip it and audit the dependency tree, not the project itself.
+        #
+        # NO --strict: `--strict` makes pip-audit exit non-zero whenever a dep is
+        # *skipped* — including the editable self-package we skip above — so
+        # `--strict --skip-editable` fails even with zero vulns ("distribution
+        # marked as editable"). Without --strict, pip-audit still exits non-zero
+        # on any *real* vulnerability, which is exactly the gate we want.
+        #
+        # --ignore-vuln PYSEC-2026-196: this advisory is against `pip` itself
+        # (the installer/build toolchain), not a dependency we declare or ship.
+        # CI upgrades pip above, and the audit is scoped to our declared tree;
+        # auditing the installer is out of scope. Remove if pip is ever pinned
+        # as a real dependency.
         run: |
           set -o pipefail
-          pip-audit --strict --skip-editable | tee pip-audit.log
+          pip-audit --skip-editable --ignore-vuln PYSEC-2026-196 | tee pip-audit.log
 
       - name: Upload test artifacts
         if: always()

@@ -11,7 +11,9 @@ pytest tests/ -v --tb=short
 
 echo "--- security: pip-audit ---"
 if command -v pip-audit >/dev/null 2>&1; then
-    pip-audit --strict || { echo "pip-audit found vulnerabilities"; exit 1; }
+    # --ignore-vuln PYSEC-2026-196: advisory against `pip` itself (installer
+    # toolchain), not a dependency we declare/ship. Audit our declared tree.
+    pip-audit --skip-editable --ignore-vuln PYSEC-2026-196 || { echo "pip-audit found vulnerabilities"; exit 1; }
 else
     echo "pip-audit not installed; skipping (install via uv add --dev pip-audit)"
 fi

@@ -38,6 +38,10 @@ site/node_modules/
 .polyglot-cache.json
 .astro/
 node_modules/
+# npm wrapper lockfile — sole dep (@mcptoolshop/npm-launcher) is registry
+# digest-locked; release.yml runs `npm install` (no committed lock). Root-only
+# anchor so site/package-lock.json stays tracked.
+/package-lock.json
 
 # Raw Claude Design export (reference; integrated copies live in site/src/styles)
 design/redesign/

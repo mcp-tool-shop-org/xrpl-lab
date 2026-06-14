@@ -5,7 +5,7 @@
 
 **Tags:** `[all]` every repo · `[npm]` `[pypi]` `[vsix]` `[desktop]` `[container]` published artifacts · `[mcp]` MCP servers · `[cli]` CLI tools
 
-**Detected:** `[all]` `[pypi]` `[cli]`
+**Detected:** `[all]` `[pypi]` `[npm]` `[cli]`
 
 > **Date semantics:** Each item's date reflects the most-recent
 > human verification. SHIP_GATE.md is re-stamped at every release as
@@ -43,7 +43,7 @@
 ## C. Operator Docs
 
 - [x] `[all]` README is current: what it does, install, usage, supported platforms + runtime versions (2026-05-01)
-- [x] `[all]` CHANGELOG.md (Keep a Changelog format) (2026-06-14) — 21+ entries, v0.1.0 through v1.7.0
+- [x] `[all]` CHANGELOG.md (Keep a Changelog format) (2026-06-14) — 22+ entries, v0.1.0 through v1.7.1
 - [x] `[all]` LICENSE file present and repo states support status (2026-05-01) — MIT
 - [x] `[cli]` `--help` output accurate for all commands and flags (2026-05-01)
 - [x] `[cli|mcp|desktop]` Logging levels defined: silent / normal / verbose / debug — secrets redacted at all levels (2026-05-01) — Rich console output; no secrets in any output path; `--dry-run` for silent network
@@ -53,10 +53,10 @@
 ## D. Shipping Hygiene
 
 - [x] `[all]` `verify` script exists (test + build + smoke in one command) (2026-05-01) — `verify.sh`
-- [x] `[all]` Version in manifest matches git tag (2026-06-14) — `pyproject.toml`, `__init__.py`, `state.py` all in sync at v1.7.0 (this release; prior release v1.6.0 is tagged + published)
-- [x] `[all]` Dependency scanning runs in CI (ecosystem-appropriate) (2026-06-14) — `pip-audit --strict` step in `ci.yml`; `ruff check` for code quality; dependency version pins in `pyproject.toml`
+- [x] `[all]` Version in manifest matches git tag (2026-06-14) — `pyproject.toml`, `__init__.py`, `state.py`, and the npm wrapper `package.json` + `bin/xrpl-lab.js` all in sync at v1.7.1 (this release; prior release v1.7.0 is tagged + published)
+- [x] `[all]` Dependency scanning runs in CI (ecosystem-appropriate) (2026-06-14) — `pip-audit --skip-editable --ignore-vuln PYSEC-2026-196` step in `ci.yml` (fails on real vulns; `--strict` dropped — incompatible with skipping the editable self-package; `pip` installer advisory out of scope); audited tree clean after `idna>=3.15` / `starlette>=1.0.1` runtime + `urllib3>=2.7.0` dev security floors; `ruff check` for code quality
 - [x] `[all]` Automated dependency update mechanism exists (2026-05-01) — manual via `pip install --upgrade`; CI runs on `pyproject.toml` changes
-- [ ] `[npm]` SKIP: not an npm package
+- [x] `[npm]` `@mcptoolshop/xrpl-lab` binary-launcher wrapper (`package.json` + `bin/xrpl-lab.js`) in-repo; published via OIDC trusted publishing (`release.yml`, npm provenance, no tokens) (2026-06-14)
 - [x] `[pypi]` `python_requires` set (2026-05-01) — `>=3.11` in pyproject.toml
 - [x] `[pypi]` Clean wheel + sdist build (2026-05-01) — `python -m build` produces both cleanly
 - [ ] `[vsix]` SKIP: not a VS Code extension

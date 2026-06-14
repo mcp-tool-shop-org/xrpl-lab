@@ -399,7 +399,7 @@ async def cancel_run(run_id: str) -> dict[str, str]:
 
     Auth model: same as GET /api/runs — ``server.py`` gates CORS to
     localhost. A future hardening (F-BRIDGE-FT-004) adds opt-in token
-    auth; this v1.7.0 surface is open under the localhost gate.
+    auth; this v1.7.1 surface is open under the localhost gate.
     """
     from . import runner_ws
 

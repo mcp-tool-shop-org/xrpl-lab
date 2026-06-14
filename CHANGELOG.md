@@ -1,4 +1,17 @@
 # Changelog
+## 1.7.1 — 2026-06-14
+
+Packaging + CI follow-up to v1.7.0 — completes the npm distribution channel, patches three dependency CVEs, and fixes the dependency-audit gate.
+
+### Security
+- **Dependency security floors.** Patched three known CVEs by pinning to fixed releases and re-locking. Two are **runtime** floors shipped to users: `idna>=3.15` (CVE-2026-45409, transitive via httpx) and `starlette>=1.0.1` (PYSEC-2026-161, transitive via fastapi). One is a **dev** floor: `urllib3>=2.7.0` (PYSEC-2026-141/142, transitive via pip-audit/requests). The audited tree now carries no known CVEs.
+
+### Packaging
+- **npm distribution now publishes via OIDC trusted publishing.** `@mcptoolshop/xrpl-lab` is published from this repo's new `release.yml` (on tag push) using npm provenance + OIDC — **no tokens**. The binary-launcher wrapper (`package.json` + `bin/xrpl-lab.js`) now lives in-repo beside the Python package; `npx @mcptoolshop/xrpl-lab` downloads the SHA-256-verified release binary for the matching tag.
+
+### CI
+- **`pip-audit` gate fixed.** Dropped `--strict`: it makes pip-audit exit non-zero whenever a dependency is *skipped*, including the editable self-package we skip with `--skip-editable`, so the audit failed even with zero vulnerabilities (`distribution marked as editable`). Without `--strict` the audit still fails on any *real* vulnerability. The single residual advisory against `pip` itself — the installer toolchain, not a declared dependency — is explicitly ignored; `verify.sh` updated to match.
+
 ## 1.7.0 — 2026-06-14
 
 Testnet-Only Enforcement, Network Honesty, and a Dashboard Redesign — a re-audit dogfood swarm (Stage A security, Stage B/C proactive + behavioral health, Stage D visual polish via Claude Design), each wave audit → amend → adversarially verified.
