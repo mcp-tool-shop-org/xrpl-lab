@@ -1,5 +1,28 @@
 ---
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
+
+// B-FRONTEND-003 — why this 404 is app-scoped, and the GitHub Pages constraint
+// -----------------------------------------------------------------------------
+// This file builds to dist/app/404.html. GitHub Pages serves a custom 404 ONLY
+// from the PUBLISH ROOT (dist/404.html → /xrpl-lab/404.html on the deployed
+// site). A nested /app/404.html is NEVER served as the fallback for an unmatched
+// URL — Pages does not look in subdirectories. So this page does NOT function as
+// the site's real 404 handler; an unknown URL like /xrpl-lab/app/nope/ falls
+// back to GitHub's generic Pages 404, not this styled one.
+//
+// This page is kept deliberately because it is still useful as an IN-DASHBOARD
+// "page not found" target: it carries the DashboardLayout chrome (nav + back-to-
+// dashboard link), so any in-app link that intentionally points here renders a
+// branded not-found inside the dashboard shell. It is the dashboard's 404, not
+// the site's.
+//
+// The real fix (serving a true site-wide 404) is the ROOT-level page at
+// site/src/pages/404.astro, which builds to dist/404.html and IS the page Pages
+// serves as the fallback. That file now exists (created for B-FRONTEND-003) and
+// uses the public BaseLayout (site theme), not DashboardLayout, since arbitrary
+// unmatched URLs are not necessarily under the dashboard. Note: Starlight's own
+// 404 route is disabled (disable404Route: true in astro.config.mjs), so nothing
+// else emits a root 404.html — site/src/pages/404.astro is the single source.
 ---
 
 <DashboardLayout title="Page Not Found">

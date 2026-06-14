@@ -1,0 +1,133 @@
+---
+import '../styles/global.css';
+import BaseLayout from '@mcptoolshop/site-theme/components/BaseLayout.astro';
+import Section from '@mcptoolshop/site-theme/components/Section.astro';
+import { config } from '../site-config';
+
+// B-FRONTEND-003 — the site-wide 404 fallback (publish-root 404.html)
+// -----------------------------------------------------------------------------
+// This file lives at the PAGES ROOT (site/src/pages/404.astro) so Astro builds
+// it to dist/404.html. With base '/xrpl-lab' (see astro.config.mjs) it deploys
+// to /xrpl-lab/404.html. That publish-root 404.html is the ONLY path GitHub
+// Pages serves as the fallback for an unmatched URL on a project site — Pages
+// reads the 404.html at the publish root and ignores any nested copy. So THIS
+// file — not site/src/pages/app/404.astro (which builds to dist/app/404.html and
+// is NEVER used as the fallback) — is what a visitor sees when they hit a URL
+// like /xrpl-lab/nope/ or /xrpl-lab/app/typo/. Before this file existed, those
+// URLs fell through to GitHub's generic, unbranded Pages 404.
+//
+// Layout choice: this uses the PUBLIC site theme (BaseLayout from
+// @mcptoolshop/site-theme — the same chrome as index.astro), NOT DashboardLayout.
+// An arbitrary unmatched URL is not necessarily under the dashboard, so the
+// fallback wears the public-site chrome and offers two clearly-labelled exits:
+// the site home and the dashboard. The dashboard keeps its own in-app 404
+// (site/src/pages/app/404.astro) for links that intentionally land there; the two
+// 404s are complementary, not duplicates (see the comment in that file).
+//
+// Single source: Starlight's built-in 404 route is disabled (disable404Route:
+// true in astro.config.mjs), so nothing else emits a root 404.html. This file is
+// the one and only publish-root 404 — keep it here.
+//
+// Note on paths: hrefs are hardcoded with the '/xrpl-lab/' base prefix (the same
+// convention as the dashboard 404's "/xrpl-lab/app/" link). The 404.html is
+// served in place of arbitrary unmatched URLs, so links must be absolute from the
+// domain root — relative hrefs would resolve against the wrong (non-existent)
+// path. For the same reason the top-nav anchors point at /xrpl-lab/#<section>
+// (absolute to the home page) rather than bare #<section> fragments, which would
+// be dead anchors on a 404 served from some unrelated URL.
+//
+// Chrome props mirror index.astro exactly (only title/description differ) so the
+// header, footer, and branding stay identical to the rest of the public site.
+---
+
+<BaseLayout
+  title={`Page not found — ${config.brandName}`}
+  description="That page does not exist on XRPL Lab. Head back to the home page or open the dashboard."
+  logoBadge={config.logoBadge}
+  brandName={config.brandName}
+  repoUrl={config.repoUrl}
+  npmUrl={config.npmUrl}
+  footerText={config.footerText}
+  nav={config.sections.map(s => ({ href: `/xrpl-lab/#${s.id}`, label: s.title }))}
+>
+  <Section
+    id="not-found"
+    title="404 — Page not found"
+    subtitle="That page does not exist on this site."
+  >
+    <div class="not-found">
+      <p class="not-found-text">
+        The page you&rsquo;re looking for doesn&rsquo;t exist. It may have been
+        moved or renamed, or the URL might have a typo. Pick one of the doors
+        below to get back on track.
+      </p>
+
+      <div class="not-found-actions">
+        <a href="/xrpl-lab/" class="btn btn-primary">Go to the home page</a>
+        <a href="/xrpl-lab/app/" class="btn btn-secondary">Open the dashboard</a>
+      </div>
+    </div>
+  </Section>
+</BaseLayout>
+
+<style>
+  /* Scoped styles (not Tailwind utilities) so this page renders correctly
+     regardless of whether Tailwind's content scanner picks up a brand-new file.
+     Colors use the theme's --color-muted variable (with a zinc fallback) plus
+     the emerald accent (#34d399 — the same accent as the focus ring and the
+     Starlight palette in starlight-custom.css), so the 404 stays on-brand. */
+  .not-found {
+    max-width: 38rem;
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .not-found-text {
+    color: var(--color-muted, #a1a1aa); /* zinc-400 fallback */
+    font-size: 1.05rem;
+    line-height: 1.7;
+    margin: 0 0 2rem;
+  }
+
+  .not-found-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
+  }
+
+  /* Primary action: bright emerald with dark text — matches the dashboard 404's
+     emerald button so both not-found pages read as the same brand. */
+  .btn-primary {
+    background: #34d399; /* emerald-400 */
+    color: #09090b; /* zinc-950 */
+  }
+  .btn-primary:hover {
+    background: #6ee7b7; /* emerald-300 */
+  }
+
+  /* Secondary action: hairline-outlined, muted text, emerald on hover. */
+  .btn-secondary {
+    border: 1px solid #27272a; /* zinc-800 — theme hairline */
+    color: var(--color-muted, #e4e4e7);
+  }
+  .btn-secondary:hover {
+    border-color: #34d399; /* emerald-400 */
+    color: #fafafa; /* zinc-50 */
+  }
+</style>
