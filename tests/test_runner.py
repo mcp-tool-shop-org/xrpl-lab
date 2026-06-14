@@ -471,3 +471,62 @@ class TestEnsureFundedRetry:
         assert ok is False
         # Two sleeps between three attempts (no sleep after the final attempt).
         assert sleeps == [2.0, 4.0]
+
+
+# -- recovery-save failure: no path leak across the WS boundary (verify wave) --
+
+
+def test_recovery_save_failure_no_path_leak_and_graceful(monkeypatch, tmp_path):
+    """Step-failure recovery: when save_state raises (e.g. a Windows os.replace
+    race), run_module must NOT leak the absolute state path / OS username into
+    the (WS-forwarded) console, and must return False rather than raising an
+    uncaught traceback. Covers the cross-boundary path-leak fix + the
+    recovery-guard RED branch."""
+    import asyncio
+    import io
+
+    from rich.console import Console
+
+    from xrpl_lab.errors import LabError, LabException
+    from xrpl_lab.modules import ModuleDef, ModuleStep
+    from xrpl_lab.runner import run_module
+    from xrpl_lab.transport.dry_run import DryRunTransport
+
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
+
+    # Step fails with a clean LabException (no path) so the only path-bearing
+    # content would come from the recovery-save exception below.
+    async def _boom(*args, **kwargs):
+        raise LabException(LabError(code="RUNTIME_TEST", message="step boom", hint=""))
+
+    monkeypatch.setattr("xrpl_lab.runner._execute_action", _boom)
+
+    # Recovery save raises a PermissionError whose str() embeds a secret path.
+    secret_path = r"C:\Users\SECRETUSER\.xrpl-lab\state.json.tmp"
+
+    def _raise_save(_state):
+        raise PermissionError(f"[WinError 5] Access is denied: {secret_path!r} -> 'x'")
+
+    monkeypatch.setattr("xrpl_lab.runner.save_state", _raise_save)
+
+    buf = io.StringIO()
+    cap = Console(file=buf, no_color=True, markup=True, width=200)
+
+    mod = ModuleDef(
+        id="m1", title="M1", time="1m", level="beginner",
+        requires=[], produces=[], checks=[],
+        steps=[ModuleStep(text="t", action="send_payment", action_args={})],
+        raw_body="",
+    )
+
+    result = asyncio.run(run_module(mod, DryRunTransport(), dry_run=True, console=cap))
+    out = buf.getvalue()
+
+    assert result is False  # graceful: no uncaught traceback escaped
+    assert "SECRETUSER" not in out  # OS username not leaked across the WS boundary
+    assert secret_path not in out  # absolute path not leaked
+    assert "PermissionError" in out  # safe exception type name shown
+    assert "xrpl-lab run m1" in out  # resume hint shown

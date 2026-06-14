@@ -21,7 +21,7 @@ If `verify.sh` is green you have a working dev environment. For broader orientat
 
 ## Authoring a new module
 
-Modules live under `modules/<track>/<id>.md` and are validated by the linter before they reach the curriculum.
+Modules live under `modules/<id>.md` (a flat directory — the track is declared in frontmatter, not encoded in the path) and are validated by the linter before they reach the curriculum.
 
 ### 1. Scaffold
 
@@ -42,12 +42,14 @@ Every module file starts with YAML frontmatter. The required keys are:
 - `id` — unique identifier, SCREAMING_SNAKE_CASE
 - `track` — one of the registered tracks (e.g. `foundations`)
 - `title` — human-readable
+- `summary` — one-line description of what the learner will do (hard-required; `parse_module` raises if absent)
+- `level` — difficulty band: `beginner`, `intermediate`, or `advanced` (hard-required)
 - `time` — estimated completion (`"20 min"`, `"1 hr"`)
 - `requires` — list of module ids this depends on (may be empty)
 - `produces` — list of artifact tags this emits (may be empty)
 - `checks` — list of check ids the module exercises
 
-The linter enforces these. Run `xrpl-lab lint <new-file>.md` for fast feedback, or `xrpl-lab lint` to validate the whole curriculum.
+The linter enforces these. (`mode` defaults to `testnet` — see [§4 Mode](#4-mode) below — and `order` defaults to `99`, so neither needs to appear in this required list.) Run `xrpl-lab lint <new-file>.md` for fast feedback, or `xrpl-lab lint` to validate the whole curriculum.
 
 ### 3. Steps
 
@@ -65,7 +67,7 @@ Available actions and their parameters are documented in the handbook's [modules
 
 ### 4. Mode
 
-Modules declare execution mode. Use `testnet` for live calls against `wss://s.altnet.rippletest.net:51233`; use `dry-run` for steps that should be illustrated without sending real transactions. **Never** target mainnet — the linter rejects it.
+Modules declare execution mode. Use `testnet` for live calls against `https://s.altnet.rippletest.net:51234` (JSON-RPC over HTTPS — this is `DEFAULT_RPC_URL`); use `dry-run` for steps that should be illustrated without sending real transactions. **Never** target mainnet — the linter rejects it.
 
 ---
 

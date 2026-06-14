@@ -1352,17 +1352,23 @@ async def handle_cancel_module_offers(
     )
 
     cancelled = 0
-    for seq, success in results:
+    for seq, success, _txid in results:
         if success:
             console.print(f"  [green]\u2713[/] Offer seq {seq} cancelled")
             cancelled += 1
         else:
             console.print(f"  [red]\u2717[/] Offer seq {seq} cancel failed")
 
-    for seq, success in results:
-        if success:
+    # F-BACKEND-006: record the REAL OfferCancel txid returned by the
+    # transport, not a ``synthetic-cancel-<seq>`` placeholder. A fake id
+    # lands in the proof pack / certificate with a dead testnet.xrpl.org
+    # explorer link and inflates tx counts. Only record when a real txid
+    # is present (a successful cancel with no txid \u2014 e.g. some dry-run /
+    # offline paths \u2014 is skipped rather than fabricated).
+    for _seq, success, txid in results:
+        if success and txid:
             state.record_tx(
-                txid=f"synthetic-cancel-{seq}",
+                txid=txid,
                 module_id=context.get("module_id", ""),
                 network=state.network,
                 success=True,

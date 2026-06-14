@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import inspect
+import logging
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -22,6 +23,8 @@ from .reporting import write_module_report
 from .runtime import _SecretValue
 from .state import LabState, ensure_workspace, load_state, save_state
 from .transport.base import Transport
+
+logger = logging.getLogger(__name__)
 
 console = Console()
 
@@ -251,11 +254,46 @@ async def run_module(
                         "[yellow]Hint: Run 'xrpl-lab doctor' "
                         "to diagnose the issue.[/]"
                     )
-                save_state(state)
-                console.print(
-                    f"[yellow]Progress saved. You can resume with: "
-                    f"xrpl-lab run {module.id}[/]"
-                )
+                # Guard the recovery save itself. We are already inside the
+                # step-failure except block; if save_state raises here (e.g.
+                # the same Windows os.replace race during recovery, or a
+                # full disk), an uncaught traceback would escape run_module
+                # and the user would never see the resume hint below. Swallow
+                # the save error, warn that on-disk progress may be stale,
+                # and still return False gracefully — the caller treats a
+                # False return as "module did not complete", which is correct
+                # whether or not the save landed. _atomic's own retry loop is
+                # the first line of defence; this is the backstop for when
+                # even the retries are exhausted.
+                try:
+                    save_state(state)
+                    console.print(
+                        f"[yellow]Progress saved. You can resume with: "
+                        f"xrpl-lab run {module.id}[/]"
+                    )
+                except Exception as save_exc:
+                    # Do NOT interpolate str(save_exc) into the console: on a
+                    # Windows os.replace race it carries the absolute
+                    # state.json path (+ OS username), and in dashboard mode
+                    # `console` is the capture console that forwards output
+                    # across the WS boundary — leaking a filesystem path is a
+                    # threat-model violation. The exception TYPE name is safe;
+                    # full detail goes to the server log only.
+                    logger.warning(
+                        "recovery save_state failed for module %s: %s",
+                        module.id,
+                        save_exc,
+                    )
+                    console.print(
+                        f"[red]Warning: progress for '{module.id}' could not be "
+                        f"saved ({type(save_exc).__name__}). Your previous saved "
+                        f"state is intact — re-run when ready: "
+                        f"xrpl-lab run {module.id}[/]"
+                    )
+                    console.print(
+                        f"[yellow]On-disk progress may be stale; you can "
+                        f"still retry with: xrpl-lab run {module.id}[/]"
+                    )
                 return False
 
             # Fire tx callback for any new transactions from this step

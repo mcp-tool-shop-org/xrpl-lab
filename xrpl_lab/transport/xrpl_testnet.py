@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlparse
 
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
@@ -57,6 +58,56 @@ def get_rpc_url() -> str:
 
 def get_faucet_url() -> str:
     return os.environ.get("XRPL_LAB_FAUCET_URL", DEFAULT_FAUCET_URL)
+
+
+# ── Network classification (testnet-only invariant enforcement) ──────────
+#
+# XRPL Lab is testnet-only. The RPC/faucet endpoints are env-overridable
+# (XRPL_LAB_RPC_URL / XRPL_LAB_FAUCET_URL) so learners can point at a local
+# rippled or devnet — but an override to a MAINNET host must NEVER result in
+# a signed, submitted transaction. Before this guard the "no mainnet"
+# invariant was enforced nowhere in code: ``network_name`` hard-coded
+# "testnet" regardless of the actual endpoint, and the write path signed
+# against whatever URL was configured. ``classify_network`` is the single
+# source of truth; the write methods refuse any endpoint not in
+# ``SAFE_NETWORKS`` and the labels reflect the ACTUAL network.
+
+_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+_MAINNET_HOSTS = frozenset(
+    {"s1.ripple.com", "s2.ripple.com", "xrplcluster.com", "xrpl.ws", "s.ripple.com"}
+)
+
+# Networks XRPL Lab is allowed to sign+submit against. Mainnet and any
+# unrecognized host are refused (the write path returns a failed result
+# WITHOUT touching the wallet seed or the network).
+SAFE_NETWORKS = frozenset({"testnet", "devnet", "local"})
+
+
+def classify_network(url: str) -> str:
+    """Classify an XRPL endpoint URL by network, from its host.
+
+    Returns one of ``"testnet"``, ``"devnet"``, ``"local"``, ``"mainnet"``,
+    or ``"unknown"``. This is the enforcement point for the testnet-only
+    invariant: the write path refuses anything not in :data:`SAFE_NETWORKS`,
+    and ``network_name`` / ``get_network_info`` report the real network
+    rather than a hard-coded ``"testnet"``. A URL we cannot parse a host
+    from is ``"unknown"`` (treated as unsafe — fail closed).
+    """
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return "unknown"
+    if not host:
+        return "unknown"
+    if host in _LOCAL_HOSTS:
+        return "local"
+    if host == "altnet.rippletest.net" or host.endswith(".altnet.rippletest.net"):
+        return "testnet"
+    if host == "devnet.rippletest.net" or host.endswith(".devnet.rippletest.net"):
+        return "devnet"
+    if host in _MAINNET_HOSTS or host.endswith(".ripple.com"):
+        return "mainnet"
+    return "unknown"
 
 
 def _memo_field(text: str) -> list[Memo]:
@@ -129,9 +180,35 @@ class XRPLTestnetTransport(Transport):
 
     @property
     def network_name(self) -> str:
-        return "testnet"
+        # Reflect the ACTUAL endpoint, not a hard-coded label. The default
+        # testnet RPC classifies as "testnet"; an XRPL_LAB_RPC_URL override
+        # to mainnet/devnet/local/unknown is reported honestly so artifacts,
+        # the doctor, and the dashboard never claim "testnet" while pointed
+        # elsewhere.
+        return classify_network(self._rpc_url)
+
+    def _network_guard(self) -> str | None:
+        """Return a refusal message if the configured RPC is unsafe, else None.
+
+        The testnet-only invariant: XRPL Lab will not sign or submit a
+        transaction against a mainnet or unrecognized endpoint. Callers in
+        the write path check this BEFORE constructing the wallet or touching
+        the network, so a mainnet override never reaches ``Wallet.from_seed``
+        or ``submit_and_wait``.
+        """
+        net = classify_network(self._rpc_url)
+        if net in SAFE_NETWORKS:
+            return None
+        return (
+            f"Refusing to submit: XRPL_LAB_RPC_URL points at a '{net}' endpoint "
+            f"({self._rpc_url}). XRPL Lab is testnet-only and will not sign or "
+            f"submit transactions against mainnet or an unrecognized network. "
+            f"Unset XRPL_LAB_RPC_URL to use the default testnet, or run with "
+            f"--dry-run for fully offline practice."
+        )
 
     async def get_network_info(self) -> NetworkInfo:
+        network = classify_network(self._rpc_url)
         try:
             async with AsyncJsonRpcClient(self._rpc_url) as client:
                 ledger_idx = await asyncio.wait_for(
@@ -139,7 +216,7 @@ class XRPLTestnetTransport(Transport):
                     timeout=RPC_TIMEOUT,
                 )
                 return NetworkInfo(
-                    network="testnet",
+                    network=network,
                     rpc_url=self._rpc_url,
                     connected=True,
                     ledger_index=ledger_idx,
@@ -147,7 +224,7 @@ class XRPLTestnetTransport(Transport):
         except Exception:
             logger.debug("get_network_info failed", exc_info=True)
             return NetworkInfo(
-                network="testnet",
+                network=network,
                 rpc_url=self._rpc_url,
                 connected=False,
                 ledger_index=None,
@@ -156,7 +233,31 @@ class XRPLTestnetTransport(Transport):
     async def fund_from_faucet(self, address: str) -> FundResult:
         import httpx
 
+        guard = self._network_guard()
+        if guard is not None:
+            return FundResult(
+                success=False, address=address, message=guard, code="CONFIG_NON_TESTNET"
+            )
+
         faucet_url = get_faucet_url()
+        # The faucet URL is independently overridable (XRPL_LAB_FAUCET_URL), so
+        # the RPC guard above is not enough — a mainnet/attacker faucet override
+        # must not receive the user's address even when the RPC stays on
+        # testnet. This keeps the transport in lockstep with doctor's env-
+        # override check, which already classifies BOTH endpoints.
+        faucet_net = classify_network(faucet_url)
+        if faucet_net not in SAFE_NETWORKS:
+            return FundResult(
+                success=False,
+                address=address,
+                message=(
+                    f"Refusing to contact faucet: XRPL_LAB_FAUCET_URL points at "
+                    f"a '{faucet_net}' endpoint ({faucet_url}). XRPL Lab is "
+                    f"testnet-only. Unset XRPL_LAB_FAUCET_URL to use the default "
+                    f"testnet faucet, or run with --dry-run."
+                ),
+                code="CONFIG_NON_TESTNET",
+            )
         last_error = ""
         # Structured LabError code, populated when a specific failure mode
         # has a dedicated taxonomy entry (e.g. 429 → RUNTIME_FAUCET_RATE_LIMITED).
@@ -223,6 +324,10 @@ class XRPLTestnetTransport(Transport):
         amount: str,
         memo: str = "",
     ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
         try:
             amount_f = Decimal(amount)
         except (ValueError, TypeError, InvalidOperation):
@@ -319,6 +424,10 @@ class XRPLTestnetTransport(Transport):
         currency: str,
         limit: str,
     ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
@@ -408,6 +517,10 @@ class XRPLTestnetTransport(Transport):
         amount: str,
         memo: str = "",
     ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
@@ -549,6 +662,10 @@ class XRPLTestnetTransport(Transport):
         taker_gets_value: str,
         taker_gets_issuer: str,
     ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
@@ -635,6 +752,10 @@ class XRPLTestnetTransport(Transport):
         wallet_seed: str,
         offer_sequence: int,
     ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):

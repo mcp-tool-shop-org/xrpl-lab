@@ -20,9 +20,15 @@ Two modes:
   incrementally-appended module progress + tx history with no external
   recovery source, so we guarantee the previous good copy survives
   process death mid-write. Stale ``.tmp`` files from a previously-killed
-  process are pre-cleaned (otherwise O_EXCL would block forever). On
-  failure the orphan ``.tmp`` is unlinked and the original exception
-  re-raises; we never silently swallow OSError on the WRITE path.
+  process are pre-cleaned (otherwise O_EXCL would block forever). The
+  ``os.replace`` is wrapped in a bounded retry loop: on Windows a
+  concurrent reader holding ``path`` open (the FastAPI dashboard reading
+  state.json while the runner saves it) makes the rename raise transient
+  ``PermissionError`` [WinError 5]; we retry with a short growing backoff
+  so the rename lands once the reader's handle closes. POSIX is
+  unaffected (rename-over-open succeeds first try). On final failure the
+  orphan ``.tmp`` is unlinked and the original exception re-raises; we
+  never silently swallow OSError on the WRITE path.
 
 Both modes use ``os.open(..., file_mode)`` so the file is born with the
 requested permissions — no chmod-after-create TOCTOU window.
@@ -32,9 +38,25 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+# Windows-only transience window for ``os.replace`` over an open destination.
+# On POSIX, rename-over-open succeeds first try (the destination's inode is
+# simply unlinked while readers keep their handle), so the loop exits after
+# attempt 0 and these constants never bite. On Windows a concurrent reader
+# holding ``path`` open (e.g. the FastAPI dashboard ``read_text``-ing
+# state.json while the runner saves it) makes ``os.replace`` raise
+# ``PermissionError`` [WinError 5] — but only for the instant that handle is
+# open. A short bounded retry with growing backoff lands in a clear window:
+# the dashboard's per-iteration read handle closes between reads, so an
+# attempt a few ms later succeeds. We cap attempts so a genuinely-stuck
+# destination (a permanently-locked file) still fails loudly instead of
+# hanging — the final exception re-raises with the orphan tmp cleaned up.
+_REPLACE_MAX_ATTEMPTS = 5
+_REPLACE_BACKOFF_BASE_S = 0.02  # 20ms, then 40, 60, 80 — ~200ms total worst case
 
 
 def atomic_write_json(
@@ -96,7 +118,24 @@ def atomic_write_json(
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
-        os.replace(tmp, path)
+        # Windows-aware atomic rename. os.replace over a destination a
+        # concurrent reader holds open raises PermissionError [WinError 5]
+        # on Windows; the lock is transient (clears the instant the reader's
+        # handle closes), so retry a few times with growing backoff before
+        # giving up. POSIX rename-over-open succeeds on attempt 0, so the
+        # loop falls through immediately there. See module-level constants.
+        for attempt in range(_REPLACE_MAX_ATTEMPTS):
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                if attempt == _REPLACE_MAX_ATTEMPTS - 1:
+                    # Exhausted retries — re-raise so the outer except can
+                    # clean up the orphan tmp and propagate to the caller.
+                    raise
+                # Growing backoff: 20ms, 40ms, 60ms, 80ms. Gives a
+                # concurrent reader time to close its handle between reads.
+                time.sleep(_REPLACE_BACKOFF_BASE_S * (attempt + 1))
     except Exception:
         # Cleanup orphan tmp on failure, then re-raise. Wave-1 antipattern
         # was silently swallowing OSError on the WRITE — that's distinct

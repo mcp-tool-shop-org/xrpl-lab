@@ -132,7 +132,7 @@ cd site && npm run dev
 open http://localhost:4321/xrpl-lab/app/facilitator/runs/
 ```
 
-In production (after `npm run build`), `xrpl-lab serve` alone is enough — it serves both the API and the built frontend.
+In production, build the site once (`cd site && npm run build`); then `xrpl-lab serve` alone is enough — on start-up it finds the built dashboard (`./site/dist` or `$XRPL_LAB_DASHBOARD_DIR`) and serves both the API and the dashboard from one process at `http://localhost:8321/xrpl-lab/app/facilitator/runs/`. Keep the default port — the bundled dashboard calls the API at `localhost:8321`.
 
 ---
 

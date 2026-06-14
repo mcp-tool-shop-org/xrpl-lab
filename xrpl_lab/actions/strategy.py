@@ -14,6 +14,20 @@ from ..transport.base import AccountSnapshot, OfferInfo, Transport, TrustLineInf
 
 MEMO_PREFIX = "XRPLLAB|STRAT|"
 
+# ── XRPL reserve amounts (drops) ─────────────────────────────────────
+#
+# These are XRPL network-governed amendment values, NOT compile-time
+# constants of the protocol: validators can (and historically have)
+# lowered the base + owner reserve via amendment, and they differ
+# between mainnet and testnet. We hardcode the common testnet defaults
+# here so the lab's spendable estimate is roughly right, but a single
+# edit fixes every call site if the network reserve drifts. Not wired to
+# NetworkInfo yet — that transport struct carries no reserve fields, so
+# there is nothing live to read; this is a deliberate placeholder, not a
+# duplicated magic number.
+_BASE_RESERVE_DROPS = 10_000_000  # 10 XRP — account base reserve
+_OWNER_RESERVE_DROPS = 2_000_000  # 2 XRP per owned object (offer, trust line, ...)
+
 
 def strategy_memo(module: str, action: str, run_id: str = "") -> str:
     """Build a strategy memo string."""
@@ -38,14 +52,18 @@ class PositionSnapshot:
 
     @property
     def spendable_estimate_drops(self) -> int:
-        """Estimate spendable XRP (balance - reserves)."""
-        base_reserve = 10_000_000  # 10 XRP in drops
-        owner_reserve = 2_000_000  # 2 XRP per object
+        """Estimate spendable XRP (balance - reserves).
+
+        Reserve amounts come from module-level _BASE_RESERVE_DROPS /
+        _OWNER_RESERVE_DROPS (network-governed amendment values — see
+        their definition). Hoisting them out of this hot path means a
+        single edit tracks a network reserve change across all call sites.
+        """
         try:
             balance = int(self.account.balance_drops)
         except (ValueError, TypeError):
             balance = 0
-        reserved = base_reserve + (self.owner_count * owner_reserve)
+        reserved = _BASE_RESERVE_DROPS + (self.owner_count * _OWNER_RESERVE_DROPS)
         return max(0, balance - reserved)
 
 
@@ -228,12 +246,24 @@ async def cancel_module_offers(
     transport: Transport,
     wallet_seed: str,
     offer_sequences: list[int],
-) -> list[tuple[int, bool]]:
-    """Cancel all offers by sequence. Returns [(seq, success), ...]."""
-    results = []
+) -> list[tuple[int, bool, str]]:
+    """Cancel all offers by sequence.
+
+    Returns ``[(seq, success, txid), ...]``. ``txid`` is the REAL
+    OfferCancel transaction id from the SubmitResult — callers (the
+    handler) record it into the proof pack / certificate. Previously we
+    discarded it and the handler minted a ``synthetic-cancel-<seq>``
+    placeholder, which produced a dead testnet.xrpl.org explorer link and
+    inflated tx counts (F-BACKEND-006).
+
+    ``txid`` is the empty string when the transport returns none (e.g. a
+    failed cancel), so callers can fall back gracefully rather than
+    fabricating an id.
+    """
+    results: list[tuple[int, bool, str]] = []
     for seq in offer_sequences:
         result = await transport.submit_offer_cancel(wallet_seed, seq)
-        results.append((seq, result.success))
+        results.append((seq, result.success, result.txid))
     return results
 
 

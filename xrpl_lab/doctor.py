@@ -163,18 +163,45 @@ async def _check_faucet() -> Check:
 
 
 def _check_env_overrides() -> Check:
-    """Report any environment variable overrides."""
-    overrides = []
+    """Report env var overrides and FAIL on a non-testnet endpoint.
+
+    XRPL Lab is testnet-only. An ``XRPL_LAB_RPC_URL`` / ``XRPL_LAB_FAUCET_URL``
+    override pointed at mainnet or an unrecognized host is a real-funds risk,
+    so the doctor surfaces it as a FAILING check (not a passing
+    informational note) — matching the transport's write-path refusal.
+    """
+    from .transport.xrpl_testnet import (
+        SAFE_NETWORKS,
+        classify_network,
+        get_faucet_url,
+        get_rpc_url,
+    )
+
     rpc = os.environ.get("XRPL_LAB_RPC_URL")
     faucet = os.environ.get("XRPL_LAB_FAUCET_URL")
+    overrides = []
     if rpc:
         overrides.append(f"RPC: {rpc}")
     if faucet:
         overrides.append(f"Faucet: {faucet}")
 
-    if overrides:
-        return Check("Env overrides", True, "; ".join(overrides))
-    return Check("Env overrides", True, "None (using defaults)")
+    if not overrides:
+        return Check("Env overrides", True, "None (using defaults)")
+
+    rpc_net = classify_network(get_rpc_url())
+    faucet_net = classify_network(get_faucet_url())
+    detail = "; ".join(overrides) + f"  [RPC: {rpc_net}, faucet: {faucet_net}]"
+
+    if rpc_net not in SAFE_NETWORKS or faucet_net not in SAFE_NETWORKS:
+        return Check(
+            "Env overrides",
+            False,
+            detail,
+            "Refusing non-testnet endpoint — XRPL Lab is testnet-only and will "
+            "not sign or submit against it. Unset the override to use the "
+            "default testnet, or use --dry-run for offline practice.",
+        )
+    return Check("Env overrides", True, detail)
 
 
 def _check_last_error() -> Check:

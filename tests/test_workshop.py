@@ -317,6 +317,32 @@ class TestStatusParity:
 class TestRecoveryGuidance:
     """diagnose_recovery returns actionable hints for known stuck states."""
 
+    @pytest.fixture(autouse=True)
+    def _hermetic_workspace(self, tmp_path, monkeypatch):
+        """Sandbox the cwd-relative paths diagnose_recovery probes.
+
+        diagnose_recovery() reads two filesystem locations that default to the
+        developer's real cwd:
+          * the proof-pack probe via get_workspace_dir() -> DEFAULT_WORKSPACE_DIR
+            (Path('.xrpl-lab')), resolved relative to cwd; and
+          * the camp-wallet probe via Path.cwd() / '.xrpl-camp' / 'wallet.json'.
+        On a real dev machine the repo's own ./.xrpl-lab/proofs/ already holds a
+        proof pack, so the "no proof pack" branch never fires and
+        test_all_complete_no_proof_pack flakes (F-TESTS-002). Redirect both to an
+        empty tmp dir so these tests see a deterministic, empty workspace.
+
+        Scoped to this class only (autouse fixture, not a global conftest):
+        other test modules already monkeypatch these paths themselves, and a
+        global redirect would collide with them.
+        """
+        # Point the workspace root at an empty tmp dir. get_workspace_dir()
+        # returns DEFAULT_WORKSPACE_DIR at call time, so patching the module
+        # attribute is sufficient — no proofs/ dir exists under it.
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws")
+        # The camp-wallet probe uses Path.cwd(); chdir into tmp so it resolves to
+        # an empty tree too (no ./.xrpl-camp/wallet.json).
+        monkeypatch.chdir(tmp_path)
+
     def test_no_wallet_recovery(self) -> None:
         hints = diagnose_recovery(_make_state(wallet=None))
         situations = [h.situation for h in hints]

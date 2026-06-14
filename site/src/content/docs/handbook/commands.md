@@ -27,6 +27,20 @@ sidebar:
 | `xrpl-lab support-bundle --verify <file>` | Verify a received support bundle |
 | `xrpl-lab feedback` | Alias for support-bundle (markdown output) |
 
+## Facilitator commands
+
+| Command | Description |
+|---------|-------------|
+| `xrpl-lab cohort-status [--dir DIR] [--format FORMAT]` | Aggregate per-learner status across a cohort directory (one subdirectory per learner) |
+| `xrpl-lab session-export [--dir DIR] [--format FORMAT] [--outfile FILE]` | Archive every learner's shareable artifacts (proofs, reports, audit packs, certificates) with a SHA-256 manifest — never includes wallet or state files |
+
+## Module authoring
+
+| Command | Description |
+|---------|-------------|
+| `xrpl-lab lint [glob] [--json] [--no-curriculum]` | Validate module files and curriculum (default glob `modules/*.md`) |
+| `xrpl-lab module init --id ID --track TRACK --title TITLE --time TIME` | Scaffold a lint-passing module skeleton at `modules/<id>.md` |
+
 ## Artifact commands
 
 | Command | Description |
@@ -61,7 +75,7 @@ sidebar:
 |---------|-------------|
 | `xrpl-lab doctor` | Run diagnostic checks (wallet, state, workspace, env overrides, RPC, faucet, last error) |
 | `xrpl-lab self-check` | Alias for doctor |
-| `xrpl-lab reset` | Wipe local state (requires typing RESET to confirm; add `--keep-wallet` to preserve wallet) |
+| `xrpl-lab reset` | Wipe local state + workspace (requires typing RESET to confirm). Your wallet is always preserved — reset never touches `~/.xrpl-lab/wallet.json` |
 | `xrpl-lab reset --module <module_id>` | Granular per-module reset — clear one module's state and workspace artifacts only, keep everything else |
 
 ### Granular reset flags
@@ -70,7 +84,7 @@ sidebar:
 |------|-------------|
 | `--module <module_id>` | Reset only the named module (removes it from `completed_modules`, clears its tx records and workspace report). Wallet, other modules, and audit packs are preserved |
 | `--confirm` | Skip the confirmation prompt (granular `--module` mode only) |
-| `--keep-wallet` | Whole-state reset, but keep the wallet file |
+| `--keep-wallet` | Deprecated no-op — `reset` always preserves the wallet; kept (hidden) for backward compatibility |
 
 ## `xrpl-lab serve` — web dashboard
 
@@ -108,7 +122,7 @@ cd site && npm run dev
 
 Open `http://localhost:4321/xrpl-lab/app/` to use the dashboard.
 
-In **production** (after `cd site && npm run build`), the FastAPI app serves both the API surface and the built dashboard from one process — `xrpl-lab serve` is the only command you need.
+In **production**, build the site once (`cd site && npm run build`) and then `xrpl-lab serve` hosts **both** the API and the built dashboard from one process: on start-up it looks for a built dashboard at `$XRPL_LAB_DASHBOARD_DIR` or `./site/dist`, and when it finds one it mounts it in-process at `/xrpl-lab/app/`. If no built dashboard is found, `serve` hosts the API only and prints how to start the dashboard separately. The bundled dashboard calls the API at `localhost:8321`, so keep the default port when using the in-process dashboard.
 
 ### Why this matters for facilitators
 

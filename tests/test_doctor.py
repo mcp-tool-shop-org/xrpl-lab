@@ -165,11 +165,31 @@ class TestLocalChecks:
         assert check.passed
         assert "None" in check.detail
 
-    def test_env_overrides_set(self, monkeypatch):
+    def test_env_overrides_unknown_host_fails(self, monkeypatch):
+        # An override to an unrecognized (non-testnet) host must FAIL — XRPL
+        # Lab is testnet-only and refuses to sign/submit against it.
+        monkeypatch.delenv("XRPL_LAB_FAUCET_URL", raising=False)
         monkeypatch.setenv("XRPL_LAB_RPC_URL", "https://custom.rpc")
         check = _check_env_overrides()
-        assert check.passed
+        assert not check.passed
         assert "custom.rpc" in check.detail
+        assert "testnet-only" in (check.hint or "")
+
+    def test_env_overrides_testnet_host_passes(self, monkeypatch):
+        # An override that still points at a testnet host is allowed.
+        monkeypatch.delenv("XRPL_LAB_FAUCET_URL", raising=False)
+        monkeypatch.setenv("XRPL_LAB_RPC_URL", "https://s.altnet.rippletest.net:51234")
+        check = _check_env_overrides()
+        assert check.passed
+        assert "testnet" in check.detail
+
+    def test_env_overrides_mainnet_blocked(self, monkeypatch):
+        # A mainnet override is the real-funds risk this check exists to catch.
+        monkeypatch.delenv("XRPL_LAB_FAUCET_URL", raising=False)
+        monkeypatch.setenv("XRPL_LAB_RPC_URL", "https://s1.ripple.com:51234")
+        check = _check_env_overrides()
+        assert not check.passed
+        assert "mainnet" in check.detail
 
     def test_last_error_none(self, tmp_path, monkeypatch):
         monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)

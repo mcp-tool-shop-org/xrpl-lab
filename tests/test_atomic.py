@@ -153,13 +153,31 @@ class TestAtomicSemantics:
         # No replace ran — direct write
         assert not replaced, f"atomic=False must not call os.replace: {replaced}"
 
+    @POSIX_ONLY
     def test_atomic_no_partial_visible_during_concurrent_read(
         self, tmp_path: Path
     ) -> None:
         """A reader observing the final path during a flurry of writes must
         only ever see complete JSON — never a half-written document. The
         tmp+rename guarantees this; without it a reader could catch the
-        write mid-flight."""
+        write mid-flight.
+
+        POSIX-only by construction. The test's reader spin-reads ``path`` in
+        a zero-delay loop, so the destination is almost always held open. On
+        POSIX that is harmless — ``os.replace`` atomically swaps the inode
+        out from under the open handle and the rename always succeeds first
+        try, so a reader never catches a torn write. Windows has no
+        rename-over-open: ``os.replace`` raises ``PermissionError`` [WinError
+        5] while any handle is open. ``atomic_write_json``'s bounded retry
+        loop (proven green by
+        ``test_replace_retries_transient_permission_error``) absorbs the
+        *transient* lock a real interval-polling reader produces, but it
+        cannot win against this synthetic zero-delay spin-reader within its
+        ~200ms budget — the destination is essentially never unheld. That is
+        a property of the stress harness, not the production code path (the
+        FastAPI dashboard polls on an interval, it does not spin-read), so we
+        skip the stress variant on Windows and rely on the deterministic
+        retry-path regression tests for Windows coverage."""
         path = tmp_path / "concurrent.json"
         # Establish a known-good baseline file so readers don't FileNotFound.
         atomic_write_json(path, {"version": 0, "items": []})
@@ -192,6 +210,80 @@ class TestAtomicSemantics:
             f"reader observed {len(partial_reads)} partial JSON snapshots — "
             "atomic write-then-rename guarantee broken"
         )
+
+    def test_replace_retries_transient_permission_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The os.replace retry loop must absorb a transient PermissionError
+        (Windows WinError 5: a concurrent reader holding the destination open)
+        and complete the write once a subsequent attempt succeeds. We simulate
+        the race deterministically: os.replace raises PermissionError on its
+        first call, then delegates to the real implementation. The write must
+        still land — proving the retry path, not just first-try success."""
+        path = tmp_path / "data.json"
+        # Baseline so there's a real destination for replace to land on.
+        atomic_write_json(path, {"version": 0})
+
+        real_replace = os.replace
+        calls = {"n": 0}
+
+        def flaky_replace(src, dst, *args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # Mirror the Windows transient lock on the FIRST attempt only.
+                raise PermissionError(13, "simulated WinError 5 (reader open)")
+            return real_replace(src, dst, *args, **kwargs)
+
+        # Keep the test fast: collapse the backoff sleep to a no-op so we
+        # exercise the retry control flow without the real ~20ms wait.
+        monkeypatch.setattr("xrpl_lab._atomic.os.replace", flaky_replace)
+        monkeypatch.setattr("xrpl_lab._atomic.time.sleep", lambda _s: None)
+
+        # Must NOT raise — the second attempt succeeds.
+        atomic_write_json(path, {"version": 1}, atomic=True)
+
+        assert calls["n"] == 2, (
+            f"expected exactly 2 os.replace attempts (1 fail + 1 success), "
+            f"got {calls['n']}"
+        )
+        # The new content landed and no orphan tmp remains.
+        assert json.loads(path.read_text(encoding="utf-8")) == {"version": 1}
+        assert not (tmp_path / "data.json.tmp").exists()
+
+    def test_replace_reraises_after_exhausting_retries(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If every os.replace attempt raises PermissionError (a permanently
+        locked destination, not a transient reader), the loop must give up and
+        re-raise the last exception — with the orphan tmp cleaned up and the
+        previous good copy intact. Bounds the retry so a genuinely-stuck file
+        fails loudly instead of hanging forever."""
+        path = tmp_path / "data.json"
+        atomic_write_json(path, {"baseline": True})
+        original_bytes = path.read_bytes()
+
+        calls = {"n": 0}
+
+        def always_locked(src, dst, *args, **kwargs):
+            calls["n"] += 1
+            raise PermissionError(13, "simulated permanently-locked dest")
+
+        monkeypatch.setattr("xrpl_lab._atomic.os.replace", always_locked)
+        monkeypatch.setattr("xrpl_lab._atomic.time.sleep", lambda _s: None)
+
+        with pytest.raises(PermissionError, match="permanently-locked"):
+            atomic_write_json(path, {"new": True}, atomic=True)
+
+        # Exhausted the full attempt budget before giving up.
+        from xrpl_lab._atomic import _REPLACE_MAX_ATTEMPTS
+
+        assert calls["n"] == _REPLACE_MAX_ATTEMPTS, (
+            f"expected {_REPLACE_MAX_ATTEMPTS} attempts before re-raise, "
+            f"got {calls['n']}"
+        )
+        # Orphan tmp cleaned up by the outer except, baseline untouched.
+        assert not (tmp_path / "data.json.tmp").exists()
+        assert path.read_bytes() == original_bytes
 
 
 class TestFailureCleanup:

@@ -903,6 +903,27 @@ def last_run():
     console.print()
 
 
+def _resolve_dashboard_dir() -> Path | None:
+    """Locate a built Astro dashboard to serve in-process, or None.
+
+    Resolution order: ``$XRPL_LAB_DASHBOARD_DIR`` (explicit), then
+    ``./site/dist`` relative to the current directory (repo / dev use). The
+    built site is NOT shipped in the wheel (only ``modules/`` is force-
+    included), so an installed copy serves the dashboard in-process only when
+    one of these points at a ``cd site && npm run build`` output. Returns
+    None when no built dashboard is found — ``serve`` then hosts the API only
+    and the dashboard is expected to run separately (Astro dev server).
+    """
+    import os
+
+    env = os.environ.get("XRPL_LAB_DASHBOARD_DIR")
+    if env:
+        p = Path(env)
+        return p if p.is_dir() else None
+    candidate = Path.cwd() / "site" / "dist"
+    return candidate if candidate.is_dir() else None
+
+
 @main.command()
 @click.option('--port', default=8321, help='API server port')
 @click.option('--host', default='127.0.0.1', help='API server host')
@@ -910,22 +931,69 @@ def last_run():
 def serve(port: int, host: str, dry_run: bool):
     """Start the XRPL Lab web dashboard and API server.
 
-API docs available at http://localhost:{port}/docs after starting.
-"""
+    Always hosts the JSON API on the given host:port. When a built dashboard
+    is found ($XRPL_LAB_DASHBOARD_DIR or ./site/dist), it is ALSO served
+    in-process at /xrpl-lab/app/ so a single command runs both; otherwise the
+    dashboard is served separately (the Astro dev server). The bundled
+    dashboard talks to the API at localhost:8321, so keep the default port
+    when using the in-process dashboard.
+
+    API docs available at http://{host}:{port}/docs after starting.
+    """
     import uvicorn
 
     from .server import create_app
 
+    dashboard_dir = _resolve_dashboard_dir()
+    extra_origins: tuple[str, ...] = ()
+    # Prefer the localhost alias when bound to a loopback host so the served
+    # page origin matches the bundled dashboard's hard-coded localhost:8321
+    # API base (avoids a needless localhost/127.0.0.1 cross-origin split).
+    loopback = host in ("127.0.0.1", "0.0.0.0", "localhost")
+    dash_host = "localhost" if loopback else host
+
+    if dashboard_dir is not None:
+        # Dashboard served in-process: the page origin IS the API origin, so
+        # the WS Origin allow-list must include this host:port (and loopback
+        # aliases) or live-run WebSockets get rejected with code 4003.
+        extra_origins = (
+            f"http://{host}:{port}",
+            f"http://localhost:{port}",
+            f"http://127.0.0.1:{port}",
+        )
+        dashboard_url = f"http://{dash_host}:{port}/xrpl-lab/app/"
+        dashboard_note = f"Serving built dashboard in-process from {dashboard_dir}"
+    else:
+        dashboard_url = "http://localhost:4321/xrpl-lab/app/"
+        dashboard_note = (
+            "Dashboard not built — start the Astro dev server: cd site && "
+            "npm run dev  (or `cd site && npm run build` to serve it in-process)"
+        )
+
     console.print(Panel.fit(
         f"[bold]XRPL Lab Web Dashboard[/]\n"
         f"API: [cyan]http://{host}:{port}[/]\n"
-        f"Dashboard: [cyan]http://localhost:4321/xrpl-lab/app/[/]\n"
+        f"Dashboard: [cyan]{dashboard_url}[/]\n"
         f"Mode: [yellow]{'Dry Run' if dry_run else 'Testnet'}[/]",
         title="serve"
     ))
-    console.print("[dim]Start the Astro dev server separately: cd site && npm run dev[/]")
+    console.print(f"[dim]{dashboard_note}[/]")
 
-    app = create_app(dry_run=dry_run)
+    if not loopback:
+        # The dashboard mount makes a single-process serve more attractive to
+        # run for a room; there is NO authentication (CORS/Origin gate only),
+        # so binding off-loopback exposes the API + facilitator endpoints to
+        # the network. Warn explicitly — the Origin allow-list still rejects
+        # arbitrary LAN origins on the WS, but the HTTP surface is reachable.
+        console.print(
+            f"[yellow]Warning:[/] binding to non-loopback host [cyan]{host}[/] "
+            "exposes the API and dashboard on the network with no "
+            "authentication. Only do this on a trusted LAN."
+        )
+
+    app = create_app(
+        dry_run=dry_run, dashboard_dir=dashboard_dir, extra_origins=extra_origins
+    )
     uvicorn.run(app, host=host, port=port)
 
 
@@ -1115,8 +1183,9 @@ def session_export(cohort_dir: str, fmt: str, outfile: str | None):
 
 @main.command()
 @click.option(
-    "--keep-wallet", is_flag=True,
-    help="Keep wallet file, only wipe progress",
+    "--keep-wallet", is_flag=True, hidden=True,
+    help="Deprecated no-op: reset always preserves the wallet. Kept for "
+         "backward compatibility.",
 )
 @click.option(
     "--module", "module_id", default=None,
@@ -1202,11 +1271,18 @@ def reset(keep_wallet: bool, module_id: str | None, skip_confirm: bool):
     console.print("  - State: ~/.xrpl-lab/state.json")
     console.print("  - Workspace: ./.xrpl-lab/")
     console.print()
+    # Accurate, unconditional: reset_state() only unlinks state.json and
+    # rmtrees the ./.xrpl-lab/ workspace — it NEVER touches the wallet at
+    # ~/.xrpl-lab/wallet.json. The old --keep-wallet messaging implied the
+    # wallet was otherwise at risk; it never is.
+    console.print(
+        "[green]Your wallet is preserved.[/] reset never touches "
+        "~/.xrpl-lab/wallet.json — only state and the workspace are cleared."
+    )
     if keep_wallet:
-        console.print("[green]--keep-wallet: Your wallet file will be preserved.[/]")
-    else:
-        console.print("[red bold]Your wallet file will NOT be deleted.[/]")
-        console.print("[dim](Use --keep-wallet to make this explicit.)[/]")
+        console.print(
+            "[dim](--keep-wallet is redundant — the wallet is always preserved.)[/]"
+        )
     console.print()
 
     try:

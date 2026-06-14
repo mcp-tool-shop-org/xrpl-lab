@@ -8,6 +8,7 @@ import zipfile
 import pytest
 
 from xrpl_lab.reporting import (
+    build_session_manifest,
     generate_certificate,
     generate_proof_pack,
     write_certificate,
@@ -16,6 +17,12 @@ from xrpl_lab.reporting import (
     write_session_export,
 )
 from xrpl_lab.state import LabState
+
+# A pinned, recognizable seed value used by the adversarial "no secrets"
+# tests. The point is to assert this exact VALUE never lands in a
+# shareable artifact — a key-name-only check ("'seed' not in dumps") is
+# vacuous against a seedless state.
+SENTINEL_SEED = "sEdSENTINELSEEDxxxxxxxxxxxxxx"
 
 
 @pytest.fixture
@@ -45,9 +52,28 @@ class TestProofPack:
         assert "transactions" in pack
         assert len(pack["transactions"]) == 2
 
-    def test_no_secrets(self, completed_state):
+    def test_no_secrets(self, completed_state, tmp_path, monkeypatch):
+        """Adversarial: pin a known SENTINEL seed value into the
+        monkeypatched workspace (wallet.json) — a place the generator
+        could plausibly read — and assert that VALUE never appears in the
+        serialized proof pack. The old form asserted ``'seed' not in
+        json.dumps(<seedless state>)`` which is vacuously true: a state
+        with no seed can't leak one. We pin the value channel, not the
+        key name."""
+        ws = tmp_path / ".xrpl-lab"
+        ws.mkdir()
+        (ws / "wallet.json").write_text(
+            json.dumps({"seed": SENTINEL_SEED}), encoding="utf-8",
+        )
+        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: ws)
+
         pack = generate_proof_pack(completed_state)
         text = json.dumps(pack)
+        # The literal sentinel seed value must not appear anywhere.
+        assert SENTINEL_SEED not in text, (
+            "proof pack leaked the sentinel wallet seed value"
+        )
+        # Key-name guards stay as a cheap secondary signal.
         assert "seed" not in text.lower()
         assert "secret" not in text.lower()
 
@@ -103,9 +129,23 @@ class TestCertificate:
         assert "receipt_literacy" in cert["modules_completed"]
         assert cert["total_modules"] == 1
 
-    def test_no_secrets(self, completed_state):
+    def test_no_secrets(self, completed_state, tmp_path, monkeypatch):
+        """Adversarial: same value-channel pin as
+        ``TestProofPack.test_no_secrets`` — a SENTINEL seed sits in the
+        monkeypatched workspace's wallet.json, and the serialized
+        certificate must not contain that VALUE."""
+        ws = tmp_path / ".xrpl-lab"
+        ws.mkdir()
+        (ws / "wallet.json").write_text(
+            json.dumps({"seed": SENTINEL_SEED}), encoding="utf-8",
+        )
+        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: ws)
+
         cert = generate_certificate(completed_state)
         text = json.dumps(cert)
+        assert SENTINEL_SEED not in text, (
+            "certificate leaked the sentinel wallet seed value"
+        )
         assert "seed" not in text.lower()
 
     def test_write(self, completed_state, tmp_path, monkeypatch):
@@ -324,6 +364,60 @@ class TestSessionExport:
             names = set(zf.namelist())
         assert "MANIFEST.json" in names
         assert "alice/proofs/p.json" in names
+
+    def test_session_export_manifest_has_no_absolute_path(self, tmp_path):
+        """F-BACKEND-004: the MANIFEST.json packed into the DISTRIBUTABLE
+        archive must not leak the facilitator's absolute cohort path (OS
+        username + local dir layout). The cohort dir is placed under a
+        recognizable sentinel parent so a leaked resolved path would be
+        unmistakable; the manifest must reference only the basename.
+
+        Asserts on three surfaces: the dict from build_session_manifest,
+        its JSON serialization, and the MANIFEST.json bytes inside the
+        archive — all must be free of the absolute-path fragment.
+        """
+        # Sentinel parent segment that would only appear if the absolute
+        # path leaked. tmp_path is already an absolute path off the OS
+        # temp root, so any str(cohort.resolve()) contains it.
+        secret_segment = "FACILITATOR_PRIVATE_HOME"
+        cohort = tmp_path / secret_segment / "cohort"
+        cohort.mkdir(parents=True)
+        _seed_learner_workspace(
+            cohort, "alice", proofs={"p.json": '{"ok":1}'},
+        )
+
+        # 1. Direct manifest builder — the field must be the basename,
+        #    never the resolved absolute path.
+        learner_artifacts = {
+            "alice": [(
+                cohort / "alice" / ".xrpl-lab" / "proofs" / "p.json",
+                "alice/proofs/p.json",
+            )]
+        }
+        manifest = build_session_manifest(cohort, learner_artifacts)
+        manifest_text = json.dumps(manifest)
+        abs_path = str(cohort.resolve())
+        assert secret_segment not in manifest_text, (
+            f"manifest leaked absolute cohort path fragment: {abs_path}"
+        )
+        assert abs_path not in manifest_text
+        # If cohort_dir survives at all, it must be the bare basename.
+        if "cohort_dir" in manifest:
+            assert manifest["cohort_dir"] == cohort.name
+            assert "/" not in manifest["cohort_dir"]
+            assert "\\" not in manifest["cohort_dir"]
+
+        # 2. The MANIFEST.json that actually ships inside the archive.
+        outfile = tmp_path / "session.tar.gz"
+        write_session_export(cohort, outfile, archive_format="tar.gz")
+        with tarfile.open(outfile, "r:gz") as tar:
+            mf = tar.extractfile("MANIFEST.json")
+            assert mf is not None
+            archived_manifest_text = mf.read().decode("utf-8")
+        assert secret_segment not in archived_manifest_text, (
+            "archived MANIFEST.json leaked the facilitator's absolute path"
+        )
+        assert abs_path not in archived_manifest_text
 
     def test_session_export_extraction_round_trip(self, tmp_path):
         """F-TESTS-PH8-002 — facilitator-share-then-verify round trip.

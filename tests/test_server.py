@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from xrpl_lab.api.runner_ws import _ALLOWED_ORIGINS
 from xrpl_lab.doctor import Check, DoctorReport
 from xrpl_lab.modules import ModuleDef, ModuleStep
 from xrpl_lab.server import create_app
@@ -457,3 +458,86 @@ class TestCreateAppDryRun:
         """create_app(dry_run=False) explicitly stores False."""
         app = create_app(dry_run=False)
         assert app.state.dry_run is False
+
+
+# ── In-process dashboard mount (F-FE-A-001) ────────────────────────────
+
+
+class TestDashboardMount:
+    """`serve` mounts the built Astro dashboard in-process when present."""
+
+    def _dist(self, tmp_path: Path) -> Path:
+        dist = tmp_path / "dist"
+        (dist / "app").mkdir(parents=True)
+        (dist / "index.html").write_text("<h1>XRPL Lab</h1>", encoding="utf-8")
+        (dist / "app" / "index.html").write_text("<h1>Dashboard</h1>", encoding="utf-8")
+        return dist
+
+    def test_dashboard_served_when_dir_given(self, tmp_path: Path) -> None:
+        client = TestClient(create_app(dashboard_dir=self._dist(tmp_path)))
+        root = client.get("/xrpl-lab/")
+        assert root.status_code == 200
+        assert "XRPL Lab" in root.text
+        app_page = client.get("/xrpl-lab/app/")
+        assert app_page.status_code == 200
+        assert "Dashboard" in app_page.text
+
+    def test_no_mount_without_dir(self) -> None:
+        client = TestClient(create_app())
+        assert client.get("/xrpl-lab/app/").status_code == 404
+
+    def test_no_mount_when_dir_missing(self, tmp_path: Path) -> None:
+        # A non-existent dashboard_dir is treated as "no dashboard".
+        client = TestClient(create_app(dashboard_dir=tmp_path / "nope"))
+        assert client.get("/xrpl-lab/app/").status_code == 404
+
+    def test_api_routes_unaffected_by_mount(self, tmp_path: Path) -> None:
+        client = TestClient(create_app(dashboard_dir=self._dist(tmp_path)))
+        # /api/* still routes to the API, not the static mount.
+        assert client.get("/api/modules").status_code == 200
+
+
+class TestAllowedOriginsWiring:
+    """create_app extends the WS/CORS allow-list with serve-supplied origins."""
+
+    def test_base_origins_present(self) -> None:
+        app = create_app()
+        for o in _ALLOWED_ORIGINS:
+            assert o in app.state.allowed_origins
+
+    def test_extra_origins_appended(self) -> None:
+        app = create_app(extra_origins=("http://localhost:8321",))
+        assert "http://localhost:8321" in app.state.allowed_origins
+        for o in _ALLOWED_ORIGINS:
+            assert o in app.state.allowed_origins
+
+    def test_ws_accepts_extra_origin(self) -> None:
+        from starlette.websockets import WebSocketDisconnect
+
+        client = TestClient(create_app(extra_origins=("http://localhost:8321",)))
+        # The extra origin passes the Origin gate -> proceeds to session
+        # lookup, which closes 4004 (unknown run_id). 4004 (not 4003) proves
+        # the origin was accepted via the app-configurable allow-list.
+        with (
+            pytest.raises(WebSocketDisconnect) as exc,
+            client.websocket_connect(
+                "/api/run/receipt_literacy/ws?run_id=nonexistent",
+                headers={"origin": "http://localhost:8321"},
+            ),
+        ):
+            pass
+        assert exc.value.code == 4004
+
+    def test_ws_rejects_origin_not_in_extended_list(self) -> None:
+        from starlette.websockets import WebSocketDisconnect
+
+        client = TestClient(create_app(extra_origins=("http://localhost:8321",)))
+        with (
+            pytest.raises(WebSocketDisconnect) as exc,
+            client.websocket_connect(
+                "/api/run/receipt_literacy/ws?run_id=nonexistent",
+                headers={"origin": "https://evil.com"},
+            ),
+        ):
+            pass
+        assert exc.value.code == 4003

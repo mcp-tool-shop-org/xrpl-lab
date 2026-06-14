@@ -355,6 +355,43 @@ class TestApiContractSnapshots:
         assert isinstance(data["has_certificate"], bool)
         assert isinstance(data["report_count"], int)
 
+    def test_status_workspace_is_not_an_absolute_path_leak(
+        self, _env: None, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """F-TESTS-006 — GET /api/status must not leak the host's absolute
+        filesystem layout via the ``workspace`` field.
+
+        ``test_status_response_schema_locked`` only pins ``workspace`` as a
+        ``str``; a ``str`` is satisfied equally by ``"ws"`` and by
+        ``"/home/learner/.xrpl-lab/ws"``. This test pins the no-path-leak
+        half of the contract: with ``get_workspace_dir`` monkeypatched to a
+        RELATIVE path, the serialized value stays relative — proving the
+        route passes the workspace through unmodified (``str(ws)``) rather
+        than resolving it to an absolute host path that would expose the
+        operator's home-directory layout to the dashboard.
+        """
+        import os
+
+        # Monkeypatch a RELATIVE workspace dir — the route serializes it
+        # with ``str(ws)``, so a relative input must surface relative.
+        monkeypatch.setattr(
+            "xrpl_lab.api.routes.get_workspace_dir", lambda: Path("relative_ws")
+        )
+
+        mods = {"receipt_literacy": _make_module("receipt_literacy", order=1)}
+        monkeypatch.setattr("xrpl_lab.api.routes.load_all_modules", lambda: mods)
+        monkeypatch.setattr(
+            "xrpl_lab.api.routes.load_state", lambda: _make_state()
+        )
+
+        data = TestClient(create_app()).get("/api/status").json()
+
+        # The no-path-leak invariant: a relative workspace stays relative.
+        assert isinstance(data["workspace"], str)
+        assert not os.path.isabs(data["workspace"]), (
+            f"workspace leaked an absolute host path: {data['workspace']!r}"
+        )
+
     def test_doctor_response_schema_locked(
         self, _env: None, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

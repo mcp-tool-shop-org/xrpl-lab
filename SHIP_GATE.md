@@ -43,7 +43,7 @@
 ## C. Operator Docs
 
 - [x] `[all]` README is current: what it does, install, usage, supported platforms + runtime versions (2026-05-01)
-- [x] `[all]` CHANGELOG.md (Keep a Changelog format) (2026-05-01) — 14 entries, v0.1.0 through v1.0.2
+- [x] `[all]` CHANGELOG.md (Keep a Changelog format) (2026-05-01) — 20+ entries, v0.1.0 through v1.6.0
 - [x] `[all]` LICENSE file present and repo states support status (2026-05-01) — MIT
 - [x] `[cli]` `--help` output accurate for all commands and flags (2026-05-01)
 - [x] `[cli|mcp|desktop]` Logging levels defined: silent / normal / verbose / debug — secrets redacted at all levels (2026-05-01) — Rich console output; no secrets in any output path; `--dry-run` for silent network
@@ -53,7 +53,7 @@
 ## D. Shipping Hygiene
 
 - [x] `[all]` `verify` script exists (test + build + smoke in one command) (2026-05-01) — `verify.sh`
-- [x] `[all]` Version in manifest matches git tag (2026-05-01) — `pyproject.toml`, `__init__.py`, `state.py` all in sync
+- [x] `[all]` Version in manifest matches git tag (2026-05-01) — `pyproject.toml`, `__init__.py`, `state.py` all in sync at v1.6.0 (prepped, not yet tagged; latest pushed tag is v1.5.0)
 - [x] `[all]` Dependency scanning runs in CI (ecosystem-appropriate) (2026-05-01) — `ruff check` for code quality; pip installs from PyPI with version pins
 - [x] `[all]` Automated dependency update mechanism exists (2026-05-01) — manual via `pip install --upgrade`; CI runs on `pyproject.toml` changes
 - [ ] `[npm]` SKIP: not an npm package

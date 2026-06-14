@@ -424,8 +424,9 @@ def test_serve_dry_run_launches_with_dry_run_app(monkeypatch):
 
     captured = {}
 
-    def fake_create_app(dry_run=False):
+    def fake_create_app(dry_run=False, **kwargs):
         captured["dry_run"] = dry_run
+        captured["kwargs"] = kwargs
         # Return a minimal stand-in — uvicorn.run will be mocked anyway
         return object()
 
@@ -442,6 +443,9 @@ def test_serve_dry_run_launches_with_dry_run_app(monkeypatch):
     assert captured.get("dry_run") is True
     assert captured.get("port") == 9999
     assert captured.get("host") == "0.0.0.0"
+    # serve must forward the mount + origin wiring to create_app.
+    assert "dashboard_dir" in captured.get("kwargs", {})
+    assert "extra_origins" in captured.get("kwargs", {})
 
 
 def test_serve_testnet_mode_by_default(monkeypatch):
@@ -449,7 +453,7 @@ def test_serve_testnet_mode_by_default(monkeypatch):
 
     captured = {}
 
-    def fake_create_app(dry_run=False):
+    def fake_create_app(dry_run=False, **kwargs):
         captured["dry_run"] = dry_run
         return object()
 

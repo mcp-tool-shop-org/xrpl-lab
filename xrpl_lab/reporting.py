@@ -317,10 +317,18 @@ def build_session_manifest(
           "manifest_version": 1,
           "tool_version": "<xrpl-lab version>",
           "created_at": "<iso8601>",
-          "cohort_dir": "<resolved abs path>",
+          "cohort_dir": "<basename only>",
           "learners": ["alice", "bob", ...],
           "files": [{"path": "alice/proofs/x.json", "sha256": "..."}],
         }
+
+    F-BACKEND-004 (privacy): ``cohort_dir`` is the *basename* only, never
+    the resolved absolute path. This MANIFEST.json is packed into the
+    distributable .tar.gz/.zip a facilitator shares; ``str(path.resolve())``
+    would leak the facilitator's OS username and local dir layout into a
+    shareable artifact (workshop threat-model violation). The learner
+    sub-paths in ``files`` are already relativized, so the absolute path
+    adds no value to a consumer of the archive.
     """
     files: list[dict] = []
     for _learner_id, artifacts in learner_artifacts.items():
@@ -334,7 +342,8 @@ def build_session_manifest(
         "manifest_version": 1,
         "tool_version": __version__,
         "created_at": datetime.now(tz=UTC).isoformat(),
-        "cohort_dir": str(cohort_dir.resolve()),
+        # Basename only — never str(cohort_dir.resolve()). See docstring.
+        "cohort_dir": cohort_dir.name,
         "learners": sorted(learner_artifacts.keys()),
         "files": files,
     }

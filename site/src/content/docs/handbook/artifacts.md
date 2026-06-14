@@ -65,11 +65,12 @@ Human-readable Markdown summaries of what you did and proved in each module. Gen
 
 ## Workspace layout
 
-When you run modules, XRPL Lab creates a `.xrpl-lab/` directory in the current folder with three subdirectories:
+When you run modules, XRPL Lab creates a `.xrpl-lab/` directory in the current folder with four subdirectories:
 
 - **`proofs/`** — JSON proof packs and audit packs with SHA-256 integrity hashes
 - **`reports/`** — Markdown summaries generated after each module
 - **`logs/`** — Internal run logs
+- **`audit_packs/`** — Session-keyed batch audit packs (JSON, with Markdown and CSV exports)
 
 ## Strategy run metadata
 

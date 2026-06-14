@@ -559,7 +559,12 @@ async def _run_module_task(session: ModuleRunSession) -> None:
 
     session.status = "running"
 
-    loop = asyncio.get_event_loop()
+    # get_running_loop() (not the deprecated get_event_loop()) — guaranteed
+    # valid here because _run_module_task only ever runs as a scheduled
+    # asyncio.Task (start_run does ``asyncio.create_task(_run_module_task(...))``),
+    # so a running loop always exists on this thread. get_event_loop() is
+    # deprecated for this use and emits a DeprecationWarning under 3.12+.
+    loop = asyncio.get_running_loop()
     capture_console = _make_capture_console(session.queue, loop, session.run_id)
     # Skip interactive pauses in WebSocket mode
     capture_console.input = lambda _prompt="": ""  # type: ignore[method-assign]
@@ -773,8 +778,14 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
     # server-to-server). Per spec, mismatched Origin is rejected with
     # RFC 6455 application policy code 4003.
     # Origin presence required; reject None or non-allow-listed values with RFC 6455 code 4003.
+    # The effective allow-list is per-app: ``create_app`` may extend the
+    # ``_ALLOWED_ORIGINS`` base with the in-process ``serve`` origin (when the
+    # dashboard is mounted on the API server itself, the browser's Origin is
+    # the API host:port, not localhost:4321). Falls back to the base constant
+    # for the bare-uvicorn / test path where app.state was not populated.
+    allowed_origins = getattr(websocket.app.state, "allowed_origins", _ALLOWED_ORIGINS)
     origin = websocket.headers.get("origin")
-    if origin is None or origin not in _ALLOWED_ORIGINS:
+    if origin is None or origin not in allowed_origins:
         logger.warning(
             "ws origin rejected: origin=%r run_id=%s",
             origin,

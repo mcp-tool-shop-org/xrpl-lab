@@ -219,8 +219,31 @@ class TestCancelModuleOffers:
         results = await cancel_module_offers(transport, "seed", seqs)
 
         assert len(results) == 2
-        assert all(success for _, success in results)
+        # 3-tuple now: (seq, success, txid). Real txid flows through.
+        assert all(success for _, success, _ in results)
         assert len(transport._offers) == 0
+
+    async def test_cancel_returns_real_txid(self):
+        """F-BACKEND-006: cancel_module_offers must surface the REAL
+        OfferCancel txid from the SubmitResult, not discard it. The
+        handler records this id into the proof pack / certificate, so a
+        synthetic placeholder would mint a dead explorer link and inflate
+        tx counts."""
+        transport = DryRunTransport()
+        await transport.submit_offer_create(
+            "seed", "LAB", "10", "rISSUER", "XRP", "1", "",
+        )
+        seqs = [transport._offers[0].sequence]
+        results = await cancel_module_offers(transport, "seed", seqs)
+
+        assert len(results) == 1
+        seq, success, txid = results[0]
+        assert success is True
+        # The dry-run transport mints a concrete txid with an explorer
+        # URL — it must reach the caller, and must NOT be the old
+        # ``synthetic-cancel-<seq>`` placeholder shape.
+        assert txid, "real txid was discarded"
+        assert not txid.startswith("synthetic-cancel-")
 
     async def test_cancel_partial_failure(self):
         transport = DryRunTransport()
@@ -233,6 +256,24 @@ class TestCancelModuleOffers:
         assert len(results) == 2
         # First succeeds, second "succeeds" in dry-run (no-op for nonexistent)
         assert results[0][1] is True
+
+    async def test_cancel_failure_yields_empty_txid(self):
+        """When a cancel fails, no real txid exists — the slot must be an
+        empty string (graceful), not a fabricated id. This is the path
+        the handler relies on to fall back gracefully."""
+        transport = DryRunTransport()
+        await transport.submit_offer_create(
+            "seed", "LAB", "10", "rISSUER", "XRP", "1", "",
+        )
+        seq = transport._offers[0].sequence
+        transport._fail_next = True  # force the next cancel to fail
+        results = await cancel_module_offers(transport, "seed", [seq])
+
+        assert len(results) == 1
+        rseq, success, txid = results[0]
+        assert rseq == seq
+        assert success is False
+        assert txid == ""
 
     async def test_cancel_empty_list(self):
         transport = DryRunTransport()
@@ -397,7 +438,7 @@ class TestStrategyLifecycle:
         # 6. Cancel all offers
         seqs = [o.sequence for o in transport._offers]
         results = await cancel_module_offers(transport, "seed", seqs)
-        assert all(success for _, success in results)
+        assert all(success for _, success, _ in results)
 
         # 7. Final snapshot
         final = await snapshot_position(transport, _FAKE_ADDRESS)

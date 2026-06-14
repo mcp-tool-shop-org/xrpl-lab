@@ -283,6 +283,64 @@ class TestErrorEnvelopePedagogy:
         # Pedagogy: workaround pointer.
         assert "--dry-run" in hint or "run_id" in hint
 
+    def test_generic_exception_sanitizes_paths_and_raw_exception_text(self) -> None:
+        """F-TESTS-005 — the generic-Exception branch must leak NEITHER an
+        absolute filesystem path NOR the raw exception text into the
+        envelope's user-facing message/hint.
+
+        Threat-model contract: ``_error_envelope`` routes every unknown
+        exception through the RUNTIME_INTERNAL branch, which emits a
+        fixed, hand-written message/hint — the full ``str(exc)`` goes to
+        the SERVER log only (see ``_run_module_task``'s ``logger.error``).
+        A learner's browser must never see a path like
+        ``/home/learner/.xrpl-lab/wallet.json`` (filesystem-layout leak)
+        or the raw ``EACCES`` / ``KeyError`` detail (internal-state leak).
+
+        Existing coverage (``test_runtime_internal_routes_to_facilitator``)
+        only feeds a path-free ``RuntimeError("synthetic")`` — it proves
+        the routing but NOT the sanitization, because there's nothing
+        sensitive in "synthetic" to leak. These two cases carry real
+        payloads (an absolute path; an internal dict key) so a future
+        regression that interpolated ``str(exc)`` into the envelope
+        (the classic "helpful error" antipattern) trips the test.
+        """
+        leaky_path = "/home/learner/.xrpl-lab/wallet.json"
+        leaky_exceptions = [
+            # Absolute path + raw OS error string in the exception text.
+            RuntimeError(f"{leaky_path}: EACCES"),
+            # Internal dict key surfaced by a KeyError (internal-state leak).
+            KeyError("internal_session_secret_lookup_key"),
+        ]
+
+        for exc in leaky_exceptions:
+            envelope = _error_envelope(exc)
+
+            # Routed through the generic fallthrough, not a typed branch.
+            assert envelope["code"] == "RUNTIME_INTERNAL", (
+                f"{type(exc).__name__} must route through RUNTIME_INTERNAL; "
+                f"got {envelope['code']!r}"
+            )
+
+            message = envelope["message"]
+            hint = envelope["hint"]
+
+            # No absolute path anywhere in the user-facing surface.
+            assert leaky_path not in message
+            assert leaky_path not in hint
+            # Belt-and-suspenders: not even the bare filename leaks.
+            assert "wallet.json" not in message
+            assert "wallet.json" not in hint
+
+            # No raw exception text (the str(exc) detail) leaks. For the
+            # KeyError this is the internal dict key; for the RuntimeError
+            # it's the EACCES OS-error tail.
+            raw = str(exc)
+            assert raw not in message
+            assert raw not in hint
+            assert "EACCES" not in message and "EACCES" not in hint
+            assert "internal_session_secret_lookup_key" not in message
+            assert "internal_session_secret_lookup_key" not in hint
+
     def test_timeout_hint_covers_cli_and_dashboard_audiences(self) -> None:
         """The timeout hint must speak to BOTH CLI (--dry-run) and
         dashboard ('Dry Run' button) users.

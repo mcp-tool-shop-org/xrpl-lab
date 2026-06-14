@@ -104,10 +104,13 @@ All state lives locally:
   does not lose progress; reopening picks up where the learner left off.
 - **Machine reboot** — state survives the reboot. Resume by reopening the
   dashboard or running `xrpl-lab status` to see what's next.
-- **Moving to a new machine** — copy `~/.xrpl-lab/` to the new machine to bring
-  both the wallet and progress with you. There is no separate export command;
-  the directory itself is the portable bundle. Preserve file permissions on
-  `wallet.json` after the copy.
+- **Moving to a new machine** — copy `~/.xrpl-lab/` directly to the new machine
+  to bring both the wallet and progress with you, preserving file permissions on
+  `wallet.json` after the copy. There is no *wallet-migration* export command:
+  `xrpl-lab session-export` deliberately archives only shareable cohort artifacts
+  (proofs, reports, audit packs, certificates) and never the wallet or state file,
+  so it is not a way to move your account. For a full move, the directory copy is
+  the portable bundle.
 
 ## Network usage
 
