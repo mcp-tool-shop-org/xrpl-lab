@@ -62,9 +62,14 @@ jobs:
         # pipefail so a pip-audit non-zero exit (vulns found under --strict)
         # propagates through the tee and FAILS the job, rather than tee's
         # success masking it. Without this the step would be cosmetic.
+        # --skip-editable: the project installs itself editable via `pip install
+        # -e ".[dev]"`, and pip-audit would otherwise try to look the editable
+        # xrpl-lab up on PyPI and fail under --strict ("not found") — especially
+        # right after a version bump, before that version is published. We audit
+        # the dependency tree, not the project itself.
         run: |
           set -o pipefail
-          pip-audit --strict | tee pip-audit.log
+          pip-audit --strict --skip-editable | tee pip-audit.log
 
       - name: Upload test artifacts
         if: always()
