@@ -45,10 +45,14 @@ def _explorer_url(txid: str, network: str) -> str:
 def _tx_detail(tx_record: TxRecord) -> dict:
     """Build per-tx detail for proof pack.
 
-    The explorer link is resolved from the tx's OWN recorded network, not a
-    single top-level network — a proof pack can span runs on different
-    networks (e.g. testnet then a dry-run repeat), and each receipt must link
-    to the explorer that actually holds that transaction (or no link).
+    The explorer link is ALWAYS recomputed from the tx's OWN recorded network
+    via ``_explorer_url`` — we deliberately do NOT trust ``tx_record.explorer_url``,
+    because a transport can persist a cross-network link (the dry-run transport
+    historically stored a testnet.xrpl.org URL for simulated txids), which the
+    old ``stored or computed`` precedence would then ship into the SHA-sealed
+    pack as a dead link. For a real testnet/devnet tx the recompute yields the
+    identical URL; for dry-run/local/unknown it yields no link. A proof pack
+    can span runs on different networks, so each receipt resolves independently.
     """
     return {
         "txid": tx_record.txid,
@@ -56,8 +60,24 @@ def _tx_detail(tx_record: TxRecord) -> dict:
         "success": tx_record.success,
         "timestamp": datetime.fromtimestamp(tx_record.timestamp, tz=UTC).isoformat(),
         "network": tx_record.network,
-        "explorer_url": tx_record.explorer_url or _explorer_url(tx_record.txid, tx_record.network),
+        "explorer_url": _explorer_url(tx_record.txid, tx_record.network),
     }
+
+
+def _summary_network(state: LabState) -> str:
+    """Top-level network label for a pack/certificate.
+
+    The single network if every recorded tx agrees, ``"mixed"`` if a session
+    spanned networks (the per-tx records carry the precise network), else the
+    current ``state.network`` when there are no transactions yet. Avoids a
+    multi-network pack being mislabeled as just the last run's network.
+    """
+    nets = {tx.network for tx in state.tx_index if tx.network}
+    if len(nets) == 1:
+        return next(iter(nets))
+    if len(nets) > 1:
+        return "mixed"
+    return state.network
 
 
 def generate_proof_pack(state: LabState) -> dict:
@@ -103,7 +123,7 @@ def generate_proof_pack(state: LabState) -> dict:
     pack = {
         "xrpl_lab_proof_pack": True,
         "version": __version__,
-        "network": state.network,
+        "network": _summary_network(state),
         "endpoint": get_rpc_url(),
         "address": state.wallet_address or "unknown",
         "generated_at": datetime.now(tz=UTC).isoformat(),
@@ -145,7 +165,7 @@ def generate_certificate(state: LabState) -> dict:
     cert = {
         "xrpl_lab_certificate": True,
         "version": __version__,
-        "network": state.network,
+        "network": _summary_network(state),
         "address": state.wallet_address or "unknown",
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "modules_completed": completed_ids,

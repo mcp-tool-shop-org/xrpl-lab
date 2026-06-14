@@ -193,7 +193,7 @@ class DryRunTransport(Transport):
             result_code="tesSUCCESS",
             fee="12",
             ledger_index=99999999,
-            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+            explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
     async def submit_trust_set(
@@ -233,7 +233,7 @@ class DryRunTransport(Transport):
                     result_code="tesSUCCESS",
                     fee="12",
                     ledger_index=99999999,
-                    explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+                    explorer_url="",  # dry-run tx is simulated — no public explorer
                 )
             if existing.balance != "0":
                 # Can't remove with non-zero balance
@@ -271,7 +271,7 @@ class DryRunTransport(Transport):
             result_code="tesSUCCESS",
             fee="12",
             ledger_index=99999999,
-            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+            explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
     async def submit_issued_payment(
@@ -342,7 +342,7 @@ class DryRunTransport(Transport):
             result_code="tesSUCCESS",
             fee="12",
             ledger_index=99999999,
-            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+            explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
     def _resolve_lines(self, address: str) -> list[TrustLineInfo]:
@@ -416,7 +416,7 @@ class DryRunTransport(Transport):
             result_code="tesSUCCESS",
             fee="12",
             ledger_index=99999999,
-            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+            explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
     async def submit_offer_cancel(
@@ -448,7 +448,7 @@ class DryRunTransport(Transport):
             result_code="tesSUCCESS",
             fee="12",
             ledger_index=99999999,
-            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+            explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
     async def get_account_offers(self, address: str) -> list[OfferInfo]:
@@ -631,7 +631,7 @@ class DryRunTransport(Transport):
             result_code="tesSUCCESS",
             fee="12",
             ledger_index=99999999,
-            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+            explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
     async def submit_amm_deposit(
@@ -743,7 +743,7 @@ class DryRunTransport(Transport):
             result_code="tesSUCCESS",
             fee="12",
             ledger_index=99999999,
-            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+            explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
     async def submit_amm_withdraw(
@@ -845,7 +845,7 @@ class DryRunTransport(Transport):
             result_code="tesSUCCESS",
             fee="12",
             ledger_index=99999999,
-            explorer_url=f"https://testnet.xrpl.org/transactions/{txid}",
+            explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
     async def get_lp_token_balance(

@@ -530,3 +530,50 @@ def test_recovery_save_failure_no_path_leak_and_graceful(monkeypatch, tmp_path):
     assert secret_path not in out  # absolute path not leaked
     assert "PermissionError" in out  # safe exception type name shown
     assert "xrpl-lab run m1" in out  # resume hint shown
+
+
+def test_completion_save_failure_no_path_leak_and_still_completes(monkeypatch, tmp_path):
+    """B-BACKEND-005 happy path: if save_state fails at module COMPLETION (e.g.
+    a full disk), run_module must not crash with an uncaught traceback and must
+    not leak the absolute state path across the (WS-forwarded) console — it
+    warns (type name only) and still reports completion (returns True)."""
+    import asyncio
+    import io
+
+    from rich.console import Console
+
+    from xrpl_lab.modules import ModuleDef, ModuleStep
+    from xrpl_lab.runner import run_module
+    from xrpl_lab.transport.dry_run import DryRunTransport
+
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
+
+    secret_path = r"C:\Users\SECRETUSER\.xrpl-lab\state.json.tmp"
+
+    def _raise_save(_state):
+        raise PermissionError(f"[WinError 5] Access is denied: {secret_path!r} -> 'x'")
+
+    monkeypatch.setattr("xrpl_lab.runner.save_state", _raise_save)
+
+    buf = io.StringIO()
+    cap = Console(file=buf, no_color=True, markup=True, width=200)
+
+    # A no-action step triggers no handler save, so the only save_state call in
+    # this path is the completion one — isolating the B-BACKEND-005 guard.
+    mod = ModuleDef(
+        id="m_complete", title="M", time="1m", level="beginner",
+        requires=[], produces=[], checks=[],
+        steps=[ModuleStep(text="just text", action=None, action_args={})],
+        raw_body="",
+    )
+
+    result = asyncio.run(run_module(mod, DryRunTransport(), dry_run=True, console=cap))
+    out = buf.getvalue()
+
+    assert result is True  # completed despite the save failure (graceful)
+    assert "SECRETUSER" not in out  # OS username not leaked across the WS boundary
+    assert secret_path not in out  # absolute state path not leaked
+    assert "PermissionError" in out  # safe exception type name shown

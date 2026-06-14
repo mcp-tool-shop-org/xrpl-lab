@@ -116,6 +116,33 @@ class TestStatusSchema:
         assert data["network"]
         assert data["version"]
 
+    def test_status_network_default_is_testnet(self, client: TestClient) -> None:
+        from xrpl_lab import __version__
+
+        data = client.get("/api/status").json()
+        assert data["network"] == "testnet"  # default RPC, derived live
+        assert data["version"] == __version__
+
+    def test_status_network_reflects_rpc_override(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # The whole point of the fix: /api/status must report the REAL network
+        # of the configured endpoint, not a static literal. A devnet override
+        # surfaces as "devnet", not "testnet".
+        monkeypatch.setenv("XRPL_LAB_RPC_URL", "https://s.devnet.rippletest.net:51234")
+        data = client.get("/api/status").json()
+        assert data["network"] == "devnet"
+
+    def test_health_endpoint_is_instant_liveness(self, client: TestClient) -> None:
+        # /api/health is the fast, local liveness probe — no network calls,
+        # distinct from the network-bound /api/doctor readiness check.
+        from xrpl_lab import __version__
+
+        data = client.get("/api/health").json()
+        assert data["status"] == "ok"
+        assert data["version"] == __version__
+        assert isinstance(data["dry_run"], bool)
+
 
 # ── GET /api/modules — Pydantic model validation ──────────────────────
 

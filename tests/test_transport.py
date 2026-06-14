@@ -36,7 +36,10 @@ class TestDryRunTransport:
         assert result.success is True
         assert result.txid != ""
         assert result.result_code == "tesSUCCESS"
-        assert result.explorer_url != ""
+        # Dry-run is simulated — no public explorer. Previously this minted a
+        # testnet.xrpl.org URL for a fake txid, which leaked a dead link into
+        # the sealed proof pack (Stage B/C verifier HIGH); now empty.
+        assert result.explorer_url == ""
 
     @pytest.mark.asyncio
     async def test_submit_fail(self, transport):

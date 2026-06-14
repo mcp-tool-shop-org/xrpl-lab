@@ -28,6 +28,21 @@ def test_feedback_contains_endpoint(tmp_path, monkeypatch):
     assert "Faucet:" in md
 
 
+def test_feedback_network_reflects_override(tmp_path, monkeypatch):
+    # The bug report's Network line is derived LIVE from the configured RPC,
+    # so an override shows the real network — not the old static "testnet"
+    # that contradicted the RPC line beside it.
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_home_dir", lambda: tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_workspace_dir", lambda: tmp_path / "ws")
+    monkeypatch.setattr("xrpl_lab.feedback.get_workspace_dir", lambda: tmp_path / "ws")
+    monkeypatch.setenv("XRPL_LAB_RPC_URL", "https://s.devnet.rippletest.net:51234")
+
+    md = generate_feedback()
+    assert "- Network: devnet" in md
+    assert "- Network: testnet" not in md
+
+
 def test_feedback_with_proof_pack(tmp_path, monkeypatch):
     import json
 
