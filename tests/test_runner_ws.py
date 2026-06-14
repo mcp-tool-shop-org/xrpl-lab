@@ -1185,3 +1185,69 @@ class TestDeleteRunEndpoint:
             f"facilitator cancellation, got {close_code!r}. "
             "Cancellation is a clean terminal state, not an error close."
         )
+
+
+# ── Cleanup task GC-safety (B-BRIDGE-NET-002) ────────────────────────
+
+
+class TestCleanupTaskRetention:
+    """``_schedule_session_cleanup`` fires-and-forgets a background task.
+
+    asyncio keeps only a WEAK reference to a task from ``create_task``; if
+    nothing else holds a strong reference, the GC can collect the task
+    mid-flight and the cleanup never runs (documented asyncio footgun).
+    The fix retains each task in the module-level ``_background_tasks`` set
+    and discards it via ``add_done_callback`` on completion. These tests
+    pin both halves: retained while pending, discarded when done.
+    """
+
+    @pytest.mark.asyncio
+    async def test_cleanup_task_is_retained_while_pending(self) -> None:
+        """Immediately after scheduling, the cleanup task must be held in
+        ``_background_tasks`` so the GC can't collect it before it runs."""
+        import asyncio as _asyncio
+        import contextlib as _contextlib
+
+        from xrpl_lab.api import runner_ws
+
+        runner_ws._background_tasks.clear()
+        # Long delay so the task is still sleeping (pending) when we inspect.
+        runner_ws._schedule_session_cleanup("nonexistent-run", delay=5.0)
+
+        assert len(runner_ws._background_tasks) == 1, (
+            "cleanup task was not retained — it can be GC'd mid-flight"
+        )
+        pending = next(iter(runner_ws._background_tasks))
+        assert not pending.done()
+
+        # Cleanup: cancel the sleeping task so it doesn't outlive the test.
+        pending.cancel()
+        with _contextlib.suppress(_asyncio.CancelledError):
+            await pending
+        runner_ws._background_tasks.clear()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_task_discarded_on_completion(self) -> None:
+        """Once the cleanup task finishes, the done-callback must remove it
+        from ``_background_tasks`` so the set stays bounded."""
+        import asyncio as _asyncio
+
+        from xrpl_lab.api import runner_ws
+
+        runner_ws._background_tasks.clear()
+        # delay=0 → the task's asyncio.sleep(0) returns on the next loop
+        # tick; the run_id is unknown so _cleanup is a harmless no-op pop.
+        runner_ws._schedule_session_cleanup("nonexistent-run", delay=0)
+
+        assert len(runner_ws._background_tasks) == 1
+        task = next(iter(runner_ws._background_tasks))
+
+        # Let the task run to completion (and its done-callback fire).
+        await task
+        # Yield once more so add_done_callback's discard is processed.
+        await _asyncio.sleep(0)
+
+        assert len(runner_ws._background_tasks) == 0, (
+            "completed cleanup task was not discarded — _background_tasks "
+            "would grow unbounded across runs"
+        )

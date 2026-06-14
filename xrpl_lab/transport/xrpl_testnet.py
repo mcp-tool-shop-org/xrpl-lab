@@ -42,7 +42,24 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_RPC_URL = "https://s.altnet.rippletest.net:51234"
 DEFAULT_FAUCET_URL = "https://faucet.altnet.rippletest.net/accounts"
-EXPLORER_BASE = "https://testnet.xrpl.org/transactions"
+
+# Per-network explorer hosts. The old single EXPLORER_BASE hard-coded the
+# testnet explorer into EVERY SubmitResult.explorer_url, even when the
+# configured endpoint was devnet/local (network is env-overridable via
+# XRPL_LAB_RPC_URL — see classify_network). A learner pointed at devnet who
+# clicked the receipt link landed on a testnet explorer that 404s the tx.
+# ``_explorer_base_for`` is now the single source of truth: testnet/devnet
+# get their own explorer host; local/unknown (and the dry-run transport,
+# which never reaches this module) get NO link — an empty base — because
+# there is no public explorer for a local rippled or an unclassified host,
+# and a broken link is worse than no link. mainnet is unreachable here (the
+# write path refuses it via _network_guard before any tx is built), but it
+# maps to "" too, fail-closed. Mirror of reporting.py's artifact-side
+# mapping (coordinator-owned): testnet.xrpl.org / devnet.xrpl.org / none.
+_EXPLORER_BASES = {
+    "testnet": "https://testnet.xrpl.org/transactions",
+    "devnet": "https://devnet.xrpl.org/transactions",
+}
 
 # Timeouts and retries
 RPC_TIMEOUT = 30  # seconds per RPC call
@@ -50,6 +67,18 @@ FAUCET_TIMEOUT = 30
 SUBMIT_TIMEOUT = 60  # submissions can take a few ledger closes
 MAX_RETRIES = 2
 RETRY_DELAY = 3  # seconds between retries
+
+# Upper bound (seconds) on a SINGLE faucet-429 backoff sleep. The 429 retry
+# uses escalating backoff (RETRY_DELAY * (attempt + 1)); without a cap the
+# last attempt's sleep grows with RETRY_DELAY and the retry count, and the
+# whole wait happens INSIDE fund_from_faucet — a synchronous, blocking wait
+# the caller (and the dashboard run queue) can't see coming. Capping each
+# sleep bounds the worst-case in-request wait: with MAX_RETRIES=2 the two
+# backoff sleeps are min(3,6)=3 and min(6,6)=6 → at most 9s total today, and
+# the cap keeps that ceiling stable if RETRY_DELAY is later tuned up. The
+# 429 FundResult already tells the learner to "wait at least 60 seconds"
+# before retrying themselves, so we never block the request that long.
+FAUCET_MAX_BACKOFF = 6  # seconds — ceiling on one 429 backoff sleep
 
 
 def get_rpc_url() -> str:
@@ -187,6 +216,21 @@ class XRPLTestnetTransport(Transport):
         # elsewhere.
         return classify_network(self._rpc_url)
 
+    def _explorer_url(self, txid: str) -> str:
+        """Build a network-aware explorer URL for ``txid`` (or "" if none).
+
+        Resolves the explorer host from the ACTUAL configured network
+        (via classify_network) rather than the old hard-coded testnet
+        base. testnet → testnet.xrpl.org, devnet → devnet.xrpl.org;
+        local/unknown/mainnet (and an empty txid) → "" so the receipt
+        renders without a link rather than with one that 404s. Keep in
+        lockstep with reporting.py's artifact-side ``_explorer_url``.
+        """
+        if not txid:
+            return ""
+        base = _EXPLORER_BASES.get(classify_network(self._rpc_url), "")
+        return f"{base}/{txid}" if base else ""
+
     def _network_guard(self) -> str | None:
         """Return a refusal message if the configured RPC is unsafe, else None.
 
@@ -296,7 +340,14 @@ class XRPLTestnetTransport(Transport):
                         # distinct from a generic RUNTIME_NETWORK failure.
                         last_code = "RUNTIME_FAUCET_RATE_LIMITED"
                         if attempt < MAX_RETRIES:
-                            await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+                            # Escalating backoff, but capped at
+                            # FAUCET_MAX_BACKOFF so a single in-request sleep
+                            # can't surprise the caller with a multi-second
+                            # blocking wait (see FAUCET_MAX_BACKOFF rationale).
+                            backoff = min(
+                                RETRY_DELAY * (attempt + 1), FAUCET_MAX_BACKOFF
+                            )
+                            await asyncio.sleep(backoff)
                         continue
                     last_error = f"Faucet returned {resp.status_code}: {resp.text[:200]}"
                     # Non-429 HTTP error — clear any prior 429 code so the
@@ -379,7 +430,7 @@ class XRPLTestnetTransport(Transport):
                     result_code=result_code,
                     fee=fee,
                     ledger_index=ledger_idx,
-                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    explorer_url=self._explorer_url(txid),
                     error=error_msg,
                 )
 
@@ -472,7 +523,7 @@ class XRPLTestnetTransport(Transport):
                     result_code=result_code,
                     fee=fee,
                     ledger_index=ledger_idx,
-                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    explorer_url=self._explorer_url(txid),
                     error=error_msg,
                 )
 
@@ -567,7 +618,7 @@ class XRPLTestnetTransport(Transport):
                     result_code=result_code,
                     fee=fee,
                     ledger_index=ledger_idx,
-                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    explorer_url=self._explorer_url(txid),
                     error=error_msg,
                 )
 
@@ -711,7 +762,7 @@ class XRPLTestnetTransport(Transport):
                     result_code=result_code,
                     fee=fee,
                     ledger_index=ledger_idx,
-                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    explorer_url=self._explorer_url(txid),
                     error=error_msg,
                 )
 
@@ -796,7 +847,7 @@ class XRPLTestnetTransport(Transport):
                     result_code=result_code,
                     fee=fee,
                     ledger_index=ledger_idx,
-                    explorer_url=f"{EXPLORER_BASE}/{txid}" if txid else "",
+                    explorer_url=self._explorer_url(txid),
                     error=error_msg,
                 )
 

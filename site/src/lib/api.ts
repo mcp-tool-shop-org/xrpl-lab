@@ -92,6 +92,10 @@ export interface Status {
   has_proof_pack: boolean;
   has_certificate: boolean;
   report_count: number;
+  // Active network ("dry-run" | "testnet" | "devnet" | "local" | "mainnet" |
+  // "unknown") and tool version — rendered by the Network card and the footer.
+  network: string;
+  version: string;
 }
 
 export interface DoctorResult {

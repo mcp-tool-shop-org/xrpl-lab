@@ -73,7 +73,8 @@ class LabState(BaseModel):
     """Persistent state stored in ~/.xrpl-lab/state.json by default.
 
     The home directory is overridable via the ``XRPL_LAB_HOME`` environment
-    variable (not yet wired) or by patching :func:`get_home_dir` before use.
+    variable (honored by :func:`get_home_dir`) or by patching
+    :func:`get_home_dir` before use.
     """
 
     version: str = "1.6.0"

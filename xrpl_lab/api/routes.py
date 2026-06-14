@@ -6,15 +6,18 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
+from .. import __version__
 from ..doctor import run_doctor
 from ..modules import load_all_modules
 from ..reporting import generate_certificate, generate_proof_pack
 from ..state import get_workspace_dir, load_state
+from ..transport.xrpl_testnet import classify_network, get_rpc_url
 from .schemas import (
     DoctorCheck,
     DoctorResponse,
+    HealthResponse,
     LastRun,
     ModuleDetail,
     ModuleSummary,
@@ -25,6 +28,19 @@ from .schemas import (
     StatusResponse,
     TrackProgressItem,
 )
+
+
+def _active_network(request: Request) -> str:
+    """The network label the dashboard/status should show.
+
+    Dry-run mode is a serve-level flag (app.state.dry_run); otherwise the
+    network is classified live from the configured RPC endpoint, so an
+    XRPL_LAB_RPC_URL override to devnet/local is reported honestly instead
+    of the static 'testnet' literal that used to ship in every response.
+    """
+    if getattr(request.app.state, "dry_run", False):
+        return "dry-run"
+    return classify_network(get_rpc_url())
 
 router = APIRouter(prefix="/api")
 
@@ -115,8 +131,24 @@ def get_module(module_id: str) -> ModuleDetail:
 # -- /api/status -----------------------------------------------------------
 
 
+@router.get("/health")
+def get_health(request: Request) -> HealthResponse:
+    """Liveness probe — instant, zero network calls.
+
+    Separates "is the serve process up?" (this, fast + local) from "is the
+    upstream testnet healthy?" (/api/doctor, slow + network-bound). A
+    facilitator on a flaky venue network can confirm the server is alive
+    without waiting up to ~30s on a doctor RPC timeout.
+    """
+    return HealthResponse(
+        status="ok",
+        version=__version__,
+        dry_run=getattr(request.app.state, "dry_run", False),
+    )
+
+
 @router.get("/status")
-def get_status() -> StatusResponse:
+def get_status(request: Request) -> StatusResponse:
     """Return overall lab status: completion, curriculum position, blockers."""
     from ..workshop import get_learner_status
 
@@ -161,6 +193,8 @@ def get_status() -> StatusResponse:
         has_proof_pack=ls.has_proof_pack,
         has_certificate=ls.has_certificate,
         report_count=ls.report_count,
+        network=_active_network(request),
+        version=__version__,
     )
 
 

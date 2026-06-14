@@ -21,29 +21,52 @@ from .state import (
 )
 from .transport.xrpl_testnet import get_rpc_url
 
+# Per-network explorer hosts for artifact links. Mirrors the transport-side
+# mapping in xrpl_testnet.py (_EXPLORER_BASES): testnet and devnet get their
+# own explorer; dry-run / local / unknown / mainnet get NO link. The old
+# fallback minted https://xrpl.org/... (the MAINNET explorer) for any
+# non-testnet network — so a dry-run proof pack (the recommended offline flow)
+# shipped sealed mainnet links for simulated txids that 404. A broken/wrong
+# link in a SHA-sealed credibility artifact is worse than no link.
+_EXPLORER_BASES = {
+    "testnet": "https://testnet.xrpl.org/transactions",
+    "devnet": "https://devnet.xrpl.org/transactions",
+}
+
 
 def _explorer_url(txid: str, network: str) -> str:
-    if network == "testnet":
-        return f"https://testnet.xrpl.org/transactions/{txid}"
-    if network == "dry-run":
-        return f"dry-run://tx/{txid}"
-    return f"https://xrpl.org/transactions/{txid}"
+    """Build an explorer URL for a txid on ``network``, or "" if none applies."""
+    base = _EXPLORER_BASES.get(network)
+    if not base or not txid:
+        return ""
+    return f"{base}/{txid}"
 
 
-def _tx_detail(tx_record: TxRecord, network: str) -> dict:
-    """Build per-tx detail for proof pack."""
+def _tx_detail(tx_record: TxRecord) -> dict:
+    """Build per-tx detail for proof pack.
+
+    The explorer link is resolved from the tx's OWN recorded network, not a
+    single top-level network — a proof pack can span runs on different
+    networks (e.g. testnet then a dry-run repeat), and each receipt must link
+    to the explorer that actually holds that transaction (or no link).
+    """
     return {
         "txid": tx_record.txid,
         "module_id": tx_record.module_id,
         "success": tx_record.success,
         "timestamp": datetime.fromtimestamp(tx_record.timestamp, tz=UTC).isoformat(),
         "network": tx_record.network,
-        "explorer_url": tx_record.explorer_url or _explorer_url(tx_record.txid, network),
+        "explorer_url": tx_record.explorer_url or _explorer_url(tx_record.txid, tx_record.network),
     }
 
 
 def generate_proof_pack(state: LabState) -> dict:
     """Generate a shareable proof pack (no secrets)."""
+    # Map each txid to the network it was actually recorded on, so explorer
+    # links resolve per-tx rather than against a single (possibly wrong)
+    # top-level network — a pack can span testnet + dry-run runs.
+    tx_net = {tx.txid: tx.network for tx in state.tx_index}
+
     modules = []
     for cm in state.completed_modules:
         modules.append(
@@ -54,13 +77,14 @@ def generate_proof_pack(state: LabState) -> dict:
                 ).isoformat(),
                 "txids": cm.txids,
                 "explorer_urls": [
-                    _explorer_url(txid, state.network) for txid in cm.txids
+                    _explorer_url(txid, tx_net.get(txid, state.network))
+                    for txid in cm.txids
                 ],
             }
         )
 
     # Per-tx detail (v0.2.0+)
-    transactions = [_tx_detail(tx, state.network) for tx in state.tx_index]
+    transactions = [_tx_detail(tx) for tx in state.tx_index]
 
     # Receipt table (v0.3.1+): human-readable transaction summary
     receipt_table = []

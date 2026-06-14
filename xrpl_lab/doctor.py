@@ -375,11 +375,17 @@ def _append_doctor_log(report: DoctorReport) -> None:
         "ts": datetime.fromtimestamp(time.time(), tz=UTC).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         ),
+        # Include the actionable hint when present — a facilitator reviewing
+        # doctor.log post-hoc needs the "what to do next" string, not just the
+        # pass/fail boolean + detail. The hint is the contract (mirrors the
+        # CLI surface, which only prints hints on failures, but the log keeps
+        # any hint so an informational check's follow-up survives too).
         "checks": {
-            c.name: {
-                "passed": c.passed,
-                "detail": c.detail,
-            }
+            c.name: (
+                {"passed": c.passed, "detail": c.detail, "hint": c.hint}
+                if c.hint
+                else {"passed": c.passed, "detail": c.detail}
+            )
             for c in report.checks
         },
         "summary": report.summary,

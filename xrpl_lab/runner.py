@@ -137,6 +137,13 @@ async def run_module(
     if console is None:
         console = globals()["console"]
     state = load_state()
+    # Stamp the run's REAL network onto state so every TxRecord this run
+    # records (handlers persist via record_tx(network=state.network)) and the
+    # proof pack / certificate / reports carry the honest network — "dry-run"
+    # for the offline sandbox, the classified endpoint otherwise. Before this,
+    # state.network was a static 'testnet' literal that mislabeled dry-run /
+    # devnet runs and minted dead testnet explorer links in sealed artifacts.
+    state.network = transport.network_name
     ensure_workspace()
 
     if state.is_module_completed(module.id) and not dry_run:
@@ -388,12 +395,31 @@ async def run_module(
     )
 
     state = load_state()  # Reload in case actions modified it
+    state.network = transport.network_name
     state.complete_module(
         module_id=module.id,
         txids=context["txids"],
         report_path=str(report_path),
     )
-    save_state(state)
+    # B-BACKEND-005: guard the completion save like the recovery save. The
+    # module already ran and its report is on disk, so a save failure here
+    # loses only the completed-module bookkeeping (recoverable by re-run), not
+    # in-progress work — warn (type name only, no str(exc) path leak across
+    # the WS capture console) and continue rather than crash with an uncaught
+    # traceback at the finish line.
+    try:
+        save_state(state)
+    except Exception as save_exc:
+        logger.warning(
+            "completion save_state failed for module %s: %s",
+            module.id,
+            save_exc,
+        )
+        console.print(
+            f"[yellow]Warning: '{module.id}' ran and its report was saved, but "
+            f"recording completion in state failed ({type(save_exc).__name__}). "
+            f"Re-run to record it: xrpl-lab run {module.id}[/]"
+        )
 
     console.print()
 

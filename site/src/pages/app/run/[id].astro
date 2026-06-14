@@ -143,6 +143,17 @@ const { id } = Astro.params;
     let running = false;
     let steps: Array<{ action: string; status: 'pending' | 'running' | 'done' | 'failed' }> = [];
     let txids: string[] = [];
+    // B-FRONTEND-005: index of the step currently marked 'running'. The server's
+    // 'step_complete' frame carries only {action, success} — NO index — but it is
+    // always emitted for the SAME step that just emitted its 'step' frame (see
+    // runner.py: on_step then on_step_complete within one loop iteration). So we
+    // complete the row at currentStepIndex rather than matching by action STRING,
+    // which is fragile when two steps share an action (e.g. two verify_tx steps).
+    let currentStepIndex = -1;
+    // B-FRONTEND-005: short labels derived from the module's step list (loaded via
+    // GET /api/modules/{id}), used to label rows as soon as steps initialize —
+    // before the matching 'step' frame arrives — instead of a bare "Step N".
+    let moduleStepLabels: string[] = [];
 
     // WS reconnect state (F-FE-B-004)
     const MAX_RECONNECT = 5;
@@ -153,10 +164,25 @@ const { id } = Astro.params;
     let userInitiatedClose = false;
     let activeRunId: string | null = null;
 
-    // Suppress reconnect on page navigation
-    window.addEventListener('beforeunload', () => {
+    // B-BRIDGE-NET-003: liveness watchdog. The server sends a {type:'ping'}
+    // keepalive every ~30s when the run queue is idle (runner_ws.py). If NO
+    // frame — including that ping — arrives within WATCHDOG_TIMEOUT_MS, the
+    // server has silently hung (no data, no close event): the run page would
+    // otherwise freeze with no feedback and no reconnect. We track the last
+    // message time and surface a clear "stalled" state with a reload affordance.
+    // Timeout is 45s: comfortably past the 30s ping interval (one missed ping
+    // is tolerated as a transient blip) but short enough to flag a real hang.
+    const WATCHDOG_TIMEOUT_MS = 45000;
+    let watchdogTimer: number | null = null;
+    let lastMessageAt = 0;
+
+    // Suppress reconnect on page navigation. Named handler so the
+    // astro:before-swap cleanup (B-FRONTEND-004) can remove it on client-side
+    // nav, mirroring the facilitator page's beforeunloadHandler.
+    const beforeunloadHandler = () => {
       userInitiatedClose = true;
-    });
+    };
+    window.addEventListener('beforeunload', beforeunloadHandler);
 
     // Elements
     const terminal = document.getElementById('terminal')!;
@@ -179,6 +205,18 @@ const { id } = Astro.params;
         if (badge && mod.level) {
           badge.textContent = mod.level;
           badge.className = `inline-block px-2 py-0.5 text-xs font-medium rounded border ${levelColors[mod.level] || ''}`;
+        }
+        // B-FRONTEND-005: cache short per-step labels from the module's known
+        // step list so the sidebar can show meaningful row labels immediately,
+        // not "Step N" until each server frame arrives. The API returns full
+        // step TEXT (markdown); we take the first line, strip leading markdown
+        // heading markers, and cap length for a compact sidebar label. Indices
+        // align with the WS 'step' frame index (both enumerate module.steps).
+        if (Array.isArray(mod.steps)) {
+          moduleStepLabels = mod.steps.map((text: any) => {
+            const firstLine = String(text || '').split('\n')[0].replace(/^#+\s*/, '').trim();
+            return firstLine.length > 48 ? firstLine.slice(0, 47) + '…' : firstLine;
+          });
         }
       } catch {
         const title = document.getElementById('run-title');
@@ -234,6 +272,86 @@ const { id } = Astro.params;
       }).join('');
     }
 
+    // ── Liveness watchdog (B-BRIDGE-NET-003) ───────────────────────────
+    // A silently-hung server sends no frames AND never closes the socket, so
+    // neither the 'message' nor the 'close' handler ever fires — the page just
+    // freezes. The watchdog is the only path that detects this: it polls the
+    // gap since the last received frame and trips if it exceeds the timeout.
+    // The server's 30s keepalive ping is what keeps lastMessageAt fresh on a
+    // healthy-but-idle run, so a tripped watchdog genuinely means "no ping, no
+    // data — the server stopped responding."
+
+    function stopWatchdog() {
+      if (watchdogTimer !== null) {
+        window.clearInterval(watchdogTimer);
+        watchdogTimer = null;
+      }
+    }
+
+    function startWatchdog() {
+      stopWatchdog();
+      lastMessageAt = Date.now();
+      // Poll at a fraction of the timeout so we trip within a few seconds of
+      // the deadline rather than only on exact multiples of the timeout.
+      watchdogTimer = window.setInterval(() => {
+        if (!running) {
+          stopWatchdog();
+          return;
+        }
+        if (Date.now() - lastMessageAt > WATCHDOG_TIMEOUT_MS) {
+          handleStalledConnection();
+        }
+      }, 5000);
+    }
+
+    // Called when the watchdog detects no frames (not even the keepalive ping)
+    // within WATCHDOG_TIMEOUT_MS. Surfaces a clear, actionable stalled state
+    // and stops streaming — the server is unresponsive, so reconnecting to the
+    // same run is unlikely to help (and the run may already be lost). We give
+    // the user a Reload affordance rather than silently spinning forever.
+    function handleStalledConnection() {
+      stopWatchdog();
+      running = false;
+      // Tear down the dead socket so its eventual late 'close' doesn't trigger
+      // a reconnect cycle on top of the stalled state. userInitiatedClose
+      // suppresses the reconnect path in the close handler.
+      userInitiatedClose = true;
+      try { ws?.close(); } catch { /* already closing */ }
+
+      btnRun.disabled = false;
+      btnDry.disabled = false;
+      statusLabel.textContent = 'Connection stalled';
+      statusLabel.className = 'text-sm text-red-400 ml-2';
+      termAppend(
+        '\n[stalled] No response from the server for ' +
+          Math.round(WATCHDOG_TIMEOUT_MS / 1000) +
+          's (the keepalive ping stopped arriving). Reload to reconnect.',
+        'text-red-400'
+      );
+
+      // Surface a banner with a reload affordance so the user isn't left
+      // staring at a frozen page. role="alert" so screen readers announce it.
+      completionBanner.className = 'rounded-lg border p-5 bg-red-500/10 border-red-500/30';
+      completionBanner.setAttribute('role', 'alert');
+      completionBanner.innerHTML = `
+        <div class="flex items-center gap-3">
+          <span class="text-3xl text-red-400" aria-hidden="true">&#9888;</span>
+          <div>
+            <p class="text-lg font-semibold text-red-400">Connection stalled — the server isn't responding.</p>
+            <p class="text-sm text-slate-400 mt-1">No data or keepalive ping arrived for ${Math.round(WATCHDOG_TIMEOUT_MS / 1000)}s. Reload to reconnect.</p>
+            <button
+              id="stalled-reload"
+              type="button"
+              class="mt-3 px-4 py-2 bg-red-500 hover:bg-red-400 text-slate-900 font-semibold text-sm rounded transition-colors"
+            >Reload page</button>
+          </div>
+        </div>`;
+      completionBanner.classList.remove('hidden');
+      document.getElementById('stalled-reload')?.addEventListener('click', () => {
+        window.location.reload();
+      });
+    }
+
     // Connect (or reconnect) to the run WebSocket. Uses module-scoped
     // activeRunId so reconnect attempts target the same run.
     function connectWS() {
@@ -242,7 +360,15 @@ const { id } = Astro.params;
 
       let firstMessageSeen = false;
 
+      // B-BRIDGE-NET-003: (re)start the liveness watchdog for this socket. Each
+      // (re)connect resets the clock so a fresh, healthy socket isn't tripped by
+      // a gap that predates it.
+      startWatchdog();
+
       ws.addEventListener('message', (event) => {
+        // B-BRIDGE-NET-003: any frame — data OR the server's keepalive ping —
+        // proves the connection is alive; refresh the watchdog clock.
+        lastMessageAt = Date.now();
         // Reset reconnect budget once the new socket has actually delivered data,
         // so a transient blip every ~30s doesn't burn the attempt budget over time.
         if (!firstMessageSeen) {
@@ -258,6 +384,10 @@ const { id } = Astro.params;
       });
 
       ws.addEventListener('close', (event) => {
+        // B-BRIDGE-NET-003: this socket is gone — stop its watchdog. If we go on
+        // to reconnect below, connectWS() starts a fresh watchdog for the new
+        // socket; if we stop here (terminal close), it stays stopped.
+        stopWatchdog();
         // Run already finished (complete handler ran) or page is unloading — don't reconnect.
         if (!running || userInitiatedClose) return;
 
@@ -359,9 +489,11 @@ const { id } = Astro.params;
       running = true;
       steps = [];
       txids = [];
+      currentStepIndex = -1;  // B-FRONTEND-005: reset running-step tracker per run
       reconnectAttempts = 0;
       userInitiatedClose = false;
       activeRunId = null;
+      stopWatchdog();  // B-BRIDGE-NET-003: clear any stale watchdog from a prior run
 
       btnRun.disabled = true;
       btnDry.disabled = true;
@@ -412,20 +544,31 @@ const { id } = Astro.params;
     function handleMessage(msg: any) {
       switch (msg.type) {
         case 'step': {
-          // Initialize steps if first step message
+          // Initialize steps if first step message. B-FRONTEND-005: seed each
+          // row's label from the module's known step list (moduleStepLabels)
+          // when available, so rows read e.g. "Submit payment" immediately
+          // instead of "Step N" until the matching frame arrives. Fall back to
+          // "Step N" only when the label list is missing or shorter than total.
           if (steps.length === 0 && msg.total) {
             for (let i = 0; i < msg.total; i++) {
-              steps.push({ action: `Step ${i + 1}`, status: 'pending' });
+              steps.push({ action: moduleStepLabels[i] || `Step ${i + 1}`, status: 'pending' });
             }
           }
-          // Update current step
+          // Update current step. B-FRONTEND-005: the server 'step' index is
+          // authoritative (it enumerates module.steps); record it as the
+          // current running index so the paired 'step_complete' frame — which
+          // carries no index — completes THIS row, not whichever row happens
+          // to share the action string.
           if (msg.index !== undefined && msg.index < steps.length) {
             // Mark previous as done if it was running
             for (let i = 0; i < steps.length; i++) {
               if (steps[i].status === 'running') steps[i].status = 'done';
             }
+            // Prefer the server's live action label; fall back to whatever the
+            // row already had (module-derived label or "Step N").
             steps[msg.index].action = msg.action || steps[msg.index].action;
             steps[msg.index].status = 'running';
+            currentStepIndex = msg.index;
           }
           renderSteps();
           termAppend(`> Step ${(msg.index || 0) + 1}/${msg.total || '?'}: ${msg.action || '...'}`, 'text-slate-300');
@@ -438,7 +581,20 @@ const { id } = Astro.params;
         }
 
         case 'step_complete': {
-          const idx = steps.findIndex(s => s.action === msg.action);
+          // B-FRONTEND-005: complete the row at currentStepIndex (set by the
+          // paired 'step' frame) instead of findIndex(action === msg.action).
+          // The server emits step_complete for the same step that just emitted
+          // its 'step' frame, so the running index is the right target — and it
+          // is unambiguous even when two steps share an action string. Fall back
+          // to action-string matching only if no step is currently tracked
+          // (defensive: e.g. a stray frame before any 'step').
+          let idx = currentStepIndex;
+          if (idx < 0 || idx >= steps.length || steps[idx].status !== 'running') {
+            idx = steps.findIndex(s => s.status === 'running');
+          }
+          if (idx < 0) {
+            idx = steps.findIndex(s => s.action === msg.action);
+          }
           if (idx >= 0) {
             steps[idx].status = msg.success ? 'done' : 'failed';
           }
@@ -472,6 +628,7 @@ const { id } = Astro.params;
           running = false;
           btnRun.disabled = false;
           btnDry.disabled = false;
+          stopWatchdog();  // B-BRIDGE-NET-003: run finished cleanly, no liveness check needed
           ws?.close();
 
           const success = msg.success;
@@ -527,6 +684,21 @@ const { id } = Astro.params;
     // Wire buttons
     btnRun.addEventListener('click', () => startRun(false));
     btnDry.addEventListener('click', () => startRun(true));
+
+    // Astro client-side navigation cleanup (B-FRONTEND-004). The facilitator
+    // page already does this; the run page did NOT, leaving a latent socket +
+    // timer leak if Astro's ClientRouter is ever enabled (a return visit would
+    // accumulate a live WebSocket and watchdog interval per navigation). Fires
+    // before the page unmounts: suppress reconnect, close the WS, stop the
+    // watchdog, and remove the beforeunload listener — symmetric with
+    // facilitator/runs.astro's cleanup.
+    document.addEventListener('astro:before-swap', () => {
+      userInitiatedClose = true;   // suppress the close handler's reconnect path
+      running = false;
+      stopWatchdog();
+      try { ws?.close(); } catch { /* already closing */ }
+      window.removeEventListener('beforeunload', beforeunloadHandler);
+    }, { once: true });
 
     // Init
     loadModuleInfo();

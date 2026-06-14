@@ -511,3 +511,52 @@ class TestSessionExport:
         extracted_proof = extract_dir / "alice" / "proofs" / "p.json"
         parsed = json.loads(extracted_proof.read_text(encoding="utf-8"))
         assert parsed["proof_pack"] == "data"
+
+
+class TestProofPackExplorerLinks:
+    """Per-tx explorer links resolve from each tx's OWN network.
+
+    The headline B-BACKEND-001 fix: a dry-run proof pack (the recommended
+    offline workshop flow) must not mint dead testnet.xrpl.org links for
+    simulated txids, and a devnet tx must link to devnet — not the old
+    https://xrpl.org/ (mainnet) fallback that the static-network bug produced.
+    """
+
+    def test_dry_run_tx_has_no_explorer_link(self) -> None:
+        from xrpl_lab.reporting import generate_proof_pack
+
+        state = LabState(network="dry-run", wallet_address="rTEST")
+        state.record_tx("DRYTX1", "amm_liquidity_101", "dry-run", True)
+        pack = generate_proof_pack(state)
+        tx = pack["transactions"][0]
+        assert tx["network"] == "dry-run"
+        assert tx["explorer_url"] == ""  # no dead testnet link
+        assert "testnet.xrpl.org" not in json.dumps(pack)
+
+    def test_devnet_tx_links_to_devnet_not_mainnet(self) -> None:
+        from xrpl_lab.reporting import generate_proof_pack
+
+        state = LabState(network="devnet", wallet_address="rTEST")
+        state.record_tx("DEVTX1", "receipt_literacy", "devnet", True)
+        pack = generate_proof_pack(state)
+        assert (
+            pack["transactions"][0]["explorer_url"]
+            == "https://devnet.xrpl.org/transactions/DEVTX1"
+        )
+        # The old fallback minted https://xrpl.org (mainnet) — must be gone.
+        assert "https://xrpl.org/" not in json.dumps(pack)
+
+    def test_mixed_network_pack_links_per_tx(self) -> None:
+        from xrpl_lab.reporting import generate_proof_pack
+
+        # state.network is dry-run (last run), but each tx keeps its own.
+        state = LabState(network="dry-run", wallet_address="rTEST")
+        state.record_tx("TTX", "receipt_literacy", "testnet", True)
+        state.record_tx("DTX", "amm_liquidity_101", "dry-run", True)
+        pack = generate_proof_pack(state)
+        by_txid = {t["txid"]: t for t in pack["transactions"]}
+        assert (
+            by_txid["TTX"]["explorer_url"]
+            == "https://testnet.xrpl.org/transactions/TTX"
+        )
+        assert by_txid["DTX"]["explorer_url"] == ""

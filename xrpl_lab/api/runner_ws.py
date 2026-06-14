@@ -24,6 +24,16 @@ router = APIRouter(prefix="/api")
 # In-memory store of active and recently completed run sessions
 _sessions: dict[str, ModuleRunSession] = {}
 
+# Strong references to fire-and-forget background tasks (currently the
+# session-cleanup tasks scheduled by _schedule_session_cleanup). asyncio
+# holds only a WEAK reference to a task created via create_task(); if the
+# only other reference is a local that falls out of scope, the task can be
+# garbage-collected mid-flight and the cleanup never runs (documented
+# asyncio footgun — see the create_task() note in the stdlib docs). We
+# retain each task here and discard it via add_done_callback so the set
+# doesn't grow unbounded.
+_background_tasks: set[asyncio.Task] = set()
+
 # Max sessions cap — evict oldest completed when exceeded
 _MAX_SESSIONS = 100
 
@@ -493,7 +503,12 @@ def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS
         except Exception:
             logger.warning("Session cleanup failed for %s", run_id)
 
-    asyncio.create_task(_cleanup())
+    # Retain a strong reference so the GC can't collect the task before it
+    # finishes (asyncio keeps only a weak ref). Discard on completion to
+    # keep _background_tasks bounded. See _background_tasks rationale.
+    task = asyncio.create_task(_cleanup())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 def _make_capture_console(

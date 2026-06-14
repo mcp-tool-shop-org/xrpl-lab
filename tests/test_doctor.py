@@ -298,6 +298,48 @@ class TestLastModuleState:
             assert "summary" in record
 
 
+class TestDoctorLogHint:
+    """B-BACKEND-007: doctor.log must retain each check's actionable hint.
+
+    The clinic log existed to help a facilitator review a stuck learner
+    post-hoc, but it dropped the hint — leaving only pass/fail + detail.
+    The hint is the "what to do next" string; without it the log is a
+    dead end for the reviewer.
+    """
+
+    def test_doctor_log_record_includes_hint_when_present(
+        self, tmp_path, monkeypatch,
+    ):
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setattr("xrpl_lab.doctor.get_home_dir", lambda: home)
+
+        report = DoctorReport()
+        report.checks.append(
+            Check(
+                name="Wallet", passed=False, detail="Not found",
+                hint="Run: xrpl-lab wallet create",
+            )
+        )
+        # A passing check with no hint must NOT grow a spurious hint key.
+        report.checks.append(Check(name="State file", passed=True, detail="ok"))
+        _append_doctor_log(report)
+
+        log_path = home / "doctor.log"
+        lines = [
+            line for line in log_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(lines) == 1
+        record = json.loads(lines[0])
+        wallet = record["checks"]["Wallet"]
+        assert wallet["hint"] == "Run: xrpl-lab wallet create", (
+            "doctor.log dropped the actionable hint for a failed check"
+        )
+        # No-hint check stays lean — hint key omitted, not empty-string noise.
+        assert "hint" not in record["checks"]["State file"]
+
+
 class TestDoctorFailureModes:
     """F-TESTS-B-003: doctor failure-mode coverage.
 

@@ -22,6 +22,18 @@
 - **Testnet Faucet**: Public HTTP endpoint. Only your address is sent (no secrets)
 - **Local filesystem**: State and wallet files are local-only. No telemetry, no phone-home
 - **Module content**: Modules are bundled markdown files parsed locally
+- **Dashboard / `serve` API**: Optional in-process HTTP + WebSocket server (see [Dashboard / serve surface](#dashboard--serve-surface)). Loopback-bound by default, no authentication, Origin allow-listed
+
+## Testnet-only is code-enforced, not a convention
+
+XRPL Lab will not sign or submit a transaction against mainnet or an unrecognized endpoint — and this is **enforced in code**, not merely documented. `classify_network` (in `xrpl_lab/transport/xrpl_testnet.py`) is the single source of truth: it classifies the effective RPC/faucet URL as `testnet`/`devnet`/`local` (allowed) or `mainnet`/`unknown` (refused, fail-closed).
+
+- **Write path:** `submit_payment` (and every other signing method) refuses any endpoint not in `SAFE_NETWORKS` **before** the wallet seed is loaded or the network is touched — a mainnet `XRPL_LAB_RPC_URL` override returns a failed result, it does not sign.
+- **Faucet:** the faucet path applies the same `classify_network` guard, so a mainnet/attacker `XRPL_LAB_FAUCET_URL` override is refused rather than sent your address.
+- **Doctor:** `xrpl-lab doctor` **FAILS** the env-overrides check (not a passing informational note) when either override resolves to a non-testnet network, matching the transport's refusal.
+- **Honest labels:** network names reported by the CLI, the dashboard, and exported artifacts reflect the *actual* classified network, never a hard-coded "testnet."
+
+The `--dry-run` mode bypasses the network entirely and is the recommended path for offline practice.
 
 ## Workshop Setup
 
@@ -62,15 +74,28 @@ The two-tier design solves the shared-machine problem: learners keep secrets in 
 
 ## Network risks
 
-- RPC endpoint can be overridden via `XRPL_LAB_RPC_URL` — use only trusted endpoints
-- Faucet endpoint can be overridden via `XRPL_LAB_FAUCET_URL`
+- RPC endpoint can be overridden via `XRPL_LAB_RPC_URL` — must resolve to a testnet/devnet/local network or it is refused (see [Testnet-only is code-enforced](#testnet-only-is-code-enforced-not-a-convention))
+- Faucet endpoint can be overridden via `XRPL_LAB_FAUCET_URL` — same refusal applies
 - All network operations are optional (`--dry-run` mode works fully offline)
+
+## Dashboard / serve surface
+
+`xrpl-lab serve` starts an optional in-process HTTP API plus a WebSocket runner (and, when a built dashboard is present, mounts it at `/xrpl-lab/app/`). It exists for facilitator workshop use — a projector-friendly cohort view and live module runs — and its security posture is deliberately scoped to that.
+
+- **Loopback by default.** The server binds `127.0.0.1` unless `--host` is passed. On a loopback bind it is reachable only from the host machine.
+- **Non-loopback is warned, not blocked.** Passing a non-loopback `--host` (e.g. `0.0.0.0`) prints an explicit warning: there is no authentication, so binding off-loopback exposes the API and facilitator endpoints to the network. **Only do this on a trusted LAN.**
+- **No authentication.** There is no login, cookie, or session auth. `allow_credentials` is explicitly `False` in the CORS config. Access control is the bind address plus the Origin allow-list — not identity.
+- **WebSocket Origin allow-list.** Browser CORS does not cover WebSocket upgrades, so the WS handshake is gated manually: a missing or non-allow-listed `Origin` is rejected with RFC 6455 code `4003`. This closes the CSRF-via-WebSocket vector. The allow-list (`xrpl_lab/api/runner_ws.py:_ALLOWED_ORIGINS`) is the single source of truth shared by both the HTTP CORS middleware and the WS gate; `serve` extends it with the in-process dashboard's own origin when the dashboard is mounted.
+- **No-leak error envelope.** Errors surfaced to the browser use a structured `{code, message, hint, severity, icon_hint}` envelope (`_error_envelope`). It never carries raw paths, stack traces, or internals — full detail goes only to the server log and `~/.xrpl-lab/doctor.log` on the host. A learner's browser sees a generic `RUNTIME_INTERNAL` message and a `run_id` to give the facilitator, nothing more.
+- **Safe-to-expose facilitator endpoints.** The `GET /api/runs` observability endpoints project each run to a non-secret subset (run_id, module_id, status, timing) — queue contents, error detail, txids, and report paths are omitted from the public projection.
+- **Concurrency cap.** Concurrent runs are capped (HTTP `429` over the cap) so a full room can't exhaust server memory.
 
 ## Common user mistakes
 
 - Sharing `wallet.json` — this contains your seed. Treat it like a password file
-- Using mainnet RPC URLs — XRPL Lab is designed for testnet only
+- Overriding RPC/faucet to mainnet — XRPL Lab is testnet-only and **refuses** non-testnet endpoints in code (write path, faucet, and doctor); the override simply won't sign, so use `--dry-run` for offline practice instead
 - Running in shared directories — workspace files are world-readable by default
+- Binding `xrpl-lab serve` off-loopback on an untrusted network — the API has no auth; keep it on `127.0.0.1` or a trusted LAN only
 
 ## How to reset
 

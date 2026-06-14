@@ -26,7 +26,7 @@ cancellation or programmatic tracking.
 
 Cancellation is a normal transaction that:
 - Costs a fee (like any transaction)
-- Releases the owner reserve (2 XRP on mainnet)
+- Releases the owner reserve (currently 0.2 XRP per owned object on mainnet)
 - Removes the offer from the order book
 
 You can only cancel your own offers.
@@ -38,9 +38,12 @@ the remaining 45 stays on the order book. The offer object is updated in place.
 
 ## Reserve Impact
 
-Each open offer increases the account's **owner reserve** by 2 XRP (mainnet).
-On testnet this is free, but it matters in production. Cancelling or having the
-offer filled releases the reserve.
+Each open offer increases the account's **owner reserve** by one owner-reserve
+increment — currently **0.2 XRP** per owned object on mainnet (lowered from
+2 XRP by the 2024-12-02 reserve reduction). This figure is **network-governed**
+via validator fee-voting and may drift over time, and **testnet sets its own
+reserve**, so do not hard-code it. Cancelling or having the offer filled
+releases the reserve.
 
 ## Self-Trading
 

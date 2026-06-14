@@ -20,6 +20,7 @@ from . import __version__
 from .curriculum import TRACKS, build_graph
 from .modules import load_all_modules
 from .state import LabState, get_workspace_dir, load_state
+from .transport.xrpl_testnet import classify_network, get_rpc_url
 
 # ── 4A: Facilitator Status Truth ─────────────────────────────────────
 
@@ -175,7 +176,7 @@ def get_learner_status(state: LabState | None = None) -> LearnerStatus:
     return LearnerStatus(
         version=__version__,
         wallet_address=state.wallet_address,
-        network=state.network,
+        network=classify_network(get_rpc_url()),
         current_module=next_id,
         current_track=next_mod.track if next_mod else None,
         current_mode=next_mod.mode if next_mod else None,
@@ -336,7 +337,7 @@ def generate_support_bundle(state: LabState | None = None) -> SupportBundle:
     import asyncio
 
     from .doctor import run_doctor
-    from .transport.xrpl_testnet import get_faucet_url, get_rpc_url
+    from .transport.xrpl_testnet import get_faucet_url
 
     if state is None:
         state = load_state()
@@ -368,7 +369,7 @@ def generate_support_bundle(state: LabState | None = None) -> SupportBundle:
         python_version=platform.python_version(),
         platform_info=platform.system(),
         learner=learner,
-        network=state.network,
+        network=learner.network,
         rpc_url=get_rpc_url(),
         faucet_url=get_faucet_url(),
         recent_transactions=recent_transactions,

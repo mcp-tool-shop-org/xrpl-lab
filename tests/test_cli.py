@@ -217,6 +217,51 @@ def test_proof_pack_empty(tmp_path, monkeypatch):
     assert "No completed modules" in result.output
 
 
+# ── B-BACKEND-004: empty-state guidance points at the FIRST next step ──
+
+
+class TestEmptyStateGuidance:
+    """A brand-new install must never be a dead end. The empty branches of
+    proof-pack / proof generate / status all point the learner at the FIRST
+    concrete next step (complete a module / xrpl-lab start) instead of just
+    stating that nothing exists yet."""
+
+    def test_proof_pack_empty_points_to_first_step(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(main, ["proof-pack"])
+        assert result.exit_code == 0
+        # The dead-end line is still there...
+        assert "No completed modules" in result.output
+        # ...but now it names the first concrete step.
+        assert "Complete a module first" in result.output
+        assert "xrpl-lab start" in result.output
+
+    def test_proof_generate_empty_points_to_first_step(
+        self, tmp_path, monkeypatch,
+    ):
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(main, ["proof", "generate"])
+        assert result.exit_code == 0
+        assert "No completed modules" in result.output
+        assert "Complete a module first" in result.output
+        assert "xrpl-lab start" in result.output
+
+    def test_status_fresh_install_points_to_start(self, tmp_path, monkeypatch):
+        """Fresh install (no wallet, nothing completed): status names the
+        FIRST command to run (xrpl-lab start), not just 'Next up'."""
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        ws = tmp_path / "ws"
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
+        runner = CliRunner()
+        result = runner.invoke(main, ["status"])
+        assert result.exit_code == 0
+        # The fresh-install guidance line surfaces the start command.
+        assert "xrpl-lab start" in result.output
+        assert "to begin" in result.output
+
+
 def test_certificate_empty(tmp_path, monkeypatch):
     monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
     runner = CliRunner()
@@ -467,6 +512,77 @@ def test_serve_testnet_mode_by_default(monkeypatch):
     result = runner.invoke(main, ["serve"])
     assert result.exit_code == 0
     assert captured.get("dry_run") is False
+
+
+def test_serve_configures_xrpl_lab_logging(monkeypatch):
+    """B-BRIDGE-NET-001: serve must wire the xrpl_lab logger to INFO so the
+    breadcrumbs runner_ws / transport emit reach the facilitator's terminal.
+
+    We mock uvicorn.run + create_app (no real server) and assert that after
+    invoking serve the xrpl_lab package logger has an effective INFO level
+    and at least one handler. uvicorn never actually launches."""
+    import logging
+
+    def fake_create_app(dry_run=False, **kwargs):
+        return object()
+
+    def fake_uvicorn_run(app, host, port):
+        pass
+
+    monkeypatch.setattr("xrpl_lab.server.create_app", fake_create_app)
+    monkeypatch.setattr("uvicorn.run", fake_uvicorn_run)
+
+    # Reset the package logger to a known unconfigured-ish baseline so the
+    # assertion reflects serve()'s wiring, not test-ordering leftovers.
+    pkg_logger = logging.getLogger("xrpl_lab")
+    pkg_logger.handlers = [
+        h for h in pkg_logger.handlers
+        if not getattr(h, "_xrpl_lab_serve_handler", False)
+    ]
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["serve"])
+    assert result.exit_code == 0
+
+    # Effective level is INFO (or finer) so logger.info() records emit.
+    assert pkg_logger.getEffectiveLevel() <= logging.INFO
+    # Exactly one of our tagged handlers is attached (idempotent guard works).
+    serve_handlers = [
+        h for h in pkg_logger.handlers
+        if getattr(h, "_xrpl_lab_serve_handler", False)
+    ]
+    assert len(serve_handlers) == 1, (
+        f"expected exactly one xrpl_lab serve handler, got {len(serve_handlers)}"
+    )
+
+
+def test_serve_logging_setup_is_idempotent(monkeypatch):
+    """B-BRIDGE-NET-001: invoking serve twice in one process must not stack
+    duplicate handlers on the xrpl_lab logger (each would double-print)."""
+    import logging
+
+    monkeypatch.setattr(
+        "xrpl_lab.server.create_app", lambda dry_run=False, **kwargs: object(),
+    )
+    monkeypatch.setattr("uvicorn.run", lambda app, host, port: None)
+
+    pkg_logger = logging.getLogger("xrpl_lab")
+    pkg_logger.handlers = [
+        h for h in pkg_logger.handlers
+        if not getattr(h, "_xrpl_lab_serve_handler", False)
+    ]
+
+    runner = CliRunner()
+    assert runner.invoke(main, ["serve"]).exit_code == 0
+    assert runner.invoke(main, ["serve"]).exit_code == 0
+
+    serve_handlers = [
+        h for h in pkg_logger.handlers
+        if getattr(h, "_xrpl_lab_serve_handler", False)
+    ]
+    assert len(serve_handlers) == 1, (
+        f"serve logging must be idempotent; got {len(serve_handlers)} handlers"
+    )
 
 
 # ── audit --no-pack ───────────────────────────────────────────────────

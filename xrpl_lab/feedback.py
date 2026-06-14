@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from . import __version__
 from .doctor import run_doctor
 from .state import get_workspace_dir, load_state
-from .transport.xrpl_testnet import get_faucet_url, get_rpc_url
+from .transport.xrpl_testnet import classify_network, get_faucet_url, get_rpc_url
 
 
 def generate_feedback() -> str:
@@ -44,10 +44,13 @@ def generate_feedback() -> str:
             lines.append(f"  - Hint: {check.hint}")
     lines.append("")
 
-    # Endpoint + network
+    # Endpoint + network. Classify the network LIVE from the configured RPC
+    # so a bug report is honest about the env (a learner on a devnet/local
+    # override saw "Network: testnet" next to a non-testnet RPC line before —
+    # sending the maintainer down the wrong path).
     lines.append("### Environment")
     lines.append("")
-    lines.append(f"- Network: {state.network}")
+    lines.append(f"- Network: {classify_network(get_rpc_url())}")
     lines.append(f"- RPC: `{get_rpc_url()}`")
     lines.append(f"- Faucet: `{get_faucet_url()}`")
     if state.wallet_address:

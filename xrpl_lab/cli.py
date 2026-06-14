@@ -394,6 +394,12 @@ def status(json_output: bool):
     else:
         console.print("[green]All modules completed![/]")
 
+    # Empty-state guidance: a brand-new learner (nothing completed yet) sees
+    # the "Next up" pointer above, but not the command to actually begin. Name
+    # the FIRST concrete step so a fresh install isn't a dead end.
+    if ls.completed_count == 0 and ls.current_module:
+        console.print("  [dim]Run [cyan]xrpl-lab start[/] to begin.[/]")
+
     # Blockers
     # F-BACKEND-D-002: blank line before Blockers always (not just when
     # present) so facilitators see a consistent rhythm scanning multiple
@@ -501,7 +507,14 @@ def proof_pack():
     state = load_state()
 
     if not state.completed_modules:
+        # Empty-state guidance: point the learner at the FIRST concrete step
+        # instead of a dead-end "nothing to export". A proof pack is the
+        # export of completed work, so the next step is to complete a module.
         console.print("[yellow]No completed modules yet. Nothing to export.[/]")
+        console.print(
+            "  [dim]Complete a module first, then export: "
+            "run [cyan]xrpl-lab start[/] to begin.[/]"
+        )
         return
 
     ensure_workspace()
@@ -525,7 +538,12 @@ def proof_generate():
     state = load_state()
 
     if not state.completed_modules:
+        # Empty-state guidance — same as the top-level proof-pack command.
         console.print("[yellow]No completed modules yet. Nothing to export.[/]")
+        console.print(
+            "  [dim]Complete a module first, then export: "
+            "run [cyan]xrpl-lab start[/] to begin.[/]"
+        )
         return
 
     ensure_workspace()
@@ -924,6 +942,46 @@ def _resolve_dashboard_dir() -> Path | None:
     return candidate if candidate.is_dir() else None
 
 
+def _configure_xrpl_lab_logging() -> None:
+    """Wire the ``xrpl_lab`` package logger to stderr at INFO for ``serve``.
+
+    The transport / runner_ws / runner / wallet modules all log via
+    ``logging.getLogger(__name__)`` (so under the ``xrpl_lab.*`` namespace).
+    Without an attached handler those INFO/WARNING breadcrumbs vanish — the
+    facilitator running ``serve`` sees nothing when a run misbehaves.
+
+    We configure the package logger directly rather than ``logging.basicConfig``
+    so we do NOT race uvicorn's own logging config on the root logger:
+
+    * set the ``xrpl_lab`` logger level to INFO,
+    * attach exactly one ``StreamHandler`` (idempotent — re-running ``serve``
+      in the same process must not stack duplicate handlers).
+
+    Propagation is left at its default (``True``) on purpose. uvicorn configures
+    its own named loggers (``uvicorn`` / ``uvicorn.error`` / ``uvicorn.access``)
+    but adds no handler to the *root* logger, so our records won't double-print
+    by bubbling up. Leaving propagation on also keeps ``caplog`` / root-handler
+    capture working for anything that listens on the ancestry — disabling it
+    would silently break those listeners (the parent gate suppresses the child).
+    """
+    import logging
+
+    pkg_logger = logging.getLogger("xrpl_lab")
+    pkg_logger.setLevel(logging.INFO)
+    # Idempotent guard: only add our handler once. Tag it so a second serve()
+    # call in the same process recognizes it and skips re-adding.
+    if not any(
+        getattr(h, "_xrpl_lab_serve_handler", False) for h in pkg_logger.handlers
+    ):
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
+        handler._xrpl_lab_serve_handler = True  # type: ignore[attr-defined]
+        pkg_logger.addHandler(handler)
+
+
 @main.command()
 @click.option('--port', default=8321, help='API server port')
 @click.option('--host', default='127.0.0.1', help='API server host')
@@ -943,6 +1001,15 @@ def serve(port: int, host: str, dry_run: bool):
     import uvicorn
 
     from .server import create_app
+
+    # B-BRIDGE-NET-001: without this, the INFO/WARNING breadcrumbs that
+    # runner_ws / transport already emit via logging.getLogger(__name__)
+    # are dropped (no handler on the xrpl_lab logger) — a facilitator sees
+    # nothing in the terminal when a run fails. Configure the package logger
+    # at INFO with a single StreamHandler. Idempotent: re-invoking serve in
+    # the same process must not stack handlers. (See the helper for why
+    # uvicorn's own logging config is respected and propagation is left on.)
+    _configure_xrpl_lab_logging()
 
     dashboard_dir = _resolve_dashboard_dir()
     extra_origins: tuple[str, ...] = ()

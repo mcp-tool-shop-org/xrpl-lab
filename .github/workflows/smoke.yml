@@ -29,6 +29,13 @@ jobs:
 
       - name: Run smoke test
         run: |
+          # Tee the run to smoke.log so the WHY of a failure is captured, not
+          # just a red X. The script prints only status lines and txid PREFIXES
+          # — never wallet.seed — so the log is safe to surface/upload. `set -o
+          # pipefail` keeps the python exit code (the tee would otherwise mask
+          # a non-zero exit). On failure the on-failure step below and the
+          # always-on artifact upload make smoke.log readable in the run UI.
+          set -o pipefail
           python -c "
           import asyncio
           import json
@@ -66,4 +73,31 @@ jobs:
               print('Smoke test passed.')
 
           asyncio.run(smoke())
-          "
+          " 2>&1 | tee smoke.log
+
+      - name: Surface failure detail
+        # When the smoke run fails, echo the captured log to the step summary
+        # so the WHY (RPC down? faucet 429? verify mismatch?) is visible in the
+        # run UI without re-running. No secrets: the script never prints seeds.
+        if: failure()
+        run: |
+          {
+            echo '### Testnet smoke failed'
+            echo ''
+            echo 'Last output from the smoke run (no secrets — status lines and txid prefixes only):'
+            echo ''
+            echo '```'
+            cat smoke.log || echo '(smoke.log not produced — the run failed before any output)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload smoke log
+        # Always upload so a passing run's ledger/txid trace is inspectable too,
+        # not just failures. retention is short — this is ephemeral diagnostics.
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: smoke-log
+          path: smoke.log
+          retention-days: 7
+          if-no-files-found: ignore

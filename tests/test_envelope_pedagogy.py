@@ -341,6 +341,104 @@ class TestErrorEnvelopePedagogy:
             assert "internal_session_secret_lookup_key" not in message
             assert "internal_session_secret_lookup_key" not in hint
 
+    def test_server_log_captures_full_detail_while_client_envelope_stays_clean(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """B-TESTS-002 — the leak-sanitization contract has TWO halves and
+        this pins the second one.
+
+        ``test_generic_exception_sanitizes_paths_and_raw_exception_text``
+        proves the *client* envelope is scrubbed. But sanitization is only
+        safe if the full detail still lands SOMEWHERE a facilitator can
+        reach it — the server log. If a refactor dropped the
+        ``logger.error(... detail=%s ..., str(exc))`` line in
+        ``_run_module_task``, the client would stay clean (that test still
+        passes) while the diagnostic detail vanished entirely — a silent
+        observability regression. This test drives the production emission
+        path, asserts the server log captured the full ``str(exc)`` at
+        ERROR, AND re-confirms the WS client frame never saw it.
+        """
+        import logging
+
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+        ws_dir = tmp_path / "ws"
+        ws_dir.mkdir()
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws_dir)
+        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: ws_dir)
+        monkeypatch.setattr("xrpl_lab.api.routes.get_workspace_dir", lambda: ws_dir)
+
+        mods = {"receipt_literacy": _make_simple_module("receipt_literacy")}
+        monkeypatch.setattr("xrpl_lab.api.runner_ws.load_all_modules", lambda: mods)
+
+        # The sensitive detail: an absolute path + raw OS-error tail that
+        # MUST reach the server log but MUST NOT reach the client envelope.
+        secret_detail = "/home/learner/.xrpl-lab/wallet.json: EACCES permission denied"
+
+        async def _raising_run_module(
+            module, transport, dry_run=False, force=False, **kwargs
+        ):
+            raise RuntimeError(secret_detail)
+
+        monkeypatch.setattr(
+            "xrpl_lab.api.runner_ws.run_module", _raising_run_module
+        )
+
+        app = create_app()
+        client = TestClient(app)
+
+        run_id = client.post(
+            "/api/run/receipt_literacy?dry_run=true"
+        ).json()["run_id"]
+
+        error_frame: dict | None = None
+        # Capture at ERROR on the runner_ws logger across the WS exchange.
+        with (
+            caplog.at_level(logging.ERROR, logger="xrpl_lab.api.runner_ws"),
+            client.websocket_connect(
+                f"/api/run/receipt_literacy/ws?run_id={run_id}",
+                headers=_TEST_ORIGIN,
+            ) as ws_conn,
+        ):
+            for _ in range(20):
+                try:
+                    msg = ws_conn.receive_json()
+                    if msg.get("type") == "error":
+                        error_frame = msg
+                        break
+                    if msg.get("type") == "complete":
+                        break
+                except Exception as exc:
+                    if "disconnect" in str(exc).lower() or "1000" in str(exc):
+                        break
+                    raise
+
+        # Client half: the envelope is the generic RUNTIME_INTERNAL shape and
+        # the secret detail never reached the learner's browser.
+        assert error_frame is not None, "expected an error frame on the WS"
+        assert error_frame.get("code") == "RUNTIME_INTERNAL"
+        assert secret_detail not in error_frame.get("message", "")
+        assert secret_detail not in error_frame.get("hint", "")
+        assert "wallet.json" not in error_frame.get("message", "")
+        assert "EACCES" not in error_frame.get("hint", "")
+
+        # Server half: the full detail WAS logged at ERROR with the run_id,
+        # so a facilitator can still diagnose. This is the assertion this
+        # finding adds — the existing tests never checked the log side.
+        server_logged = "".join(
+            r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR
+        )
+        assert secret_detail in server_logged, (
+            "server log did not capture the full exception detail — the "
+            "sanitized-from-client detail must still reach the facilitator's "
+            "server log (logger.error in _run_module_task)."
+        )
+        assert run_id in server_logged, (
+            "server error log must include the run_id for correlation"
+        )
+
     def test_timeout_hint_covers_cli_and_dashboard_audiences(self) -> None:
         """The timeout hint must speak to BOTH CLI (--dry-run) and
         dashboard ('Dry Run' button) users.

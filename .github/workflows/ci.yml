@@ -52,6 +52,20 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v --tb=short --junitxml=pytest-report.xml
 
+      - name: Dependency audit (pip-audit)
+        # Catches known CVEs in the dependency tree. pip-audit is already a dev
+        # dep (installed above via .[dev]) and verify.sh runs the same --strict
+        # gate locally, so CI mirrors local. Gated to a single matrix leg
+        # (3.12) — auditing the resolved tree twice is redundant and the deps
+        # don't differ by interpreter here; this keeps CI minutes lean.
+        if: matrix.python-version == '3.12'
+        # pipefail so a pip-audit non-zero exit (vulns found under --strict)
+        # propagates through the tee and FAILS the job, rather than tee's
+        # success masking it. Without this the step would be cosmetic.
+        run: |
+          set -o pipefail
+          pip-audit --strict | tee pip-audit.log
+
       - name: Upload test artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -60,6 +74,7 @@ jobs:
           path: |
             pytest-report.xml
             ruff.log
+            pip-audit.log
             .pytest_cache/lastfailed
           retention-days: 14
           if-no-files-found: ignore

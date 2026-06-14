@@ -132,7 +132,45 @@ Add `--keep-wallet` to preserve the wallet file (and the funded testnet balance)
 
 **Decision rule:** prefer granular `--module` reset. Only fall back to the full wipe when the recovery hint explicitly tells you the state file is unreadable, or when you've already tried the granular path and the learner is still stuck. A workshop-day full reset is almost always overkill and erases the rest of their progress.
 
-## 4. Live-workshop tips
+## 4. When the network misbehaves
+
+Two failures dominate live rooms, and both look like "the lab is broken" to a learner when they are actually the public testnet pushing back. Neither is a bug in their module — recognise the shape, then run the playbook. The universal escape hatch is **offline mode**: every module runs fully with `xrpl-lab run <module> --dry-run` (or the dashboard's "Dry Run" toggle), so a flaky network never blocks the curriculum.
+
+### Faucet rate-limiting (HTTP 429)
+
+**Symptom:** funding a fresh wallet fails. Doctor's *Faucet reachable* check or a module's funding step reports `Faucet rate-limited (HTTP 429)`; on the dashboard it renders as a warning with a clock icon (`RUNTIME_FAUCET_RATE_LIMITED`), not a red runtime fault.
+
+**Why:** the public testnet faucet caps funding requests **per client** to keep test XRP available for everyone. A room of learners funding wallets at once, or one learner retrying a wedged module repeatedly, trips the cap.
+
+**What to do:**
+
+- **Wait ~60 seconds, then retry.** The cap is short-lived; the transport already retries with backoff before surfacing the error, so a single manual retry after a minute almost always clears it.
+- **Don't hammer it.** Each rapid retry resets the clock. Tell the learner to stop clicking.
+- **Fall back offline:** `xrpl-lab run <module> --dry-run` practises the same module without needing a funded testnet wallet. Use this to keep a blocked learner moving while the cap cools off.
+- **Pre-empt it:** if you know the whole room funds at the same moment, stagger learner starts by a few seconds rather than counting down to a synchronized "go."
+
+### Testnet outage or slow RPC
+
+**Symptom:** modules hang and then time out, or doctor's *RPC reachable* check fails / warns. Error envelopes carry a timeout message ("the XRPL testnet did not respond within the run window") rather than a logic error — this is the environmental layer, not the learner's module code.
+
+**Why:** the testnet RPC is a public, unauthenticated endpoint with no SLA. It gets congested, slow, or briefly unavailable.
+
+**What to do:**
+
+- **Run `xrpl-lab doctor` first.** Read it top-down: *RPC reachable* and *Faucet reachable* are the two checks that isolate a network problem from a curriculum-state problem. Each check prints a pass/warn/fail status with an actionable hint — let the hint, not a guess, drive the next command.
+- **Retry once** — testnet load varies and a second attempt often succeeds.
+- **If it persists, go offline:** `--dry-run` (CLI) or the dashboard's "Dry Run" toggle runs every module with no network dependency. A testnet outage should cost you minutes of pacing, not the session.
+- **For a shared cohort, pin a known-good RPC** with `export XRPL_LAB_RPC_URL="https://your-preferred-testnet.example/"` (see [Setup](#1-setup)) so a single public-endpoint hiccup doesn't take the whole room down. Confirm the override took with `xrpl-lab status` or `xrpl-lab doctor` — both surface the effective RPC/faucet URLs. Keep the override on a real testnet: a non-testnet URL is refused at the write path and doctor will FAIL the env-overrides check.
+
+### Reading the error envelope
+
+Both CLI errors and dashboard messages share one structured shape — `{code, message, hint}` — so you read them the same way everywhere:
+
+- **`code`** tells you the family. `RUNTIME_FAUCET_RATE_LIMITED` and `RUNTIME_TIMEOUT` are recoverable network conditions (wait / retry / `--dry-run`); `INPUT_*` / `CONFIG_*` / `STATE_*` are user-side and usually mean a recovery or reset; a bare `RUNTIME_INTERNAL` is a server-side fault — capture a support bundle and escalate.
+- **`hint`** is the next command. The envelopes are written to tell you what to run, not just what went wrong — follow the hint before improvising.
+- **No secrets leak.** Dashboard envelopes never carry paths or internals; full detail lives in the server log and `~/.xrpl-lab/doctor.log` on the host running `xrpl-lab serve`. If a learner's browser shows a generic internal error with a `run_id`, that `run_id` is your lookup key in those logs.
+
+## 5. Live-workshop tips
 
 ### Color-independence for projector demos
 

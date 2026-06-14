@@ -44,6 +44,24 @@ class StatusResponse(BaseModel):
     has_proof_pack: bool = False
     has_certificate: bool = False
     report_count: int = 0
+    # The dashboard renders these directly. Before they were returned the
+    # Network card showed a permanent "Unknown" and the footer "v-.-.-".
+    # network is the ACTIVE network ("dry-run" | "testnet" | "devnet" |
+    # "local" | "mainnet" | "unknown"), derived live from the serve mode +
+    # configured RPC endpoint — not the static state literal.
+    network: str = ""
+    version: str = ""
+
+
+class HealthResponse(BaseModel):
+    """Liveness response — zero network calls, instant. Distinct from the
+    network-bound readiness check at /api/doctor (which probes RPC + faucet
+    with a 30s/15s budget). Lets a facilitator answer "is the server up?"
+    without waiting on the upstream testnet."""
+
+    status: str = "ok"
+    version: str = ""
+    dry_run: bool = False
 
 
 # -- /api/modules ----------------------------------------------------------

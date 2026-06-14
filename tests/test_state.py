@@ -14,6 +14,30 @@ class TestLabState:
         """LabState.version must stay in sync with the package __version__."""
         assert LabState().version == __version__
 
+    def test_xrpl_lab_home_docstring_not_stale(self):
+        """B-BACKEND-008: the LabState docstring must NOT claim XRPL_LAB_HOME
+        is unwired — get_home_dir honors it (verified by behavior below).
+        The stale "(not yet wired)" note misled maintainers."""
+        doc = LabState.__doc__ or ""
+        assert "not yet wired" not in doc, (
+            "LabState docstring still claims XRPL_LAB_HOME is unwired, but "
+            "get_home_dir honors it — fix the stale note."
+        )
+        assert "XRPL_LAB_HOME" in doc
+
+    def test_xrpl_lab_home_env_var_is_actually_wired(
+        self, tmp_path, monkeypatch,
+    ):
+        """B-BACKEND-008: prove the env var the docstring describes is wired.
+
+        get_home_dir() must return the XRPL_LAB_HOME path when set — this is
+        the behavior the (now-corrected) docstring promises."""
+        from xrpl_lab.state import get_home_dir
+
+        target = tmp_path / "custom-home"
+        monkeypatch.setenv("XRPL_LAB_HOME", str(target))
+        assert get_home_dir() == target
+
     def test_fresh_state(self):
         state = LabState()
         assert state.version == __version__

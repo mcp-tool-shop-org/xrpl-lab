@@ -110,8 +110,11 @@ class TestStatusSchema:
         data = client.get("/api/status").json()
         assert "completed_modules" not in data
         assert "total_modules" not in data
-        assert "version" not in data
-        assert "network" not in data
+        # network + version ARE part of the contract now (the dashboard's
+        # Network card + footer read them); they were previously absent,
+        # which left those surfaces showing "Unknown" / "v-.-.-".
+        assert data["network"]
+        assert data["version"]
 
 
 # ── GET /api/modules — Pydantic model validation ──────────────────────
@@ -331,6 +334,8 @@ class TestApiContractSnapshots:
             "has_proof_pack",
             "has_certificate",
             "report_count",
+            "network",
+            "version",
         }
 
         actual_keys = set(data.keys())
