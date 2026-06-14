@@ -1,4 +1,28 @@
 # Changelog
+## 1.7.0 — 2026-06-14
+
+Testnet-Only Enforcement, Network Honesty, and a Dashboard Redesign — a re-audit dogfood swarm (Stage A security, Stage B/C proactive + behavioral health, Stage D visual polish via Claude Design), each wave audit → amend → adversarially verified.
+
+### Security
+- **Testnet-only is now enforced in code, not just by default + docs.** A new `classify_network()` (fail-closed, suffix-spoof resistant) gates all five signing methods **and** the faucet: a mainnet or unrecognized `XRPL_LAB_RPC_URL` / `XRPL_LAB_FAUCET_URL` override is refused before the wallet seed touches the network. `network_name`, `get_network_info`, and `doctor` now report the real endpoint instead of a hard-coded `"testnet"`.
+- **PyPI publish action SHA-pinned** (`pypa/gh-action-pypi-publish@…` v1.14.0) — the sole un-pinned action, on the only `id-token: write` job.
+- **No path leakage across the WS boundary** — the session-export `MANIFEST.json` no longer embeds the facilitator's absolute path; the runner's recovery- and completion-save guards surface only the exception type name (full detail to the server log).
+
+### Network honesty (artifacts)
+- Proof packs, certificates, reports, the feedback bundle, `/api/status`, and the dashboard no longer mislabel dry-run/devnet runs as `"testnet"`. `state.network` is stamped per-run from the active transport; per-tx explorer links resolve from each transaction's own network (`testnet.xrpl.org` / `devnet.xrpl.org` / none) — **no more dead `testnet.xrpl.org` links baked into a sealed dry-run proof pack.** The top-level pack network reads `"mixed"` when a session spanned networks.
+- **`GET /api/status`** now returns `network` + `version`; **new `GET /api/health`** is an instant, network-free liveness probe (distinct from the network-bound `/api/doctor`).
+
+### Dashboard redesign
+- A full **"calm instrument panel"** visual redesign (via Claude Design): a sidebar shell, a real type system (Space Grotesk / Hanken Grotesk / JetBrains Mono, embedded offline), status encoded as shape + glyph + label + hue, an accessible ARIA tablist for Artifacts, and a **branded, focus-trapped modal that replaces the native `confirm()`/`alert()`** kill dialog.
+- **`xrpl-lab serve` mounts the built dashboard in-process** (`./site/dist` or `$XRPL_LAB_DASHBOARD_DIR`) — a single command serves both the API and the dashboard; warns on a non-loopback bind.
+- `serve` configures application logging (facilitator breadcrumbs now surface); a 45s WS **liveness watchdog** flags a silently-hung server; fresh-install empty-state guidance; `doctor.log` retains each check's hint.
+
+### Reliability
+- Windows atomic-write race fixed (`os.replace` bounded retry under concurrent `state.json` reads); faucet 429 backoff bounded; fire-and-forget session-cleanup tasks retained against asyncio GC.
+
+### Tests + CI
+- **702 → 785 tests** — testnet-only enforcement (incl. host-spoof + faucet-override), network honesty (no dead dry-run links), atomic retry, adversarial no-secret / no-path-leak, `/api/health`, WS back-pressure. CI adds a `pip-audit` dependency scan; the testnet smoke test gains failure observability.
+
 ## 1.6.0 — 2026-05-01
 
 Hardening + Workshop Resilience — security tightening, structured error envelopes, AMM math correction, and four new facilitator commands. Driven by a 10-phase dogfood swarm covering Stage A bugs/security, Stage B proactive defense, Stage C humanization, Stage D visual polish, and a Feature Pass over deliberate workshop gaps.
