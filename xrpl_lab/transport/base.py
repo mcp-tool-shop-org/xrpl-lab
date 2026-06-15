@@ -48,6 +48,7 @@ class SubmitResult:
     ledger_index: int | None = None
     error: str = ""
     explorer_url: str = ""
+    nft_id: str = ""  # NFTokenID, set on a successful NFTokenMint
 
 
 @dataclass
@@ -76,6 +77,19 @@ class TrustLineInfo:
     currency: str
     balance: str = "0"
     limit: str = "0"
+
+
+@dataclass
+class NFTInfo:
+    """A single NFToken owned by an account."""
+
+    nft_id: str
+    issuer: str = ""
+    taxon: int = 0
+    uri: str = ""  # decoded UTF-8 if possible, else hex
+    flags: int = 0
+    transfer_fee: int = 0
+    serial: int = 0
 
 
 @dataclass
@@ -264,3 +278,18 @@ class Transport(ABC):
         lp_token_issuer: str,
     ) -> str:
         """Get LP token balance for an address. Returns '0' if none."""
+
+    @abstractmethod
+    async def submit_nft_mint(
+        self,
+        wallet_seed: str,
+        uri: str,
+        taxon: int = 0,
+        transfer_fee: int = 0,
+        transferable: bool = True,
+    ) -> SubmitResult:
+        """Mint an NFToken (NFTokenMint). Returns SubmitResult with nft_id set on success."""
+
+    @abstractmethod
+    async def get_account_nfts(self, address: str) -> list[NFTInfo]:
+        """List NFTokens owned by an address (account_nfts)."""

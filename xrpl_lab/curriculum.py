@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from .modules import ModuleDef
 
 # Canonical tracks in display order.
-TRACKS = ("foundations", "dex", "reserves", "audit", "amm")
+TRACKS = ("foundations", "nfts", "dex", "reserves", "audit", "amm")
 
 # Canonical levels in progression order.
 LEVELS = ("beginner", "intermediate", "advanced")

@@ -28,6 +28,7 @@ from .actions.dex import (
     verify_offer_absent,
     verify_offer_present,
 )
+from .actions.nft import mint_nft, verify_nft
 from .actions.reserves import (
     _drops_to_xrp,
     compare_snapshots,
@@ -1659,6 +1660,84 @@ async def handle_write_report(
     return context
 
 
+async def handle_mint_nft(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    uri = args.get("uri", "ipfs://example/game-asset.json")
+    try:
+        taxon = int(args.get("taxon", "0"))
+    except ValueError:
+        taxon = 0
+    try:
+        transfer_fee = int(args.get("transfer_fee", "0"))
+    except ValueError:
+        transfer_fee = 0
+    transferable = str(args.get("transferable", "true")).lower() != "false"
+
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+
+    console.print(
+        f"  Minting NFToken — taxon [cyan]{taxon}[/], "
+        f"transferable [cyan]{transferable}[/], uri [cyan]{uri}[/]"
+    )
+    if transfer_fee:
+        console.print(f"  Royalty (TransferFee): {transfer_fee / 1000:.3f}%")
+    result = await mint_nft(transport, seed, uri, taxon, transfer_fee, transferable)
+
+    if result.success:
+        console.print("  [green]NFToken minted![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.nft_id:
+            console.print(f"  NFTokenID: [cyan]{result.nft_id}[/]")
+            context["nft_id"] = result.nft_id
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        state.record_tx(
+            txid=result.txid,
+            module_id=context.get("module_id", ""),
+            network=state.network,
+            success=True,
+            explorer_url=result.explorer_url,
+        )
+        context.setdefault("txids", []).append(result.txid)
+    else:
+        console.print(f"  [red]Mint failed: {result.error}[/]")
+        state.record_tx(
+            txid=result.txid or "failed",
+            module_id=context.get("module_id", ""),
+            network=state.network,
+            success=False,
+        )
+    save_state(state)
+    return context
+
+
+async def handle_verify_nft(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    address = state.wallet_address or ""
+    if not address:
+        console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        return context
+
+    expected = context.get("nft_id")
+    result = await verify_nft(transport, address, expected_nft_id=expected)
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+    if result.found and result.passed:
+        console.print("  [green]NFT ownership verified on-ledger.[/]")
+    context["last_nft_verify"] = result
+    return context
+
+
 # ---------------------------------------------------------------------------
 # Registration — populate the registry
 # ---------------------------------------------------------------------------
@@ -1702,6 +1781,27 @@ def _register_all() -> None:
             name="verify_tx",
             handler=handle_verify_tx,
             description="Verify the last transaction on-ledger",
+        ),
+        ActionDef(
+            name="mint_nft",
+            handler=handle_mint_nft,
+            description="Mint an NFToken (a game asset)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="uri", default="ipfs://example/game-asset.json",
+                             description="Metadata URI for the asset"),
+                PayloadField(name="taxon", type="int", default="0",
+                             description="Collection id (issuer+taxon = collection)"),
+                PayloadField(name="transfer_fee", type="int", default="0",
+                             description="Royalty 0-50000 (0.001% steps); needs transferable"),
+                PayloadField(name="transferable", type="bool", default="true",
+                             description="Whether the NFT can be traded"),
+            ],
+        ),
+        ActionDef(
+            name="verify_nft",
+            handler=handle_verify_nft,
+            description="Verify NFToken ownership on-ledger",
         ),
         ActionDef(
             name="create_issuer_wallet",
