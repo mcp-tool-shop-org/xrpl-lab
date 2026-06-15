@@ -11,6 +11,7 @@ from .base import (
     AmmInfo,
     FundResult,
     NetworkInfo,
+    NFTInfo,
     OfferInfo,
     SubmitResult,
     Transport,
@@ -95,6 +96,8 @@ class DryRunTransport(Transport):
         # AMM state
         self._amm_pools: dict[str, dict] = {}  # pair_key -> pool state
         self._lp_balances: dict[str, dict[str, str]] = {}  # address -> {lp_key: balance}
+        # NFT state — minted NFTokens per owner address
+        self._nfts: _PerAddressStore = _PerAddressStore()
 
     def _next_txid(self) -> str:
         """Generate a unique deterministic transaction ID (per-instance counter)."""
@@ -857,3 +860,62 @@ class DryRunTransport(Transport):
         lp_key = f"{lp_token_currency}/{lp_token_issuer}"
         balances = self._lp_balances.get(address, {})
         return balances.get(lp_key, "0")
+
+    # ── NFT methods ──────────────────────────────────────────────────
+
+    async def submit_nft_mint(
+        self,
+        wallet_seed: str,
+        uri: str,
+        taxon: int = 0,
+        transfer_fee: int = 0,
+        transferable: bool = True,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False,
+                result_code="temINVALID_FLAG",
+                fee="12",
+                error="[dry-run] Simulated failure: invalid NFTokenMint",
+            )
+
+        owner = _address_from_seed(wallet_seed)
+        txid = self._next_txid()
+        nft_id = hashlib.sha256(
+            f"{owner}-{uri}-{taxon}-{self._counter}".encode()
+        ).hexdigest().upper()[:64]
+        owned = self._nfts.setdefault(owner, [])
+        owned.append(
+            NFTInfo(
+                nft_id=nft_id,
+                issuer=owner,
+                taxon=taxon,
+                uri=uri,
+                flags=0x8 if transferable else 0,
+                transfer_fee=transfer_fee,
+                serial=len(owned) + 1,
+            )
+        )
+        self._owner_count += 1
+        return SubmitResult(
+            success=True,
+            txid=txid,
+            result_code="tesSUCCESS",
+            fee="12",
+            ledger_index=99999999,
+            explorer_url="",  # dry-run tx is simulated — no public explorer
+            nft_id=nft_id,
+        )
+
+    async def get_account_nfts(self, address: str) -> list[NFTInfo]:
+        if address in self._nfts:
+            return list(self._nfts[address])
+        legacy = self._nfts.get(_PerAddressStore._LEGACY_KEY, [])
+        if legacy:
+            return list(legacy)
+        real = {k: v for k, v in self._nfts.items()
+                if k != _PerAddressStore._LEGACY_KEY}
+        if len(real) == 1:
+            return list(next(iter(real.values())))
+        return []

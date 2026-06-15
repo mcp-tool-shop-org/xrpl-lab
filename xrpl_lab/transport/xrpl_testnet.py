@@ -14,16 +14,18 @@ from xrpl.asyncio.transaction import submit_and_wait
 from xrpl.models import (
     AccountInfo,
     AccountLines,
+    AccountNFTs,
     AccountOffers,
     IssuedCurrencyAmount,
     Memo,
+    NFTokenMint,
     OfferCancel,
     OfferCreate,
     Payment,
     TrustSet,
     Tx,
 )
-from xrpl.utils import drops_to_xrp, xrp_to_drops
+from xrpl.utils import drops_to_xrp, get_nftoken_id, hex_to_str, str_to_hex, xrp_to_drops
 from xrpl.wallet import Wallet
 
 from .base import (
@@ -31,6 +33,7 @@ from .base import (
     AmmInfo,
     FundResult,
     NetworkInfo,
+    NFTInfo,
     OfferInfo,
     SubmitResult,
     Transport,
@@ -676,6 +679,119 @@ class XRPLTestnetTransport(Transport):
             ]
         except Exception:
             logger.warning("get_trust_lines failed for %s", address, exc_info=True)
+            return []
+
+    async def submit_nft_mint(
+        self,
+        wallet_seed: str,
+        uri: str,
+        taxon: int = 0,
+        transfer_fee: int = 0,
+        transferable: bool = True,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
+        last_error = ""
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                wallet = Wallet.from_seed(wallet_seed)
+                mint = NFTokenMint(
+                    account=wallet.address,
+                    nftoken_taxon=taxon,
+                    uri=str_to_hex(uri) if uri else None,
+                    transfer_fee=transfer_fee or None,
+                    flags=8 if transferable else 0,  # tfTransferable = 0x8
+                )
+                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                    response = await asyncio.wait_for(
+                        submit_and_wait(mint, client, wallet),
+                        timeout=SUBMIT_TIMEOUT,
+                    )
+
+                result = response.result
+                meta = result.get("meta", {})
+                result_code = meta.get(
+                    "TransactionResult", result.get("engine_result", "unknown")
+                )
+                txid = result.get("hash", "")
+                fee = result.get("Fee", "0")
+                ledger_idx = result.get("ledger_index") or meta.get("ledger_index")
+
+                success = result_code == "tesSUCCESS"
+                nft_id = ""
+                error_msg = ""
+                if success:
+                    try:
+                        nft_id = get_nftoken_id(meta)
+                    except Exception:
+                        nft_id = ""
+                else:
+                    from ..doctor import explain_result_code
+
+                    info = explain_result_code(result_code)
+                    error_msg = f"{info['meaning']}. {info['action']}"
+
+                return SubmitResult(
+                    success=success,
+                    txid=txid,
+                    result_code=result_code,
+                    fee=fee,
+                    ledger_index=ledger_idx,
+                    explorer_url=self._explorer_url(txid),
+                    error=error_msg,
+                    nft_id=nft_id,
+                )
+
+            except TimeoutError:
+                last_error = "NFTokenMint submission timed out. Try again in a minute."
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except Exception as exc:
+                last_error = _friendly_error(exc)
+                if any(
+                    code in last_error
+                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
+                ):
+                    break
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+
+        return SubmitResult(success=False, result_code="local_error", error=last_error)
+
+    async def get_account_nfts(self, address: str) -> list[NFTInfo]:
+        try:
+            async with AsyncJsonRpcClient(self._rpc_url) as client:
+                response = await asyncio.wait_for(
+                    client.request(
+                        AccountNFTs(account=address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+            out: list[NFTInfo] = []
+            for n in response.result.get("account_nfts", []):
+                uri_hex = n.get("URI", "") or ""
+                try:
+                    uri = hex_to_str(uri_hex) if uri_hex else ""
+                except Exception:
+                    uri = uri_hex
+                out.append(
+                    NFTInfo(
+                        nft_id=n.get("NFTokenID", ""),
+                        issuer=n.get("Issuer", address),
+                        taxon=int(n.get("NFTokenTaxon", 0)),
+                        uri=uri,
+                        flags=int(n.get("Flags", 0)),
+                        transfer_fee=int(n.get("TransferFee", 0)),
+                        serial=int(n.get("nft_serial", 0)),
+                    )
+                )
+            return out
+        except Exception:
+            logger.warning("get_account_nfts failed for %s", address, exc_info=True)
             return []
 
     def _amount_obj(
