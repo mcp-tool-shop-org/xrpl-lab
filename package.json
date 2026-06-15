@@ -1,6 +1,6 @@
 {
   "name": "@mcptoolshop/xrpl-lab",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "XRPL training workbook — zero-prerequisite npx install (verified binary launcher)",
   "type": "commonjs",
   "license": "MIT",

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/brand/main/logos/xrpl-lab/readme.png" width="400" alt="XRPL Lab">
+  <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/brand/main/logos/xrpl-lab/readme.png" width="500" alt="XRPL Lab">
 </p>
 
 <p align="center">
@@ -12,13 +12,17 @@
   <a href="https://mcp-tool-shop-org.github.io/xrpl-lab/"><img src="https://img.shields.io/badge/Landing_Page-live-blue" alt="Landing Page"></a>
 </p>
 
-XRPL: Manual de capacitación: aprenda haciendo, demuestre con resultados.
+Manual de capacitación XRPL: aprende haciendo, demuestra con resultados.
 
 Cada módulo enseña una habilidad de XRPL y produce un resultado verificable: un ID de transacción,
-un recibo firmado o un informe de diagnóstico. Sin cuentas, sin rodeos, sin nube: solo
-competencia y resultados.
+un recibo firmado o un informe de diagnóstico. Sin cuentas, sin información innecesaria, sin la nube; solo
+competencia y comprobantes.
 
-## Instalación
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/xrpl-lab/main/docs/images/dashboard-hero.png" width="800" alt="XRPL Lab dashboard showing 11/12 modules completed with quick actions and status panels">
+</p>
+
+## Instalar
 
 ```bash
 pipx install xrpl-lab
@@ -30,15 +34,15 @@ O con pip:
 pip install xrpl-lab
 ```
 
-Requiere Python 3.11+.
+Requiere Python 3.11 o superior.
 
-## Inicio rápido
+## Guía rápida
 
 ```bash
 xrpl-lab start
 ```
 
-El asistente te guía en la configuración de la billetera, la financiación y tu primer módulo.
+El lanzador guiado te guía a través de la configuración de la billetera, el financiamiento y tu primer módulo.
 
 ### Modo sin conexión
 
@@ -46,40 +50,48 @@ El asistente te guía en la configuración de la billetera, la financiación y t
 xrpl-lab start --dry-run
 ```
 
-No se requiere conexión de red. Transacciones simuladas para aprender el flujo de trabajo.
+No se requiere red. Transacciones simuladas para aprender el flujo de trabajo.
 
 ## Módulos
 
-12 módulos en cinco áreas: Fundamentos, DEX, Reservas, Auditoría y AMM.
-Los requisitos previos son explícitos; la CLI y el analizador de código los hacen cumplir.
+16 módulos en nueve áreas temáticas: Fundamentos, NFT, Tokens, Pagos, Identidad, DEX, Reservas, Auditoría y AMM.
+Los requisitos previos se especifican explícitamente; la CLI y el analizador los hacen cumplir.
 
-| # | Módulo | Área | Modo | Lo que aprende | Lo que demuestra |
+| # | Módulo | Área temática | Modo | Lo que aprenderás | Lo que demostrarás |
 |---|--------|-------|------|----------------|----------------|
-| 1 | Comprensión de los recibos | Fundamentos | Red de pruebas | La confirmación es un recibo, no un estado de "enviado". Envíe un pago, lea cada campo del recibo. | ID de transacción + informe de verificación |
-| 2 | Comprensión de los errores | Fundamentos | Red de pruebas | Los errores de XRPL tienen significado (tec/tef/tem/ter). Rompa una transacción intencionalmente, diagnostique, corrija y vuelva a enviar. | Secuencia de transacciones fallidas y corregidas |
-| 3 | Conceptos básicos de las líneas de confianza | Fundamentos | Red de pruebas | Los tokens se activan y son unidireccionales. Cree un emisor, establezca una línea de confianza, emita tokens. | Línea de confianza + saldo del token |
-| 4 | Depuración de líneas de confianza | Fundamentos | Red de pruebas | Decodifique los códigos de error de la línea de confianza. Fallo intencionado, decodificación de errores, corrección. | Error → secuencia de transacciones de corrección |
-| 5 | Comprensión de DEX | DEX | Red de pruebas | Los libros de órdenes emparejan a compradores y vendedores. Cree ofertas, lea libros de órdenes, cancele. | ID de transacción de creación y cancelación de ofertas |
-| 6 | Conceptos básicos de las reservas | Reservas | Red de pruebas | Cada objeto propiedad bloquea XRP. Instantáneas, número de propietarios, cálculo de reservas. | Diferencia de instantáneas (antes/después) |
-| 7 | Mantenimiento de la cuenta | Reservas | Red de pruebas | La limpieza es una habilidad fundamental. Cancele ofertas, elimine líneas de confianza, libere reservas. | Informe de verificación de limpieza |
-| 8 | Auditoría | Auditoría | Red de pruebas | Las auditorías codifican la intención (ID de transacción + expectativa + veredicto). Verifique por lotes con expectativas. | Paquete de auditoría (MD + CSV + JSON) |
-| 9 | Conceptos básicos de la liquidez de AMM | AMM | Prueba simulada | Los precios de producto constante (`x*y=k`) varían pasivamente. Cree un grupo, deposite, gane LP, retire. | ID de transacción del ciclo de vida de AMM |
-| 10 | Conceptos básicos de la creación de mercado en DEX | DEX | Red de pruebas | Los diferenciales de oferta/demanda rastrean el inventario. Cotice ambos lados, haga instantáneas de las posiciones, limpie. | ID de transacción de la estrategia + informe de limpieza |
-| 11 | Controles de inventario | DEX | Red de pruebas | Solo cotice el lado seguro cuando el inventario se desequilibra. Colocación basada en umbrales y protegida. | Comprobación de inventario + transacciones protegidas |
-| 12 | Comprensión de los riesgos de DEX vs AMM | AMM | Prueba simulada | La pérdida imperceptible es una propiedad del modelo AMM. DEX y AMM lado a lado. | Informe de comparación + registro de auditoría |
+| 1 | Conocimiento de recibos | fundamentos | testnet | La finalización es un recibo, no un estado de "enviado". Envía un pago, lee cada campo del recibo. | txid + informe de verificación |
+| 2 | Conocimiento de fallos | fundamentos | testnet | Los errores de XRPL tienen semántica (tec/tef/tem/ter). Provoca un fallo en una transacción, diagnostica, corrige y vuelve a enviarla. | registro de transacciones fallidas + corregidas |
+| 3 | Líneas de confianza 101 | fundamentos | testnet | Los tokens requieren aceptación previa y son direccionales: crea un emisor, establece una línea de confianza, emite tokens. | línea de confianza + saldo del token |
+| 4 | Depuración de líneas de confianza | fundamentos | testnet | Decodifica los códigos de error de las líneas de confianza: fallo intencional, decodificación de errores, corrección. | registro de errores → transacciones corregidas |
+| 5 | Conocimiento de DEX | dex | testnet | Los libros de órdenes emparejan a los creadores con los compradores: crea ofertas, lee los libros de órdenes, cancela. | txid de creación + cancelación de la oferta |
+| 6 | Reservas 101 | reservas | testnet | Cada objeto que posees bloquea XRP: instantáneas, recuento de propietarios, cálculos de reserva. | delta de la instantánea antes/después |
+| 7 | Higiene de la cuenta | reservas | testnet | La limpieza es una habilidad fundamental: cancela ofertas, elimina líneas de confianza, libera reservas. | informe de verificación de la limpieza |
+| 8 | Auditoría de recibos | auditoria | testnet | Las auditorías codifican la intención (txid + expectativa + veredicto): verifica por lotes con expectativas. | paquete de auditoría (MD + CSV + JSON) |
+| 9 | Liquidez AMM 101 | amm | prueba en seco | El producto constante (`x*y=k`) establece precios de forma pasiva: crea un grupo, deposita, gana LP, retira. | txid del ciclo de vida AMM |
+| 10 | Creación de mercado DEX 101 | dex | testnet | Bid/ask spreads rastrean el inventario: cotiza ambos lados, toma instantáneas de las posiciones, limpia. | txid de la estrategia + informe de higiene |
+| 11 | Límites de seguridad del inventario | dex | testnet | Cotiza solo el lado seguro cuando el inventario se inclina: basado en umbrales, colocación protegida. | verificación del inventario + txid protegido |
+| 12 | Conocimiento de los riesgos de DEX vs AMM | amm | prueba en seco | La pérdida impermanente es una propiedad del modelo AMM: ciclo de vida DEX y AMM lado a lado. | informe comparativo + registro de auditoría |
+| 13 | Creación de NFT 101 | nfts | testnet | Los NFT son objetos nativos del libro mayor: crea un activo de juego (taxón, URI, regalías), verifica la propiedad. | NFTokenID + verificación en el libro mayor |
+| 14 | Emisión de MPT 101 | tokens | testnet | Una moneda del juego en una transacción: emite un token multipropósito (XLS-33): límite de suministro, escala, indicadores. | ID de emisión + verificación en el libro mayor |
+| 15 | Escrow 101 | pagos | testnet | Bloquea XRP hasta un momento determinado: crea un escrow basado en el tiempo, verifícalo en el libro mayor. | objeto de escrow + FinishAfter |
+| 16 | DID 101 | identidad | testnet | Identidad en el libro mayor: ancla un identificador descentralizado (XLS-40), verifícalo. | objeto DID + URI |
 
-### Áreas
+### Áreas temáticas
 
-- **Fundamentos**: billetera, pagos, líneas de confianza, manejo de errores.
-- **DEX**: ofertas, libros de órdenes, creación de mercado, gestión de inventario.
-- **Reservas**: reservas de la cuenta, número de propietarios, limpieza.
-- **Auditoría**: verificación por lotes, informes de auditoría.
-- **AMM**: liquidez del mercado automatizado, comparación de DEX vs AMM.
+- **fundamentos**: billetera, pagos, líneas de confianza, manejo de errores
+- **nfts**: activos de juego NFT: creación, colecciones, regalías (XLS-20)
+- **tokens**: emisión de tokens multipropósito (MPT), moneda del juego (XLS-33)
+- **pagos**: escrow y valor con bloqueo temporal
+- **identidad**: identificadores descentralizados (DID, XLS-40)
+- **dex**: ofertas, libros de órdenes, creación de mercado, gestión de inventario
+- **reservas**: reservas de la cuenta, recuento de propietarios, limpieza
+- **auditoria**: verificación por lotes, informes de auditoría
+- **amm**: liquidez del creador automático de mercado, comparación DEX vs AMM
 
 ### Modos
 
-- **Red de pruebas**: transacciones reales en la red de pruebas de XRPL.
-- **Prueba simulada**: sandbox sin conexión con transacciones simuladas (no se requiere conexión de red).
+- **testnet**: transacciones reales en la red de prueba XRPL
+- **prueba en seco**: sandbox sin conexión con transacciones simuladas (no se requiere red)
 
 ## Comandos
 
@@ -112,14 +124,18 @@ xrpl-lab send --to <address> --amount <xrp> [--memo <text>]  Send a payment
 xrpl-lab verify --tx <id>   Verify a transaction on-ledger
 ```
 
-Todos los comandos admiten `--dry-run` para el modo sin conexión, cuando sea aplicable.
+Todos los comandos admiten `--dry-run` para el modo sin conexión cuando corresponda.
 
 ## Uso en talleres
 
-XRPL Lab está diseñado para entornos de enseñanza reales. No requiere cuentas, ni telemetría, ni servicios en la nube.
-Todo funciona localmente.
+XRPL Lab está diseñado para entornos de enseñanza reales. Sin cuentas, sin telemetría, sin la nube.
+Todo se ejecuta localmente.
 
-### Estado de facilitador
+<p align="center">
+  <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/xrpl-lab/main/docs/images/facilitator-active-runs.png" width="800" alt="Facilitator dashboard listing active learner runs with module IDs, dry-run badges, status, queue depth, and run IDs">
+</p>
+
+### Estado del facilitador
 
 ```bash
 xrpl-lab status             # Where is this learner? What's blocked? What's next?
@@ -128,7 +144,7 @@ xrpl-lab tracks             # Track-level completion: what was actually practice
 xrpl-lab recovery           # Stuck? See exactly what to run next
 ```
 
-### Transferencia de soporte
+### Asistencia
 
 ```bash
 xrpl-lab support-bundle              # Human-readable markdown bundle
@@ -136,74 +152,74 @@ xrpl-lab support-bundle --json       # Machine-parseable JSON
 xrpl-lab support-bundle --verify bundle.json  # Verify a received bundle
 ```
 
-Un facilitador puede diagnosticar cualquier problema de un participante a partir de un paquete de soporte sin necesidad de reproducir toda la sesión. No se incluyen datos confidenciales.
+Un facilitador puede diagnosticar el problema de cualquier alumno a partir de un paquete de asistencia sin
+reproducir toda la sesión. No se incluyen secretos.
 
-### Flujos de trabajo del taller
+### Flujos de trabajo
 
-**Entorno de pruebas completamente offline:** no se requiere conexión a la red.
+**Sandbox completamente desconectado**: no se requiere red:
 ```bash
 xrpl-lab wallet create
 xrpl-lab start --dry-run
 ```
 
-**Combinación de offline y testnet:** transacciones reales para conceptos básicos, entorno de pruebas para temas avanzados.
+**Modo mixto, sin conexión + testnet**: transacciones reales para los conceptos básicos, sandbox para funciones avanzadas:
 ```bash
 xrpl-lab wallet create
 xrpl-lab fund
 xrpl-lab start
 ```
 
-**Progresión de "campamento" a laboratorio:** permite continuar desde xrpl-camp.
+**Progresión de Camp → Lab**: continúa desde xrpl-camp:
 ```bash
 xrpl-lab start    # auto-detects camp wallet and certificate
 ```
 
-## Elementos
+## Resultados
 
-**Paquete de verificación** (`xrpl_lab_proof_pack.json`): Registro compartible de los módulos completados,
-identificadores de transacción y enlaces al explorador. Incluye un hash de integridad SHA-256. No contiene datos confidenciales.
+**Paquete de prueba** (`xrpl_lab_proof_pack.json`): Registro compartible de los módulos completados, identificadores de transacción y enlaces al explorador. Incluye un hash de integridad SHA-256. No contiene información confidencial.
 
-**Certificado** (`xrpl_lab_certificate.json`): Registro simplificado de la finalización.
+**Certificado** (`xrpl_lab_certificate.json`): Registro conciso de la finalización.
 
-**Informes** (`reports/*.md`): Resúmenes legibles por humanos de lo que se hizo y se demostró.
+**Informes** (`reports/*.md`): Resúmenes legibles para humanos sobre lo que se hizo y demostró.
 
 **Paquetes de auditoría** (`audit_pack_*.json`): Resultados de verificación por lotes con hash de integridad SHA-256.
 
 ## Modelo de seguridad y confianza
 
-**Datos a los que XRPL Lab accede:**
-- Clave de la billetera (almacenada localmente en `~/.xrpl-lab/wallet.json` como JSON de texto plano, protegida con permisos de archivo 0o600 y un directorio padre 0o700; no está encriptada).
-- Progreso de los módulos y identificadores de transacción (almacenados en `~/.xrpl-lab/state.json`, escrituras atómicas a través de un archivo temporal y luego renombrado).
-- RPC de la red de pruebas XRPL (punto de acceso público, las transacciones se firman localmente antes de enviarse).
-- Grifo de la red de pruebas (HTTP público, solo se envía su dirección).
+**Datos a los que accede XRPL Lab:**
+- Semilla de la billetera (almacenada localmente en `~/.xrpl-lab/wallet.json` como JSON sin formato, protegida por permisos de archivo 0o600 y un directorio principal 0o700; no está cifrada)
+- Progreso del módulo e identificadores de transacción (almacenados en `~/.xrpl-lab/state.json`, escrituras atómicas mediante tmp + cambio de nombre)
+- RPC de XRPL Testnet (punto final público, las transacciones se firman localmente antes del envío)
+- Grifo de Testnet (HTTP público, solo se envía su dirección)
 
 **Datos a los que XRPL Lab NO accede:**
-- No se utiliza la red principal. Solo la red de pruebas.
-- No hay telemetría, análisis ni envío de información a servidores externos.
-- No hay cuentas en la nube, ni registro, ni APIs de terceros.
-- No hay datos confidenciales en los paquetes de verificación, certificados, informes o paquetes de soporte, nunca.
+- No a la red principal. Solo a la red de prueba (Testnet).
+- No recopila telemetría, análisis ni datos de ningún tipo.
+- No utiliza cuentas en la nube, no requiere registro y no emplea API de terceros.
+- No contiene información confidencial en los paquetes de prueba, certificados, informes o paquetes de soporte, nunca.
 
 **Permisos y niveles de almacenamiento:**
-- Directorio principal `~/.xrpl-lab/`: nivel de secretos privados, directorio con permisos 0o700 y archivo de billetera con permisos 0o600. Almacena la clave de la billetera, el registro del facilitador y los paquetes de auditoría.
-- Espacio de trabajo `./.xrpl-lab/`: nivel diseñado para compartir, directorio con permisos 0o755. Almacena informes de módulos, paquetes de verificación y certificados. Los facilitadores pueden revisarlos sin necesidad de permisos adicionales.
+- Directorio principal `~/.xrpl-lab/`: nivel privado para secretos, directorio 0o700 + archivo de billetera 0o600. Almacena la semilla de la billetera, el registro del programa y los paquetes de auditoría.
+- Espacio de trabajo `./.xrpl-lab/`: nivel diseñado para ser compartido, directorio 0o755. Almacena informes de módulos, paquetes de prueba y certificados. Los facilitadores pueden revisarlos sin necesidad de permisos elevados.
 - Sistema de archivos: solo lee y escribe en las dos ubicaciones anteriores.
-- Red: solo RPC y grifo de la red de pruebas XRPL (ambos pueden ser modificados a través de variables de entorno y son opcionales con `--dry-run`).
-- No se requieren permisos elevados.
+- Red: solo utiliza XRPL Testnet RPC + grifo (ambos se pueden anular mediante variables de entorno, ambos son opcionales con `--dry-run`).
+- No requiere permisos elevados.
 
-**Interfaz del panel de control (cuando se ejecuta `xrpl-lab serve`):**
-- El punto de acceso del corredor WebSocket impone una lista de origen permitida (cierra las conexiones que no están en la lista con el código 4003).
-- Todos los marcos de error emiten un envoltorio estructurado (`code`, `message`, `hint`, `severity`, `icon_hint`) — no se filtra información de la ruta, ni del estado interno.
-- Cola de mensajes limitada por conexión con un comportamiento de retroalimentación documentado.
+**Interfaz del panel de control (cuando `xrpl-lab serve` está en ejecución):**
+- El punto final del ejecutor WebSocket aplica una lista de origen permitida (cierra las conexiones que no están en la lista con el código 4003).
+- Todos los marcos de error emiten un sobre estructurado (`code`, `message`, `hint`, `severity`, `icon_hint`); no se filtran rutas ni información del estado interno.
+- Cola de mensajes por conexión limitada con comportamiento documentado de contrapresión.
 
 Consulte [SECURITY.md](SECURITY.md) para obtener la política de seguridad completa y las instrucciones de configuración del taller.
 
 ## Requisitos
 
 - Python 3.11+
-- Conexión a Internet para la red de pruebas (o use `--dry-run` para el modo completamente offline).
+- Conexión a Internet para la red de prueba (o utilice `--dry-run` para el modo completamente desconectado).
 
 ## Licencia
 
 MIT
 
-Desarrollado por [MCP Tool Shop](https://mcp-tool-shop.github.io/)
+Creado por [MCP Tool Shop](https://mcp-tool-shop.github.io/)

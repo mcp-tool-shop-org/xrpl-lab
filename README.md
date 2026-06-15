@@ -54,7 +54,7 @@ No network required. Simulated transactions for learning the workflow.
 
 ## Modules
 
-12 modules across five tracks: Foundations, DEX, Reserves, Audit, and AMM.
+16 modules across nine tracks: Foundations, NFTs, Tokens, Payments, Identity, DEX, Reserves, Audit, and AMM.
 Prerequisites are explicit — the CLI and linter enforce them.
 
 | # | Module | Track | Mode | What you learn | What you prove |
@@ -71,10 +71,18 @@ Prerequisites are explicit — the CLI and linter enforce them.
 | 10 | DEX Market Making 101 | dex | testnet | Bid/ask spreads track inventory — quote both sides, snapshot positions, clean up | strategy txids + hygiene report |
 | 11 | Inventory Guardrails | dex | testnet | Quote only the safe side when inventory tilts — threshold-based, guarded placement | inventory check + guarded txids |
 | 12 | DEX vs AMM Risk Literacy | amm | dry-run | Impermanent loss is a property of the AMM model — DEX and AMM lifecycle side by side | comparison report + audit trail |
+| 13 | NFT Minting 101 | nfts | testnet | NFTs are native ledger objects — mint a game asset (taxon, URI, royalty), verify ownership | NFTokenID + on-ledger verify |
+| 14 | MPT Issuance 101 | tokens | testnet | A game currency in one tx — issue a Multi-Purpose Token (XLS-33): supply cap, scale, flags | issuance id + on-ledger verify |
+| 15 | Escrow 101 | payments | testnet | Lock XRP until a time — create a time-based escrow, verify it on-ledger | escrow object + FinishAfter |
+| 16 | DID 101 | identity | testnet | On-ledger identity — anchor a Decentralized Identifier (XLS-40), verify it | DID object + URI |
 
 ### Tracks
 
 - **foundations** — wallet, payments, trust lines, error handling
+- **nfts** — NFT game assets: minting, collections, royalties (XLS-20)
+- **tokens** — Multi-Purpose Token (MPT) game-currency issuance (XLS-33)
+- **payments** — escrow & time-locked value
+- **identity** — Decentralized Identifiers (DID, XLS-40)
 - **dex** — offers, order books, market making, inventory management
 - **reserves** — account reserves, owner count, cleanup
 - **audit** — batch verification, audit reports

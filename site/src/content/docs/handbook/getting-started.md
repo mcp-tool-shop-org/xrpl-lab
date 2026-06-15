@@ -61,7 +61,7 @@ The `doctor` command checks your wallet, state file, workspace, RPC endpoint, an
 
 ## Curriculum and tracks
 
-Modules are organized into five tracks with explicit prerequisites:
+Modules are organized into nine tracks with explicit prerequisites:
 
 - **foundations** — wallet, payments, trust lines, error handling
 - **dex** — offers, order books, market making, inventory management

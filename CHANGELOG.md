@@ -1,4 +1,30 @@
 # Changelog
+## 1.8.0 — 2026-06-14
+
+KB-sourced module expansion — four new tracks and four new modules, built from the verified
+xrpl-knowledge corpus, plus a transport fix that restores the live-network path.
+
+### Added
+- **Four new tracks** (nfts, tokens, payments, identity) with four new modules, each teaching one
+  capability and verifying it on-ledger:
+  - `nft_minting_101` (nfts) — mint a native NFT game asset (NFTokenMint, XLS-20): taxon, URI, royalty.
+  - `mpt_issuance_101` (tokens) — issue a Multi-Purpose Token game currency (MPTokenIssuanceCreate, XLS-33).
+  - `escrow_101` (payments) — lock XRP in a time-based escrow (EscrowCreate).
+  - `did_101` (identity) — anchor a Decentralized Identifier (DIDSet, XLS-40).
+- Transport support for `NFTokenMint`, `EscrowCreate`, `DIDSet`, `MPTokenIssuanceCreate` (+ `account_nfts` /
+  `account_objects` queries) in both the dry-run and testnet transports; new `nft` / `escrow` / `did` / `mpt`
+  actions. All four verified live on XRPL Testnet.
+- Modules are sourced from the [readouts](https://github.com/mcp-tool-shop-org/readouts) **xrpl-knowledge**
+  corpus (verified, mainnet-status-tagged capabilities); on-ledger receipts feed back as a "proven" tier.
+
+### Fixed
+- **Real-network path restored.** xrpl-py 4.5.0's `AsyncJsonRpcClient` is not an async context manager, so the
+  transport's `async with AsyncJsonRpcClient(...)` raised on every live call. Wrapped in a stateless
+  `@asynccontextmanager` (`_rpc_client`). The all-dry-run suite never caught it; now spot-checked on testnet.
+
+### Tests
+- +28 offline tests (NFT / token / escrow / DID) — 813 passing. ruff clean.
+
 ## 1.7.1 — 2026-06-14
 
 Packaging + CI follow-up to v1.7.0 — completes the npm distribution channel, patches three dependency CVEs, and fixes the dependency-audit gate.

@@ -88,7 +88,7 @@ This shows your wallet address, completed modules, and recent transactions.
 Once you have completed your first module:
 
 - Read the [Getting Started](/xrpl-lab/handbook/getting-started/) guide for details on data storage and network usage
-- Browse the [Modules](/xrpl-lab/handbook/modules/) page to see all 12 modules across the Foundations, DEX, Reserves, Audit, and AMM tracks
+- Browse the [Modules](/xrpl-lab/handbook/modules/) page to see all 16 modules across the Foundations, NFTs, Tokens, Payments, Identity, DEX, Reserves, Audit, and AMM tracks
 - Check the [Commands](/xrpl-lab/handbook/commands/) reference for every CLI command and flag
 - Learn about [Artifacts](/xrpl-lab/handbook/artifacts/) -- proof packs, audit packs, and certificates that prove your work
 

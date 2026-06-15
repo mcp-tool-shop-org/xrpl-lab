@@ -12,7 +12,7 @@ export const config: SiteConfig = {
     badge: 'Open source',
     headline: 'XRPL Lab',
     headlineAccent: 'learn by doing.',
-    description: 'CLI training workbook for the XRP Ledger. 12 hands-on modules — each one teaches a skill and produces a verifiable artifact. No accounts, no fluff.',
+    description: 'CLI training workbook for the XRP Ledger. 16 hands-on modules — each one teaches a skill and produces a verifiable artifact. No accounts, no fluff.',
     primaryCta: { href: '#usage', label: 'Get started' },
     secondaryCta: { href: 'handbook/', label: 'Read the Handbook' },
     previews: [
@@ -31,7 +31,7 @@ export const config: SiteConfig = {
       features: [
         { title: 'Artifact-driven', desc: 'Every module produces a verifiable artifact — transaction IDs, audit packs, proof packs with SHA-256 integrity.' },
         { title: 'Offline-first', desc: 'Full dry-run mode with simulated transactions. Learn the workflow without touching the network.' },
-        { title: '775 tests', desc: 'Deterministic test suite covers every module, action, and transport path. Strategy track included.' },
+        { title: '813 tests', desc: 'Deterministic test suite covers every module, action, and transport path — including NFT, token, escrow, and DID flows.' },
         { title: 'Web Dashboard', desc: 'Interactive browser UI with real-time module runner, artifact viewer, and health diagnostics. Run xrpl-lab serve to start.' },
       ],
     },
@@ -39,7 +39,7 @@ export const config: SiteConfig = {
       kind: 'data-table',
       id: 'modules',
       title: 'Modules',
-      subtitle: '12 modules across five tracks.',
+      subtitle: '16 modules across nine tracks.',
       columns: ['Module', 'Track', 'What you prove'],
       rows: [
         ['Receipt Literacy', 'foundations', 'txid + verification report'],
@@ -54,6 +54,10 @@ export const config: SiteConfig = {
         ['DEX Market Making 101', 'dex', 'strategy txids + hygiene report'],
         ['Inventory Guardrails', 'dex', 'inventory check + guarded txids'],
         ['DEX vs AMM Risk Literacy', 'amm', 'comparison report + audit trail'],
+        ['NFT Minting 101', 'nfts', 'NFTokenID + on-ledger verify'],
+        ['MPT Issuance 101', 'tokens', 'issuance id + on-ledger verify'],
+        ['Escrow 101', 'payments', 'escrow object + FinishAfter'],
+        ['DID 101', 'identity', 'DID object + URI'],
       ],
     },
     {
