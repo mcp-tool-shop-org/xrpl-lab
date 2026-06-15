@@ -9,7 +9,10 @@ from decimal import ROUND_HALF_UP, Decimal, getcontext
 from .base import (
     AccountSnapshot,
     AmmInfo,
+    DIDInfo,
+    EscrowInfo,
     FundResult,
+    MPTIssuanceInfo,
     NetworkInfo,
     NFTInfo,
     OfferInfo,
@@ -98,6 +101,10 @@ class DryRunTransport(Transport):
         self._lp_balances: dict[str, dict[str, str]] = {}  # address -> {lp_key: balance}
         # NFT state — minted NFTokens per owner address
         self._nfts: _PerAddressStore = _PerAddressStore()
+        # Escrow / DID / MPT state
+        self._escrows: _PerAddressStore = _PerAddressStore()
+        self._mpts: _PerAddressStore = _PerAddressStore()
+        self._dids: dict[str, DIDInfo] = {}  # one DID per account
 
     def _next_txid(self) -> str:
         """Generate a unique deterministic transaction ID (per-instance counter)."""
@@ -919,3 +926,88 @@ class DryRunTransport(Transport):
         if len(real) == 1:
             return list(next(iter(real.values())))
         return []
+
+    # ── Escrow / DID / MPT methods ───────────────────────────────────
+
+    @staticmethod
+    def _resolve(store: _PerAddressStore, address: str) -> list:
+        """Per-address fetch with the legacy + single-wallet fallbacks (shared shape)."""
+        if address in store:
+            return list(store[address])
+        legacy = store.get(_PerAddressStore._LEGACY_KEY, [])
+        if legacy:
+            return list(legacy)
+        real = {k: v for k, v in store.items() if k != _PerAddressStore._LEGACY_KEY}
+        if len(real) == 1:
+            return list(next(iter(real.values())))
+        return []
+
+    async def submit_escrow_create(
+        self,
+        wallet_seed: str,
+        amount: str,
+        destination: str,
+        finish_after: int,
+        cancel_after: int | None = None,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
+                                error="[dry-run] Simulated failure: escrow create")
+        owner = _address_from_seed(wallet_seed)
+        txid = self._next_txid()
+        self._escrows.setdefault(owner, []).append(
+            EscrowInfo(sequence=1000 + self._counter, amount=amount, destination=destination,
+                       finish_after=finish_after, cancel_after=cancel_after)
+        )
+        self._owner_count += 1
+        return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="")
+
+    async def get_escrows(self, address: str) -> list[EscrowInfo]:
+        return self._resolve(self._escrows, address)
+
+    async def submit_did_set(self, wallet_seed: str, uri: str = "", data: str = "") -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="temEMPTY_DID", fee="12",
+                                error="[dry-run] Simulated failure: DID set")
+        owner = _address_from_seed(wallet_seed)
+        if owner not in self._dids:
+            self._owner_count += 1
+        self._dids[owner] = DIDInfo(account=owner, uri=uri, data=data)
+        return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                            fee="12", ledger_index=99999999, explorer_url="")
+
+    async def get_did(self, address: str) -> DIDInfo | None:
+        if address in self._dids:
+            return self._dids[address]
+        if len(self._dids) == 1:
+            return next(iter(self._dids.values()))
+        return None
+
+    async def submit_mpt_issuance_create(
+        self,
+        wallet_seed: str,
+        maximum_amount: str,
+        asset_scale: int = 0,
+        transfer_fee: int = 0,
+        can_transfer: bool = True,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="temMALFORMED", fee="12",
+                                error="[dry-run] Simulated failure: MPT issuance create")
+        owner = _address_from_seed(wallet_seed)
+        txid = self._next_txid()
+        iid = hashlib.sha256(f"{owner}-mpt-{self._counter}".encode()).hexdigest().upper()[:48]
+        self._mpts.setdefault(owner, []).append(
+            MPTIssuanceInfo(issuance_id=iid, maximum_amount=maximum_amount, asset_scale=asset_scale,
+                            transfer_fee=transfer_fee, flags=0x20 if can_transfer else 0)
+        )
+        self._owner_count += 1
+        return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="")
+
+    async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
+        return self._resolve(self._mpts, address)

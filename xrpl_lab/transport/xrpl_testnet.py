@@ -16,9 +16,13 @@ from xrpl.models import (
     AccountInfo,
     AccountLines,
     AccountNFTs,
+    AccountObjects,
     AccountOffers,
+    DIDSet,
+    EscrowCreate,
     IssuedCurrencyAmount,
     Memo,
+    MPTokenIssuanceCreate,
     NFTokenMint,
     OfferCancel,
     OfferCreate,
@@ -32,7 +36,10 @@ from xrpl.wallet import Wallet
 from .base import (
     AccountSnapshot,
     AmmInfo,
+    DIDInfo,
+    EscrowInfo,
     FundResult,
+    MPTIssuanceInfo,
     NetworkInfo,
     NFTInfo,
     OfferInfo,
@@ -806,6 +813,187 @@ class XRPLTestnetTransport(Transport):
         except Exception:
             logger.warning("get_account_nfts failed for %s", address, exc_info=True)
             return []
+
+    async def _submit_tx(self, tx, wallet, label: str) -> SubmitResult:
+        """Submit a built+signed transaction with retry/timeout, returning a parsed SubmitResult."""
+        last_error = ""
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                async with _rpc_client(self._rpc_url) as client:
+                    response = await asyncio.wait_for(
+                        submit_and_wait(tx, client, wallet),
+                        timeout=SUBMIT_TIMEOUT,
+                    )
+                result = response.result
+                meta = result.get("meta", {})
+                result_code = meta.get(
+                    "TransactionResult", result.get("engine_result", "unknown")
+                )
+                txid = result.get("hash", "")
+                fee = result.get("Fee", "0")
+                ledger_idx = result.get("ledger_index") or meta.get("ledger_index")
+                success = result_code == "tesSUCCESS"
+                error_msg = ""
+                if not success:
+                    from ..doctor import explain_result_code
+
+                    info = explain_result_code(result_code)
+                    error_msg = f"{info['meaning']}. {info['action']}"
+                return SubmitResult(
+                    success=success, txid=txid, result_code=result_code, fee=fee,
+                    ledger_index=ledger_idx, explorer_url=self._explorer_url(txid), error=error_msg,
+                )
+            except TimeoutError:
+                last_error = f"{label} submission timed out. Try again in a minute."
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except Exception as exc:
+                last_error = _friendly_error(exc)
+                if any(c in last_error for c in ("temBAD", "tefBAD", "Invalid", "malformed")):
+                    break
+                if attempt < MAX_RETRIES:
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+        return SubmitResult(success=False, result_code="local_error", error=last_error)
+
+    async def _account_objects(self, address: str) -> list[dict]:
+        async with _rpc_client(self._rpc_url) as client:
+            resp = await asyncio.wait_for(
+                client.request(AccountObjects(account=address, ledger_index="validated")),
+                timeout=RPC_TIMEOUT,
+            )
+        return resp.result.get("account_objects", [])
+
+    async def submit_escrow_create(
+        self,
+        wallet_seed: str,
+        amount: str,
+        destination: str,
+        finish_after: int,
+        cancel_after: int | None = None,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = EscrowCreate(
+                account=wallet.address,
+                amount=xrp_to_drops(Decimal(amount)),
+                destination=destination,
+                finish_after=finish_after,
+                cancel_after=cancel_after,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "EscrowCreate")
+
+    async def get_escrows(self, address: str) -> list[EscrowInfo]:
+        try:
+            objs = await self._account_objects(address)
+        except Exception:
+            logger.warning("get_escrows failed for %s", address, exc_info=True)
+            return []
+        out: list[EscrowInfo] = []
+        for o in objs:
+            if o.get("LedgerEntryType") != "Escrow":
+                continue
+            out.append(EscrowInfo(
+                amount=str(o.get("Amount", "0")),
+                destination=o.get("Destination", ""),
+                finish_after=o.get("FinishAfter"),
+                cancel_after=o.get("CancelAfter"),
+                condition=o.get("Condition", "") or "",
+            ))
+        return out
+
+    async def submit_did_set(self, wallet_seed: str, uri: str = "", data: str = "") -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = DIDSet(
+                account=wallet.address,
+                uri=str_to_hex(uri) if uri else None,
+                data=str_to_hex(data) if data else None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "DIDSet")
+
+    async def get_did(self, address: str) -> DIDInfo | None:
+        try:
+            objs = await self._account_objects(address)
+        except Exception:
+            logger.warning("get_did failed for %s", address, exc_info=True)
+            return None
+        for o in objs:
+            if o.get("LedgerEntryType") != "DID":
+                continue
+            def _dec(h):
+                try:
+                    return hex_to_str(h) if h else ""
+                except Exception:
+                    return h or ""
+            return DIDInfo(
+                account=address,
+                uri=_dec(o.get("URI", "")),
+                data=_dec(o.get("Data", "")),
+                did_document=o.get("DIDDocument", "") or "",
+            )
+        return None
+
+    async def submit_mpt_issuance_create(
+        self,
+        wallet_seed: str,
+        maximum_amount: str,
+        asset_scale: int = 0,
+        transfer_fee: int = 0,
+        can_transfer: bool = True,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = MPTokenIssuanceCreate(
+                account=wallet.address,
+                maximum_amount=str(maximum_amount),
+                asset_scale=asset_scale or None,
+                transfer_fee=transfer_fee or None,
+                flags=0x20 if can_transfer else 0,  # tfMPTCanTransfer
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "MPTokenIssuanceCreate")
+
+    async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
+        try:
+            objs = await self._account_objects(address)
+        except Exception:
+            logger.warning("get_mpt_issuances failed for %s", address, exc_info=True)
+            return []
+        out: list[MPTIssuanceInfo] = []
+        for o in objs:
+            if o.get("LedgerEntryType") != "MPTokenIssuance":
+                continue
+            out.append(MPTIssuanceInfo(
+                issuance_id=o.get("mpt_issuance_id") or o.get("MPTokenIssuanceID", ""),
+                maximum_amount=str(o.get("MaximumAmount", "0")),
+                asset_scale=int(o.get("AssetScale", 0) or 0),
+                transfer_fee=int(o.get("TransferFee", 0) or 0),
+                flags=int(o.get("Flags", 0) or 0),
+                outstanding_amount=str(o.get("OutstandingAmount", "0")),
+            ))
+        return out
 
     def _amount_obj(
         self, currency: str, value: str, issuer: str

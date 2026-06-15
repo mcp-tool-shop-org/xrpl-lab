@@ -93,6 +93,40 @@ class NFTInfo:
 
 
 @dataclass
+class EscrowInfo:
+    """A single Escrow object owned by an account."""
+
+    sequence: int = 0  # the EscrowCreate tx sequence (needed to finish)
+    amount: str = "0"  # XRP drops (or token amount)
+    destination: str = ""
+    finish_after: int | None = None  # ripple-epoch seconds
+    cancel_after: int | None = None
+    condition: str = ""
+
+
+@dataclass
+class DIDInfo:
+    """The DID ledger object for an account (one per account)."""
+
+    account: str
+    uri: str = ""  # decoded UTF-8 if possible, else hex
+    data: str = ""
+    did_document: str = ""
+
+
+@dataclass
+class MPTIssuanceInfo:
+    """A Multi-Purpose Token issuance created by an account."""
+
+    issuance_id: str = ""
+    maximum_amount: str = "0"
+    asset_scale: int = 0
+    transfer_fee: int = 0
+    flags: int = 0
+    outstanding_amount: str = "0"
+
+
+@dataclass
 class AccountSnapshot:
     """Account state at a point in time — balance, owner count, reserves."""
 
@@ -293,3 +327,46 @@ class Transport(ABC):
     @abstractmethod
     async def get_account_nfts(self, address: str) -> list[NFTInfo]:
         """List NFTokens owned by an address (account_nfts)."""
+
+    @abstractmethod
+    async def submit_escrow_create(
+        self,
+        wallet_seed: str,
+        amount: str,
+        destination: str,
+        finish_after: int,
+        cancel_after: int | None = None,
+    ) -> SubmitResult:
+        """Create a time-based XRP Escrow (EscrowCreate)."""
+
+    @abstractmethod
+    async def get_escrows(self, address: str) -> list[EscrowInfo]:
+        """List Escrow objects owned by an address."""
+
+    @abstractmethod
+    async def submit_did_set(
+        self,
+        wallet_seed: str,
+        uri: str = "",
+        data: str = "",
+    ) -> SubmitResult:
+        """Set (create or update) the account's DID (DIDSet)."""
+
+    @abstractmethod
+    async def get_did(self, address: str) -> DIDInfo | None:
+        """Get the account's DID object, or None."""
+
+    @abstractmethod
+    async def submit_mpt_issuance_create(
+        self,
+        wallet_seed: str,
+        maximum_amount: str,
+        asset_scale: int = 0,
+        transfer_fee: int = 0,
+        can_transfer: bool = True,
+    ) -> SubmitResult:
+        """Create a Multi-Purpose Token issuance (MPTokenIssuanceCreate)."""
+
+    @abstractmethod
+    async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
+        """List MPT issuances created by an address."""

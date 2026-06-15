@@ -28,6 +28,9 @@ from .actions.dex import (
     verify_offer_absent,
     verify_offer_present,
 )
+from .actions.did import set_did, verify_did
+from .actions.escrow import create_escrow, verify_escrow
+from .actions.mpt import create_mpt_issuance, verify_mpt_issuance
 from .actions.nft import mint_nft, verify_nft
 from .actions.reserves import (
     _drops_to_xrp,
@@ -1738,6 +1741,173 @@ async def handle_verify_nft(
     return context
 
 
+_RIPPLE_EPOCH = 946684800  # seconds between Unix epoch and Ripple epoch (2000-01-01)
+
+
+def _record_submit(state: LabState, context: dict, result) -> None:
+    """Record a submission outcome to state + context (shared by the create handlers)."""
+    if result.success:
+        state.record_tx(
+            txid=result.txid, module_id=context.get("module_id", ""),
+            network=state.network, success=True, explorer_url=result.explorer_url,
+        )
+        context.setdefault("txids", []).append(result.txid)
+    else:
+        state.record_tx(
+            txid=result.txid or "failed", module_id=context.get("module_id", ""),
+            network=state.network, success=False,
+        )
+    save_state(state)
+
+
+async def handle_create_escrow(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    amount = args.get("amount", "10")
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+    destination = args.get("destination") or state.wallet_address or ""
+    try:
+        delay = int(args.get("finish_seconds", "120"))
+    except ValueError:
+        delay = 120
+    finish_after = int(time.time()) - _RIPPLE_EPOCH + delay
+    cancel_after = finish_after + 86400
+    console.print(f"  Creating time-based escrow: [cyan]{amount}[/] XRP, finishable in ~{delay}s")
+    result = await create_escrow(transport, seed, amount, destination, finish_after, cancel_after)
+    if result.success:
+        console.print("  [green]Escrow created![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Escrow failed: {result.error}[/]")
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_escrow(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    address = state.wallet_address or ""
+    if not address:
+        console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        return context
+    result = await verify_escrow(transport, address)
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+    if result.found and result.passed:
+        console.print("  [green]Escrow verified on-ledger.[/]")
+    context["last_escrow_verify"] = result
+    return context
+
+
+async def handle_set_did(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    uri = args.get("uri", "did:xrpl:example")
+    data = args.get("data", "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+    console.print(f"  Setting DID — uri [cyan]{uri}[/]")
+    result = await set_did(transport, seed, uri, data)
+    if result.success:
+        console.print("  [green]DID set![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["did_uri"] = uri
+    else:
+        console.print(f"  [red]DIDSet failed: {result.error}[/]")
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_did(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    address = state.wallet_address or ""
+    if not address:
+        console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        return context
+    result = await verify_did(transport, address, expected_uri=context.get("did_uri"))
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+    if result.found and result.passed:
+        console.print("  [green]DID verified on-ledger.[/]")
+    context["last_did_verify"] = result
+    return context
+
+
+async def handle_create_mpt_issuance(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    maximum_amount = args.get("maximum_amount", "1000000")
+    try:
+        asset_scale = int(args.get("asset_scale", "0"))
+    except ValueError:
+        asset_scale = 0
+    try:
+        transfer_fee = int(args.get("transfer_fee", "0"))
+    except ValueError:
+        transfer_fee = 0
+    transferable = str(args.get("transferable", "true")).lower() != "false"
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+    console.print(f"  Creating MPT issuance — max supply [cyan]{maximum_amount}[/], "
+                  f"scale [cyan]{asset_scale}[/], transferable [cyan]{transferable}[/]")
+    result = await create_mpt_issuance(
+        transport, seed, maximum_amount, asset_scale, transfer_fee, transferable
+    )
+    if result.success:
+        console.print("  [green]MPT issuance created![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["mpt_max"] = str(maximum_amount)
+    else:
+        console.print(f"  [red]MPT issuance failed: {result.error}[/]")
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_mpt_issuance(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    address = state.wallet_address or ""
+    if not address:
+        console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        return context
+    result = await verify_mpt_issuance(transport, address, expected_maximum=context.get("mpt_max"))
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+    if result.found and result.passed:
+        console.print("  [green]MPT issuance verified on-ledger.[/]")
+    context["last_mpt_verify"] = result
+    return context
+
+
 # ---------------------------------------------------------------------------
 # Registration — populate the registry
 # ---------------------------------------------------------------------------
@@ -1802,6 +1972,57 @@ def _register_all() -> None:
             name="verify_nft",
             handler=handle_verify_nft,
             description="Verify NFToken ownership on-ledger",
+        ),
+        ActionDef(
+            name="create_escrow",
+            handler=handle_create_escrow,
+            description="Create a time-based XRP escrow",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP to escrow"),
+                PayloadField(name="destination", description="Recipient (defaults to self)"),
+                PayloadField(name="finish_seconds", type="int", default="120",
+                             description="Seconds until the escrow becomes finishable"),
+            ],
+        ),
+        ActionDef(
+            name="verify_escrow",
+            handler=handle_verify_escrow,
+            description="Verify an escrow exists on-ledger",
+        ),
+        ActionDef(
+            name="set_did",
+            handler=handle_set_did,
+            description="Set a Decentralized Identifier (DIDSet)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="uri", default="did:xrpl:example", description="DID URI"),
+                PayloadField(name="data", description="Optional DID data"),
+            ],
+        ),
+        ActionDef(
+            name="verify_did",
+            handler=handle_verify_did,
+            description="Verify the account's DID on-ledger",
+        ),
+        ActionDef(
+            name="create_mpt_issuance",
+            handler=handle_create_mpt_issuance,
+            description="Create a Multi-Purpose Token issuance",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="maximum_amount", default="1000000", description="Max supply"),
+                PayloadField(name="asset_scale", type="int", default="0", description="Decimals"),
+                PayloadField(name="transfer_fee", type="int", default="0",
+                             description="Royalty 0-50000; needs transferable"),
+                PayloadField(name="transferable", type="bool", default="true",
+                             description="Whether holders can transfer"),
+            ],
+        ),
+        ActionDef(
+            name="verify_mpt_issuance",
+            handler=handle_verify_mpt_issuance,
+            description="Verify an MPT issuance on-ledger",
         ),
         ActionDef(
             name="create_issuer_wallet",
