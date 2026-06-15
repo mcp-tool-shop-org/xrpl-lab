@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 
@@ -204,6 +205,18 @@ def _friendly_error(exc: Exception) -> str:
     return msg
 
 
+@asynccontextmanager
+async def _rpc_client(rpc_url: str):
+    """Async-context wrapper around AsyncJsonRpcClient.
+
+    The JSON-RPC client is stateless and — as of xrpl-py 4.5.0 — is NOT itself an
+    async context manager (no ``__aenter__``). This wrapper keeps the existing
+    ``async with ... as client:`` call sites correct on xrpl-py 4.x; there is
+    nothing to clean up on exit.
+    """
+    yield AsyncJsonRpcClient(rpc_url)
+
+
 class XRPLTestnetTransport(Transport):
     """Real XRPL Testnet transport using xrpl-py async client."""
 
@@ -257,7 +270,7 @@ class XRPLTestnetTransport(Transport):
     async def get_network_info(self) -> NetworkInfo:
         network = classify_network(self._rpc_url)
         try:
-            async with AsyncJsonRpcClient(self._rpc_url) as client:
+            async with _rpc_client(self._rpc_url) as client:
                 ledger_idx = await asyncio.wait_for(
                     get_latest_validated_ledger_sequence(client),
                     timeout=RPC_TIMEOUT,
@@ -402,7 +415,7 @@ class XRPLTestnetTransport(Transport):
                     amount=xrp_to_drops(amount_f),  # xrp_to_drops accepts Decimal
                     memos=_memo_field(memo) or None,
                 )
-                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(payment, client, wallet),
                         timeout=SUBMIT_TIMEOUT,
@@ -495,7 +508,7 @@ class XRPLTestnetTransport(Transport):
                         value=limit,
                     ),
                 )
-                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(trust_set, client, wallet),
                         timeout=SUBMIT_TIMEOUT,
@@ -590,7 +603,7 @@ class XRPLTestnetTransport(Transport):
                     ),
                     memos=_memo_field(memo) or None,
                 )
-                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(payment, client, wallet),
                         timeout=SUBMIT_TIMEOUT,
@@ -659,7 +672,7 @@ class XRPLTestnetTransport(Transport):
 
     async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
         try:
-            async with AsyncJsonRpcClient(self._rpc_url) as client:
+            async with _rpc_client(self._rpc_url) as client:
                 response = await asyncio.wait_for(
                     client.request(
                         AccountLines(account=address, ledger_index="validated")
@@ -704,7 +717,7 @@ class XRPLTestnetTransport(Transport):
                     transfer_fee=transfer_fee or None,
                     flags=8 if transferable else 0,  # tfTransferable = 0x8
                 )
-                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(mint, client, wallet),
                         timeout=SUBMIT_TIMEOUT,
@@ -764,7 +777,7 @@ class XRPLTestnetTransport(Transport):
 
     async def get_account_nfts(self, address: str) -> list[NFTInfo]:
         try:
-            async with AsyncJsonRpcClient(self._rpc_url) as client:
+            async with _rpc_client(self._rpc_url) as client:
                 response = await asyncio.wait_for(
                     client.request(
                         AccountNFTs(account=address, ledger_index="validated")
@@ -847,7 +860,7 @@ class XRPLTestnetTransport(Transport):
                         taker_gets_currency, taker_gets_value, taker_gets_issuer
                     ),
                 )
-                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(offer, client, wallet),
                         timeout=SUBMIT_TIMEOUT,
@@ -932,7 +945,7 @@ class XRPLTestnetTransport(Transport):
                     account=wallet.address,
                     offer_sequence=offer_sequence,
                 )
-                async with AsyncJsonRpcClient(self._rpc_url) as client:
+                async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(cancel, client, wallet),
                         timeout=SUBMIT_TIMEOUT,
@@ -1001,7 +1014,7 @@ class XRPLTestnetTransport(Transport):
 
     async def get_account_offers(self, address: str) -> list[OfferInfo]:
         try:
-            async with AsyncJsonRpcClient(self._rpc_url) as client:
+            async with _rpc_client(self._rpc_url) as client:
                 response = await asyncio.wait_for(
                     client.request(
                         AccountOffers(account=address, ledger_index="validated")
@@ -1024,7 +1037,7 @@ class XRPLTestnetTransport(Transport):
 
     async def get_account_info(self, address: str) -> AccountSnapshot:
         try:
-            async with AsyncJsonRpcClient(self._rpc_url) as client:
+            async with _rpc_client(self._rpc_url) as client:
                 response = await asyncio.wait_for(
                     client.request(
                         AccountInfo(account=address, ledger_index="validated")
@@ -1044,7 +1057,7 @@ class XRPLTestnetTransport(Transport):
 
     async def fetch_tx(self, txid: str) -> TxInfo:
         try:
-            async with AsyncJsonRpcClient(self._rpc_url) as client:
+            async with _rpc_client(self._rpc_url) as client:
                 response = await asyncio.wait_for(
                     client.request(Tx(transaction=txid)),
                     timeout=RPC_TIMEOUT,
@@ -1077,7 +1090,7 @@ class XRPLTestnetTransport(Transport):
 
     async def get_balance(self, address: str) -> str:
         try:
-            async with AsyncJsonRpcClient(self._rpc_url) as client:
+            async with _rpc_client(self._rpc_url) as client:
                 response = await asyncio.wait_for(
                     client.request(
                         AccountInfo(account=address, ledger_index="validated")
