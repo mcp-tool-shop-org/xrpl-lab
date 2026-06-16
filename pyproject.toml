@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "xrpl-lab"
-version = "1.8.0"
+version = "2.0.0"
 description = "XRPL training workbook — learn by doing, prove by artifact"
 readme = "README.md"
 license = "MIT"
@@ -64,3 +64,16 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+# Turn NEW deprecations into hard errors so a starlette/httpx (or other dep)
+# bump that deprecates an API we rely on surfaces in CI before it removes the
+# shim and breaks the whole suite silently. The one known, already-surfaced
+# deprecation is ignored explicitly below with a migration TODO so it does not
+# mask anything new.
+filterwarnings = [
+    "error::DeprecationWarning",
+    # starlette.testclient -> httpx shim deprecation, emitted by every
+    # fastapi.testclient.TestClient construction in the API suite. Matched on
+    # message (not module) so it survives starlette repackaging.
+    # TODO v2.x: migrate off the deprecated starlette.testclient httpx path.
+    "ignore:Using httpx with starlette.testclient is deprecated.*:DeprecationWarning",
+]
