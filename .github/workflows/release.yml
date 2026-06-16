@@ -99,7 +99,10 @@ jobs:
       # tests/test_v2_core.py::test_version_matches_pyproject.
       - name: Verify tag matches bin/xrpl-lab.js launch config
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          # export (not a bare shell var) so the child `node` process sees it in
+          # process.env — the shell-var form read undefined in node and false-failed
+          # every real tag push (the local test masked it; CI semantics differ).
+          export TAG_VERSION="${GITHUB_REF_NAME#v}"
           node -e '
             const fs = require("fs");
             const src = fs.readFileSync("bin/xrpl-lab.js", "utf8");
