@@ -148,11 +148,17 @@ def audit_tx(tx: TxInfo, config: AuditConfig) -> AuditVerdict:
     memo_prefix = override.get("memo_prefix", config.memo_prefix)
     types_allowed = override.get("types_allowed", config.types_allowed)
 
-    # Check: tx fetched (not a fetch error)
-    # Empty result_code with no validated flag means the fetch returned
-    # an incomplete or error response — treat as not found.
-    if tx.result_code == "" and not tx.validated:
-        failures.append("Transaction not found or fetch error (empty result code)")
+    # Check: tx fetched (not a fetch/network error)
+    # A network/read-back failure populates tx.fetch_error (live path) or, for
+    # batch/fixture inputs, carries a "fetch_error: ..." result_code. The tx may
+    # still have succeeded on-ledger; surface the network reason rather than
+    # attributing the fault to the transaction itself.
+    fetch_error = getattr(tx, "fetch_error", None)
+    if fetch_error or tx.result_code.startswith("fetch_error"):
+        detail = fetch_error or tx.result_code
+        failures.append(
+            f"Could not fetch transaction to verify (network issue): {detail}"
+        )
         reasons.append(NOT_FOUND)
         return AuditVerdict(
             txid=tx.txid,
@@ -163,8 +169,10 @@ def audit_tx(tx: TxInfo, config: AuditConfig) -> AuditVerdict:
             tx_info=tx,
         )
 
-    if tx.result_code.startswith("fetch_error"):
-        failures.append(f"Transaction not found: {tx.result_code}")
+    # Empty result_code with no validated flag means the fetch returned
+    # an incomplete or error response — treat as not found.
+    if tx.result_code == "" and not tx.validated:
+        failures.append("Transaction not found or fetch error (empty result code)")
         reasons.append(NOT_FOUND)
         return AuditVerdict(
             txid=tx.txid,

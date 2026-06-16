@@ -38,6 +38,7 @@ class ModuleDef:
     track: str = ""
     summary: str = ""
     mode: str = "testnet"
+    kb_source: str = ""
 
     @property
     def summary_line(self) -> str:
@@ -167,6 +168,13 @@ def parse_module(text: str) -> ModuleDef:
         track=meta.get("track", ""),
         summary=meta.get("summary", ""),
         mode=mode,
+        # Optional KB capability binding (FT-ARCH-02): the capability slug
+        # this module proves when its real txid lands on-ledger. Defaults to
+        # "" — backward-compatible for modules that predate the field. Moving
+        # this INTO the curriculum lets a learner's receipt carry its
+        # capability identity end-to-end, so the KB ingests ANY future
+        # module's proofs without editing its MODULE_CAPABILITY map.
+        kb_source=meta.get("kb_source", "") or "",
     )
 
 

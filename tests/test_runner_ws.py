@@ -7,9 +7,20 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from xrpl_lab.api.runner_ws import _ALLOWED_ORIGINS
+from xrpl_lab.api.runner_ws import _ALLOWED_ORIGINS, _error_envelope
 from xrpl_lab.modules import ModuleDef, ModuleStep
 from xrpl_lab.server import create_app
+
+# Sentinel values for the no-leak adversarial tests. A bare Exception whose
+# message embeds these MUST never surface either value to the client through
+# ``_error_envelope`` (the generic branch deliberately discards ``str(exc)``)
+# or through any RunInfo projection. Mirrors the sentinel-channel discipline
+# in tests/test_reporting.py (TestProofPack.test_no_secrets) — we pin the
+# VALUE channel, not just the key name, so a leak into an existing field is
+# caught rather than vacuously passing.
+_SENTINEL_PATH = "/home/facilitator/.xrpl-lab/wallet.json"
+_SENTINEL_SEED = "sEdSENTINEL_DO_NOT_LEAK"
+_SENTINEL_MESSAGE = f"{_SENTINEL_PATH} seed={_SENTINEL_SEED}"
 
 # Default Origin header for WS test fixtures. Browsers always send Origin
 # on WS upgrades; Starlette's TestClient does not by default. We pass an
@@ -65,6 +76,58 @@ def client_with_module(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestC
 
     app = create_app()
     return TestClient(app)
+
+
+# ── _error_envelope scrubbing (TESTS-A-002) ──────────────────────────
+
+
+class TestErrorEnvelopeNoLeak:
+    """The generic branch of ``_error_envelope`` deliberately DISCARDS
+    ``str(exc)`` and returns a fixed RUNTIME_INTERNAL code/message/hint —
+    so an unexpected exception whose text embeds a filesystem path or a
+    wallet seed never reaches the WS client. The full detail goes to the
+    server log only (see ``_run_module_task``'s ``logger.error(... str(exc))``).
+
+    This pins that scrubbing at the unit level: a bare ``Exception`` whose
+    message embeds a sentinel path AND a sentinel seed must produce an
+    envelope where NEITHER sentinel appears in ANY value, while the code is
+    ``RUNTIME_INTERNAL``. Without this test a refactor that interpolated
+    ``str(exc)`` into the generic message/hint (a plausible "make errors
+    more helpful" change) would silently start leaking learner secrets to
+    the browser with no CI signal.
+
+    Mirrors the sentinel-channel discipline in
+    ``tests/test_reporting.py::TestProofPack.test_no_secrets``.
+    """
+
+    def test_generic_exception_does_not_leak_path_or_seed(self) -> None:
+        exc = Exception(_SENTINEL_MESSAGE)
+        envelope = _error_envelope(exc)
+
+        # Code is the fixed generic code — confirms we took the generic
+        # branch (not LabException / TimeoutError / CancelledError).
+        assert envelope["code"] == "RUNTIME_INTERNAL"
+
+        # NEITHER sentinel may appear in ANY value of the envelope. Iterate
+        # the values (not just spot-check message/hint) so a leak into a
+        # newly-added field — severity, icon_hint, or anything future — is
+        # also caught.
+        for key, value in envelope.items():
+            assert _SENTINEL_PATH not in value, (
+                f"_error_envelope leaked the sentinel PATH into "
+                f"envelope[{key!r}]={value!r}"
+            )
+            assert _SENTINEL_SEED not in value, (
+                f"_error_envelope leaked the sentinel SEED into "
+                f"envelope[{key!r}]={value!r}"
+            )
+
+    def test_generic_envelope_is_fully_string_valued(self) -> None:
+        # The contract documents an all-string envelope; a non-string value
+        # could smuggle a structured object carrying the raw exception. Pin
+        # the shape so the no-leak iteration above stays meaningful.
+        envelope = _error_envelope(Exception(_SENTINEL_MESSAGE))
+        assert all(isinstance(v, str) for v in envelope.values())
 
 
 # ── POST /api/run/{module_id} ─────────────────────────────────────────
@@ -852,6 +915,74 @@ class TestGetRunsEndpoints:
         assert "error" not in data
         assert "txids" not in data
         assert "report_path" not in data
+
+    def test_get_runs_does_not_leak_sentinel_values(
+        self,
+        client_with_module: TestClient,
+        _clear_sessions,
+    ) -> None:
+        """Value-level leak guard (TESTS-A-005).
+
+        The key-absence checks above (``"report_path" not in entry``) are a
+        near-vacuous secondary signal: the public RunInfo dict structurally
+        has no such keys, so the assertion is satisfied by a state that
+        never could leak. They would NOT catch a VALUE leaked into an
+        EXISTING field (e.g. a refactor that stuffed the report_path into
+        ``module_id`` for "convenience").
+
+        This strengthens to the value channel: inject a recognizable
+        sentinel absolute path / seed / txid into the session's
+        leak-bearing fields (``report_path``, ``error``, ``txids``), then
+        assert NO RunInfo field VALUE — across BOTH the list and detail
+        projections — contains any sentinel. The injected fields are
+        exactly the ones ``_session_to_public_dict`` deliberately omits;
+        if a future projection started copying any of them through (under
+        any key), one of these sentinels would appear and the test fails.
+        """
+        from xrpl_lab.api import runner_ws
+
+        start = client_with_module.post("/api/run/receipt_literacy?dry_run=true")
+        assert start.status_code == 200
+        run_id = start.json()["run_id"]
+
+        # Drive the session into a known leak-bearing state. We set the
+        # private fields directly to recognizable sentinels — exactly the
+        # fields the public projection must drop.
+        session = runner_ws._sessions[run_id]
+        session.report_path = _SENTINEL_PATH
+        session.error = f"boom seed={_SENTINEL_SEED}"
+        session.txids = ["TXSENTINEL_DO_NOT_LEAK"]
+
+        sentinels = (_SENTINEL_PATH, _SENTINEL_SEED, "TXSENTINEL_DO_NOT_LEAK")
+
+        def _assert_no_sentinel(payload: dict, where: str) -> None:
+            for key, value in payload.items():
+                text = value if isinstance(value, str) else str(value)
+                for sentinel in sentinels:
+                    assert sentinel not in text, (
+                        f"{where}: RunInfo leaked sentinel {sentinel!r} into "
+                        f"field {key!r}={value!r}"
+                    )
+
+        # List projection.
+        list_resp = client_with_module.get("/api/runs")
+        assert list_resp.status_code == 200
+        list_runs = list_resp.json()["runs"]
+        assert len(list_runs) == 1
+        _assert_no_sentinel(list_runs[0], "GET /api/runs")
+        # Cheap key-absence secondary signal (kept per TESTS-A-005).
+        assert "report_path" not in list_runs[0]
+        assert "error" not in list_runs[0]
+        assert "txids" not in list_runs[0]
+
+        # Detail projection.
+        detail_resp = client_with_module.get(f"/api/runs/{run_id}")
+        assert detail_resp.status_code == 200
+        detail = detail_resp.json()
+        _assert_no_sentinel(detail, "GET /api/runs/{run_id}")
+        assert "report_path" not in detail
+        assert "error" not in detail
+        assert "txids" not in detail
 
 
 # ── DELETE /api/runs/{run_id} (F-BRIDGE-FT-001) ──────────────────────

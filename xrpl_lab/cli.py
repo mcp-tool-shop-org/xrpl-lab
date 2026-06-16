@@ -17,7 +17,7 @@ from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
-from . import __version__
+from . import __version__, curriculum
 from .actions.verify import verify_tx
 from .errors import LabException, faucet_rate_limited
 from .modules import load_all_modules
@@ -551,12 +551,64 @@ def proof_generate():
     console.print(f"[green]Proof pack written:[/] {path}")
 
 
+def _render_live_report(live) -> None:
+    """Render a ledger-anchored Verification Report (shared by proof + cert).
+
+    ``live`` is a reporting.LiveVerificationResult. Human-readable only — the
+    JSON branch folds ``live.to_dict()`` into the caller's result object.
+    """
+    from .reporting import LIVE_PASS
+
+    console.print("  [bold]On-ledger verification:[/]")
+    if live.no_onledger_txids:
+        # Honest, NOT a failure — a dry-run pack / a certificate has no
+        # public on-ledger txid to anchor against.
+        console.print(f"  [yellow]ⓘ {live.note}[/]")
+        console.print()
+        return
+
+    for r in live.tx_results:
+        short = r.txid[:20] + "…" if len(r.txid) > 20 else r.txid
+        if r.status == LIVE_PASS:
+            console.print(f"  [green]✓ PASS[/] {short}  [dim]({r.network})[/]")
+        elif r.status == "SKIPPED":
+            console.print(f"  [dim]· SKIP {short}  ({r.reason})[/]")
+        else:
+            console.print(f"  [red]✗ FAIL[/] {short}  [dim]({r.network})[/]")
+            console.print(f"         [red]{r.reason}[/]")
+
+    console.print()
+    if live.overall_passed:
+        console.print(
+            f"  [green]On-ledger verdict: PASS[/] — "
+            f"{live.passed_count} verified, {live.skipped_count} skipped."
+        )
+    else:
+        console.print(
+            f"  [red]On-ledger verdict: FAIL[/] — "
+            f"{live.failed_count} failed, {live.passed_count} verified, "
+            f"{live.skipped_count} skipped."
+        )
+    if live.note:
+        console.print(f"  [dim]{live.note}[/]")
+    console.print()
+
+
 @proof.command("verify")
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
-def proof_verify(file: str, json_output: bool):
-    """Verify a proof pack's integrity."""
-    from .reporting import verify_proof_pack
+@click.option(
+    "--live", "live", is_flag=True,
+    help=(
+        "Ledger-anchored verification: re-fetch every claimed txid from the "
+        "public XRPL (per the tx's own network) and confirm it exists, is "
+        "validated, and succeeded. The offline SHA-256 check ALWAYS runs; "
+        "--live adds the on-ledger trust layer on top."
+    ),
+)
+def proof_verify(file: str, json_output: bool, live: bool):
+    """Verify a proof pack's integrity (and, with --live, on-ledger truth)."""
+    from .reporting import verify_proof_pack, verify_proof_pack_live
 
     path = Path(file)
     try:
@@ -568,7 +620,20 @@ def proof_verify(file: str, json_output: bool):
             console.print(f"[red]Invalid JSON: {e}[/]")
         sys.exit(1)
 
+    # Hash layer ALWAYS runs (tamper-evidence). --live ADDS on-ledger truth.
     valid, message = verify_proof_pack(pack)
+
+    # The live check runs even when the hash check fails so the report is
+    # complete — BUT a hash failure still fails the command overall (a
+    # tamper-evident artifact that's been edited is untrustworthy regardless
+    # of what its txids resolve to). Only attempt the live check when the
+    # hash passed, to avoid re-fetching txids from a pack we already know was
+    # locally edited.
+    live_result = None
+    live_ok = True
+    if live and valid:
+        live_result = asyncio.run(verify_proof_pack_live(pack))
+        live_ok = live_result.overall_passed
 
     if json_output:
         result = {
@@ -582,6 +647,11 @@ def proof_verify(file: str, json_output: bool):
             "sha256": pack.get("sha256", ""),
             "message": message,
         }
+        if live:
+            result["live"] = live_result.to_dict() if live_result else {
+                "skipped": "hash check failed — live check not attempted",
+            }
+            result["live_passed"] = live_ok if live_result else False
         print(json.dumps(result, indent=2))
     else:
         if valid:
@@ -598,7 +668,19 @@ def proof_verify(file: str, json_output: bool):
         console.print(f"  [bold]SHA-256:[/]      {pack.get('sha256', 'none')}")
         console.print()
 
-    if not valid:
+        if live:
+            if valid and live_result is not None:
+                _render_live_report(live_result)
+            elif not valid:
+                console.print(
+                    "  [yellow]On-ledger verification skipped — "
+                    "the integrity (SHA-256) check failed, so the pack was "
+                    "edited locally and is untrustworthy regardless of its "
+                    "txids.[/]"
+                )
+                console.print()
+
+    if not valid or (live and not live_ok):
         sys.exit(1)
 
 
@@ -608,7 +690,13 @@ def certificate():
     state = load_state()
 
     if not state.completed_modules:
+        # COREBCD-004: empty-state guidance — name the FIRST concrete step
+        # (mirrors proof-pack) so a fresh install isn't a dead end.
         console.print("[yellow]No completed modules yet. Nothing to export.[/]")
+        console.print(
+            "  [dim]Complete a module first, then export: "
+            "run [cyan]xrpl-lab start[/] to begin.[/]"
+        )
         return
 
     ensure_workspace()
@@ -624,9 +712,18 @@ def certificate():
 @main.command("cert-verify")
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
-def cert_verify(file: str, json_output: bool):
-    """Verify a certificate's integrity."""
-    from .reporting import verify_certificate
+@click.option(
+    "--live", "live", is_flag=True,
+    help=(
+        "Ledger-anchored verification. Certificates record no individual "
+        "txids, so --live reports honestly that there is nothing to anchor "
+        "(verify the matching proof pack with --live instead). The offline "
+        "SHA-256 check ALWAYS runs."
+    ),
+)
+def cert_verify(file: str, json_output: bool, live: bool):
+    """Verify a certificate's integrity (and, with --live, on-ledger truth)."""
+    from .reporting import verify_certificate, verify_certificate_live
 
     path = Path(file)
     try:
@@ -638,7 +735,14 @@ def cert_verify(file: str, json_output: bool):
             console.print(f"[red]Invalid JSON: {e}[/]")
         sys.exit(1)
 
+    # Hash layer ALWAYS runs (tamper-evidence). --live ADDS on-ledger truth.
     valid, message = verify_certificate(cert)
+
+    live_result = None
+    live_ok = True
+    if live and valid:
+        live_result = asyncio.run(verify_certificate_live(cert))
+        live_ok = live_result.overall_passed
 
     if json_output:
         result = {
@@ -652,6 +756,11 @@ def cert_verify(file: str, json_output: bool):
             "sha256": cert.get("sha256", ""),
             "message": message,
         }
+        if live:
+            result["live"] = live_result.to_dict() if live_result else {
+                "skipped": "hash check failed — live check not attempted",
+            }
+            result["live_passed"] = live_ok if live_result else False
         print(json.dumps(result, indent=2))
     else:
         if valid:
@@ -668,7 +777,18 @@ def cert_verify(file: str, json_output: bool):
         console.print(f"  [bold]SHA-256:[/]      {cert.get('sha256', 'none')}")
         console.print()
 
-    if not valid:
+        if live:
+            if valid and live_result is not None:
+                _render_live_report(live_result)
+            elif not valid:
+                console.print(
+                    "  [yellow]On-ledger verification skipped — "
+                    "the integrity (SHA-256) check failed, so the certificate "
+                    "was edited locally and is untrustworthy regardless.[/]"
+                )
+                console.print()
+
+    if not valid or (live and not live_ok):
         sys.exit(1)
 
 
@@ -695,7 +815,20 @@ def support_bundle(json_output: bool, verify_path: str | None):
     from .workshop import generate_support_bundle, verify_support_bundle
 
     if verify_path:
-        raw = Path(verify_path).read_text(encoding="utf-8")
+        # COREBCD-005: guard the read like the sibling verify commands
+        # (proof verify / cert-verify). An unguarded read_text() on an
+        # unreadable file (OSError) escaped as a raw traceback that leaked
+        # the absolute path; a bad encoding/decode raised ValueError. Emit a
+        # structured, path-free failure + non-zero exit instead.
+        try:
+            raw = Path(verify_path).read_text(encoding="utf-8")
+        except (OSError, ValueError) as e:
+            msg = f"Could not read support bundle ({type(e).__name__})."
+            if json_output:
+                print(json.dumps({"valid": False, "message": msg}))
+            else:
+                console.print(f"\n  [red]❌ FAIL[/] — {msg}\n")
+            sys.exit(1)
         valid, message = verify_support_bundle(raw)
         if json_output:
             print(json.dumps({"valid": valid, "message": message}))
@@ -1016,7 +1149,12 @@ def serve(port: int, host: str, dry_run: bool):
     # Prefer the localhost alias when bound to a loopback host so the served
     # page origin matches the bundled dashboard's hard-coded localhost:8321
     # API base (avoids a needless localhost/127.0.0.1 cross-origin split).
-    loopback = host in ("127.0.0.1", "0.0.0.0", "localhost")
+    # API-A-001: 0.0.0.0 (and ::) bind to ALL interfaces — maximum network
+    # exposure, NOT loopback. Grouping them here would suppress the no-auth
+    # warning below for the single most-exposed bind address. Only true
+    # loopback aliases qualify; 0.0.0.0/:: fall through to the `not loopback`
+    # branch and trigger the exposure warning.
+    loopback = host in ("127.0.0.1", "localhost", "::1")
     dash_host = "localhost" if loopback else host
 
     if dashboard_dir is not None:
@@ -1113,8 +1251,15 @@ def cohort_status(cohort_dir: str, fmt: str):
         learner_id = sub.name if sub != cohort_path else "_cohort"
         try:
             state = load_state_from_path(state_file)
-        except (FileNotFoundError, ValueError) as e:
-            warnings.append((learner_id, str(e)))
+        except (FileNotFoundError, ValueError, OSError) as e:
+            # IF-001 (sibling of CORE-A-003): a learner's state.json can be
+            # unreadable (PermissionError / locked-down share) — catch OSError
+            # here so one bad file never aborts the whole cohort scan. The
+            # warning row must NOT surface the absolute path: str(OSError)
+            # carries the filename, and the path also embeds the OS username.
+            # Mirror CORE-A-003's discipline — type name to the facilitator,
+            # never str(exc) (and never the abs path it carries on OSError).
+            warnings.append((learner_id, type(e).__name__))
             continue
         # Reuse status math: derive minimal facilitator view from the
         # raw state, mirroring fields exposed by `xrpl-lab status --json`.
@@ -1366,6 +1511,66 @@ def reset(keep_wallet: bool, module_id: str | None, skip_confirm: bool):
     console.print("[green]State and workspace cleared.[/]")
 
 
+# ── Curriculum manifest ─────────────────────────────────────────────
+
+
+# Registered under the CLI name `curriculum`; the Python function is suffixed
+# `_cmd` so it doesn't shadow the imported `curriculum` module at module scope.
+@main.group("curriculum")
+def curriculum_cmd():
+    """Curriculum commands: the single-source manifest the docs derive from."""
+
+
+@curriculum_cmd.command("manifest")
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+def curriculum_manifest(json_output: bool):
+    """Print the canonical curriculum manifest (single source for all docs).
+
+    The module list, ordering/numbering, tracks, and counts shown here are the
+    SAME shape ``scripts/gen_docs.py`` renders into the README, the handbook,
+    and the marketing site — and that ``tests/test_docs_drift.py`` gates. There
+    is no second place to update the curriculum's shape.
+    """
+    from .curriculum_manifest import build_manifest
+
+    manifest = build_manifest()
+
+    if json_output:
+        print(json.dumps(manifest.to_dict(), indent=2))
+        return
+
+    table = Table(title="XRPL Lab Curriculum Manifest", expand=True)
+    table.add_column("#", width=3, justify="right")
+    table.add_column("ID", style="bold", ratio=2)
+    table.add_column("Title", ratio=2)
+    table.add_column("Track", ratio=1)
+    table.add_column("Mode", ratio=1)
+    table.add_column("Requires", style="dim", ratio=2)
+
+    for m in manifest.modules:
+        table.add_row(
+            str(m.index),
+            m.id,
+            m.title,
+            m.track,
+            m.mode,
+            ", ".join(m.requires) if m.requires else "—",
+        )
+
+    console.print()
+    console.print(table)
+    console.print()
+
+    # Per-track counts + totals
+    parts = [f"{tc.label} {tc.count}" for tc in manifest.track_counts]
+    console.print("  [bold]Tracks:[/] " + "  |  ".join(parts))
+    console.print(
+        f"  [bold]Totals:[/] {manifest.totals['modules']} modules "
+        f"across {manifest.totals['tracks']} tracks"
+    )
+    console.print()
+
+
 # ── Standalone wallet commands ──────────────────────────────────────
 
 
@@ -1535,7 +1740,12 @@ def module_group():
 @click.option("--id", "module_id", required=True, help="snake_case module ID")
 @click.option(
     "--track", required=True,
-    type=click.Choice(["foundations", "dex", "reserves", "audit", "amm"]),
+    # DOCBCD-001: single-source the track choices from curriculum.TRACKS so
+    # every curriculum track (incl. the v1.8.0 nfts/tokens/payments/identity
+    # tracks) is automatically a valid --track. A hardcoded list here drifted
+    # behind the curriculum and hard-errored the documented CONTRIBUTING
+    # scaffold workflow for the newer tracks.
+    type=click.Choice(list(curriculum.TRACKS)),
     help="Curriculum track this module belongs to",
 )
 @click.option("--title", required=True, help="Human-readable module title")
@@ -1672,7 +1882,12 @@ def lint(glob_pattern: str, json_output: bool, no_curriculum: bool):
       xrpl-lab lint --json              # CI-friendly JSON output
       xrpl-lab lint --no-curriculum     # skip cross-module checks
     """
-    from .linter import LintResult, lint_curriculum, lint_module_file
+    from .linter import (
+        LintResult,
+        lint_curriculum,
+        lint_module_file,
+        load_kb_capability_slugs,
+    )
 
     paths = sorted(Path(".").glob(glob_pattern))
     if not paths:
@@ -1682,9 +1897,14 @@ def lint(glob_pattern: str, json_output: bool, no_curriculum: bool):
             console.print(f"[yellow]No files matching '{glob_pattern}'[/]")
         return
 
+    # Optional kb_source validity cross-check: load the xrpl-knowledge KB's
+    # capability slugs once (None when the KB db is absent — it's an external
+    # optional dependency, not present in CI, so the check degrades silently).
+    kb_slugs = load_kb_capability_slugs()
+
     result = LintResult()
     for p in paths:
-        result.issues.extend(lint_module_file(p))
+        result.issues.extend(lint_module_file(p, kb_slugs=kb_slugs))
 
     # Curriculum-level validation (when linting the full set)
     if not no_curriculum:
@@ -1705,6 +1925,11 @@ def lint(glob_pattern: str, json_output: bool, no_curriculum: bool):
             f"[red]{result.error_count} error(s)[/], "
             f"[yellow]{result.warning_count} warning(s)[/]"
         )
+        if kb_slugs is not None:
+            console.print(
+                f"  [dim]kb_source cross-check: validated against "
+                f"{len(kb_slugs)} xrpl-knowledge capability slugs[/]"
+            )
 
         if result.passed:
             console.print("  [green]PASS[/]")

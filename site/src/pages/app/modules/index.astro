@@ -5,7 +5,9 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 <DashboardLayout title="Modules" activePage="modules">
   <div class="screen-head">
     <h1>Modules</h1>
-    <p class="lede">12 hands-on modules. Pick a track and work through them at your own pace.</p>
+    <!-- FRONTEND-A-003: the module count is filled dynamically from the fetched
+         list (see setModuleCount) so it can't drift as the curriculum grows. -->
+    <p class="lede"><span id="module-count">Hands-on</span> modules. Pick a track and work through them at your own pace.</p>
   </div>
 
   <div class="screen-inner" id="modules-root">
@@ -132,13 +134,22 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
         <div class="empty__t">Can't reach the API</div><div>${msg}</div></div></div>`;
     }
 
+    // FRONTEND-A-003: set the header count from the real list length instead
+    // of a hardcoded number the curriculum will outgrow.
+    function setModuleCount(n: number) {
+      const el = document.getElementById('module-count');
+      if (el) el.textContent = `${n} hands-on`;
+    }
+
     async function loadModules() {
       const grid = document.getElementById('module-grid');
       if (!grid) return;
       grid.innerHTML = skeletonGrid();
       try {
         const res = await fetchWithTimeout(`${API_BASE}/api/modules`);
+        if (!res.ok) throw new Error(`API returned ${res.status}: ${res.statusText}`);
         allModules = await res.json();
+        setModuleCount(allModules.length);
         renderModules(allModules);
       } catch (err: any) {
         grid.innerHTML = offlineHTML(err);

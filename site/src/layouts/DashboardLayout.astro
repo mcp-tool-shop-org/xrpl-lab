@@ -95,6 +95,7 @@ const facilitator = [
 
   <script>
     import { fetchWithTimeout } from '../lib/api';
+    import { esc } from '../lib/dashboard-ui';
 
     const API_BASE = 'http://localhost:8321';
 
@@ -112,8 +113,13 @@ const facilitator = [
       const ver = document.getElementById('sidebar-ver');
       try {
         const res = await fetchWithTimeout(`${API_BASE}/api/status`);
+        if (!res.ok) throw new Error(`API returned ${res.status}: ${res.statusText}`);
         const s = await res.json();
-        if (text) text.innerHTML = `Connected · <span class="mono">${s.network ?? 'testnet'}</span>`;
+        // FRONTEND-A-004: escape the network value before interpolating into
+        // innerHTML. Safe today (network is a server enum) but escaping closes
+        // the latent XSS if the source ever changes — matches every other
+        // network-data sink in the dashboard.
+        if (text) text.innerHTML = `Connected · <span class="mono">${esc(s.network ?? 'testnet')}</span>`;
         if (dot) { dot.classList.remove('statdot--warn', 'statdot--err'); dot.classList.add('statdot--ok'); }
         if (ver && s.version) ver.textContent = `XRPL Lab · v${s.version} · MIT`;
       } catch {

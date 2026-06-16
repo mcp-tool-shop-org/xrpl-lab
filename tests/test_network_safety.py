@@ -18,6 +18,7 @@ and submit real-fund transactions while every label still said "testnet".
 from __future__ import annotations
 
 import asyncio
+import inspect
 
 import pytest
 
@@ -106,26 +107,146 @@ class TestWritePathRefusesNonTestnet:
 _MAINNET_RPC = "https://s1.ripple.com:51234"
 
 
+# ── Mainnet-refusal coverage: name → call closure ────────────────────
+#
+# Keyed by method name so the reflection completeness test below can
+# assert this set is EXACTLY the set of signing methods on the transport
+# (minus the explicitly-waived AMM stubs). Adding a new signing method
+# without a row here makes ``test_mainnet_refusal_covers_every_signing_method``
+# FAIL — closing TESTS-A-001 against future drift.
+_MAINNET_REFUSAL_CALLS = {
+    "submit_payment": lambda t: t.submit_payment("sEdSEED", "rDEST", "10"),
+    "submit_trust_set": lambda t: t.submit_trust_set("sEdSEED", "rISSUER", "USD", "100"),
+    "submit_issued_payment": (
+        lambda t: t.submit_issued_payment("sEdSEED", "rDEST", "USD", "rISSUER", "5")
+    ),
+    "submit_offer_create": (
+        lambda t: t.submit_offer_create("sEdSEED", "USD", "5", "rISSUER", "XRP", "10", "")
+    ),
+    "submit_offer_cancel": lambda t: t.submit_offer_cancel("sEdSEED", 1),
+    # ── v1.8.0 fund-moving methods (TESTS-A-001) — previously UNTESTED ──
+    "submit_nft_mint": lambda t: t.submit_nft_mint("sEdSEED", "ipfs://example", 0),
+    "submit_escrow_create": (
+        lambda t: t.submit_escrow_create("sEdSEED", "10", "rDEST", 999999999)
+    ),
+    "submit_did_set": lambda t: t.submit_did_set("sEdSEED", "did:example:123", ""),
+    "submit_mpt_issuance_create": (
+        lambda t: t.submit_mpt_issuance_create("sEdSEED", "1000000", 2, 0)
+    ),
+    # ── v2.0.0 lifecycle-closing signing methods (f1-engine) ──
+    # Each MUST call _network_guard() before Wallet.from_seed, exactly like the
+    # create-side methods above. These finish the broken lifecycles: escrow
+    # finish/cancel (XRP no longer locked forever), DID delete (identity can
+    # be revoked), NFT burn (reserve can be freed).
+    "submit_escrow_finish": (
+        lambda t: t.submit_escrow_finish("sEdSEED", "rOWNER", 12)
+    ),
+    "submit_escrow_cancel": (
+        lambda t: t.submit_escrow_cancel("sEdSEED", "rOWNER", 12)
+    ),
+    "submit_did_delete": lambda t: t.submit_did_delete("sEdSEED"),
+    "submit_nft_burn": lambda t: t.submit_nft_burn("sEdSEED", "00080000ABC"),
+    # ── v2.0.0 game-economy CONTROL signing methods (f2-engine) ──
+    # Clawback (XLS-39), NFT marketplace (XLS-20), dynamic NFT (XLS-46). Each
+    # MUST call _network_guard() before Wallet.from_seed, exactly like the
+    # create/lifecycle methods above. These move real value (recall tokens,
+    # settle trades, mutate assets), so the testnet-only invariant applies.
+    "submit_account_set_clawback": (
+        lambda t: t.submit_account_set_clawback("sEdSEED")
+    ),
+    "submit_clawback": (
+        lambda t: t.submit_clawback("sEdSEED", "rHOLDER", "GOLD", "30")
+    ),
+    "submit_nft_create_offer": (
+        lambda t: t.submit_nft_create_offer("sEdSEED", "00080000ABC", "100")
+    ),
+    "submit_nft_accept_offer": (
+        lambda t: t.submit_nft_accept_offer("sEdSEED", sell_offer="0" * 64)
+    ),
+    "submit_nft_modify": (
+        lambda t: t.submit_nft_modify("sEdSEED", "00080000ABC", "ipfs://x")
+    ),
+}
+
+# AMM submit_* methods are stubs that return result_code="notSupported"
+# WITHOUT ever signing or reaching the network (see xrpl_testnet.py AMM
+# stub block). They never touch a wallet seed, so the mainnet-refusal
+# invariant is moot for them — an explicit waiver, not an oversight. If
+# AMM is ever implemented for real, drop the relevant name from here and
+# the completeness test below will demand a refusal-coverage row for it.
+_AMM_STUB_WAIVERS = frozenset({
+    "submit_amm_create",
+    "submit_amm_deposit",
+    "submit_amm_withdraw",
+})
+
+
 @pytest.mark.parametrize(
     "call",
-    [
-        lambda t: t.submit_payment("sEdSEED", "rDEST", "10"),
-        lambda t: t.submit_trust_set("sEdSEED", "rISSUER", "USD", "100"),
-        lambda t: t.submit_issued_payment("sEdSEED", "rDEST", "USD", "rISSUER", "5"),
-        lambda t: t.submit_offer_create("sEdSEED", "USD", "5", "rISSUER", "XRP", "10", ""),
-        lambda t: t.submit_offer_cancel("sEdSEED", 1),
-    ],
-    ids=["payment", "trust_set", "issued_payment", "offer_create", "offer_cancel"],
+    list(_MAINNET_REFUSAL_CALLS.values()),
+    ids=list(_MAINNET_REFUSAL_CALLS.keys()),
 )
 def test_all_write_methods_refuse_mainnet(monkeypatch, call) -> None:
-    # The guard must be present on EVERY fund-moving method, not just the two
-    # the basic suite exercised — pins the family so a refactor can't silently
-    # drop it from a sibling (verify-wave contract-completeness probe).
+    # The guard must be present on EVERY fund-moving method, not just the
+    # five the basic suite exercised — pins the family so a refactor can't
+    # silently drop it from a sibling (verify-wave contract-completeness
+    # probe). The four v1.8.0 methods (nft_mint / escrow_create / did_set /
+    # mpt_issuance_create) are now covered: each calls _network_guard()
+    # first, so deleting that call (e.g. dropping the guard from
+    # submit_nft_mint) makes that case FAIL — success would be True/error
+    # would be empty and a real wallet+network call would be attempted.
     monkeypatch.setenv("XRPL_LAB_RPC_URL", _MAINNET_RPC)
     res = asyncio.run(call(XRPLTestnetTransport()))
     assert res.success is False
     assert "Refusing" in res.error
     assert not res.txid
+
+
+def test_mainnet_refusal_covers_every_signing_method() -> None:
+    """Reflection-based completeness gate (TESTS-A-001).
+
+    Enumerate every ``submit_*`` / ``fund_*`` method on
+    ``XRPLTestnetTransport``, subtract the AMM stubs that return
+    'notSupported' WITHOUT signing (explicit waiver), and assert the
+    remaining set is EXACTLY the set covered by the mainnet-refusal
+    parametrize above. A future signing method therefore CANNOT be added
+    without either (a) a refusal-coverage row in ``_MAINNET_REFUSAL_CALLS``
+    or (b) an explicit waiver in ``_AMM_STUB_WAIVERS`` — closing the gap
+    permanently rather than for just today's nine methods.
+
+    Would-FAIL demonstration: if a new ``submit_foo`` signing method were
+    added to the transport and NOT listed in either set, ``signing_methods``
+    would contain ``"submit_foo"`` while ``covered`` would not — the final
+    equality assertion fails with the offending name in the diff. Likewise,
+    if ``submit_nft_mint`` were removed from ``_MAINNET_REFUSAL_CALLS`` (a
+    regression in coverage), ``covered`` would shrink and the assertion
+    would fail.
+    """
+    # fund_from_faucet refuses via its own faucet-URL guard and is pinned
+    # by the dedicated faucet tests above (mainnet RPC + mainnet faucet),
+    # so it is intentionally NOT part of the submit-refusal parametrize.
+    _FUND_WAIVERS = frozenset({"fund_from_faucet"})
+
+    discovered = {
+        name
+        for name, _member in inspect.getmembers(
+            XRPLTestnetTransport, predicate=inspect.isfunction
+        )
+        if name.startswith("submit_") or name.startswith("fund_")
+    }
+
+    signing_methods = discovered - _AMM_STUB_WAIVERS - _FUND_WAIVERS
+    covered = set(_MAINNET_REFUSAL_CALLS.keys())
+
+    assert signing_methods == covered, (
+        "mainnet-refusal coverage drift: signing methods on the transport "
+        "do not match the parametrized refusal set.\n"
+        f"  uncovered (signing but no refusal row): {signing_methods - covered}\n"
+        f"  stale (refusal row but method gone): {covered - signing_methods}\n"
+        "Add a row to _MAINNET_REFUSAL_CALLS for a new signing method, or "
+        "an explicit waiver to _AMM_STUB_WAIVERS / _FUND_WAIVERS if it does "
+        "not sign."
+    )
 
 
 def test_faucet_refused_when_faucet_url_is_mainnet_even_if_rpc_is_testnet(monkeypatch) -> None:

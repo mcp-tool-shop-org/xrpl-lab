@@ -21,6 +21,31 @@ async def create_escrow(
     )
 
 
+async def finish_escrow(
+    transport: Transport,
+    wallet_seed: str,
+    owner: str,
+    offer_sequence: int,
+) -> SubmitResult:
+    """Finish a time-based escrow past FinishAfter (EscrowFinish).
+
+    ``owner`` is the EscrowCreate's account and ``offer_sequence`` is its
+    create sequence (``EscrowInfo.sequence``). No condition/fulfillment — this
+    is the time-based release path the lifecycle modules teach.
+    """
+    return await transport.submit_escrow_finish(wallet_seed, owner, offer_sequence)
+
+
+async def cancel_escrow(
+    transport: Transport,
+    wallet_seed: str,
+    owner: str,
+    offer_sequence: int,
+) -> SubmitResult:
+    """Cancel an escrow past CancelAfter, reclaiming funds (EscrowCancel)."""
+    return await transport.submit_escrow_cancel(wallet_seed, owner, offer_sequence)
+
+
 @dataclass
 class EscrowVerifyResult:
     """Result of verifying an escrow on-ledger."""
@@ -61,3 +86,52 @@ async def verify_escrow(
     if expected_destination and match.destination != expected_destination:
         failures.append(f"Destination mismatch: expected {expected_destination}")
     return EscrowVerifyResult(True, match, checks, failures)
+
+
+@dataclass
+class EscrowGoneResult:
+    """Result of verifying an escrow object is no longer on-ledger."""
+
+    gone: bool
+    checks: list[str]
+    failures: list[str]
+
+    @property
+    def passed(self) -> bool:
+        return self.gone and len(self.failures) == 0
+
+
+async def verify_escrow_finished(
+    transport: Transport,
+    address: str,
+    offer_sequence: int | None = None,
+) -> EscrowGoneResult:
+    """Verify an escrow has been finished/cancelled (removed from the ledger).
+
+    After EscrowFinish/EscrowCancel the Escrow object is deleted and the
+    owner's reserve is freed. We confirm the object is gone: if
+    ``offer_sequence`` is given, that specific create-sequence must no longer
+    be present; otherwise the account must own no escrows at all.
+    """
+    escrows = await transport.get_escrows(address)
+    checks: list[str] = []
+    failures: list[str] = []
+
+    if offer_sequence is not None:
+        still_present = any(e.sequence == offer_sequence for e in escrows)
+        if still_present:
+            failures.append(
+                f"Escrow with create-sequence {offer_sequence} is still on-ledger"
+            )
+            return EscrowGoneResult(False, checks, failures)
+        checks.append(
+            f"Escrow (create-sequence {offer_sequence}) is gone — funds released, "
+            "reserve freed"
+        )
+        return EscrowGoneResult(True, checks, failures)
+
+    if escrows:
+        failures.append(f"{len(escrows)} escrow(s) still on-ledger for this account")
+        return EscrowGoneResult(False, checks, failures)
+    checks.append("No escrows remain on-ledger — reserve freed")
+    return EscrowGoneResult(True, checks, failures)

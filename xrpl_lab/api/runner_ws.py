@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisco
 
 from ..modules import load_all_modules
 from ..runner import run_module
+from .schemas import RunStartResponse
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,16 @@ _sessions: dict[str, ModuleRunSession] = {}
 # retain each task here and discard it via add_done_callback so the set
 # doesn't grow unbounded.
 _background_tasks: set[asyncio.Task] = set()
+
+# Run IDs with a grace-period cleanup task currently scheduled. A run with a
+# connected WS client double-schedules cleanup: ``cancel_session`` schedules
+# it (facilitator DELETE), and the WS read-loop's ``finally`` schedules it
+# again on close — two tasks + two 60s timers racing the same idempotent pop.
+# This set lets ``_schedule_session_cleanup`` early-return when a cleanup is
+# already pending for a run_id, so exactly ONE timer runs per run_id. The
+# marker is discarded when the cleanup task finishes, so a session that is
+# (rarely) re-created under the same run_id can be cleaned up again.
+_pending_cleanups: set[str] = set()
 
 # Max sessions cap — evict oldest completed when exceeded
 _MAX_SESSIONS = 100
@@ -235,7 +246,28 @@ class ModuleRunSession:
     run_id: str
     module_id: str
     dry_run: bool
-    status: str = "started"  # started | running | complete | error | cancelled
+    # Lifecycle: running | complete | error | cancelled.
+    #
+    # TXBCD-007: the session starts in ``running`` — NOT a separate
+    # ``started`` state. The concurrency cap counts non-terminal sessions
+    # (see ``get_active_count`` / the rate-limit check in ``start_run``);
+    # a session pinned in a non-terminal state that no path ever clears
+    # would strand its slot forever, because ``_evict_oldest_completed``
+    # only evicts terminal sessions and the run-timeout lives inside the
+    # task. Previously the session was created ``started`` and only flipped
+    # to ``running`` inside ``_run_module_task`` — so any path that
+    # returned/raised before that flip (a future early-return, a failure to
+    # schedule the task) left a permanent ``started`` orphan holding a
+    # slot. Collapsing creation straight to ``running`` closes that window:
+    # the only non-terminal state is ``running``, and every code path out
+    # of ``_run_module_task`` ends in a terminal status (complete/error)
+    # or re-raises CancelledError (after ``cancel_session`` set
+    # ``cancelled``). The public status map already collapsed
+    # ``started -> running`` (see ``_public_status``), so no facilitator-
+    # facing surface changes. The POST /api/run RESPONSE still reports
+    # ``status="started"`` as a fixed literal (the HTTP "accepted, task
+    # scheduled" signal), independent of this internal field.
+    status: str = "running"  # running | complete | error | cancelled
     queue: asyncio.Queue = field(
         default_factory=lambda: asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
     )
@@ -289,15 +321,17 @@ def _evict_oldest_completed() -> None:
 def _public_status(internal_status: str) -> str:
     """Map internal session status → facilitator-facing status enum.
 
-    Internal: ``started | running | complete | error | cancelled``
+    Internal: ``running | complete | error | cancelled``
     Public:   ``running | completed | failed | cancelled``
 
-    The internal ``started`` state is collapsed into ``running`` for
-    consumers — facilitators don't need to distinguish "task created" from
-    "task currently executing"; both are "in progress." ``cancelled`` is
-    its own public state (distinct from ``failed``) so the dashboard can
-    render facilitator-initiated terminations differently from runtime
-    errors.
+    ``started`` is retained in the match below as a defensive legacy case
+    only — since TXBCD-007 the system never creates a ``started`` session
+    (creation goes straight to ``running``; see ``ModuleRunSession.status``).
+    Mapping it to ``running`` keeps this total in the unlikely event a
+    future path reintroduces it, rather than leaking the raw value.
+    ``cancelled`` is its own public state (distinct from ``failed``) so the
+    dashboard can render facilitator-initiated terminations differently from
+    runtime errors.
     """
     if internal_status in ("started", "running"):
         return "running"
@@ -359,11 +393,16 @@ def get_session_detail(run_id: str) -> dict[str, Any] | None:
 
 
 def get_active_count() -> int:
-    """Number of sessions currently in ``running`` or ``started`` state.
+    """Number of sessions currently counting against the concurrency cap.
 
+    Counts non-terminal sessions — i.e. ``running`` (the only state the
+    system creates since TXBCD-007) plus the defensive legacy ``started``.
     Mirrors the rate-limit check in ``start_run`` so the GET /api/runs
     endpoint reports the same active-count semantics facilitators see in
-    the 429 response copy.
+    the 429 response copy. Keeping ``started`` here means that even if a
+    future path ever produced one, it would still be correctly counted (and
+    so still evictable via the timeout/terminal paths) rather than silently
+    uncapped.
     """
     return sum(1 for s in _sessions.values() if s.status in ("running", "started"))
 
@@ -492,7 +531,19 @@ async def _await_quietly(task: asyncio.Task) -> None:
 
 
 def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS) -> None:
-    """Schedule removal of a session after a grace period."""
+    """Schedule removal of a session after a grace period.
+
+    Idempotent per run_id: if a cleanup is already pending for ``run_id``
+    (tracked in ``_pending_cleanups``), this is a no-op. A run with a
+    connected WS client otherwise double-schedules — ``cancel_session`` and
+    the WS read-loop's ``finally`` both call here — leaving two 60s timers
+    racing the same pop (API-A-003). The dedup guard collapses them to one.
+    The marker is discarded when the cleanup task completes so a re-created
+    session under the same run_id can be cleaned up again later.
+    """
+    if run_id in _pending_cleanups:
+        return
+    _pending_cleanups.add(run_id)
 
     async def _cleanup() -> None:
         try:
@@ -508,7 +559,17 @@ def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS
     # keep _background_tasks bounded. See _background_tasks rationale.
     task = asyncio.create_task(_cleanup())
     _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+
+    def _on_done(t: asyncio.Task) -> None:
+        # Clear BOTH the strong-ref retention set and the per-run-id dedup
+        # marker. Done in the done-callback (not the coroutine ``finally``)
+        # because a task cancelled before its body first executes never runs
+        # the body's ``finally`` — the callback always fires, so the marker
+        # can never leak and block a future re-schedule for this run_id.
+        _background_tasks.discard(t)
+        _pending_cleanups.discard(run_id)
+
+    task.add_done_callback(_on_done)
 
 
 def _make_capture_console(
@@ -572,6 +633,11 @@ async def _run_module_task(session: ModuleRunSession) -> None:
         from ..transport.xrpl_testnet import XRPLTestnetTransport
         transport = XRPLTestnetTransport()
 
+    # Session was already created in ``running`` (see ModuleRunSession.status
+    # / TXBCD-007). This assignment is now idempotent — kept as a defensive
+    # no-op so the running state is unambiguous at the point execution
+    # actually begins, and so a future reorder that introduced a transient
+    # pre-run status would self-correct here.
     session.status = "running"
 
     # get_running_loop() (not the deprecated get_event_loop()) — guaranteed
@@ -715,7 +781,9 @@ async def _run_module_task(session: ModuleRunSession) -> None:
 
 
 @router.post("/run/{module_id}")
-async def start_run(request: Request, module_id: str, dry_run: bool = False) -> dict[str, Any]:
+async def start_run(
+    request: Request, module_id: str, dry_run: bool = False
+) -> RunStartResponse:
     """Start a module run in the background. Returns run_id.
 
     The ``dry_run`` query parameter overrides the app-level default.  If not
@@ -777,7 +845,7 @@ async def start_run(request: Request, module_id: str, dry_run: bool = False) -> 
     # reported before the task actually exits.
     session.task = asyncio.create_task(_run_module_task(session))
 
-    return {"run_id": run_id, "status": "started"}
+    return RunStartResponse(run_id=run_id, status="started")
 
 
 # ── WS /api/run/{module_id}/ws?run_id=... ────────────────────────────
@@ -851,12 +919,39 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
                 try:
                     await websocket.send_json({"type": "ping"})
                 except Exception:
+                    # TXBCD-006: leave a server-side breadcrumb so a
+                    # facilitator investigating a stuck dashboard can tell
+                    # "keepalive send failed" apart from "client navigated
+                    # away cleanly". The run itself is unaffected — it
+                    # completes via its own task and the session is cleaned
+                    # up by the finally block below. Log run_id + a short
+                    # static reason ONLY: the failed payload is the fixed
+                    # ``{"type": "ping"}`` (no learner data), and we
+                    # deliberately do NOT log the exception text, which
+                    # could carry transport internals. No seed/path here.
+                    logger.info(
+                        "ws keepalive ping send failed; closing stream "
+                        "(run still completes via its task): run_id=%s",
+                        run_id,
+                    )
                     break
                 continue
 
             try:
                 await websocket.send_json(msg)
             except Exception:
+                # TXBCD-006: distinct breadcrumb for a mid-stream message
+                # send failure (vs the ping-send breadcrumb above). Log the
+                # run_id and the message TYPE only — never the message body,
+                # which for an ``output`` frame carries captured console text
+                # that may include paths/seeds. The exception text is not
+                # logged for the same no-leak reason.
+                logger.info(
+                    "ws message send failed; closing stream (run still "
+                    "completes via its task): run_id=%s msg_type=%s",
+                    run_id,
+                    msg.get("type", "?"),
+                )
                 break
 
             # Stop streaming once the run is done

@@ -35,7 +35,12 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
     function offlineHTML(err: any) {
       const timeout = err?.name === 'AbortError';
-      const msg = timeout
+      // FRONTEND-A-005: distinguish a server-side HTTP error (500, etc.) from a
+      // truly-offline API. The server IS up if it answered with a status code,
+      // so "API is offline" would be misleading.
+      const msg = err?.httpStatus
+        ? `API error (HTTP ${err.httpStatus}). The server is up but returned an error. Refresh to retry.`
+        : timeout
         ? 'Request timed out. The API may be slow or restarting. Refresh to retry.'
         : 'API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
       return `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
@@ -122,13 +127,25 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       root.innerHTML = skeletonOverview();
       let status: any;
       try {
-        status = await (await fetchWithTimeout(`${API_BASE}/api/status`)).json();
+        const res = await fetchWithTimeout(`${API_BASE}/api/status`);
+        if (!res.ok) {
+          // FRONTEND-A-005: tag with the status so offlineHTML reports the HTTP
+          // error honestly instead of parsing an HTML error body as JSON.
+          const e = new Error(`API returned ${res.status}: ${res.statusText}`);
+          (e as any).httpStatus = res.status;
+          throw e;
+        }
+        status = await res.json();
       } catch (err) {
         root.innerHTML = offlineHTML(err);
         return;
       }
       let doctor: any = null;
-      try { doctor = await (await fetchWithTimeout(`${API_BASE}/api/doctor`)).json(); } catch { /* best-effort */ }
+      // Best-effort: skip the doctor card on any non-OK or network error.
+      try {
+        const dRes = await fetchWithTimeout(`${API_BASE}/api/doctor`);
+        if (dRes.ok) doctor = await dRes.json();
+      } catch { /* best-effort */ }
       root.innerHTML = overviewHTML(status, doctor);
       requestAnimationFrame(animateProgress);
     }

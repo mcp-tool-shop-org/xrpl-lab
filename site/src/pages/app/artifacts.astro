@@ -27,10 +27,23 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
     const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
 
     // Humanized fetch-error copy — mirrors the overview page's tone.
+    // FRONTEND-A-005: an HTTP error (e.g. a 500 with an HTML body) is neither a
+    // TypeError nor an AbortError, so it must NOT be mislabeled "API offline".
+    // We tag those errors with `.httpStatus` (see the !res.ok throws below) and
+    // report the status honestly here.
     function describeFetchError(err: any, fallback: string): string {
       if (err?.name === 'AbortError') return 'Request timed out — check API server is responsive.';
       if (err instanceof TypeError) return 'Could not reach API server — is it running?';
+      if (err?.httpStatus) return `API error (HTTP ${err.httpStatus}). The server is up but returned an error.`;
       return fallback;
+    }
+
+    // Throw a tagged Error for a non-OK response so describeFetchError can
+    // report the status instead of the page silently treating it as offline.
+    function httpError(res: Response): Error {
+      const e = new Error(`API returned ${res.status}: ${res.statusText}`);
+      (e as any).httpStatus = res.status;
+      return e;
     }
 
     function offlineHTML(err: any) {
@@ -213,7 +226,9 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       // Three independent fetches — each panel degrades on its own.
       let proof = '';
       try {
-        const data = await (await fetchWithTimeout(`${API_BASE}/api/artifacts/proof-pack`)).json();
+        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/proof-pack`);
+        if (!res.ok) throw httpError(res);
+        const data = await res.json();
         proof = proofHTML(data);
       } catch (err: any) {
         proof = err instanceof TypeError || err?.name === 'AbortError'
@@ -224,7 +239,9 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
       let cert = '';
       try {
-        const data = await (await fetchWithTimeout(`${API_BASE}/api/artifacts/certificate`)).json();
+        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/certificate`);
+        if (!res.ok) throw httpError(res);
+        const data = await res.json();
         cert = certHTML(data);
       } catch (err: any) {
         cert = err instanceof TypeError || err?.name === 'AbortError'
@@ -235,7 +252,9 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
       let reports = '';
       try {
-        const data = await (await fetchWithTimeout(`${API_BASE}/api/artifacts/reports`)).json();
+        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/reports`);
+        if (!res.ok) throw httpError(res);
+        const data = await res.json();
         reports = reportsHTML(data);
       } catch (err: any) {
         reports = err instanceof TypeError || err?.name === 'AbortError'

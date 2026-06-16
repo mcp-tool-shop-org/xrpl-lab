@@ -28,10 +28,27 @@ from .actions.dex import (
     verify_offer_absent,
     verify_offer_present,
 )
-from .actions.did import set_did, verify_did
-from .actions.escrow import create_escrow, verify_escrow
+from .actions.did import delete_did, set_did, verify_did, verify_did_deleted
+from .actions.escrow import (
+    cancel_escrow,
+    create_escrow,
+    finish_escrow,
+    verify_escrow,
+    verify_escrow_finished,
+)
 from .actions.mpt import create_mpt_issuance, verify_mpt_issuance
-from .actions.nft import mint_nft, verify_nft
+from .actions.nft import (
+    accept_nft_offer,
+    burn_nft,
+    create_nft_offer,
+    get_nft_offers,
+    mint_nft,
+    modify_nft,
+    verify_nft,
+    verify_nft_burned,
+    verify_nft_modified,
+    verify_nft_owned_by,
+)
 from .actions.reserves import (
     _drops_to_xrp,
     compare_snapshots,
@@ -48,9 +65,12 @@ from .actions.strategy import (
     write_last_run,
 )
 from .actions.trust_line import (
+    clawback_tokens,
+    enable_clawback,
     issue_token,
     remove_trust_line,
     set_trust_line,
+    verify_clawback,
     verify_trust_line,
     verify_trust_line_removed,
 )
@@ -209,11 +229,38 @@ async def handle_submit_payment_fail(
         transport, wallet_seed, dest, amount, memo="XRPLLAB|FAIL_TEST"
     )
     context["last_submit"] = result
-    context.setdefault("failed_txids", []).append(
-        {"result_code": result.result_code, "error": result.error}
-    )
-    console.print(f"  Result code: [yellow]{result.result_code}[/]")
-    console.print(f"  Error: {result.error}")
+
+    if result.success:
+        # CORE-A-004: the failing-tx demo can unexpectedly succeed (e.g. a
+        # dry-run/offline transport that doesn't simulate the chosen failure,
+        # or a flaky reason). When it does, the txid MUST be recorded in
+        # tx_index — otherwise it lands in the proof pack's completed-modules
+        # list with no matching tx record (no explorer link, undercounts
+        # total_transactions). Mirror the success branch of the other submit
+        # handlers so tx_index stays the single source of truth.
+        console.print(
+            f"  [yellow]Unexpected success — tx confirmed "
+            f"({result.result_code}). The chosen failure did not occur "
+            f"on this transport.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        state.record_tx(
+            txid=result.txid,
+            module_id=context.get("module_id", ""),
+            network=state.network,
+            success=True,
+            explorer_url=result.explorer_url,
+        )
+        context.setdefault("txids", []).append(result.txid)
+        save_state(state)
+    else:
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+        console.print(f"  Result code: [yellow]{result.result_code}[/]")
+        console.print(f"  Error: {result.error}")
     return context
 
 
@@ -282,6 +329,16 @@ async def handle_fund_issuer(
     result = await transport.fund_from_faucet(issuer_address)
     if result.success:
         console.print(f"  Issuer funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        # COREBCD-003: a 429 is not a transient "retry now" — re-running
+        # immediately just gets rate-limited again. Mirror `cli.py fund` /
+        # runtime.ensure_funded: surface the clock-cued wait guidance + the
+        # --dry-run escape hatch instead of the generic retry line.
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
     else:
         console.print(f"  [red]Funding failed: {result.message}[/]")
         console.print("  You can retry by re-running this module.")
@@ -435,11 +492,27 @@ async def handle_issue_token_expect_fail(
     )
 
     if result.success:
+        # VC-001 (sibling of CORE-A-004): the expect-fail token issuance can
+        # unexpectedly succeed (e.g. a dry-run transport that doesn't simulate
+        # the chosen failure, or a pre-existing trust line). When it does, the
+        # successful txid MUST be recorded in tx_index WITH its explorer_url —
+        # otherwise the proof pack lists a completed module with no matching tx
+        # record (no explorer link, undercounts total_transactions). And it must
+        # NOT be appended to failed_txids: a confirmed tx is not a failure.
         console.print(
             f"  [yellow]Unexpected success — {amount} {currency} "
             f"delivered. Trust line may already exist.[/]"
         )
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
         context.setdefault("txids", []).append(result.txid)
+        state.record_tx(
+            txid=result.txid or "failed",
+            module_id=context.get("module_id", ""),
+            network=state.network,
+            success=True,
+            explorer_url=result.explorer_url,
+        )
     else:
         console.print(f"  [green]Expected failure:[/] {result.result_code}")
         console.print(f"  Error: {result.error}")
@@ -452,15 +525,15 @@ async def handle_issue_token_expect_fail(
         console.print(f"  Meaning: {info['meaning']}")
         console.print(f"  Action: [yellow]{info['action']}[/]")
 
-    context.setdefault("failed_txids", []).append(
-        {"result_code": result.result_code, "error": result.error}
-    )
-    state.record_tx(
-        txid=result.txid or "failed",
-        module_id=context.get("module_id", ""),
-        network=state.network,
-        success=result.success,
-    )
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+        state.record_tx(
+            txid=result.txid or "failed",
+            module_id=context.get("module_id", ""),
+            network=state.network,
+            success=False,
+        )
     save_state(state)
     return context
 
@@ -1678,6 +1751,7 @@ async def handle_mint_nft(
     except ValueError:
         transfer_fee = 0
     transferable = str(args.get("transferable", "true")).lower() != "false"
+    mutable = str(args.get("mutable", "false")).lower() in ("true", "1", "yes")
 
     if "wallet_seed" not in context:
         console.print("  [red]No wallet in context. Run the wallet step first.[/]")
@@ -1686,11 +1760,12 @@ async def handle_mint_nft(
 
     console.print(
         f"  Minting NFToken — taxon [cyan]{taxon}[/], "
-        f"transferable [cyan]{transferable}[/], uri [cyan]{uri}[/]"
+        f"transferable [cyan]{transferable}[/], mutable [cyan]{mutable}[/], "
+        f"uri [cyan]{uri}[/]"
     )
     if transfer_fee:
         console.print(f"  Royalty (TransferFee): {transfer_fee / 1000:.3f}%")
-    result = await mint_nft(transport, seed, uri, taxon, transfer_fee, transferable)
+    result = await mint_nft(transport, seed, uri, taxon, transfer_fee, transferable, mutable)
 
     if result.success:
         console.print("  [green]NFToken minted![/]")
@@ -1710,6 +1785,7 @@ async def handle_mint_nft(
         context.setdefault("txids", []).append(result.txid)
     else:
         console.print(f"  [red]Mint failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
         state.record_tx(
             txid=result.txid or "failed",
             module_id=context.get("module_id", ""),
@@ -1741,7 +1817,84 @@ async def handle_verify_nft(
     return context
 
 
+async def handle_burn_nft(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+    # Resolve the NFTokenID: an explicit module arg wins, else the one captured
+    # at mint, else the most recently owned NFT on-ledger (so the module flows
+    # mint -> verify -> burn without the author pasting an id).
+    nft_id = step.action_args.get("nftoken_id", "") or context.get("nft_id", "")
+    if not nft_id:
+        owned = await transport.get_account_nfts(state.wallet_address or "")
+        if owned:
+            nft_id = owned[-1].nft_id
+    if not nft_id:
+        console.print(
+            "  [red]No NFToken to burn — run the mint step first so an "
+            "NFTokenID is captured.[/]"
+        )
+        return context
+    console.print(f"  Burning NFToken [cyan]{nft_id[:24]}...[/]")
+    result = await burn_nft(transport, seed, nft_id)
+    if result.success:
+        console.print("  [green]NFToken burned — destroyed, reserve freed![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["burned_nft_id"] = nft_id
+    else:
+        console.print(f"  [red]NFTokenBurn failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_nft_burned(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    address = state.wallet_address or ""
+    if not address:
+        console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        return context
+    nft_id = context.get("burned_nft_id") or context.get("nft_id")
+    result = await verify_nft_burned(transport, address, nftoken_id=nft_id)
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+    if result.passed:
+        console.print("  [green]NFT lifecycle complete — asset destroyed, reserve freed.[/]")
+    context["last_nft_burned_verify"] = result
+    return context
+
+
 _RIPPLE_EPOCH = 946684800  # seconds between Unix epoch and Ripple epoch (2000-01-01)
+
+
+def _explain_failure(console: Console, result_code: str) -> None:
+    """Print the Category/Meaning/Action triplet for a failing result_code.
+
+    COREBCD-006: the KB-sourced create handlers (mint_nft / create_escrow /
+    set_did / create_mpt_issuance) previously printed only the bare
+    ``result.error`` on failure. Older handlers (e.g.
+    handle_issue_token_expect_fail) route the code through
+    ``explain_result_code`` so every failing tx teaches its XRPL concept
+    inline. This shared helper gives the create handlers the same treatment.
+    """
+    if not result_code:
+        return
+    from .doctor import explain_result_code
+
+    info = explain_result_code(result_code)
+    console.print(f"  Category: [cyan]{info['category']}[/]")
+    console.print(f"  Meaning: {info['meaning']}")
+    console.print(f"  Action: [yellow]{info['action']}[/]")
 
 
 def _record_submit(state: LabState, context: dict, result) -> None:
@@ -1784,8 +1937,24 @@ async def handle_create_escrow(
         console.print(f"  TXID: [cyan]{result.txid}[/]")
         if result.explorer_url:
             console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        # Capture the create-sequence (OfferSequence for finish/cancel) and the
+        # owner so a later finish_escrow / cancel_escrow step can consume them.
+        # Both transports populate EscrowInfo.sequence (TRANSPORT-A-003), so we
+        # read it back from the ledger rather than guessing.
+        owner = state.wallet_address or ""
+        escrows = await transport.get_escrows(owner)
+        if escrows:
+            seq = escrows[-1].sequence
+            context["escrow_owner"] = owner
+            context["escrow_destination"] = destination
+            context["escrow_finish_after"] = finish_after
+            context["escrow_cancel_after"] = cancel_after
+            if seq:
+                context["escrow_sequence"] = seq
+                console.print(f"  Escrow create-sequence: [cyan]{seq}[/]")
     else:
         console.print(f"  [red]Escrow failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
     return context
 
@@ -1806,6 +1975,96 @@ async def handle_verify_escrow(
     if result.found and result.passed:
         console.print("  [green]Escrow verified on-ledger.[/]")
     context["last_escrow_verify"] = result
+    return context
+
+
+def _resolve_escrow_target(state: LabState, context: dict) -> tuple[str, int | None]:
+    """Resolve (owner, offer_sequence) for an escrow finish/cancel step.
+
+    Owner defaults to the learner's own wallet (escrow-to-self is the module
+    pattern); the create-sequence comes from context, populated by
+    handle_create_escrow when it read the escrow back from the ledger.
+    """
+    owner = context.get("escrow_owner") or state.wallet_address or ""
+    seq = context.get("escrow_sequence")
+    return owner, seq
+
+
+async def handle_finish_escrow(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+    owner, seq = _resolve_escrow_target(state, context)
+    if not owner or seq is None:
+        console.print(
+            "  [red]No escrow to finish — run the create-escrow step first "
+            "so its create-sequence is captured.[/]"
+        )
+        return context
+    console.print(f"  Finishing escrow (owner {owner[:12]}..., OfferSequence {seq})...")
+    result = await finish_escrow(transport, seed, owner, seq)
+    if result.success:
+        console.print("  [green]Escrow finished — funds released to destination![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]EscrowFinish failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_cancel_escrow(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+    owner, seq = _resolve_escrow_target(state, context)
+    if not owner or seq is None:
+        console.print(
+            "  [red]No escrow to cancel — run the create-escrow step first "
+            "so its create-sequence is captured.[/]"
+        )
+        return context
+    console.print(f"  Cancelling escrow (owner {owner[:12]}..., OfferSequence {seq})...")
+    result = await cancel_escrow(transport, seed, owner, seq)
+    if result.success:
+        console.print("  [green]Escrow cancelled — funds reclaimed by owner![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]EscrowCancel failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_escrow_finished(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    address = context.get("escrow_owner") or state.wallet_address or ""
+    if not address:
+        console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        return context
+    seq = context.get("escrow_sequence")
+    result = await verify_escrow_finished(transport, address, offer_sequence=seq)
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+    if result.passed:
+        console.print("  [green]Escrow lifecycle complete — reserve freed.[/]")
+    context["last_escrow_finished_verify"] = result
     return context
 
 
@@ -1830,6 +2089,7 @@ async def handle_set_did(
         context["did_uri"] = uri
     else:
         console.print(f"  [red]DIDSet failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
     return context
 
@@ -1850,6 +2110,47 @@ async def handle_verify_did(
     if result.found and result.passed:
         console.print("  [green]DID verified on-ledger.[/]")
     context["last_did_verify"] = result
+    return context
+
+
+async def handle_delete_did(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+    console.print("  Deleting DID — revoking on-ledger identity...")
+    result = await delete_did(transport, seed)
+    if result.success:
+        console.print("  [green]DID deleted — identity revoked, reserve freed![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]DIDDelete failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_did_deleted(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    address = state.wallet_address or ""
+    if not address:
+        console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        return context
+    result = await verify_did_deleted(transport, address)
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+    if result.passed:
+        console.print("  [green]Identity hygiene complete — DID removed.[/]")
+    context["last_did_deleted_verify"] = result
     return context
 
 
@@ -1885,6 +2186,7 @@ async def handle_create_mpt_issuance(
         context["mpt_max"] = str(maximum_amount)
     else:
         console.print(f"  [red]MPT issuance failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
     return context
 
@@ -1905,6 +2207,558 @@ async def handle_verify_mpt_issuance(
     if result.found and result.passed:
         console.print("  [green]MPT issuance verified on-ledger.[/]")
     context["last_mpt_verify"] = result
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Clawback actions (tokens track) — issuer recall (XLS-39)
+# ---------------------------------------------------------------------------
+
+
+async def handle_enable_clawback(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Enable asfAllowTrustLineClawback on the issuer BEFORE issuing tokens."""
+    _raw_issuer = context.get("issuer_seed", "")
+    issuer_seed = _raw_issuer.get() if isinstance(_raw_issuer, _SecretValue) else _raw_issuer
+    if not issuer_seed:
+        console.print("  [red]No issuer wallet in context. Run the issuer step first.[/]")
+        return context
+    issuer_address = context.get("issuer_address", "")
+    console.print(
+        "  Enabling clawback on the issuer "
+        "([cyan]asfAllowTrustLineClawback[/]) — must precede any issuance..."
+    )
+    result = await enable_clawback(transport, issuer_seed, issuer_address)
+    if result.success:
+        console.print("  [green]Clawback enabled on the issuer.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["clawback_enabled"] = True
+    else:
+        console.print(f"  [red]Enabling clawback failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_snapshot_token_balance(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Capture the holder's trust-line balance for a currency (clawback before/after)."""
+    args = step.action_args
+    currency = args.get("currency", "LAB")
+    label = args.get("label", "before")
+    holder_address = state.wallet_address or ""
+    issuer_address = context.get("issuer_address", "")
+    if not holder_address:
+        console.print("  [red]No wallet address found.[/]")
+        return context
+    lines = await transport.get_trust_lines(holder_address)
+    bal = "0"
+    for tl in lines:
+        if tl.currency == currency and (not issuer_address or tl.peer == issuer_address):
+            bal = tl.balance
+            break
+    context[f"token_balance_{label}"] = bal
+    console.print(f"  Holder {currency} balance ({label}): [cyan]{bal}[/]")
+    return context
+
+
+async def handle_clawback(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Forcibly recall a portion of issued tokens from the holder (Clawback)."""
+    args = step.action_args
+    currency = args.get("currency", "LAB")
+    amount = args.get("amount", "30")
+    _raw_issuer = context.get("issuer_seed", "")
+    issuer_seed = _raw_issuer.get() if isinstance(_raw_issuer, _SecretValue) else _raw_issuer
+    issuer_address = context.get("issuer_address", "")
+    holder_address = state.wallet_address or ""
+    if not issuer_seed or not holder_address:
+        console.print("  [red]Missing issuer or holder wallet. Run previous steps first.[/]")
+        return context
+    console.print(
+        f"  Clawing back [cyan]{amount} {currency}[/] from holder "
+        f"[cyan]{holder_address[:12]}...[/]"
+    )
+    console.print(
+        "  [dim]XRPL quirk: the Clawback Amount.issuer field carries the "
+        "HOLDER address, not the issuer.[/]"
+    )
+    result = await clawback_tokens(
+        transport, issuer_seed, holder_address, currency, amount, issuer_address
+    )
+    if result.success:
+        console.print("  [green]Clawback succeeded — tokens recalled to the issuer.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["clawback_currency"] = currency
+        context["clawback_amount"] = amount
+    else:
+        console.print(f"  [red]Clawback failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_clawback(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Verify the holder's balance dropped by exactly the clawed amount."""
+    args = step.action_args
+    currency = args.get("currency", context.get("clawback_currency", "LAB"))
+    before = context.get("token_balance_before", "0")
+    clawed = context.get("clawback_amount", args.get("amount", "30"))
+    holder_address = state.wallet_address or ""
+    issuer_address = context.get("issuer_address", "")
+    if not holder_address:
+        console.print("  [red]No wallet address found.[/]")
+        return context
+    result = await verify_clawback(
+        transport, holder_address, currency, issuer_address, before, clawed
+    )
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+    if result.passed:
+        console.print("  [green]Issuer recall verified — exact-amount debit confirmed.[/]")
+    context["last_clawback_verify"] = result
+    return context
+
+
+async def handle_clawback_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attempt a clawback against an issuer that NEVER enabled the flag (tec).
+
+    Uses a dedicated second issuer that issued tokens WITHOUT first setting
+    asfAllowTrustLineClawback, so the recall is refused — the failure-literacy
+    half of the lesson. The result code routes through explain_result_code.
+    """
+    args = step.action_args
+    currency = args.get("currency", context.get("noclaw_currency", "NOC"))
+    amount = args.get("amount", "10")
+    _raw = context.get("noclaw_issuer_seed", "")
+    issuer_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    issuer_address = context.get("noclaw_issuer_address", "")
+    holder_address = state.wallet_address or ""
+    if not issuer_seed or not holder_address:
+        console.print("  [red]Missing no-clawback issuer or holder. Run previous steps first.[/]")
+        return context
+    console.print(
+        f"  [yellow]Attempting clawback of {amount} {currency} from an issuer "
+        f"that never enabled the flag (expecting failure)...[/]"
+    )
+    result = await clawback_tokens(
+        transport, issuer_seed, holder_address, currency, amount, issuer_address
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — this issuer should have lacked the "
+            "clawback flag. Verify the issuance order.[/]"
+        )
+        _record_submit(state, context, result)
+    else:
+        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        console.print(f"  Error: {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+        state.record_tx(
+            txid=result.txid or "failed", module_id=context.get("module_id", ""),
+            network=state.network, success=False,
+        )
+        save_state(state)
+    return context
+
+
+async def handle_create_noclaw_issuer(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund a SECOND issuer that does NOT enable clawback, then issue.
+
+    Sets up the clawback-without-flag failure case: this issuer issues a token
+    to the holder having never set asfAllowTrustLineClawback, so a later
+    clawback attempt is refused with a tec error.
+    """
+    args = step.action_args
+    currency = args.get("currency", "NOC")
+    amount = args.get("amount", "50")
+    console.print("  Creating a second issuer (no clawback flag)...")
+    issuer = create_wallet()
+    fund = await transport.fund_from_faucet(issuer.address)
+    if not fund.success and getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    context["noclaw_issuer_seed"] = _SecretValue(issuer.seed)
+    context["noclaw_issuer_address"] = issuer.address
+    context["noclaw_currency"] = currency
+    # Holder trusts this issuer, then it issues tokens (no clawback flag set).
+    holder_seed = context["wallet_seed"].get()
+    await set_trust_line(transport, holder_seed, issuer.address, currency, "1000")
+    issue = await issue_token(
+        transport, issuer.seed, state.wallet_address or "",
+        currency, issuer.address, amount,
+        memo=f"XRPLLAB|ISSUE|{currency}|{amount}",
+    )
+    if issue.success:
+        console.print(
+            f"  [green]Issued {amount} {currency} from a no-clawback issuer.[/]"
+        )
+    else:
+        console.print(f"  [yellow]Issuance setup note: {issue.error}[/]")
+    return context
+
+
+# ---------------------------------------------------------------------------
+# NFT marketplace + dynamic-NFT actions (nfts track)
+# ---------------------------------------------------------------------------
+
+
+async def handle_create_buyer_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund a second wallet to act as the marketplace counterparty."""
+    console.print("  Creating a second player wallet (buyer/reseller)...")
+    buyer = create_wallet()
+    fund = await transport.fund_from_faucet(buyer.address)
+    if fund.success:
+        console.print(f"  Buyer funded: [cyan]{buyer.address}[/] ({fund.balance} XRP)")
+    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    else:
+        console.print(f"  [yellow]Buyer funding note: {fund.message}[/]")
+    context["buyer_seed"] = _SecretValue(buyer.seed)
+    context["buyer_address"] = buyer.address
+    return context
+
+
+async def handle_list_nft_sell_offer(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """List the caller's NFT for sale (NFTokenCreateOffer, tfSellNFToken).
+
+    ``seller`` arg selects whose wallet signs: "creator" (the learner's wallet,
+    the issuer — first sale) or "buyer" (the second wallet — a resale that
+    triggers the issuer royalty). Directed to a counterparty so the dry-run
+    transport can settle ownership deterministically (testnet uses the signer).
+    """
+    args = step.action_args
+    nft_id = context.get("nft_id", "")
+    amount = args.get("amount", "100")
+    seller_role = args.get("seller", "creator")
+    if not nft_id:
+        console.print("  [red]No NFTokenID in context. Mint an NFT first.[/]")
+        return context
+
+    if seller_role == "buyer":
+        _raw = context.get("buyer_seed", "")
+        seller_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+        seller_addr = context.get("buyer_address", "")
+        # Resale: directed back to the creator so the creator (issuer) re-acquires
+        # it and we can observe the protocol royalty leaving the reseller.
+        dest = state.wallet_address or ""
+    else:
+        seller_seed = context["wallet_seed"].get()
+        seller_addr = state.wallet_address or ""
+        # First sale: directed to the second player (buyer).
+        dest = context.get("buyer_address", "")
+
+    if not seller_seed:
+        console.print("  [red]Missing seller wallet for this offer.[/]")
+        return context
+
+    console.print(
+        f"  Listing NFT for sale: [cyan]{amount} XRP[/] "
+        f"(seller [cyan]{seller_role}[/], to [cyan]{dest[:12]}...[/])"
+    )
+    result = await create_nft_offer(
+        transport, seller_seed, nft_id, amount,
+        sell=True, destination=dest, owner=seller_addr,
+    )
+    if result.success:
+        console.print("  [green]Sell offer listed![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.nft_offer_index:
+            context["nft_sell_offer"] = result.nft_offer_index
+            console.print(f"  Offer index: [cyan]{result.nft_offer_index[:24]}...[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["nft_offer_price"] = amount
+        context["nft_offer_seller_role"] = seller_role
+    else:
+        console.print(f"  [red]Sell offer failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_nft_offer(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Read the NFT's open sell offers back from the ledger (nft_sell_offers)."""
+    nft_id = context.get("nft_id", "")
+    if not nft_id:
+        console.print("  [red]No NFTokenID in context.[/]")
+        return context
+    offers = await get_nft_offers(transport, nft_id, sell=True)
+    if offers:
+        for o in offers:
+            console.print(
+                f"  [green]Sell offer:[/] {o.amount} "
+                f"(index {o.offer_index[:16]}...)"
+            )
+        console.print(f"  [green]{len(offers)} open sell offer(s) on the book.[/]")
+    else:
+        console.print("  [yellow]No open sell offers for this NFT.[/]")
+    context["last_nft_offers"] = offers
+    return context
+
+
+async def handle_accept_nft_offer(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Accept the open sell offer, settling the trade (NFTokenAcceptOffer).
+
+    ``buyer`` arg selects the accepting wallet: "buyer" (the second player, a
+    first purchase) or "creator" (the learner's wallet buying back a resale).
+    """
+    args = step.action_args
+    buyer_role = args.get("buyer", "buyer")
+    sell_offer = context.get("nft_sell_offer", "")
+    if not sell_offer:
+        console.print("  [red]No sell offer in context. List one first.[/]")
+        return context
+
+    if buyer_role == "creator":
+        buyer_seed = context["wallet_seed"].get()
+        buyer_addr = state.wallet_address or ""
+    else:
+        _raw = context.get("buyer_seed", "")
+        buyer_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+        buyer_addr = context.get("buyer_address", "")
+
+    if not buyer_seed:
+        console.print("  [red]Missing buyer wallet to accept the offer.[/]")
+        return context
+
+    # Capture issuer balance before, so we can show the royalty arriving.
+    issuer_addr = state.wallet_address or ""
+    issuer_before = await transport.get_balance(issuer_addr)
+
+    console.print(
+        f"  Accepting sell offer as [cyan]{buyer_role}[/] "
+        f"([cyan]{buyer_addr[:12]}...[/])..."
+    )
+    result = await accept_nft_offer(transport, buyer_seed, sell_offer=sell_offer)
+    if result.success:
+        console.print("  [green]Trade settled — NFT ownership transferred![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["nft_buyer_address"] = buyer_addr
+        context["nft_seller_address"] = (
+            issuer_addr if context.get("nft_offer_seller_role") == "buyer"
+            else context.get("buyer_address", "")
+        )
+        # Re-read the issuer balance to surface the royalty delta (resale only).
+        issuer_after = await transport.get_balance(issuer_addr)
+        context["nft_issuer_balance_before"] = issuer_before
+        context["nft_issuer_balance_after"] = issuer_after
+        # The seller for THIS offer is whoever listed it.
+        seller_role = context.get("nft_offer_seller_role", "creator")
+        context["nft_prev_owner"] = (
+            context.get("buyer_address", "") if seller_role == "buyer"
+            else issuer_addr
+        )
+        # The offer is consumed.
+        context.pop("nft_sell_offer", None)
+    else:
+        console.print(f"  [red]Accept failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_accept_nft_offer_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Accept a nonexistent NFTokenOffer (tec) — failure-literacy path."""
+    bogus = step.action_args.get("offer_index", "0" * 64)
+    buyer_seed = context["wallet_seed"].get()
+    console.print(
+        "  [yellow]Attempting to accept a nonexistent offer (expecting failure)...[/]"
+    )
+    result = await accept_nft_offer(transport, buyer_seed, sell_offer=bogus)
+    if result.success:
+        console.print("  [yellow]Unexpected success — the offer index resolved.[/]")
+        _record_submit(state, context, result)
+    else:
+        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        console.print(f"  Error: {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_verify_nft_trade(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Verify ownership transferred AND (on a resale) the royalty reached the issuer."""
+    nft_id = context.get("nft_id", "")
+    buyer_addr = context.get("nft_buyer_address", "")
+    prev_owner = context.get("nft_prev_owner", "")
+    if not nft_id or not buyer_addr:
+        console.print("  [red]No completed trade in context.[/]")
+        return context
+
+    result = await verify_nft_owned_by(
+        transport, buyer_addr, nft_id, previous_owner=prev_owner
+    )
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+
+    # Royalty observation (resale only — first sale from the issuer pays none).
+    before = context.get("nft_issuer_balance_before")
+    after = context.get("nft_issuer_balance_after")
+    if before is not None and after is not None:
+        try:
+            delta = Decimal(str(after)) - Decimal(str(before))
+        except (InvalidOperation, ValueError):
+            delta = Decimal("0")
+        if delta > 0:
+            console.print(
+                f"  [green]Royalty (TransferFee) paid to issuer: "
+                f"+{delta} XRP — protocol-enforced creator royalty.[/]"
+            )
+        else:
+            console.print(
+                "  [dim]No royalty on this hop (first sale from the issuer pays "
+                "none; the TransferFee is enforced on resales).[/]"
+            )
+    if result.passed:
+        console.print("  [green]NFT trade verified on-ledger.[/]")
+    context["last_nft_trade_verify"] = result
+    return context
+
+
+async def handle_modify_nft(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Change a mutable NFT's URI (NFTokenModify) — level up / evolve a game item."""
+    args = step.action_args
+    uri = args.get("uri", "ipfs://example/item-level-2.json")
+    nft_id = step.action_args.get("nftoken_id", "") or context.get("nft_id", "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    if not nft_id:
+        console.print("  [red]No NFTokenID in context. Mint a mutable NFT first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+    console.print(
+        f"  Modifying NFToken [cyan]{nft_id[:24]}...[/] — new URI [cyan]{uri}[/]"
+    )
+    result = await modify_nft(transport, seed, nft_id, uri)
+    if result.success:
+        console.print("  [green]NFToken modified — item leveled up (same NFTokenID)![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["nft_modified_uri"] = uri
+    else:
+        console.print(f"  [red]NFTokenModify failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_modify_nft_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attempt to modify a NON-mutable NFT (tec) — failure-literacy path.
+
+    Mints a fresh NFT WITHOUT tfMutable, then tries to change its URI; XRPL
+    refuses because the URI was permanent at mint.
+    """
+    args = step.action_args
+    uri = args.get("uri", "ipfs://example/cannot-change.json")
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    seed = context["wallet_seed"].get()
+    console.print("  Minting a NON-mutable NFT to demonstrate the failure case...")
+    mint = await mint_nft(transport, seed, "ipfs://example/fixed.json", taxon=0, mutable=False)
+    if not mint.success or not mint.nft_id:
+        console.print(f"  [yellow]Setup mint note: {mint.error}[/]")
+        return context
+    console.print(
+        "  [yellow]Attempting to modify the non-mutable NFT (expecting failure)...[/]"
+    )
+    result = await modify_nft(transport, seed, mint.nft_id, uri)
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the NFT should not be mutable.[/]"
+        )
+        _record_submit(state, context, result)
+    else:
+        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        console.print(f"  Error: {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_verify_nft_modified(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Verify the NFT's URI advanced on the SAME NFTokenID."""
+    address = state.wallet_address or ""
+    nft_id = context.get("nft_id", "")
+    expected = context.get("nft_modified_uri", "")
+    if not address or not nft_id or not expected:
+        console.print("  [red]No modified NFT in context. Run the modify step first.[/]")
+        return context
+    result = await verify_nft_modified(transport, address, nft_id, expected)
+    for c in result.checks:
+        console.print(f"  [green]{c}[/]")
+    for f in result.failures:
+        console.print(f"  [red]{f}[/]")
+    if result.passed:
+        console.print("  [green]Dynamic NFT verified — item evolved on-ledger.[/]")
+    context["last_nft_modified_verify"] = result
     return context
 
 
@@ -1966,12 +2820,29 @@ def _register_all() -> None:
                              description="Royalty 0-50000 (0.001% steps); needs transferable"),
                 PayloadField(name="transferable", type="bool", default="true",
                              description="Whether the NFT can be traded"),
+                PayloadField(name="mutable", type="bool", default="false",
+                             description="tfMutable — allow the URI to change later (XLS-46)"),
             ],
         ),
         ActionDef(
             name="verify_nft",
             handler=handle_verify_nft,
             description="Verify NFToken ownership on-ledger",
+        ),
+        ActionDef(
+            name="burn_nft",
+            handler=handle_burn_nft,
+            description="Burn an NFToken (NFTokenBurn) — destroy asset, free reserve",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="nftoken_id",
+                             description="NFTokenID to burn (defaults to last minted)"),
+            ],
+        ),
+        ActionDef(
+            name="verify_nft_burned",
+            handler=handle_verify_nft_burned,
+            description="Verify an NFToken was burned (gone, reserve freed)",
         ),
         ActionDef(
             name="create_escrow",
@@ -1991,6 +2862,23 @@ def _register_all() -> None:
             description="Verify an escrow exists on-ledger",
         ),
         ActionDef(
+            name="finish_escrow",
+            handler=handle_finish_escrow,
+            description="Finish a time-based escrow past FinishAfter (EscrowFinish)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="cancel_escrow",
+            handler=handle_cancel_escrow,
+            description="Cancel an escrow past CancelAfter, reclaiming funds (EscrowCancel)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_escrow_finished",
+            handler=handle_verify_escrow_finished,
+            description="Verify an escrow was finished/cancelled (object gone, reserve freed)",
+        ),
+        ActionDef(
             name="set_did",
             handler=handle_set_did,
             description="Set a Decentralized Identifier (DIDSet)",
@@ -2004,6 +2892,17 @@ def _register_all() -> None:
             name="verify_did",
             handler=handle_verify_did,
             description="Verify the account's DID on-ledger",
+        ),
+        ActionDef(
+            name="delete_did",
+            handler=handle_delete_did,
+            description="Delete the account's DID (DIDDelete) — revoke identity, free reserve",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_did_deleted",
+            handler=handle_verify_did_deleted,
+            description="Verify the account's DID was deleted (gone, reserve freed)",
         ),
         ActionDef(
             name="create_mpt_issuance",
@@ -2285,6 +3184,133 @@ def _register_all() -> None:
             name="write_report",
             handler=handle_write_report,
             description="Write module report (handled at completion)",
+        ),
+        # ── v2.0.0 game-economy control: clawback (tokens track) ──
+        ActionDef(
+            name="enable_clawback",
+            handler=handle_enable_clawback,
+            description="Enable issuer clawback (AccountSet asfAllowTrustLineClawback)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="snapshot_token_balance",
+            handler=handle_snapshot_token_balance,
+            description="Snapshot a holder's trust-line balance for a currency",
+            payload_fields=[
+                PayloadField(name="currency", default="LAB"),
+                PayloadField(name="label", default="before"),
+            ],
+        ),
+        ActionDef(
+            name="clawback",
+            handler=handle_clawback,
+            description="Forcibly recall issued tokens from a holder (Clawback, XLS-39)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="LAB"),
+                PayloadField(name="amount", default="30", description="Amount to claw back"),
+            ],
+        ),
+        ActionDef(
+            name="verify_clawback",
+            handler=handle_verify_clawback,
+            description="Verify the holder's balance dropped by exactly the clawed amount",
+            payload_fields=[
+                PayloadField(name="currency", default="LAB"),
+            ],
+        ),
+        ActionDef(
+            name="create_noclaw_issuer",
+            handler=handle_create_noclaw_issuer,
+            description="Create a second issuer WITHOUT clawback (sets up the failure case)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="NOC"),
+                PayloadField(name="amount", default="50"),
+            ],
+        ),
+        ActionDef(
+            name="clawback_expect_fail",
+            handler=handle_clawback_expect_fail,
+            description="Attempt clawback without the flag (expects a tec error)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="NOC"),
+                PayloadField(name="amount", default="10"),
+            ],
+        ),
+        # ── v2.0.0 game-economy control: NFT marketplace (nfts track) ──
+        ActionDef(
+            name="create_buyer_wallet",
+            handler=handle_create_buyer_wallet,
+            description="Create + fund a second player wallet (marketplace counterparty)",
+        ),
+        ActionDef(
+            name="list_nft_sell_offer",
+            handler=handle_list_nft_sell_offer,
+            description="List an NFT for sale (NFTokenCreateOffer, tfSellNFToken)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="100", description="Sale price in XRP"),
+                PayloadField(name="seller", default="creator",
+                             description="Whose wallet signs: creator | buyer"),
+            ],
+        ),
+        ActionDef(
+            name="verify_nft_offer",
+            handler=handle_verify_nft_offer,
+            description="Read the NFT's open sell offers on-ledger",
+        ),
+        ActionDef(
+            name="accept_nft_offer",
+            handler=handle_accept_nft_offer,
+            description="Accept a sell offer, settling the trade (NFTokenAcceptOffer)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="buyer", default="buyer",
+                             description="Whose wallet accepts: buyer | creator"),
+            ],
+        ),
+        ActionDef(
+            name="accept_nft_offer_expect_fail",
+            handler=handle_accept_nft_offer_expect_fail,
+            description="Accept a nonexistent NFT offer (expects a tec error)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="offer_index", description="Bogus offer index"),
+            ],
+        ),
+        ActionDef(
+            name="verify_nft_trade",
+            handler=handle_verify_nft_trade,
+            description="Verify NFT ownership transferred + royalty paid to issuer",
+        ),
+        # ── v2.0.0 game-economy control: dynamic NFT (nfts track) ──
+        ActionDef(
+            name="modify_nft",
+            handler=handle_modify_nft,
+            description="Change a mutable NFT's URI (NFTokenModify) — level up an item",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="uri", default="ipfs://example/item-level-2.json",
+                             description="New metadata URI (the item's new state)"),
+                PayloadField(name="nftoken_id",
+                             description="NFTokenID to modify (defaults to last minted)"),
+            ],
+        ),
+        ActionDef(
+            name="modify_nft_expect_fail",
+            handler=handle_modify_nft_expect_fail,
+            description="Modify a non-mutable NFT (expects a tec error)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="uri", default="ipfs://example/cannot-change.json"),
+            ],
+        ),
+        ActionDef(
+            name="verify_nft_modified",
+            handler=handle_verify_nft_modified,
+            description="Verify the NFT's URI advanced on the same NFTokenID",
         ),
     ]
 

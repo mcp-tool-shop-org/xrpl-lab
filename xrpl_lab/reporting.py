@@ -8,8 +8,11 @@ import json
 import tarfile
 import time
 import zipfile
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from . import __version__
 from .state import (
@@ -20,6 +23,9 @@ from .state import (
     get_workspace_dir,
 )
 from .transport.xrpl_testnet import get_rpc_url
+
+if TYPE_CHECKING:
+    from .transport.base import Transport, TxInfo
 
 # Per-network explorer hosts for artifact links. Mirrors the transport-side
 # mapping in xrpl_testnet.py (_EXPLORER_BASES): testnet and devnet get their
@@ -40,6 +46,15 @@ def _explorer_url(txid: str, network: str) -> str:
     if not base or not txid:
         return ""
     return f"{base}/{txid}"
+
+
+# The id of the culminating capstone module (curriculum.py 'capstone' track).
+# Completing it composes a full game economy across tracks; the proof pack
+# surfaces a top-level boolean derived purely from the completed-module list so
+# a verifier can tell at a glance that the learner finished the capstone. This
+# is metadata (no secret, no new persistence) and is folded into the SHA-256
+# like every other field, so integrity still verifies.
+CAPSTONE_MODULE_ID = "game_economy_capstone"
 
 
 def _tx_detail(tx_record: TxRecord) -> dict:
@@ -82,13 +97,27 @@ def _summary_network(state: LabState) -> str:
 
 def generate_proof_pack(state: LabState) -> dict:
     """Generate a shareable proof pack (no secrets)."""
+    from .modules import load_all_modules
+
     # Map each txid to the network it was actually recorded on, so explorer
     # links resolve per-tx rather than against a single (possibly wrong)
     # top-level network — a pack can span testnet + dry-run runs.
     tx_net = {tx.txid: tx.network for tx in state.tx_index}
 
+    # FT-ARCH-02: resolve each completed module's kb_source at pack time so the
+    # learner's REAL receipt carries its capability identity end-to-end. This
+    # is the join that used to live only in the KB's external MODULE_CAPABILITY
+    # map (which drifted the moment a new KB-sourced module shipped); the pack
+    # now self-describes which capability each module proves, so the KB can
+    # ingest ANY future module's proofs with zero script edits. A module
+    # without a kb_source (or one no longer present in the curriculum) yields
+    # "" — backward-compatible and never a hard failure. The slug is curriculum
+    # metadata, not a secret, so it does not affect the no-secrets posture.
+    all_mods = load_all_modules()
+
     modules = []
     for cm in state.completed_modules:
+        mod = all_mods.get(cm.module_id)
         modules.append(
             {
                 "module_id": cm.module_id,
@@ -96,6 +125,7 @@ def generate_proof_pack(state: LabState) -> dict:
                     cm.completed_at, tz=UTC
                 ).isoformat(),
                 "txids": cm.txids,
+                "kb_source": mod.kb_source if mod else "",
                 "explorer_urls": [
                     _explorer_url(txid, tx_net.get(txid, state.network))
                     for txid in cm.txids
@@ -120,6 +150,14 @@ def generate_proof_pack(state: LabState) -> dict:
             ).strftime("%Y-%m-%d %H:%M"),
         })
 
+    # Capstone completion flag — derived purely from the completed-module list
+    # (no new state, no persistence). True iff the learner finished the
+    # culminating capstone module; it's folded into the pack BEFORE the hash so
+    # the SHA-256 integrity check covers it like every other field.
+    capstone = any(
+        cm.module_id == CAPSTONE_MODULE_ID for cm in state.completed_modules
+    )
+
     pack = {
         "xrpl_lab_proof_pack": True,
         "version": __version__,
@@ -128,6 +166,7 @@ def generate_proof_pack(state: LabState) -> dict:
         "address": state.wallet_address or "unknown",
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "completed_modules": modules,
+        "capstone": capstone,
         "transactions": transactions,
         "receipt_table": receipt_table,
         "total_transactions": len(state.tx_index),
@@ -293,6 +332,523 @@ def verify_certificate(cert: dict) -> tuple[bool, str]:
         return False, f"Hash mismatch: expected {stored_hash[:16]}…, got {computed[:16]}…"
 
     return True, "Integrity verified"
+
+
+# ---------------------------------------------------------------------------
+# Ledger-anchored verification (v2.0.0 signature feature)
+# ---------------------------------------------------------------------------
+#
+# THE GAP this closes: ``verify_proof_pack`` / ``verify_certificate`` above
+# recompute the embedded SHA-256 ONLY — they prove the JSON wasn't edited
+# locally, NOT that the claimed txids exist or still validate on-ledger. A
+# learner could hand-craft a pack with FAKE txids plus a correct self-hash and
+# it "verifies". The product's whole thesis is "prove by artifact": a proof
+# must be checkable against the live public XRPL by anyone, without trusting
+# the learner's machine or any server.
+#
+# These functions ADD an on-ledger trust layer ON TOP of the hash layer. They
+# compose with (never duplicate) the offline hash check: the caller runs the
+# hash check first (always), then the live check (when ``--live``). The hash
+# layer is tamper-evidence; the live layer is ground truth.
+#
+# Networks XRPL Lab actually mints real txids for — testnet/devnet. A dry-run
+# pack records "dry-run" (or carries DRYRUN-prefixed simulated txids) and has
+# NO on-ledger presence: that is reported honestly ("no on-ledger txids"), not
+# as a failure. A "mixed" pack verifies only its real-network txids.
+
+# Per-tx network labels that have real, publicly-verifiable on-ledger txids.
+# Mirrors transport.xrpl_testnet.SAFE_NETWORKS minus "local" — a local rippled
+# is not a *public* ledger anyone else can re-check, so a local txid is not a
+# shareable proof (treated like dry-run: no public on-ledger anchor).
+_LIVE_VERIFIABLE_NETWORKS = frozenset({"testnet", "devnet"})
+
+# Per-tx live verdict statuses.
+LIVE_PASS = "PASS"
+LIVE_FAIL = "FAIL"
+LIVE_SKIPPED = "SKIPPED"  # not a real-network tx (dry-run / local / simulated)
+
+
+@dataclass
+class TxLiveResult:
+    """Live (on-ledger) verification result for a single claimed txid."""
+
+    txid: str
+    network: str
+    status: str  # LIVE_PASS / LIVE_FAIL / LIVE_SKIPPED
+    reason: str
+    checks: list[str] = field(default_factory=list)
+
+    @property
+    def passed(self) -> bool:
+        return self.status == LIVE_PASS
+
+    @property
+    def failed(self) -> bool:
+        return self.status == LIVE_FAIL
+
+    def to_dict(self) -> dict:
+        return {
+            "txid": self.txid,
+            "network": self.network,
+            "status": self.status,
+            "reason": self.reason,
+            "checks": list(self.checks),
+        }
+
+
+@dataclass
+class LiveVerificationResult:
+    """Aggregate ledger-anchored verification result for a pack/certificate."""
+
+    artifact_kind: str  # "proof_pack" / "certificate"
+    tx_results: list[TxLiveResult] = field(default_factory=list)
+    # Set when the artifact had no real-network txids to anchor against
+    # (a fully dry-run pack). Distinct from "all passed" — there is simply
+    # nothing on-ledger to check, which is honest, not a failure.
+    no_onledger_txids: bool = False
+    note: str = ""
+
+    @property
+    def real_tx_results(self) -> list[TxLiveResult]:
+        """Per-tx results that were actually checked on-ledger (not skipped)."""
+        return [r for r in self.tx_results if r.status != LIVE_SKIPPED]
+
+    @property
+    def passed_count(self) -> int:
+        return sum(1 for r in self.tx_results if r.passed)
+
+    @property
+    def failed_count(self) -> int:
+        return sum(1 for r in self.tx_results if r.failed)
+
+    @property
+    def skipped_count(self) -> int:
+        return sum(1 for r in self.tx_results if r.status == LIVE_SKIPPED)
+
+    @property
+    def overall_passed(self) -> bool:
+        """Overall verdict.
+
+        A dry-run pack (no on-ledger txids) is NOT a failure — there is simply
+        nothing to anchor, which is honest given the network-honesty model. A
+        mixed/real pack passes only when EVERY real-network tx passed and none
+        failed.
+        """
+        if self.failed_count > 0:
+            return False
+        if self.no_onledger_txids:
+            return True
+        # At least one real tx and none failed → pass.
+        return len(self.real_tx_results) > 0
+
+    def to_dict(self) -> dict:
+        return {
+            "artifact_kind": self.artifact_kind,
+            "overall_passed": self.overall_passed,
+            "no_onledger_txids": self.no_onledger_txids,
+            "passed": self.passed_count,
+            "failed": self.failed_count,
+            "skipped": self.skipped_count,
+            "note": self.note,
+            "tx_results": [r.to_dict() for r in self.tx_results],
+        }
+
+
+# A factory maps a per-tx network label → a Transport that resolves txids
+# against THAT network. Injected so the live path is unit-testable with a stub
+# (or a single DryRunTransport with fixtures) and never touches the real
+# network in tests. The default factory (used by the CLI) builds a real
+# testnet/devnet transport pointed at the network's RPC.
+TransportFactory = Callable[[str], "Transport"]
+
+
+def _default_transport_factory(network: str) -> Transport:
+    """Build a real read-only transport pointed at ``network``'s public RPC.
+
+    Used by the CLI ``--live`` path. testnet/devnet each resolve to their own
+    public JSON-RPC endpoint so a per-tx network resolves against the CORRECT
+    ledger (a testnet txid is fetched from testnet, a devnet txid from devnet).
+    Honors ``XRPL_LAB_RPC_URL`` for the tx's own network only when that
+    override classifies to the SAME network — otherwise the default public
+    endpoint is used so an override aimed at one network never silently
+    misroutes another network's txid.
+    """
+    import os
+
+    from .transport.xrpl_testnet import (
+        XRPLTestnetTransport,
+        classify_network,
+    )
+
+    public_rpc = {
+        "testnet": "https://s.altnet.rippletest.net:51234",
+        "devnet": "https://s.devnet.rippletest.net:51234",
+    }
+    rpc_url = public_rpc.get(network, public_rpc["testnet"])
+    override = os.environ.get("XRPL_LAB_RPC_URL")
+    if override and classify_network(override) == network:
+        rpc_url = override
+
+    transport = XRPLTestnetTransport()
+    # Pin the transport to THIS tx's network rather than the process-wide
+    # env default — a pack can span testnet + devnet and each receipt must
+    # resolve against its own ledger.
+    transport._rpc_url = rpc_url
+    return transport
+
+
+def _is_simulated_txid(txid: str) -> bool:
+    """A dry-run / simulated txid has no public on-ledger anchor.
+
+    The dry-run transport hashes ``DRYRUN-...`` into its synthetic txids, so a
+    SHA-256-of-DRYRUN id is indistinguishable from a real 64-hex hash by shape
+    alone. We rely on the recorded per-tx ``network`` as the authority (the
+    primary signal); this helper only guards the degenerate case of an empty
+    txid, which can never be fetched.
+    """
+    return not txid
+
+
+async def _verify_one_tx_live(
+    txid: str,
+    network: str,
+    transport: Transport,
+    *,
+    expected_account: str = "",
+    expected_tx_type: str = "",
+) -> TxLiveResult:
+    """Re-fetch ONE claimed txid and assert it exists + validated + succeeded.
+
+    Asserts, in order: the tx was fetched (a ``fetch_error`` is a NETWORK
+    failure — "couldn't reach the ledger" — NOT proof the tx is fake), the tx
+    exists (non-empty result_code / validated), is ``validated``, has
+    ``result_code == 'tesSUCCESS'``, and — only where the pack RECORDS them —
+    that the tx TYPE and the acting account MATCH the pack's claims.
+    """
+    checks: list[str] = []
+    tx: TxInfo = await transport.fetch_tx(txid)
+
+    # A read-back failure is a NETWORK problem, never evidence the tx is fake.
+    # Mirror verify_tx (actions/verify.py) / audit.py: surface a distinct,
+    # non-fake-attributing reason. This is a FAIL of the live check (we could
+    # not confirm the anchor) but the reason must not claim the tx doesn't
+    # exist — re-running when the ledger is reachable may pass.
+    if tx.fetch_error:
+        return TxLiveResult(
+            txid=txid,
+            network=network,
+            status=LIVE_FAIL,
+            reason=(
+                "Couldn't reach the ledger to confirm this txid "
+                f"(network issue) — it may still exist on-ledger; retry. "
+                f"(details: {tx.fetch_error})"
+            ),
+            checks=checks,
+        )
+
+    # Not found: an empty result_code AND not validated means the public ledger
+    # returned no such transaction. THIS is the headline failure — a fake txid
+    # with a correct self-hash gets caught right here.
+    if not tx.result_code and not tx.validated:
+        return TxLiveResult(
+            txid=txid,
+            network=network,
+            status=LIVE_FAIL,
+            reason=(
+                "Transaction not found on the public ledger — the pack claims "
+                "this txid but the live XRPL has no such transaction."
+            ),
+            checks=checks,
+        )
+    checks.append("Exists on-ledger")
+
+    # Validated (the tx is in a closed, validated ledger — not merely proposed).
+    if tx.validated:
+        checks.append("Validated: yes")
+    else:
+        return TxLiveResult(
+            txid=txid,
+            network=network,
+            status=LIVE_FAIL,
+            reason="Transaction is NOT validated on-ledger (not in a closed ledger).",
+            checks=checks,
+        )
+
+    # Engine result.
+    if tx.result_code == "tesSUCCESS":
+        checks.append("Result: tesSUCCESS")
+    else:
+        return TxLiveResult(
+            txid=txid,
+            network=network,
+            status=LIVE_FAIL,
+            reason=f"On-ledger result is {tx.result_code or '(unknown)'}, not tesSUCCESS.",
+            checks=checks,
+        )
+
+    # Account match — only assert when the pack records an account to claim.
+    # The pack's top-level ``address`` is the learner's wallet; their own
+    # transactions are sent FROM that account, so a mismatch means the txid
+    # belongs to someone else (a borrowed/forged receipt).
+    if expected_account:
+        if tx.account == expected_account:
+            checks.append(f"Account matches: {expected_account}")
+        else:
+            return TxLiveResult(
+                txid=txid,
+                network=network,
+                status=LIVE_FAIL,
+                reason=(
+                    "On-ledger account does not match the pack's claimed "
+                    f"address: pack claims {expected_account}, ledger shows "
+                    f"{tx.account or '(none)'}."
+                ),
+                checks=checks,
+            )
+
+    # Type match — only assert when the pack records a tx type for this txid.
+    if expected_tx_type:
+        if tx.tx_type == expected_tx_type:
+            checks.append(f"Type matches: {expected_tx_type}")
+        else:
+            return TxLiveResult(
+                txid=txid,
+                network=network,
+                status=LIVE_FAIL,
+                reason=(
+                    "On-ledger transaction type does not match the pack's "
+                    f"claim: pack claims {expected_tx_type}, ledger shows "
+                    f"{tx.tx_type or '(none)'}."
+                ),
+                checks=checks,
+            )
+
+    return TxLiveResult(
+        txid=txid,
+        network=network,
+        status=LIVE_PASS,
+        reason="Verified on-ledger.",
+        checks=checks,
+    )
+
+
+def _iter_pack_tx_claims(pack: dict) -> list[dict]:
+    """Extract per-tx claims (txid, network, account, tx_type) from a pack.
+
+    The authoritative per-tx list is ``transactions`` (each carries its own
+    ``network``). The pack's top-level ``address`` is the learner wallet — used
+    as the expected ACCOUNT for every tx (the learner's own receipts are sent
+    FROM their address). ``tx_type`` is asserted only when a forward-compatible
+    per-tx ``tx_type`` field is present (older packs don't record it; we don't
+    fabricate a claim we can't substantiate from the artifact).
+
+    Falls back to the ``completed_modules[].txids`` list (no per-tx network) for
+    packs that predate the ``transactions`` block — those resolve against the
+    pack's top-level ``network``.
+    """
+    top_address = pack.get("address", "") or ""
+    if top_address == "unknown":
+        top_address = ""
+    top_network = pack.get("network", "") or ""
+
+    claims: list[dict] = []
+    seen: set[str] = set()
+
+    transactions = pack.get("transactions")
+    if isinstance(transactions, list) and transactions:
+        for tx in transactions:
+            if not isinstance(tx, dict):
+                continue
+            txid = tx.get("txid", "") or ""
+            if not txid or txid in seen:
+                continue
+            seen.add(txid)
+            claims.append({
+                "txid": txid,
+                "network": tx.get("network", "") or top_network,
+                # The learner's wallet sent it — match the acting account.
+                "account": top_address,
+                # Forward-compatible: assert type only if the artifact records it.
+                "tx_type": tx.get("tx_type", "") or "",
+            })
+        return claims
+
+    # Legacy fallback: completed_modules[].txids (no per-tx network).
+    for cm in pack.get("completed_modules", []) or []:
+        if not isinstance(cm, dict):
+            continue
+        for txid in cm.get("txids", []) or []:
+            if not txid or txid in seen:
+                continue
+            seen.add(txid)
+            claims.append({
+                "txid": txid,
+                "network": top_network,
+                "account": top_address,
+                "tx_type": "",
+            })
+    return claims
+
+
+async def verify_proof_pack_live(
+    pack: dict,
+    transport_factory: TransportFactory | None = None,
+    *,
+    transport: Transport | None = None,
+) -> LiveVerificationResult:
+    """Ledger-anchor a proof pack: re-fetch EVERY real-network txid it claims.
+
+    For each txid, resolve a transport for the txid's OWN recorded network
+    (testnet txid → testnet transport, devnet → devnet) and assert it exists,
+    is validated, succeeded (tesSUCCESS), and — where the pack records them —
+    the type/account match. dry-run / local / simulated txids are SKIPPED with
+    an honest "no on-ledger anchor" note rather than failed.
+
+    This is the on-ledger TRUST layer; it does NOT recompute the SHA-256 (that
+    is ``verify_proof_pack``'s job and the caller runs it first, always). The
+    two compose: hash = tamper-evidence, live = ground truth.
+
+    Testability: pass ``transport`` to force a SINGLE injected transport for
+    every txid (the common unit-test path — a DryRunTransport with
+    ``set_tx_fixtures``), or ``transport_factory`` to resolve per-network. The
+    CLI passes the default factory so each network resolves to its public RPC.
+    """
+    result = LiveVerificationResult(artifact_kind="proof_pack")
+
+    claims = _iter_pack_tx_claims(pack)
+    if not claims:
+        result.no_onledger_txids = True
+        result.note = (
+            "Pack records no transactions — nothing to anchor on-ledger."
+        )
+        return result
+
+    resolve = _build_resolver(transport, transport_factory)
+
+    real_seen = False
+    for claim in claims:
+        txid = claim["txid"]
+        network = claim["network"]
+        # dry-run / local / simulated txids have no public on-ledger anchor.
+        if network not in _LIVE_VERIFIABLE_NETWORKS or _is_simulated_txid(txid):
+            result.tx_results.append(TxLiveResult(
+                txid=txid,
+                network=network or "dry-run",
+                status=LIVE_SKIPPED,
+                reason=(
+                    f"No on-ledger txid to verify (network='{network or 'dry-run'}')."
+                ),
+            ))
+            continue
+        real_seen = True
+        tx_transport = resolve(network)
+        result.tx_results.append(await _verify_one_tx_live(
+            txid,
+            network,
+            tx_transport,
+            expected_account=claim["account"],
+            expected_tx_type=claim["tx_type"],
+        ))
+
+    if not real_seen:
+        result.no_onledger_txids = True
+        result.note = (
+            "Dry-run pack — no on-ledger txids to verify. The offline "
+            "integrity (SHA-256) check is the only applicable proof here."
+        )
+    elif result.skipped_count:
+        result.note = (
+            f"Mixed pack — verified {len(result.real_tx_results)} real-network "
+            f"txid(s); skipped {result.skipped_count} dry-run/local txid(s)."
+        )
+    return result
+
+
+async def verify_certificate_live(
+    cert: dict,
+    transport_factory: TransportFactory | None = None,
+    *,
+    transport: Transport | None = None,
+) -> LiveVerificationResult:
+    """Ledger-anchor a certificate.
+
+    The slim certificate format does NOT embed individual txids (only counts +
+    module IDs) — there is nothing to re-fetch on-ledger. We report this
+    honestly: a certificate's on-ledger trust is established by ledger-anchoring
+    the matching PROOF PACK (which DOES carry the txids), so the verdict here is
+    "no on-ledger txids in a certificate — verify the proof pack with --live".
+
+    Forward-compatible: if a future certificate format embeds a ``transactions``
+    list, those txids are verified exactly like a proof pack.
+    """
+    result = LiveVerificationResult(artifact_kind="certificate")
+
+    claims = _iter_pack_tx_claims(cert)
+    if not claims:
+        result.no_onledger_txids = True
+        result.note = (
+            "Certificates record no individual txids — there is nothing to "
+            "anchor on-ledger. To verify on-ledger, run "
+            "'proof verify <proof_pack.json> --live' instead (the proof pack "
+            "carries the txids)."
+        )
+        return result
+
+    resolve = _build_resolver(transport, transport_factory)
+    real_seen = False
+    for claim in claims:
+        txid = claim["txid"]
+        network = claim["network"]
+        if network not in _LIVE_VERIFIABLE_NETWORKS or _is_simulated_txid(txid):
+            result.tx_results.append(TxLiveResult(
+                txid=txid,
+                network=network or "dry-run",
+                status=LIVE_SKIPPED,
+                reason=(
+                    f"No on-ledger txid to verify (network='{network or 'dry-run'}')."
+                ),
+            ))
+            continue
+        real_seen = True
+        tx_transport = resolve(network)
+        result.tx_results.append(await _verify_one_tx_live(
+            txid,
+            network,
+            tx_transport,
+            expected_account=claim["account"],
+            expected_tx_type=claim["tx_type"],
+        ))
+
+    if not real_seen:
+        result.no_onledger_txids = True
+        result.note = "Dry-run certificate — no on-ledger txids to verify."
+    return result
+
+
+def _build_resolver(
+    transport: Transport | None,
+    transport_factory: TransportFactory | None,
+):
+    """Return a ``network -> Transport`` resolver from the injected inputs.
+
+    Precedence: an explicit single ``transport`` (used for every network — the
+    common unit-test path) wins; otherwise a ``transport_factory`` resolves
+    per-network; otherwise the default factory builds a real public-RPC
+    transport per network. Caches factory output per network so a multi-tx
+    pack on one network reuses one transport.
+    """
+    if transport is not None:
+        return lambda _network: transport
+
+    factory = transport_factory or _default_transport_factory
+    cache: dict[str, Transport] = {}
+
+    def resolve(network: str) -> Transport:
+        if network not in cache:
+            cache[network] = factory(network)
+        return cache[network]
+
+    return resolve
 
 
 # ---------------------------------------------------------------------------

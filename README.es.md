@@ -19,7 +19,7 @@ un recibo firmado o un informe de diagnóstico. Sin cuentas, sin información in
 competencia y comprobantes.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/xrpl-lab/main/docs/images/dashboard-hero.png" width="800" alt="XRPL Lab dashboard showing 11/12 modules completed with quick actions and status panels">
+  <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/xrpl-lab/main/docs/images/dashboard-hero.png" width="800" alt="XRPL Lab dashboard showing completed modules with quick actions and status panels">
 </p>
 
 ## Instalar
@@ -54,39 +54,60 @@ No se requiere red. Transacciones simuladas para aprender el flujo de trabajo.
 
 ## Módulos
 
-16 módulos en nueve áreas temáticas: Fundamentos, NFT, Tokens, Pagos, Identidad, DEX, Reservas, Auditoría y AMM.
+```
+<!-- BEGIN curriculum:auto readme-intro -->
+<!-- generado por scripts/gen_docs.py — no editar manualmente; ejecutar el generador -->
+21 módulos en diez áreas temáticas: Fundamentos, NFT, Tokens, Pagos, Identidad, DEX, Reservas, Auditoría, AMM y Proyecto Final.
 Los requisitos previos se especifican explícitamente; la CLI y el analizador los hacen cumplir.
 
-| # | Módulo | Área temática | Modo | Lo que aprenderás | Lo que demostrarás |
-|---|--------|-------|------|----------------|----------------|
-| 1 | Conocimiento de recibos | fundamentos | testnet | La finalización es un recibo, no un estado de "enviado". Envía un pago, lee cada campo del recibo. | txid + informe de verificación |
-| 2 | Conocimiento de fallos | fundamentos | testnet | Los errores de XRPL tienen semántica (tec/tef/tem/ter). Provoca un fallo en una transacción, diagnostica, corrige y vuelve a enviarla. | registro de transacciones fallidas + corregidas |
-| 3 | Líneas de confianza 101 | fundamentos | testnet | Los tokens requieren aceptación previa y son direccionales: crea un emisor, establece una línea de confianza, emite tokens. | línea de confianza + saldo del token |
-| 4 | Depuración de líneas de confianza | fundamentos | testnet | Decodifica los códigos de error de las líneas de confianza: fallo intencional, decodificación de errores, corrección. | registro de errores → transacciones corregidas |
-| 5 | Conocimiento de DEX | dex | testnet | Los libros de órdenes emparejan a los creadores con los compradores: crea ofertas, lee los libros de órdenes, cancela. | txid de creación + cancelación de la oferta |
-| 6 | Reservas 101 | reservas | testnet | Cada objeto que posees bloquea XRP: instantáneas, recuento de propietarios, cálculos de reserva. | delta de la instantánea antes/después |
-| 7 | Higiene de la cuenta | reservas | testnet | La limpieza es una habilidad fundamental: cancela ofertas, elimina líneas de confianza, libera reservas. | informe de verificación de la limpieza |
-| 8 | Auditoría de recibos | auditoria | testnet | Las auditorías codifican la intención (txid + expectativa + veredicto): verifica por lotes con expectativas. | paquete de auditoría (MD + CSV + JSON) |
-| 9 | Liquidez AMM 101 | amm | prueba en seco | El producto constante (`x*y=k`) establece precios de forma pasiva: crea un grupo, deposita, gana LP, retira. | txid del ciclo de vida AMM |
-| 10 | Creación de mercado DEX 101 | dex | testnet | Bid/ask spreads rastrean el inventario: cotiza ambos lados, toma instantáneas de las posiciones, limpia. | txid de la estrategia + informe de higiene |
-| 11 | Límites de seguridad del inventario | dex | testnet | Cotiza solo el lado seguro cuando el inventario se inclina: basado en umbrales, colocación protegida. | verificación del inventario + txid protegido |
-| 12 | Conocimiento de los riesgos de DEX vs AMM | amm | prueba en seco | La pérdida impermanente es una propiedad del modelo AMM: ciclo de vida DEX y AMM lado a lado. | informe comparativo + registro de auditoría |
-| 13 | Creación de NFT 101 | nfts | testnet | Los NFT son objetos nativos del libro mayor: crea un activo de juego (taxón, URI, regalías), verifica la propiedad. | NFTokenID + verificación en el libro mayor |
-| 14 | Emisión de MPT 101 | tokens | testnet | Una moneda del juego en una transacción: emite un token multipropósito (XLS-33): límite de suministro, escala, indicadores. | ID de emisión + verificación en el libro mayor |
-| 15 | Escrow 101 | pagos | testnet | Bloquea XRP hasta un momento determinado: crea un escrow basado en el tiempo, verifícalo en el libro mayor. | objeto de escrow + FinishAfter |
-| 16 | DID 101 | identidad | testnet | Identidad en el libro mayor: ancla un identificador descentralizado (XLS-40), verifícalo. | objeto DID + URI |
+La columna `#` coincide con el orden que muestra `xrpl-lab list` (orden canónico de las áreas temáticas).
+<!-- END curriculum:auto readme-intro -->
+
+<!-- BEGIN curriculum:auto readme-table -->
+<!-- generado por scripts/gen_docs.py — no editar manualmente; ejecutar el generador -->
+| # | Módulo | Área temática | Modo | Requisitos previos | Produce |
+|---|--------|-------|------|---------------|----------|
+| 1 | Conocimiento de recibos | fundamentos | testnet | — | txid, informe |
+| 2 | Conocimiento de fallos | fundamentos | testnet | Conocimiento de recibos | txid, informe |
+| 3 | Líneas de confianza 101: Monedas emitidas como relaciones | fundamentos | testnet | — | txid, informe |
+| 4 | Depuración de líneas de confianza | fundamentos | testnet | Líneas de confianza 101: Monedas emitidas como relaciones | txid, informe |
+| 5 | Creación de NFT 101: Tu primer activo de juego | nfts | testnet | — | txid, informe |
+| 6 | Mercado de NFT 101: Intercambio de activos con regalías aplicadas | nfts | testnet | — | txid, informe |
+| 7 | NFT dinámicos 101: Un objeto de juego que mejora su nivel | nfts | testnet | — | txid, informe |
+| 8 | Emisión de MPT 101: Una moneda de juego en una sola transacción | tokens | testnet | — | txid, informe |
+| 9 | Reversión 101: La herramienta de revocación del emisor | tokens | testnet | — | txid, informe |
+| 10 | Depósito en garantía 101: XRP con bloqueo temporal | pagos | testnet | — | txid, informe |
+| 11 | Finalización del depósito en garantía 101: Liberación del XRP bloqueado | pagos | testnet | Depósito en garantía 101: XRP con bloqueo temporal | txid, informe |
+| 12 | DID 101: Identidad en la cadena de bloques | identidad | testnet | — | txid, informe |
+| 13 | Conocimientos básicos sobre DEX: Ofertas, libros de órdenes y cancelaciones | dex | testnet | Líneas de confianza 101: Monedas emitidas como relaciones | txid, informe |
+| 14 | Creación de mercado DEX 101: Obtención de un margen en el libro de órdenes | dex | testnet | Conocimientos básicos sobre DEX: Ofertas, libros de órdenes y cancelaciones | txid, informe |
+| 15 | Protecciones de inventario DEX: No te excedas | dex | testnet | Creación de mercado DEX 101: Obtención de un margen en el libro de órdenes | txid, informe |
+| 16 | Reservas 101: Dónde "fue" tu XRP | reservas | testnet | Líneas de confianza 101: Monedas emitidas como relaciones | txid, informe |
+| 17 | Higiene de la cuenta: Liberación de reservas y limpieza de objetos | reservas | testnet | Reservas 101: Dónde "fue" tu XRP | txid, informe |
+| 18 | Modo de auditoría: Verificación de recibos a escala | auditoria | testnet | Conocimiento de recibos | informe, paquete_de_auditoría |
+| 19 | Liquidez AMM 101: Proporcionar liquidez y obtener comisiones | amm | prueba en seco | Líneas de confianza 101: Monedas emitidas como relaciones | txid, informe |
+| 20 | Conocimientos básicos sobre riesgos de DEX frente a AMM: Comparación de estrategias comerciales | amm | prueba en seco | Creación de mercado DEX 101: Obtención de un margen en el libro de órdenes, Liquidez AMM 101: Proporcionar liquidez y obtener comisiones | txid, informe |
+| 21 | Proyecto final: Implementa una economía de juego mínima en XRPL | proyecto_final | testnet | Emisión de MPT 101: Una moneda de juego en una sola transacción, Creación de NFT 101: Tu primer activo de juego, Depósito en garantía 101: XRP con bloqueo temporal, Modo de auditoría: Verificación de recibos a escala | txid, informe, paquete_de_auditoría |
+<!-- END curriculum:auto readme-table -->
+
+La columna **Produce** enumera los tipos de artefactos que genera cada módulo (`txid`, `informe`, `paquete_de_auditoría`); consulta la página de cada módulo en el [manual](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) para obtener la guía completa de habilidades y lo que demuestras en la cadena de bloques.
 
 ### Áreas temáticas
 
-- **fundamentos**: billetera, pagos, líneas de confianza, manejo de errores
-- **nfts**: activos de juego NFT: creación, colecciones, regalías (XLS-20)
-- **tokens**: emisión de tokens multipropósito (MPT), moneda del juego (XLS-33)
-- **pagos**: escrow y valor con bloqueo temporal
-- **identidad**: identificadores descentralizados (DID, XLS-40)
-- **dex**: ofertas, libros de órdenes, creación de mercado, gestión de inventario
-- **reservas**: reservas de la cuenta, recuento de propietarios, limpieza
-- **auditoria**: verificación por lotes, informes de auditoría
-- **amm**: liquidez del creador automático de mercado, comparación DEX vs AMM
+<!-- BEGIN curriculum:auto readme-tracks -->
+<!-- generado por scripts/gen_docs.py — no editar manualmente; ejecutar el generador -->
+- **fundamentos** — billetera, pagos, líneas de confianza, manejo de errores
+- **nfts** — activos de juego NFT: creación, liquidación del mercado, NFT dinámicos (XLS-20)
+- **tokens** — emisión y reversión de tokens multipropósito (MPT) para juegos (XLS-33)
+- **pagos** — depósito en garantía y valor con bloqueo temporal
+- **identidad** — identificadores descentralizados (DID, XLS-40)
+- **dex** — ofertas, libros de órdenes, creación de mercado, gestión de inventario
+- **reservas** — reservas de cuenta, recuento de propietarios, limpieza
+- **auditoría** — verificación por lotes, informes de auditoría
+- **amm** — liquidez del creador automático de mercado, comparación DEX frente a AMM
+- **proyecto_final** — combina las habilidades entre las áreas temáticas en una única implementación de economía de juego
+<!-- END curriculum:auto readme-tracks -->
+```
 
 ### Modos
 
@@ -106,7 +127,10 @@ xrpl-lab tracks             Track-level completion summaries
 xrpl-lab recovery           Diagnose stuck states, show recovery commands
 xrpl-lab lint [glob] [--json] [--no-curriculum]  Validate module files and curriculum
 xrpl-lab proof-pack         Export shareable proof pack
+xrpl-lab proof generate     Export shareable proof pack (alias of proof-pack)
+xrpl-lab proof verify <file>  Verify a proof pack's integrity (SHA-256)
 xrpl-lab certificate        Export completion certificate
+xrpl-lab cert-verify <file>   Verify a completion certificate's integrity
 xrpl-lab doctor             Run diagnostic checks
 xrpl-lab self-check         Alias for doctor
 xrpl-lab feedback           Generate support bundle (markdown)

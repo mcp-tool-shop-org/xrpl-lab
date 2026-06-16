@@ -2,7 +2,7 @@
 import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 import { icons } from '../../../lib/dashboard-ui';
 // Static page — no fetch. Surfaces grid is a single quick-action tile today;
-// cohort views land in v1.7 (note kept as muted text below).
+// cohort views are planned for a future release (note kept as muted text below).
 ---
 
 <DashboardLayout title="Facilitator" activePage="facilitator">
@@ -12,7 +12,7 @@ import { icons } from '../../../lib/dashboard-ui';
   </div>
 
   <div class="screen-inner">
-    <!-- Surfaces grid (single tile today; v1.7 will add cohort views) -->
+    <!-- Surfaces grid (single tile today; cohort views planned for a future release) -->
     <section class="grid grid-2">
       <a class="qa" href="/xrpl-lab/app/facilitator/runs/">
         <span class="qa__ic" set:html={icons.board} />
@@ -22,7 +22,7 @@ import { icons } from '../../../lib/dashboard-ui';
     </section>
 
     <p class="muted section" style="font-size:13px">
-      More facilitator views (cohort progress, live stuck-learner alerts) ship in v1.7.
+      More facilitator views (cohort progress, live stuck-learner alerts) are planned for a future release.
     </p>
   </div>
 </DashboardLayout>

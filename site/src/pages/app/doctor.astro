@@ -52,6 +52,10 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
         msg = 'Doctor checks timed out — check API server is responsive.';
       } else if (err instanceof TypeError) {
         msg = 'Could not reach API server — is it running?';
+      } else if (err?.httpStatus) {
+        // FRONTEND-A-005: an HTTP error (e.g. 500) means the server is up but
+        // errored — report that honestly instead of "API offline".
+        msg = `API error (HTTP ${err.httpStatus}). The server is up but returned an error.`;
       }
       return `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
         <div class="empty__t">Can't run the doctor</div><div>${esc(msg)}</div></div></div>`;
@@ -86,6 +90,13 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
       try {
         const res = await fetchWithTimeout(`${API_BASE}/api/doctor`);
+        if (!res.ok) {
+          // FRONTEND-A-005: tag with the status so errorHTML reports it
+          // honestly rather than parsing an HTML error body as JSON.
+          const e = new Error(`API returned ${res.status}: ${res.statusText}`);
+          (e as any).httpStatus = res.status;
+          throw e;
+        }
         const result = await res.json();
         results.innerHTML = doctorHTML(result);
         // Announce the verdict so screen-reader users hear the result of a re-run.

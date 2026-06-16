@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
@@ -18,12 +20,27 @@ from xrpl.models import (
     AccountNFTs,
     AccountObjects,
     AccountOffers,
+    AccountSet,
+    AccountSetAsfFlag,
+    AccountTx,
+    Clawback,
+    DIDDelete,
     DIDSet,
+    EscrowCancel,
     EscrowCreate,
+    EscrowFinish,
     IssuedCurrencyAmount,
     Memo,
     MPTokenIssuanceCreate,
+    NFTBuyOffers,
+    NFTokenAcceptOffer,
+    NFTokenBurn,
+    NFTokenCreateOffer,
+    NFTokenCreateOfferFlag,
     NFTokenMint,
+    NFTokenMintFlag,
+    NFTokenModify,
+    NFTSellOffers,
     OfferCancel,
     OfferCreate,
     Payment,
@@ -42,6 +59,7 @@ from .base import (
     MPTIssuanceInfo,
     NetworkInfo,
     NFTInfo,
+    NFTOfferInfo,
     OfferInfo,
     SubmitResult,
     Transport,
@@ -212,6 +230,110 @@ def _friendly_error(exc: Exception) -> str:
     return msg
 
 
+# XRPL malformed/permanent result-code tokens that mean "do not retry" — the
+# tx is structurally bad and resubmitting the identical bytes can never
+# succeed. These match the canonical ``temBAD…`` / ``tefBAD…`` result codes
+# (e.g. ``temBADAmount``, ``tefBAD_AUTH``) as whole tokens.
+#
+# TRANSPORT-A-004: the previous heuristic substring-scanned the FRIENDLY
+# message for ``("temBAD", "tefBAD", "Invalid", "malformed")``. The bare
+# English words "Invalid"/"malformed" are far too broad — a transient error
+# whose friendly text merely contains "Invalid" (e.g. "Invalid response from
+# RPC endpoint, please retry") would suppress a warranted retry. We now match
+# only genuine result-code tokens on word boundaries, so generic prose can no
+# longer short-circuit the retry loop while real temBAD*/tefBAD* aborts still do.
+_NO_RETRY_CODE_RE = re.compile(r"\b(?:temBAD|tefBAD)\w*\b")
+
+
+def _is_no_retry_error(message: str) -> bool:
+    """Return True if *message* names a malformed/permanent XRPL result code.
+
+    Used by the signing/submit retry loops to abort early instead of retrying a
+    transaction that can never succeed. Matches ``temBAD*`` / ``tefBAD*``
+    result-code tokens only — not the generic words "Invalid" or "malformed".
+    """
+    return bool(_NO_RETRY_CODE_RE.search(message or ""))
+
+
+def _int_or_none(value) -> int | None:
+    """Coerce an RPC field into ``int`` or ``None`` (TXBCD-008).
+
+    XRPL RPC may return ``ledger_index`` as an int, a numeric string, or omit
+    it entirely. The typed ``SubmitResult.ledger_index`` / ``TxInfo`` fields
+    want ``int | None``; this normalizes at the parse site so a stray string
+    never lands in an int field and a missing/garbage value becomes ``None``
+    instead of raising. Consistent with the ``int(... or 0)`` discipline used
+    for the per-entry parsers below.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):  # guard: bool is an int subclass — reject it
+        return None
+    if isinstance(value, int):
+        return value
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_int(value) -> int:
+    """Coerce an RPC field into ``int``, defaulting to 0 on garbage/None.
+
+    The per-entry ``int(... or 0)`` discipline (TXBCD-001) in one place: a
+    missing field (``None``/``""``) or an unparseable value yields 0 rather
+    than raising, so one malformed sub-field can't sink the whole entry.
+    """
+    if value is None or value == "":
+        return 0
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return 0
+
+
+def _parse_nft_entry(n: dict) -> NFTInfo:
+    """Parse one ``account_nfts`` entry into an ``NFTInfo`` (TXBCD-001).
+
+    Pulled out of ``get_account_nfts`` so a single malformed entry can be
+    skipped + logged at WARNING by the caller without the broad RPC
+    try/except zeroing the learner's ENTIRE NFT list. Numeric fields use the
+    ``int(... or 0)`` defensiveness so a missing/garbage taxon or flag yields
+    0 rather than raising mid-list. Raises only if *n* is not dict-like.
+    """
+    uri_hex = n.get("URI", "") or ""
+    try:
+        uri = hex_to_str(uri_hex) if uri_hex else ""
+    except Exception:
+        uri = uri_hex
+    return NFTInfo(
+        nft_id=n.get("NFTokenID", ""),
+        issuer=n.get("Issuer", "") or "",
+        taxon=_safe_int(n.get("NFTokenTaxon", 0)),
+        uri=uri,
+        flags=_safe_int(n.get("Flags", 0)),
+        transfer_fee=_safe_int(n.get("TransferFee", 0)),
+        serial=_safe_int(n.get("nft_serial", 0)),
+    )
+
+
+def _parse_offer_entry(o: dict) -> OfferInfo:
+    """Parse one ``account_offers`` entry into an ``OfferInfo`` (TXBCD-001).
+
+    Pulled out of ``get_account_offers`` for the same reason as
+    ``_parse_nft_entry``: one malformed offer must skip + log, not zero the
+    whole list. ``sequence`` uses ``int(... or 0)`` defensiveness; the amount
+    fields route through ``XRPLTestnetTransport._format_amount`` for a clean
+    display string (dict → ``value/currency/issuer``).
+    """
+    return OfferInfo(
+        sequence=_safe_int(o.get("Sequence", o.get("seq", 0))),
+        taker_pays=XRPLTestnetTransport._format_amount(o.get("taker_pays")),
+        taker_gets=XRPLTestnetTransport._format_amount(o.get("taker_gets")),
+        quality=str(o.get("quality", "")),
+    )
+
+
 @asynccontextmanager
 async def _rpc_client(rpc_url: str):
     """Async-context wrapper around AsyncJsonRpcClient.
@@ -288,8 +410,20 @@ class XRPLTestnetTransport(Transport):
                     connected=True,
                     ledger_index=ledger_idx,
                 )
-        except Exception:
-            logger.debug("get_network_info failed", exc_info=True)
+        except Exception as exc:
+            # TXBCD-003: promote from logger.debug (below default level, so a
+            # facilitator never saw WHY the dashboard network card went
+            # disconnected) to WARNING, matching the read methods. Log the
+            # CLASSIFIED friendly reason (secret-safe — _friendly_error maps
+            # known exception types to fixed strings and never echoes a seed),
+            # not the raw exception, while still keeping the full traceback at
+            # exc_info for facilitators who enable debug.
+            logger.warning(
+                "get_network_info failed for %s: %s",
+                self._rpc_url,
+                _friendly_error(exc),
+                exc_info=True,
+            )
             return NetworkInfo(
                 network=network,
                 rpc_url=self._rpc_url,
@@ -340,7 +474,27 @@ class XRPLTestnetTransport(Transport):
                         json={"destination": address},
                     )
                     if resp.status_code == 200:
-                        data = resp.json()
+                        # TXBCD-004: a degraded faucet / captive portal can
+                        # return 200 with a non-JSON body (HTML). resp.json()
+                        # would then raise, fall through to the generic
+                        # ``except Exception`` below, and BREAK the retry loop
+                        # with an opaque error. Guard it: treat an unparseable
+                        # 200 as a transient faucet-degraded failure, set a
+                        # clear last_error with the --dry-run hint, and
+                        # ``continue`` so the existing bounded retry applies.
+                        try:
+                            data = resp.json()
+                        except (ValueError, json.JSONDecodeError):
+                            last_error = (
+                                "Faucet returned HTTP 200 but the body was not "
+                                "valid JSON — the testnet faucet may be degraded "
+                                "or behind a captive portal. Retry in a minute, "
+                                "or use --dry-run to practice this module offline."
+                            )
+                            last_code = "RUNTIME_FAUCET_DEGRADED"
+                            if attempt < MAX_RETRIES:
+                                await asyncio.sleep(RETRY_DELAY)
+                            continue
                         balance = data.get("balance", "unknown")
                         return FundResult(
                             success=True,
@@ -435,7 +589,9 @@ class XRPLTestnetTransport(Transport):
                 )
                 txid = result.get("hash", "")
                 fee = result.get("Fee", "0")
-                ledger_idx = result.get("ledger_index") or meta.get("ledger_index")
+                ledger_idx = _int_or_none(
+                    result.get("ledger_index") or meta.get("ledger_index")
+                )
 
                 success = result_code == "tesSUCCESS"
 
@@ -472,10 +628,7 @@ class XRPLTestnetTransport(Transport):
             except Exception as exc:
                 last_error = _friendly_error(exc)
                 # Don't retry on malformed tx errors
-                if any(
-                    code in last_error
-                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
-                ):
+                if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
                     logger.info(
@@ -528,7 +681,7 @@ class XRPLTestnetTransport(Transport):
                 )
                 txid = result.get("hash", "")
                 fee = result.get("Fee", "0")
-                ledger_idx = (
+                ledger_idx = _int_or_none(
                     result.get("ledger_index") or meta.get("ledger_index")
                 )
 
@@ -563,10 +716,7 @@ class XRPLTestnetTransport(Transport):
                     continue
             except Exception as exc:
                 last_error = _friendly_error(exc)
-                if any(
-                    code in last_error
-                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
-                ):
+                if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
                     logger.info(
@@ -623,7 +773,7 @@ class XRPLTestnetTransport(Transport):
                 )
                 txid = result.get("hash", "")
                 fee = result.get("Fee", "0")
-                ledger_idx = (
+                ledger_idx = _int_or_none(
                     result.get("ledger_index") or meta.get("ledger_index")
                 )
 
@@ -658,10 +808,7 @@ class XRPLTestnetTransport(Transport):
                     continue
             except Exception as exc:
                 last_error = _friendly_error(exc)
-                if any(
-                    code in last_error
-                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
-                ):
+                if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
                     logger.info(
@@ -708,6 +855,7 @@ class XRPLTestnetTransport(Transport):
         taxon: int = 0,
         transfer_fee: int = 0,
         transferable: bool = True,
+        mutable: bool = False,
     ) -> SubmitResult:
         guard = self._network_guard()
         if guard is not None:
@@ -717,12 +865,19 @@ class XRPLTestnetTransport(Transport):
         for attempt in range(MAX_RETRIES + 1):
             try:
                 wallet = Wallet.from_seed(wallet_seed)
+                # tfTransferable=0x8, tfMutable=0x10 (XLS-46). A royalty
+                # (TransferFee) only takes effect on a transferable NFT.
+                flags = 0
+                if transferable:
+                    flags |= NFTokenMintFlag.TF_TRANSFERABLE
+                if mutable:
+                    flags |= NFTokenMintFlag.TF_MUTABLE
                 mint = NFTokenMint(
                     account=wallet.address,
                     nftoken_taxon=taxon,
                     uri=str_to_hex(uri) if uri else None,
                     transfer_fee=transfer_fee or None,
-                    flags=8 if transferable else 0,  # tfTransferable = 0x8
+                    flags=flags or None,
                 )
                 async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
@@ -737,7 +892,9 @@ class XRPLTestnetTransport(Transport):
                 )
                 txid = result.get("hash", "")
                 fee = result.get("Fee", "0")
-                ledger_idx = result.get("ledger_index") or meta.get("ledger_index")
+                ledger_idx = _int_or_none(
+                    result.get("ledger_index") or meta.get("ledger_index")
+                )
 
                 success = result_code == "tesSUCCESS"
                 nft_id = ""
@@ -771,10 +928,7 @@ class XRPLTestnetTransport(Transport):
                     continue
             except Exception as exc:
                 last_error = _friendly_error(exc)
-                if any(
-                    code in last_error
-                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
-                ):
+                if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(RETRY_DELAY)
@@ -793,26 +947,248 @@ class XRPLTestnetTransport(Transport):
                 )
             out: list[NFTInfo] = []
             for n in response.result.get("account_nfts", []):
-                uri_hex = n.get("URI", "") or ""
+                # Per-entry guard (TXBCD-001): one malformed NFT must skip +
+                # log, not zero the learner's ENTIRE list via the broad RPC
+                # except below.
                 try:
-                    uri = hex_to_str(uri_hex) if uri_hex else ""
+                    nft = _parse_nft_entry(n)
                 except Exception:
-                    uri = uri_hex
-                out.append(
-                    NFTInfo(
-                        nft_id=n.get("NFTokenID", ""),
-                        issuer=n.get("Issuer", address),
-                        taxon=int(n.get("NFTokenTaxon", 0)),
-                        uri=uri,
-                        flags=int(n.get("Flags", 0)),
-                        transfer_fee=int(n.get("TransferFee", 0)),
-                        serial=int(n.get("nft_serial", 0)),
+                    logger.warning(
+                        "get_account_nfts: skipping malformed NFT entry (id=%r) for %s",
+                        n.get("NFTokenID", "?") if isinstance(n, dict) else "?",
+                        address,
+                        exc_info=True,
                     )
-                )
+                    continue
+                # _parse_nft_entry can't see the queried address; default the
+                # issuer to it only when the entry omitted one.
+                if not nft.issuer:
+                    nft.issuer = address
+                out.append(nft)
             return out
         except Exception:
             logger.warning("get_account_nfts failed for %s", address, exc_info=True)
             return []
+
+    async def submit_nft_burn(
+        self,
+        wallet_seed: str,
+        nftoken_id: str,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = NFTokenBurn(
+                account=wallet.address,
+                nftoken_id=nftoken_id,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "NFTokenBurn")
+
+    @staticmethod
+    def _extract_nft_offer_index(meta: dict) -> str:
+        """Pull the created NFTokenOffer's ledger index out of tx metadata.
+
+        NFTokenCreateOffer creates an ``NFTokenOffer`` ledger entry; its
+        ``LedgerIndex`` is the value NFTokenAcceptOffer later consumes as
+        ``NFTokenSellOffer`` / ``NFTokenBuyOffer``. We scan ``AffectedNodes``
+        for the CreatedNode of that type. Best-effort: "" if not found.
+        """
+        for node in meta.get("AffectedNodes", []):
+            created = node.get("CreatedNode")
+            if created and created.get("LedgerEntryType") == "NFTokenOffer":
+                return created.get("LedgerIndex", "") or ""
+        return ""
+
+    async def submit_nft_create_offer(
+        self,
+        wallet_seed: str,
+        nftoken_id: str,
+        amount: str,
+        sell: bool = True,
+        destination: str = "",
+        owner: str = "",
+        currency: str = "XRP",
+        issuer: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            amount_obj = self._amount_obj(currency, amount, issuer)
+            # tfSellNFToken=0x1 marks a sell offer; a buy offer has no flag and
+            # MUST name the current ``owner`` of the NFT.
+            tx = NFTokenCreateOffer(
+                account=wallet.address,
+                nftoken_id=nftoken_id,
+                amount=amount_obj,
+                flags=NFTokenCreateOfferFlag.TF_SELL_NFTOKEN if sell else 0,
+                destination=destination or None,
+                owner=(owner or None) if not sell else None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        result = await self._submit_tx(tx, wallet, "NFTokenCreateOffer")
+        # On success, recover the created NFTokenOffer index from the tx meta so
+        # the marketplace flow can hand it to NFTokenAcceptOffer (parity with
+        # the dry-run transport, which returns nft_offer_index too).
+        if result.success and result.txid:
+            try:
+                tx_info = await self.fetch_tx(result.txid)
+                meta = (tx_info.raw or {}).get("meta", {})
+                result.nft_offer_index = self._extract_nft_offer_index(meta)
+            except Exception:
+                logger.warning(
+                    "could not recover NFTokenOffer index for %s",
+                    result.txid, exc_info=True,
+                )
+        return result
+
+    async def submit_nft_accept_offer(
+        self,
+        wallet_seed: str,
+        sell_offer: str = "",
+        buy_offer: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = NFTokenAcceptOffer(
+                account=wallet.address,
+                nftoken_sell_offer=sell_offer or None,
+                nftoken_buy_offer=buy_offer or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "NFTokenAcceptOffer")
+
+    async def submit_nft_modify(
+        self,
+        wallet_seed: str,
+        nftoken_id: str,
+        uri: str,
+        owner: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = NFTokenModify(
+                account=wallet.address,
+                nftoken_id=nftoken_id,
+                owner=owner or None,
+                uri=str_to_hex(uri) if uri else None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "NFTokenModify")
+
+    async def get_nft_offers(
+        self,
+        nftoken_id: str,
+        sell: bool = True,
+    ) -> list[NFTOfferInfo]:
+        req = (
+            NFTSellOffers(nft_id=nftoken_id, ledger_index="validated")
+            if sell
+            else NFTBuyOffers(nft_id=nftoken_id, ledger_index="validated")
+        )
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                response = await asyncio.wait_for(
+                    client.request(req), timeout=RPC_TIMEOUT
+                )
+            offers = response.result.get("offers", [])
+            out: list[NFTOfferInfo] = []
+            for o in offers:
+                out.append(NFTOfferInfo(
+                    offer_index=o.get("nft_offer_index", "") or o.get("index", ""),
+                    nft_id=nftoken_id,
+                    amount=self._format_amount(o.get("amount")),
+                    owner=o.get("owner", ""),
+                    destination=o.get("destination", "") or "",
+                    is_sell=sell,
+                ))
+            return out
+        except Exception:
+            # An NFT with no offers raises objectNotFound on some rippled
+            # builds; treat any read failure as "no offers" (best-effort read).
+            logger.warning(
+                "get_nft_offers failed for %s (sell=%s)", nftoken_id, sell, exc_info=True
+            )
+            return []
+
+    # ── Clawback methods (XLS-39) ────────────────────────────────────
+
+    async def submit_account_set_clawback(
+        self,
+        wallet_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        # ``issuer_address`` is a dry-run aid (see base contract); the testnet
+        # path derives the account from the seed and ignores it.
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = AccountSet(
+                account=wallet.address,
+                set_flag=AccountSetAsfFlag.ASF_ALLOW_TRUSTLINE_CLAWBACK,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AccountSet(clawback)")
+
+    async def submit_clawback(
+        self,
+        issuer_seed: str,
+        holder_address: str,
+        currency: str,
+        amount: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        # ``issuer_address`` is a dry-run aid (see base contract); the testnet
+        # path derives the clawing account from the seed and ignores it.
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            # XRPL quirk (XLS-39): the Amount sub-object's ``issuer`` field
+            # carries the HOLDER address, not the issuer. The token being
+            # recalled is identified by currency + the clawing account (this
+            # wallet); the holder rides in Amount.issuer.
+            tx = Clawback(
+                account=wallet.address,
+                amount=IssuedCurrencyAmount(
+                    currency=currency,
+                    issuer=holder_address,
+                    value=amount,
+                ),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "Clawback")
 
     async def _submit_tx(self, tx, wallet, label: str) -> SubmitResult:
         """Submit a built+signed transaction with retry/timeout, returning a parsed SubmitResult."""
@@ -831,7 +1207,9 @@ class XRPLTestnetTransport(Transport):
                 )
                 txid = result.get("hash", "")
                 fee = result.get("Fee", "0")
-                ledger_idx = result.get("ledger_index") or meta.get("ledger_index")
+                ledger_idx = _int_or_none(
+                    result.get("ledger_index") or meta.get("ledger_index")
+                )
                 success = result_code == "tesSUCCESS"
                 error_msg = ""
                 if not success:
@@ -850,7 +1228,7 @@ class XRPLTestnetTransport(Transport):
                     continue
             except Exception as exc:
                 last_error = _friendly_error(exc)
-                if any(c in last_error for c in ("temBAD", "tefBAD", "Invalid", "malformed")):
+                if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(RETRY_DELAY)
@@ -891,24 +1269,117 @@ class XRPLTestnetTransport(Transport):
             )
         return await self._submit_tx(tx, wallet, "EscrowCreate")
 
+    async def _escrow_create_sequences(self, address: str) -> dict[str, int]:
+        """Map ``PreviousTxnID`` → EscrowCreate sequence for *address* (TRANSPORT-A-003).
+
+        The ``account_objects`` Escrow ledger entry does NOT expose the
+        sequence of the EscrowCreate that made it — but EscrowFinish/Cancel
+        need exactly that value as ``OfferSequence``. We resolve it by walking
+        the account's transaction history (``account_tx``) and indexing each
+        EscrowCreate's hash → its ``Sequence``. The Escrow object's
+        ``PreviousTxnID`` (when the object was created in a single tx) points
+        back to the EscrowCreate, so ``get_escrows`` can join on it. Best-effort:
+        a read failure yields an empty map and ``sequence`` stays 0.
+        """
+        index: dict[str, int] = {}
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                resp = await asyncio.wait_for(
+                    client.request(AccountTx(account=address, limit=200)),
+                    timeout=RPC_TIMEOUT,
+                )
+            for entry in resp.result.get("transactions", []):
+                tx = entry.get("tx") or entry.get("tx_json") or {}
+                if tx.get("TransactionType") != "EscrowCreate":
+                    continue
+                seq = _int_or_none(tx.get("Sequence"))
+                txid = tx.get("hash") or entry.get("hash", "")
+                if seq is not None and txid:
+                    index[txid] = seq
+        except Exception:
+            logger.warning(
+                "could not resolve EscrowCreate sequences for %s", address, exc_info=True
+            )
+        return index
+
     async def get_escrows(self, address: str) -> list[EscrowInfo]:
         try:
             objs = await self._account_objects(address)
         except Exception:
             logger.warning("get_escrows failed for %s", address, exc_info=True)
             return []
+        # Resolve create-sequences so EscrowInfo.sequence is populated for
+        # finish/cancel (TRANSPORT-A-003). Best-effort: empty map → sequence 0.
+        seq_index = await self._escrow_create_sequences(address)
         out: list[EscrowInfo] = []
         for o in objs:
             if o.get("LedgerEntryType") != "Escrow":
                 continue
+            prev_txn = o.get("PreviousTxnID", "") or ""
             out.append(EscrowInfo(
-                amount=str(o.get("Amount", "0")),
+                # TRANSPORT-A-003: join the Escrow object back to its
+                # EscrowCreate tx via PreviousTxnID to recover the create
+                # sequence (the value EscrowFinish/Cancel consume).
+                sequence=seq_index.get(prev_txn, 0),
+                # TXBCD-005: route Amount through _format_amount so an
+                # issued-currency / MPT escrow (dict Amount) renders cleanly as
+                # "value/currency/issuer" instead of a raw Python dict repr.
+                # Latent until token escrows exist, but future-proofs the seam.
+                amount=self._format_amount(o.get("Amount", "0")),
                 destination=o.get("Destination", ""),
-                finish_after=o.get("FinishAfter"),
-                cancel_after=o.get("CancelAfter"),
+                finish_after=_int_or_none(o.get("FinishAfter")),
+                cancel_after=_int_or_none(o.get("CancelAfter")),
                 condition=o.get("Condition", "") or "",
             ))
         return out
+
+    async def submit_escrow_finish(
+        self,
+        wallet_seed: str,
+        owner: str,
+        offer_sequence: int,
+        condition: str = "",
+        fulfillment: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = EscrowFinish(
+                account=wallet.address,
+                owner=owner,
+                offer_sequence=offer_sequence,
+                condition=condition or None,
+                fulfillment=fulfillment or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "EscrowFinish")
+
+    async def submit_escrow_cancel(
+        self,
+        wallet_seed: str,
+        owner: str,
+        offer_sequence: int,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = EscrowCancel(
+                account=wallet.address,
+                owner=owner,
+                offer_sequence=offer_sequence,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "EscrowCancel")
 
     async def submit_did_set(self, wallet_seed: str, uri: str = "", data: str = "") -> SubmitResult:
         guard = self._network_guard()
@@ -948,6 +1419,19 @@ class XRPLTestnetTransport(Transport):
                 did_document=o.get("DIDDocument", "") or "",
             )
         return None
+
+    async def submit_did_delete(self, wallet_seed: str) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = DIDDelete(account=wallet.address)
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "DIDDelete")
 
     async def submit_mpt_issuance_create(
         self,
@@ -1061,7 +1545,7 @@ class XRPLTestnetTransport(Transport):
                 )
                 txid = result.get("hash", "")
                 fee = result.get("Fee", "0")
-                ledger_idx = (
+                ledger_idx = _int_or_none(
                     result.get("ledger_index") or meta.get("ledger_index")
                 )
 
@@ -1096,10 +1580,7 @@ class XRPLTestnetTransport(Transport):
                     continue
             except Exception as exc:
                 last_error = _friendly_error(exc)
-                if any(
-                    code in last_error
-                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
-                ):
+                if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
                     logger.info(
@@ -1146,7 +1627,7 @@ class XRPLTestnetTransport(Transport):
                 )
                 txid = result.get("hash", "")
                 fee = result.get("Fee", "0")
-                ledger_idx = (
+                ledger_idx = _int_or_none(
                     result.get("ledger_index") or meta.get("ledger_index")
                 )
 
@@ -1181,10 +1662,7 @@ class XRPLTestnetTransport(Transport):
                     continue
             except Exception as exc:
                 last_error = _friendly_error(exc)
-                if any(
-                    code in last_error
-                    for code in ("temBAD", "tefBAD", "Invalid", "malformed")
-                ):
+                if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
                     logger.info(
@@ -1210,15 +1688,22 @@ class XRPLTestnetTransport(Transport):
                     timeout=RPC_TIMEOUT,
                 )
             offers = response.result.get("offers", [])
-            return [
-                OfferInfo(
-                    sequence=o.get("Sequence", o.get("seq", 0)),
-                    taker_pays=self._format_amount(o.get("taker_pays")),
-                    taker_gets=self._format_amount(o.get("taker_gets")),
-                    quality=str(o.get("quality", "")),
-                )
-                for o in offers
-            ]
+            out: list[OfferInfo] = []
+            for o in offers:
+                # Per-entry guard (TXBCD-001): a single malformed offer must
+                # skip + log, not zero the learner's ENTIRE offer list.
+                try:
+                    out.append(_parse_offer_entry(o))
+                except Exception:
+                    logger.warning(
+                        "get_account_offers: skipping malformed offer entry "
+                        "(seq=%r) for %s",
+                        o.get("Sequence", o.get("seq", "?")) if isinstance(o, dict) else "?",
+                        address,
+                        exc_info=True,
+                    )
+                    continue
+            return out
         except Exception:
             logger.warning("get_account_offers failed for %s", address, exc_info=True)
             return []
@@ -1263,18 +1748,23 @@ class XRPLTestnetTransport(Transport):
                 amount=str(result.get("Amount", "0")),
                 fee=result.get("Fee", "0"),
                 result_code=meta.get("TransactionResult", ""),
-                ledger_index=result.get("ledger_index"),
+                ledger_index=_int_or_none(result.get("ledger_index")),
                 memos=_decode_memos(memos_raw),
                 validated=result.get("validated", False),
                 raw=result,
             )
         except TimeoutError:
+            # TXBCD-002: a READ-BACK failure is NOT a tx failure. Populate the
+            # distinct ``fetch_error`` field (leaving result_code empty) so
+            # verify_tx surfaces a "couldn't fetch — may still have succeeded"
+            # message instead of mis-attributing a network timeout as the tx
+            # failing on-ledger.
             return TxInfo(
                 txid=txid,
-                result_code="fetch_error: Timed out fetching transaction. Try again.",
+                fetch_error="Timed out fetching transaction. Try again.",
             )
         except Exception as exc:
-            return TxInfo(txid=txid, result_code=f"fetch_error: {_friendly_error(exc)}")
+            return TxInfo(txid=txid, fetch_error=_friendly_error(exc))
 
     async def get_balance(self, address: str) -> str:
         try:

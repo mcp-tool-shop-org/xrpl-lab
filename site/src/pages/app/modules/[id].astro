@@ -1,23 +1,12 @@
 ---
 import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { getModuleIds } from '../../../lib/module-ids';
 
 export function getStaticPaths() {
-  // All 12 module IDs from the curriculum
-  const moduleIds = [
-    'receipt_literacy',
-    'failure_literacy',
-    'trust_lines_101',
-    'trust_line_failures',
-    'dex_literacy',
-    'reserves_101',
-    'account_hygiene',
-    'receipt_audit',
-    'amm_liquidity_101',
-    'dex_market_making_101',
-    'dex_inventory_guardrails',
-    'dex_vs_amm_risk_literacy',
-  ];
-  return moduleIds.map(id => ({ params: { id } }));
+  // FRONTEND-A-001: derive the page set from the repo-root modules/ directory
+  // (single source of truth) so new curriculum modules are built automatically
+  // and never 404 on GitHub Pages. See site/src/lib/module-ids.ts.
+  return getModuleIds().map((id) => ({ params: { id } }));
 }
 
 const { id } = Astro.params;
@@ -48,10 +37,17 @@ const { id } = Astro.params;
 
     // 404 / API-unreachable — humanized copy matching the overview page.
     function errorHTML(err: any) {
-      const timeout = err?.name === 'AbortError';
-      const msg = timeout
-        ? 'Request timed out. The API may be slow or restarting. Refresh to retry.'
-        : 'Could not load module details. The module may not exist, or the API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
+      let msg = 'Could not load module details. The module may not exist, or the API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
+      if (err?.name === 'AbortError') {
+        msg = 'Request timed out. The API may be slow or restarting. Refresh to retry.';
+      } else if (err?.httpStatus) {
+        // FRONTEND-A-005 / FEBCD-001: an HTTP error (e.g. 500) means the server
+        // is up but errored — report that honestly instead of "API offline".
+        // 404 keeps the "module may not exist" framing it already implies.
+        msg = err.httpStatus === 404
+          ? 'This module was not found (HTTP 404). It may have been renamed or removed.'
+          : `API error (HTTP ${err.httpStatus}). The server is up but returned an error.`;
+      }
       return `<div class="screen-head">${backLink}</div>
         <div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
           <div class="empty__t">Can't load this module</div><div>${msg}</div></div></div>`;
@@ -149,7 +145,17 @@ const { id } = Astro.params;
 
       let mod: any;
       try {
-        mod = await (await fetchWithTimeout(`${API_BASE}/api/modules/${moduleId}`)).json();
+        const res = await fetchWithTimeout(`${API_BASE}/api/modules/${moduleId}`);
+        if (!res.ok) {
+          // FEBCD-001: tag with the HTTP status so errorHTML reports it honestly
+          // (e.g. "API error (HTTP 500)") rather than parsing an error body as
+          // JSON and mislabeling a server fault as "offline" — mirrors the
+          // sibling pages (modules/index, artifacts, doctor) hardened earlier.
+          const e = new Error(`API returned ${res.status}: ${res.statusText}`);
+          (e as any).httpStatus = res.status;
+          throw e;
+        }
+        mod = await res.json();
       } catch (err) {
         root.innerHTML = errorHTML(err);
         return;

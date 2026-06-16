@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from .modules import ModuleDef
 
-# Canonical tracks in display order.
+logger = logging.getLogger(__name__)
+
+# Canonical tracks in display order. ``capstone`` is intentionally LAST so it
+# sorts after every other track in ``canonical_order`` (its track_rank is the
+# highest). A capstone module composes skills from across the earlier tracks;
+# placing the track last means the curriculum only ever offers it once the
+# learner has reached the end — and its cross-track ``requires`` gate is what
+# actually enforces that, with zero new sequencing code (the existing Kahn
+# topo-sort + ``next_module`` prereq check already honor it).
 TRACKS = (
     "foundations", "nfts", "tokens", "payments", "identity",
-    "dex", "reserves", "audit", "amm",
+    "dex", "reserves", "audit", "amm", "capstone",
 )
 
 # Canonical levels in progression order.
@@ -157,6 +166,29 @@ class CurriculumGraph:
                 if in_degree[child] == 0:
                     ready.append(child)
             ready.sort(key=sort_key)
+
+        # CORE-A-002: Kahn's algorithm leaves any node trapped in a
+        # prerequisite cycle with in_degree > 0, so it never enters `ready`
+        # and silently vanishes from the order — making it unreachable via
+        # next_module / start / status / recovery. Append the leftovers in
+        # deterministic sort_key order so they stay selectable. find_cycles /
+        # validate() still surface the cycle as an ERROR; this only prevents
+        # the silent drop. We don't crash — a malformed module set must
+        # still produce a usable (if imperfect) ordering.
+        leftover = sorted(
+            (mid for mid in self.modules if mid not in result),
+            key=sort_key,
+        )
+        if leftover:
+            logger.warning(
+                "curriculum: %d module(s) are in a prerequisite cycle and "
+                "have no clean topological position: %s — appended in "
+                "deterministic order so they remain selectable. Run "
+                "'xrpl-lab lint' to see the cycle.",
+                len(leftover),
+                ", ".join(leftover),
+            )
+            result.extend(leftover)
 
         return result
 

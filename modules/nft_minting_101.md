@@ -2,6 +2,7 @@
 id: nft_minting_101
 title: "NFT Minting 101: Your First Game Asset"
 track: nfts
+kb_source: nftokenmint
 summary: Mint an NFToken on the XRPL and verify you own it — your first on-ledger game asset.
 order: 20
 time: 15-20 min
@@ -15,6 +16,8 @@ checks:
   - "NFToken minted (txid produced)"
   - "NFTokenID captured from the mint"
   - "Ownership verified on-ledger: issuer, taxon, transferable"
+  - "NFToken burned (txid produced)"
+  - "NFToken gone from the ledger — reserve freed"
 ---
 
 On the XRPL an NFT is a **native ledger object** — no smart contract required. The
@@ -56,14 +59,32 @@ the issuer (you), the taxon (collection id 7), and that it is transferable.
 
 <!-- action: verify_nft -->
 
+## Step 5: Burn the asset
+
+Minting is only half the lifecycle — you should also know how to **destroy** an asset and reclaim
+what it costs. `NFTokenBurn` permanently removes the NFToken. When the last NFT in an
+`NFTokenPage` is burned, that page object is deleted and its owner reserve is freed (the same
+"free your reserve" lesson from *Account Hygiene*). The issuer can always burn their own NFT;
+they can also burn one they minted as `transferable` even after it has moved on.
+
+<!-- action: burn_nft -->
+
+## Step 6: Verify it's gone
+
+Read `account_nfts` once more. The NFTokenID you minted should be absent — the asset is destroyed
+and the reserve it consumed is freed back to spendable.
+
+<!-- action: verify_nft_burned -->
+
 ## Checkpoint: What you proved
 
-You minted a native NFT and verified ownership on-ledger:
+You minted a native NFT, verified ownership, then burned it — the full lifecycle:
 
 1. **NFTokenMint** — created an NFT with permanent properties in one transaction
 2. **Collection identity** — the (issuer, taxon) pair is how the XRPL groups a collection; there is no native "collection" object
 3. **Royalties** — TransferFee enforces a creator royalty at the protocol level
 4. **Verified** — `account_nfts` shows you as the owner
+5. **NFTokenBurn** — destroyed the asset and freed its reserve
 
 Key concepts to remember:
 

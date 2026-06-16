@@ -1,4 +1,41 @@
 # Changelog
+## 2.0.0 — 2026-06-16
+
+**Prove It For Real** — a major release that makes the "prove by artifact" thesis literally true, completes every transaction lifecycle the curriculum teaches, and adds a game-economy controls track. Driven by a full dogfood swarm (health pass A/B/C/D + a three-wave feature pass + final test), every change adversarially verified.
+
+### Added
+- **Ledger-anchored proof verification.** `xrpl-lab proof verify <file> --live` and `cert-verify <file> --live` now re-fetch every claimed transaction from the public XRPL and confirm it is `validated`, succeeded (`tesSUCCESS`), and matches the pack's recorded account/type — so a proof is checkable against the ledger by anyone, with no trust in the learner's machine and no server. A pack with a fabricated txid still passes the offline SHA-256 hash but now **fails** the live check. Dry-run packs honestly report "no on-ledger transactions to verify"; mixed packs verify only their real-network legs. The original (no-`--live`) hash check is unchanged.
+- **Complete transaction lifecycles** — no module teaches half a story anymore:
+  - **Escrow finish & cancel** (`EscrowFinish` / `EscrowCancel`) + a new `escrow_finish_101` module: create a time-locked escrow, release it after `FinishAfter`, or reclaim it after `CancelAfter`. (Previously XRP could be locked in an escrow with no way to release it.)
+  - **DID delete** (`DIDDelete`) — `did_101` now closes the identity lifecycle (anchor → verify → revoke).
+  - **NFT burn** (`NFTokenBurn`) — `nft_minting_101` now teaches freeing the reserve by burning the asset.
+- **Game Economy Controls** — a new content wave for studios running a live token + asset economy (v1.8.0 taught *creation*; v2.0.0 teaches *control + trade*), all mainnet-live capabilities:
+  - **`clawback_101`** — an issuer recalls issued tokens from a holder (`Clawback`, XLS-39) — the anti-exploit / anti-RMT lever.
+  - **`nft_marketplace_101`** — list and atomically settle a game-asset sale (`NFTokenCreateOffer` / `NFTokenAcceptOffer`) with protocol-enforced creator royalties (`TransferFee`) on resale.
+  - **`dnft_evolving_item_101`** — mint a mutable NFT (`tfMutable`) and upgrade it (`NFTokenModify`, XLS-46): the on-ledger "leveling game item" pattern.
+- **`game_economy_capstone`** — a culminating module (new `capstone` track) that composes the tracks into one build — issue a currency, mint and trade an asset, escrow a reward, audit the trail — producing a single ledger-verifiable proof.
+- **Single-source curriculum** — the module table, track list, ordering, and counts in the README, landing page, and handbook are now **generated** from one canonical manifest (`xrpl-lab curriculum manifest`) via `scripts/gen_docs.py`, with a CI **drift gate** (`tests/test_docs_drift.py`) that fails if any surface diverges. Adding a module can no longer leave docs stale.
+- **`kb_source` provenance binding** — KB-sourced modules carry a `kb_source` capability slug in front-matter, emitted in the proof pack, so a learner's real testnet receipt self-describes which xrpl-knowledge capability it proves (proof-by-artifact loop into the `v_proven` tier). The linter cross-checks `kb_source` against the knowledge base when present (gracefully skipped without it), catching fabricated slugs that would be silently dropped at ingest.
+
+### Security
+- **Testnet-only mainnet-refusal coverage now spans all signing methods.** The fail-closed guard test was extended from 5 to all 9 (now 13, with the v2.0.0 additions) signing methods, plus a reflection-based completeness gate that fails if any future signing method is added without mainnet-refusal coverage. Every new signing method (escrow finish/cancel, DID delete, NFT burn, clawback, NFT offers/modify) refuses a mainnet or unknown RPC/faucet override before the wallet seed loads.
+- **`serve --host 0.0.0.0` now warns.** Binding to all interfaces was misclassified as loopback, silently suppressing the "no authentication on the network" exposure warning; `0.0.0.0` and `::` now warn correctly.
+- **No path leakage on a locked state file** — `load_state` (and the cohort scan) now handle an unreadable `state.json` with a path-free message instead of a raw traceback.
+
+### Fixed
+- **Version desync (shipped in 1.8.0).** The npm wrapper hard-coded `1.7.1`, so `npx @mcptoolshop/xrpl-lab@1.8.0` downloaded the **1.7.1** binary; `__version__` was also stale and sealed into every proof pack / certificate / audit pack. The runtime version now single-sources from package metadata, all literal surfaces are bumped together, and `release.yml` gates the npm wrapper version against the release tag so this cannot recur.
+- **Dry-run ↔ testnet parity** — issued-currency payments now credit the correct destination's trust line; `owner_count` is tracked per-address; escrow sequence is populated for finish/cancel.
+- **`fetch_tx` no longer reports a succeeded transaction as failed** when the read-back times out — a network fetch error is surfaced as a distinct "couldn't reach the ledger" reason, not a verification failure.
+- A single malformed `account_nfts` / `account_offers` entry no longer drops the whole list; a faucet `200` with a non-JSON body now retries with an actionable message; `get_network_info` failures log at a visible level.
+- Curriculum modules trapped in a prerequisite cycle are surfaced (with a warning) instead of silently vanishing from `start` / `status`; `module init` accepts all nine tracks; the runner's module report includes every transaction-producing action.
+
+### Changed
+- Failure paths in the NFT / escrow / DID / MPT handlers now teach the XRPL result code inline (Category / Meaning / Action), matching the rest of the workbook.
+- Dashboard: the module-detail fetch and read-only pages report honest HTTP-error vs offline states; the run page announces progress to screen readers and uses the design-system tokens; handbook/landing reflect 21 modules across ten tracks.
+
+### Tests + tooling
+- **813 → 1062 tests** (3× stable), ruff clean, shipcheck 100%. **16 → 21 modules**, **9 → 10 tracks**. New `xrpl-lab curriculum manifest` command; pytest now surfaces new deprecations (`error::DeprecationWarning`).
+
 ## 1.8.0 — 2026-06-14
 
 KB-sourced module expansion — four new tracks and four new modules, built from the verified

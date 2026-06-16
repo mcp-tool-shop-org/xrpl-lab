@@ -85,6 +85,35 @@ jobs:
             exit 1
           fi
 
+      # bin/xrpl-lab.js holds the version+tag npm-launcher uses to pick which
+      # GitHub Release binary to download. It drifted to v1.7.1 while
+      # package.json/pyproject moved to 1.8.0 (CIDOCS-A-001) precisely because it
+      # was never gated here — so npx fetched a stale binary. This step asserts
+      # both the `version` and `tag` fields in the launch config equal the
+      # release tag, failing the job on any mismatch.
+      #
+      # NOTE: the *runtime* Python version (xrpl_lab/__init__.py) is single-
+      # sourced — it reads importlib.metadata.version("xrpl-lab"), so it tracks
+      # pyproject [project].version automatically and needs no gate here. The
+      # source-checkout fallback literal is pinned to pyproject by the unit test
+      # tests/test_v2_core.py::test_version_matches_pyproject.
+      - name: Verify tag matches bin/xrpl-lab.js launch config
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          node -e '
+            const fs = require("fs");
+            const src = fs.readFileSync("bin/xrpl-lab.js", "utf8");
+            const m = src.match(/MCPTOOLSHOP_LAUNCH_CONFIG\s*=\s*JSON\.stringify\((\{[\s\S]*?\})\)/);
+            if (!m) { console.error("::error::Could not locate MCPTOOLSHOP_LAUNCH_CONFIG in bin/xrpl-lab.js"); process.exit(1); }
+            const cfg = eval("(" + m[1] + ")");
+            const tag = process.env.TAG_VERSION;
+            console.log("bin/xrpl-lab.js: version=" + cfg.version + " tag=" + cfg.tag + " | tag: " + tag);
+            let ok = true;
+            if (cfg.version !== tag) { console.error("::error::Tag " + tag + " does not match bin/xrpl-lab.js version " + cfg.version); ok = false; }
+            if (cfg.tag !== "v" + tag) { console.error("::error::Release tag v" + tag + " does not match bin/xrpl-lab.js tag " + cfg.tag); ok = false; }
+            process.exit(ok ? 0 : 1);
+          '
+
       # The wrapper's sole dep is @mcptoolshop/npm-launcher (digest-locked by the
       # registry); no package-lock.json is committed, so `npm install` is honest.
       - name: Install dependencies
