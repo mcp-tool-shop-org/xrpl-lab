@@ -56,9 +56,20 @@ export interface ModuleSummary {
   is_next: boolean;
 }
 
-export interface ModuleDetail extends ModuleSummary {
+// FRONTEND-A-002: standalone (does NOT extend ModuleSummary). The backend
+// Pydantic ModuleDetail (xrpl_lab/api/schemas.py) sends ONLY these fields —
+// it omits summary/track/mode/requires/produces/is_next that ModuleSummary
+// carries. Mirror it field-for-field so the TS type can't promise data the
+// /api/modules/{id} response never delivers.
+export interface ModuleDetail {
+  id: string;
+  title: string;
+  level: string;
+  time_estimate: string;
   prerequisites: string[];
   artifacts: string[];
+  checks: string[];
+  completed: boolean;
   description: string;
   steps: string[];
 }

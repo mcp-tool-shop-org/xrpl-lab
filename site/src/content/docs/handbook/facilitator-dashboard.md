@@ -89,7 +89,7 @@ The `runs[].run_id` is also the key for two related endpoints:
 - `GET /api/runs/{run_id}` — same shape as a single `runs[]` element. 404 with `RUN_NOT_FOUND` if the run never existed or has been pruned.
 - `DELETE /api/runs/{run_id}` — the cancel endpoint described above.
 
-**Auth model:** the entire `/api/runs` surface inherits the same CORS gate as the rest of the HTTP API — `server.py` restricts to localhost. There is no token auth in v1.7.1; if you're exposing this surface beyond loopback (which the workshop threat model does not recommend), front it with your own auth layer.
+**Auth model:** the entire `/api/runs` surface inherits the same CORS gate as the rest of the HTTP API — `server.py` restricts to localhost. There is no token auth yet; if you're exposing this surface beyond loopback (which the workshop threat model does not recommend), front it with your own auth layer.
 
 ## 4. Operational notes
 

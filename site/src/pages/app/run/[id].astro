@@ -1,22 +1,12 @@
 ---
 import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { getModuleIds } from '../../../lib/module-ids';
 
 export function getStaticPaths() {
-  const moduleIds = [
-    'receipt_literacy',
-    'failure_literacy',
-    'trust_lines_101',
-    'trust_line_failures',
-    'dex_literacy',
-    'reserves_101',
-    'account_hygiene',
-    'receipt_audit',
-    'amm_liquidity_101',
-    'dex_market_making_101',
-    'dex_inventory_guardrails',
-    'dex_vs_amm_risk_literacy',
-  ];
-  return moduleIds.map(id => ({ params: { id } }));
+  // FRONTEND-A-001: same single source of truth as /app/modules/[id] — derive
+  // the run-page set from the repo-root modules/ directory so it never drifts.
+  // See site/src/lib/module-ids.ts.
+  return getModuleIds().map((id) => ({ params: { id } }));
 }
 
 const { id } = Astro.params;
@@ -45,7 +35,14 @@ const { id } = Astro.params;
       <button id="btn-dry" class="btn" aria-label="Run module in dry-run mode (offline simulated transactions)">
         <span aria-hidden="true">&#128203;</span> Dry Run
       </button>
-      <span id="run-status-label" class="muted" style="margin-left:6px" role="status" aria-live="polite"></span>
+      <!-- FEBCD-004: calm-instrument .runstatus pill (data-state drives hue +
+           the pulsing dot via dashboard.css) replaces the legacy text-*-400
+           Tailwind classes. Hidden until a run starts. role="status" — the
+           visible label change is mirrored to SR users via announce(). -->
+      <span id="run-status-label" class="runstatus" data-state="idle" role="status" style="margin-left:6px" hidden>
+        <span class="statdot" aria-hidden="true"></span>
+        <span id="run-status-text"></span>
+      </span>
     </div>
 
     <!-- Terminal + step rail -->
@@ -60,15 +57,26 @@ const { id } = Astro.params;
           <span class="terminal__title">output</span>
           <span class="terminal__state"><span class="statdot"></span><span id="terminal-state-text">idle</span></span>
         </div>
-        <!-- F-FE-C-011: aria-live announces output lines politely. -->
+        <!-- FEBCD-002: the terminal is deliberately NOT a live region. Making
+             the full streaming output polite (or assertive) over-announces —
+             every line would interrupt the screen reader. Instead the KEY
+             milestones (run start, step N/total, each tx result_code, errors,
+             and reconnect/disconnect notices) are routed through the shared
+             #announcer live region via announce() in the WS message handler,
+             so SR users hear run progress + failures without the line noise. -->
         <div id="terminal" class="terminal__out"><span class="ln ln--dim">Waiting to start…</span></div>
       </section>
 
       <aside class="card" style="order:1">
         <p class="eyebrow">Steps</p>
-        <!-- F-FE-C-011: aria-live="polite" + aria-atomic="false" — only changed
-             rows are announced, not the whole list each time. -->
-        <div id="step-list" class="steps" aria-live="polite" aria-atomic="false" aria-label="Run steps">
+        <!-- FEBCD-002: this sidebar is the VISUAL step rail; it is intentionally
+             NOT a live region. renderSteps() replaces the whole list on each
+             frame, so aria-live here re-announced every row on every step —
+             noisy and redundant with the milestone announce() calls. Step
+             progress reaches SR users once, cleanly, via the #announcer live
+             region (see the terminal comment above). The rows keep per-row
+             aria-labels ("Step 2: Submit payment, running") for navigation. -->
+        <div id="step-list" class="steps" aria-label="Run steps">
           <p class="muted" style="font-size:13.5px">Steps appear when the run starts.</p>
         </div>
       </aside>
@@ -88,7 +96,7 @@ const { id } = Astro.params;
 
   <script>
     import { fetchWithTimeout } from '../../../lib/api';
-    import { icons } from '../../../lib/dashboard-ui';
+    import { icons, announce } from '../../../lib/dashboard-ui';
 
     const API_BASE = 'http://localhost:8321';
 
@@ -112,12 +120,6 @@ const { id } = Astro.params;
 
     const container = document.getElementById('run-page');
     const moduleId = container?.dataset.moduleId || '';
-
-    const levelColors: Record<string, string> = {
-      beginner: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-      intermediate: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-      advanced: 'bg-red-500/20 text-red-400 border-red-500/30',
-    };
 
     // Check URL params for auto-start
     const urlParams = new URLSearchParams(window.location.search);
@@ -178,6 +180,18 @@ const { id } = Astro.params;
     const btnRun = document.getElementById('btn-run') as HTMLButtonElement;
     const btnDry = document.getElementById('btn-dry') as HTMLButtonElement;
     const statusLabel = document.getElementById('run-status-label')!;
+    const statusText = document.getElementById('run-status-text')!;
+
+    // FEBCD-004: drive the calm-instrument .runstatus pill instead of swapping
+    // legacy text-*-400 Tailwind classes. data-state maps to hue + the pulsing
+    // dot in dashboard.css (running/done/failed/stalled/idle), with the
+    // reduced-motion guard already in place there. The label text lives in a
+    // child span so the pulsing dot is preserved.
+    function setStatus(state: string, text: string) {
+      statusLabel.hidden = false;
+      statusLabel.setAttribute('data-state', state);
+      statusText.textContent = text;
+    }
 
     // Load module info
     async function loadModuleInfo() {
@@ -189,7 +203,10 @@ const { id } = Astro.params;
         const badge = document.getElementById('run-badge');
         if (badge && mod.level) {
           badge.textContent = mod.level;
-          badge.className = `inline-block px-2 py-0.5 text-xs font-medium rounded border ${levelColors[mod.level] || ''}`;
+          // FEBCD-004: neutral calm-instrument .chip (already the static class)
+          // instead of the legacy per-level bg-emerald/amber/red Tailwind pills,
+          // matching how the module-detail page renders the level chip.
+          badge.className = 'chip';
         }
         // B-FRONTEND-005: cache short per-step labels from the module's known
         // step list so the sidebar can show meaningful row labels immediately,
@@ -234,13 +251,16 @@ const { id } = Astro.params;
     // Step sidebar render
     function renderSteps() {
       if (steps.length === 0) {
-        stepList.innerHTML = '<p class="text-sm text-slate-600">Steps appear when run starts.</p>';
+        // FEBCD-004: use the calm-instrument .muted token (matches the static
+        // empty markup) instead of legacy text-slate-600, which was sub-2.5:1.
+        stepList.innerHTML = '<p class="muted" style="font-size:13.5px">Steps appear when run starts.</p>';
         return;
       }
-      // F-FE-C-011 + F-FE-C-008: status-glyph wrapper is decorative; the
-      // status word is included in the row's aria-label so screen readers
-      // hear "Step 2: Submit payment, running" when aria-live announces the
-      // change. Color is a redundant cue, not the only one.
+      // F-FE-C-008: status-glyph wrapper is decorative; the status word is in
+      // the row's aria-label so a screen reader navigating the rail hears
+      // "Step 2: Submit payment, running". Color is a redundant cue, not the
+      // only one. (FEBCD-002: live progress is announced via the #announcer
+      // region in handleMessage, not by making this list a live region.)
       // Design-system step rows: .step[data-state] drives glyph + colour; the
       // status WORD is in aria-label + the visible .step__tag so the cue is
       // shape + glyph + label, never colour alone.
@@ -306,8 +326,7 @@ const { id } = Astro.params;
 
       btnRun.disabled = false;
       btnDry.disabled = false;
-      statusLabel.textContent = 'Connection stalled';
-      statusLabel.className = 'text-sm text-red-400 ml-2';
+      setStatus('stalled', 'Connection stalled');
       termAppend(
         '\n[stalled] No response from the server for ' +
           Math.round(WATCHDOG_TIMEOUT_MS / 1000) +
@@ -374,8 +393,7 @@ const { id } = Astro.params;
 
         // Normal closure (1000) / going-away (1001): server signaled clean end.
         if (event.code === 1000 || event.code === 1001) {
-          statusLabel.textContent = 'Connection closed';
-          statusLabel.className = 'text-sm text-amber-400 ml-2';
+          setStatus('done', 'Connection closed');
           termAppend('\n[run complete]', 'text-emerald-400');
           running = false;
           btnRun.disabled = false;
@@ -385,8 +403,10 @@ const { id } = Astro.params;
 
         // Origin rejection (4003): config error, retrying won't help.
         if (event.code === 4003) {
-          statusLabel.textContent = 'Origin rejected';
-          statusLabel.className = 'text-sm text-red-400 ml-2';
+          setStatus('failed', 'Origin rejected');
+          // FEBCD-002: terminal disconnect — route through the live region so
+          // SR users hear it (the visible status pill alone isn't announced).
+          announce('Run disconnected: origin rejected — server config issue. Refresh after fixing.');
           termAppend('\n[disconnected] Origin rejected — server config issue. Refresh after fixing.', 'text-red-400');
           running = false;
           btnRun.disabled = false;
@@ -401,8 +421,9 @@ const { id } = Astro.params;
         // user understands the cleanup, not just that it happened, and gets a
         // tip to avoid it next time.
         if (event.code === 4004) {
-          statusLabel.textContent = 'Run cleaned up';
-          statusLabel.className = 'text-sm text-amber-400 ml-2';
+          setStatus('stalled', 'Run cleaned up');
+          // FEBCD-002: terminal disconnect — announce so SR users hear why.
+          announce('Run disconnected: this run was cleaned up after the connection dropped. Start a new run from the Modules page.');
           termAppend(
             '\n[disconnected] This run was cleaned up — the session expired after the WebSocket disconnected (idle timeout protects server memory). Start a new run from the Modules page; tip: keep the dashboard tab active during runs.',
             'text-amber-400'
@@ -419,8 +440,9 @@ const { id } = Astro.params;
         // pathological infinite reconnect (e.g. server drops every connection
         // on its 1st message).
         if (lifetimeReconnects >= MAX_LIFETIME_RECONNECTS) {
-          statusLabel.textContent = 'Disconnected';
-          statusLabel.className = 'text-sm text-red-400 ml-2';
+          setStatus('failed', 'Disconnected');
+          // FEBCD-002: terminal disconnect — announce so SR users hear it.
+          announce(`Run disconnected: connection lost after ${lifetimeReconnects} reconnects. Refresh the page to retry.`);
           termAppend(
             `\n[disconnected] Connection lost (${lifetimeReconnects} reconnects exhausted). Refresh page to retry.`,
             'text-red-400'
@@ -432,8 +454,9 @@ const { id } = Astro.params;
         }
 
         if (reconnectAttempts >= MAX_RECONNECT) {
-          statusLabel.textContent = 'Disconnected';
-          statusLabel.className = 'text-sm text-red-400 ml-2';
+          setStatus('failed', 'Disconnected');
+          // FEBCD-002: terminal disconnect — announce so SR users hear it.
+          announce(`Run disconnected: maximum reconnect attempts reached. Refresh to retry.`);
           termAppend(`\n[disconnected] Max reconnect attempts (${MAX_RECONNECT}) reached. Refresh to retry.`, 'text-red-400');
           running = false;
           btnRun.disabled = false;
@@ -443,8 +466,9 @@ const { id } = Astro.params;
 
         const delay = BASE_DELAY_MS * Math.pow(2, reconnectAttempts);
         const attemptNum = reconnectAttempts + 1;
-        statusLabel.textContent = `Reconnecting (${attemptNum}/${MAX_RECONNECT})...`;
-        statusLabel.className = 'text-sm text-amber-400 ml-2 animate-pulse';
+        setStatus('stalled', `Reconnecting (${attemptNum}/${MAX_RECONNECT})...`);
+        // FEBCD-002: reconnect notice — a key milestone SR users must hear.
+        announce(`Connection dropped. Reconnecting, attempt ${attemptNum} of ${MAX_RECONNECT}.`);
         termAppend(
           `\n[reconnecting] WS dropped (code=${event.code}). Retry in ${delay / 1000}s (attempt ${attemptNum}/${MAX_RECONNECT})`,
           'text-amber-400'
@@ -486,8 +510,9 @@ const { id } = Astro.params;
       renderSteps();
 
       const modeLabel = dryRun ? 'DRY RUN' : 'LIVE RUN';
-      statusLabel.textContent = `Starting ${modeLabel}...`;
-      statusLabel.className = 'text-sm text-emerald-400 ml-2 animate-pulse';
+      setStatus('running', `Starting ${modeLabel}...`);
+      // FEBCD-002: announce run start so SR users know the run is underway.
+      announce(`${dryRun ? 'Dry run' : 'Live run'} started for ${moduleId}.`);
       termAppend(`[${modeLabel}] Starting module: ${moduleId}`, 'text-slate-400');
 
       try {
@@ -499,7 +524,7 @@ const { id } = Astro.params;
         activeRunId = result.run_id;
 
         termAppend(`[${modeLabel}] Run ID: ${activeRunId}`, 'text-slate-500');
-        statusLabel.textContent = `Running...`;
+        setStatus('running', 'Running...');
 
         // Connect WebSocket (auto-reconnect on transient drop, F-FE-B-004)
         connectWS();
@@ -514,8 +539,9 @@ const { id } = Astro.params;
           msg = err.message || 'Failed to start run';
         }
         termAppend(`[error] ${msg}`, 'text-red-400');
-        statusLabel.textContent = 'Failed to start';
-        statusLabel.className = 'text-sm text-red-400 ml-2';
+        setStatus('failed', 'Failed to start');
+        // FEBCD-002: failed-to-start is an error SR users must hear.
+        announce(`Failed to start run: ${msg}`);
         running = false;
         btnRun.disabled = false;
         btnDry.disabled = false;
@@ -553,7 +579,14 @@ const { id } = Astro.params;
             currentStepIndex = msg.index;
           }
           renderSteps();
-          termAppend(`> Step ${(msg.index || 0) + 1}/${msg.total || '?'}: ${msg.action || '...'}`, 'text-slate-300');
+          const stepNum = (msg.index || 0) + 1;
+          termAppend(`> Step ${stepNum}/${msg.total || '?'}: ${msg.action || '...'}`, 'text-slate-300');
+          // FEBCD-002: announce the step milestone. The streaming terminal is
+          // intentionally NOT a live region (it would over-announce every line);
+          // instead the key milestones — step N/total, tx result_code, errors —
+          // are routed through the shared #announcer live region so SR users
+          // hear run progress without the noise of the full output stream.
+          announce(`Step ${stepNum} of ${msg.total || '?'}: ${msg.action || 'running'}`);
           break;
         }
 
@@ -596,11 +629,17 @@ const { id } = Astro.params;
           li.innerHTML = `<span class="tx__id">${escapeHtml(msg.txid)}</span><span class="tx__code tx__code--${ok ? 'ok' : 'err'}" title="result_code">${escapeHtml(msg.result_code)}</span>`;
           txList.appendChild(li);
           termAppend(`  TX: ${msg.txid} [${msg.result_code}]`, 'text-cyan-400');
+          // FEBCD-002: announce the transaction result_code — the load-bearing
+          // outcome of each submission ("tesSUCCESS" vs a tec/tem failure code).
+          announce(`Transaction result: ${msg.result_code}${ok ? '' : ' (failed)'}`);
           break;
         }
 
         case 'error': {
           termAppend(`[ERROR] ${msg.message || 'Unknown error'}`, 'text-red-400');
+          // FEBCD-002: announce errors assertively-in-spirit via the live region
+          // so SR users don't miss a failure buried in the output stream.
+          announce(`Error: ${msg.message || 'Unknown error'}`);
           break;
         }
 
@@ -612,10 +651,7 @@ const { id } = Astro.params;
           ws?.close();
 
           const success = msg.success;
-          statusLabel.textContent = success ? 'Completed' : 'Failed';
-          statusLabel.className = success
-            ? 'text-sm text-emerald-400 ml-2'
-            : 'text-sm text-red-400 ml-2';
+          setStatus(success ? 'done' : 'failed', success ? 'Completed' : 'Failed');
 
           // Mark remaining running steps
           steps.forEach(s => {
