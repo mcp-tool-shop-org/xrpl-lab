@@ -127,15 +127,35 @@ class ReportDetail(BaseModel):
 
 
 class RunStartResponse(BaseModel):
+    """Response for POST /api/run/{module_id}.
+
+    ``status`` is always ``"started"`` on success; the run then progresses
+    over the WebSocket. Mirrors the TS ``RunResult`` interface in
+    ``site/src/lib/api.ts`` ({run_id, status}).
+    """
+
     run_id: str
     status: str
 
 
-class RunStreamMessage(BaseModel):
-    """WebSocket message envelope."""
+class RunCancelResponse(BaseModel):
+    """Response for DELETE /api/runs/{run_id} (facilitator cancellation).
 
-    type: str  # "step" | "output" | "step_complete" | "tx" | "error" | "complete"
-    # Remaining fields vary by type -- this is the base envelope
+    Union of the fields across both cancel outcomes so the shape is the
+    SAME on every path:
+
+      * active run cancelled — ``status="cancelled"``, ``message`` set.
+      * already-terminal run — ``status="already_terminated"``, ``message`` set.
+
+    ``message`` is optional in the type (``str | None``) to permit a future
+    empty/None case, but both current branches populate it. Keeping it on
+    every response lets the dashboard render one shape regardless of which
+    branch fired.
+    """
+
+    run_id: str
+    status: str  # "cancelled" | "already_terminated"
+    message: str | None = None
 
 
 # -- /api/runs (facilitator observability) ---------------------------------

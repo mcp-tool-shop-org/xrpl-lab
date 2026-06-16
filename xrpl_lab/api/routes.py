@@ -23,6 +23,7 @@ from .schemas import (
     ModuleSummary,
     ReportDetail,
     ReportSummary,
+    RunCancelResponse,
     RunInfo,
     RunListResponse,
     StatusResponse,
@@ -376,7 +377,7 @@ def get_run(run_id: str) -> RunInfo:
 
 
 @router.delete("/runs/{run_id}")
-async def cancel_run(run_id: str) -> dict[str, str]:
+async def cancel_run(run_id: str) -> RunCancelResponse:
     """Cancel an in-flight module run; idempotent on terminated runs.
 
     Facilitator workflow: a learner's run gets stuck (slow testnet, bad
@@ -399,7 +400,7 @@ async def cancel_run(run_id: str) -> dict[str, str]:
 
     Auth model: same as GET /api/runs — ``server.py`` gates CORS to
     localhost. A future hardening (F-BRIDGE-FT-004) adds opt-in token
-    auth; this v1.7.1 surface is open under the localhost gate.
+    auth; this surface is open under the localhost gate.
     """
     from . import runner_ws
 

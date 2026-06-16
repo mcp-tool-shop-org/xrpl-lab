@@ -49,11 +49,23 @@ class SubmitResult:
     error: str = ""
     explorer_url: str = ""
     nft_id: str = ""  # NFTokenID, set on a successful NFTokenMint
+    nft_offer_index: str = ""  # NFTokenOffer ledger index, set on NFTokenCreateOffer
 
 
 @dataclass
 class TxInfo:
-    """Full transaction details from the ledger."""
+    """Full transaction details from the ledger.
+
+    ``fetch_error`` (TXBCD-002) is distinct from ``result_code``: it is set
+    ONLY when the read-back itself failed (timeout / network / RPC error)
+    BEFORE we ever learned the on-ledger result. A populated ``fetch_error``
+    means "we could not determine the tx's fate", NOT "the tx failed" — a tx
+    that genuinely succeeded on-ledger can still produce a ``fetch_error`` if
+    the verification read-back times out. Callers (e.g. ``verify_tx``) MUST
+    special-case ``fetch_error`` and surface a non-failure-attributing message
+    rather than comparing ``result_code`` against ``tesSUCCESS``. Defaults
+    None so the dry-run transport and every success path stay unchanged.
+    """
 
     txid: str
     tx_type: str = ""
@@ -66,6 +78,7 @@ class TxInfo:
     memos: list[str] | None = None
     validated: bool = False
     raw: dict | None = None
+    fetch_error: str | None = None
 
 
 @dataclass
@@ -93,10 +106,39 @@ class NFTInfo:
 
 
 @dataclass
-class EscrowInfo:
-    """A single Escrow object owned by an account."""
+class NFTOfferInfo:
+    """A single NFTokenOffer on the ledger (sell or buy).
 
-    sequence: int = 0  # the EscrowCreate tx sequence (needed to finish)
+    ``offer_index`` is the ledger object id (the value NFTokenAcceptOffer
+    consumes as ``NFTokenSellOffer`` / ``NFTokenBuyOffer``). ``is_sell`` is
+    True for sell offers (tfSellNFToken set). ``amount`` is the offer price as
+    a display string (drops for XRP, ``value/CUR/issuer`` for issued).
+    """
+
+    offer_index: str
+    nft_id: str = ""
+    amount: str = "0"
+    owner: str = ""  # account that created the offer
+    destination: str = ""  # optional restricted buyer/seller
+    is_sell: bool = True
+
+
+@dataclass
+class EscrowInfo:
+    """A single Escrow object owned by an account.
+
+    Contract note (TRANSPORT-A-003, resolved in v2.0.0): ``sequence`` is the
+    EscrowCreate transaction sequence — the value EscrowFinish/EscrowCancel
+    consume as ``OfferSequence``. Both transports now populate it: the dry-run
+    transport sets a synthetic create-sequence, and the testnet transport
+    derives the real one by reading the EscrowCreate tx via ``account_tx``
+    (the ``account_objects`` Escrow ledger entry does NOT carry the originating
+    sequence, so it must come from the tx, not the object). A 0 here means the
+    create-sequence could not be resolved (e.g. the tx history was unreadable);
+    finish/cancel will then need the sequence supplied explicitly.
+    """
+
+    sequence: int = 0  # EscrowCreate tx sequence (OfferSequence for finish/cancel)
     amount: str = "0"  # XRP drops (or token amount)
     destination: str = ""
     finish_after: int | None = None  # ripple-epoch seconds
@@ -321,12 +363,129 @@ class Transport(ABC):
         taxon: int = 0,
         transfer_fee: int = 0,
         transferable: bool = True,
+        mutable: bool = False,
     ) -> SubmitResult:
-        """Mint an NFToken (NFTokenMint). Returns SubmitResult with nft_id set on success."""
+        """Mint an NFToken (NFTokenMint). Returns SubmitResult with nft_id set on success.
+
+        ``transfer_fee`` (0..50000, in 0.001% steps) is a protocol-enforced
+        royalty the issuer earns on every resale; it requires ``transferable``.
+        ``mutable`` sets the tfMutable flag (XLS-46), allowing the URI to be
+        changed later via NFTokenModify — the basis for evolving/leveling game
+        items.
+        """
+
+    @abstractmethod
+    async def submit_nft_burn(
+        self,
+        wallet_seed: str,
+        nftoken_id: str,
+    ) -> SubmitResult:
+        """Burn (permanently destroy) an NFToken, freeing reserve (NFTokenBurn)."""
+
+    @abstractmethod
+    async def submit_nft_create_offer(
+        self,
+        wallet_seed: str,
+        nftoken_id: str,
+        amount: str,
+        sell: bool = True,
+        destination: str = "",
+        owner: str = "",
+        currency: str = "XRP",
+        issuer: str = "",
+    ) -> SubmitResult:
+        """Create an NFTokenCreateOffer (sell or buy) for an NFToken.
+
+        ``sell=True`` lists the caller's own NFT for sale (tfSellNFToken set);
+        ``sell=False`` is a buy offer for someone else's NFT and requires
+        ``owner`` (the current holder). ``amount`` is the price in XRP (or in
+        the issued ``currency``/``issuer`` when ``currency != "XRP"``).
+        Returns SubmitResult with ``nft_offer_index`` set on success.
+        """
+
+    @abstractmethod
+    async def submit_nft_accept_offer(
+        self,
+        wallet_seed: str,
+        sell_offer: str = "",
+        buy_offer: str = "",
+    ) -> SubmitResult:
+        """Accept an existing NFTokenOffer, settling the trade (NFTokenAcceptOffer).
+
+        Pass exactly one of ``sell_offer`` (the buyer accepts a seller's sell
+        offer) or ``buy_offer`` (the owner accepts a buyer's offer). The royalty
+        (TransferFee) is split off to the issuer atomically by the protocol.
+        """
+
+    @abstractmethod
+    async def submit_nft_modify(
+        self,
+        wallet_seed: str,
+        nftoken_id: str,
+        uri: str,
+        owner: str = "",
+    ) -> SubmitResult:
+        """Change a mutable NFToken's URI (NFTokenModify, XLS-46).
+
+        Only works if the NFT was minted with tfMutable; otherwise the ledger
+        returns a tec error. The NFTokenID is unchanged — same asset, new state
+        (e.g. a leveled-up game item). ``owner`` defaults to the caller.
+        """
+
+    @abstractmethod
+    async def get_nft_offers(
+        self,
+        nftoken_id: str,
+        sell: bool = True,
+    ) -> list[NFTOfferInfo]:
+        """List open sell (or buy) offers for an NFToken (nft_sell_offers / nft_buy_offers)."""
 
     @abstractmethod
     async def get_account_nfts(self, address: str) -> list[NFTInfo]:
         """List NFTokens owned by an address (account_nfts)."""
+
+    @abstractmethod
+    async def submit_account_set_clawback(
+        self,
+        wallet_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Enable clawback on the issuer account (AccountSet asfAllowTrustLineClawback).
+
+        MUST be set BEFORE the account issues any tokens — XRPL refuses to
+        enable clawback on an issuer that already has issued balances
+        outstanding. This is the consent/governance lever that makes
+        ``submit_clawback`` possible.
+
+        ``issuer_address`` is the issuer's real classic address. The testnet
+        transport ignores it (it derives the address from the seed); the
+        dry-run transport uses it to key per-issuer flag state, because every
+        dry-run seed otherwise collapses to one synthetic address and could not
+        distinguish a clawback-enabled issuer from one that never opted in.
+        """
+
+    @abstractmethod
+    async def submit_clawback(
+        self,
+        issuer_seed: str,
+        holder_address: str,
+        currency: str,
+        amount: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Forcibly recall issued tokens from a holder (Clawback, XLS-39).
+
+        Only succeeds if the issuer previously set asfAllowTrustLineClawback.
+        XRPL quirk: the ``Amount`` field's ``issuer`` sub-field carries the
+        HOLDER address (not the issuer) — the token being clawed is identified
+        by currency + the clawing account, and the holder rides in Amount.issuer.
+        Both transports encode this the same way.
+
+        ``issuer_address`` (the issuer's real classic address) is used by the
+        dry-run transport to resolve the holder's trust line and the per-issuer
+        flag; the testnet transport ignores it and derives identity from the
+        seed.
+        """
 
     @abstractmethod
     async def submit_escrow_create(
@@ -340,6 +499,35 @@ class Transport(ABC):
         """Create a time-based XRP Escrow (EscrowCreate)."""
 
     @abstractmethod
+    async def submit_escrow_finish(
+        self,
+        wallet_seed: str,
+        owner: str,
+        offer_sequence: int,
+        condition: str = "",
+        fulfillment: str = "",
+    ) -> SubmitResult:
+        """Finish a time-based Escrow past its FinishAfter (EscrowFinish).
+
+        ``owner`` is the EscrowCreate's account; ``offer_sequence`` is the
+        EscrowCreate transaction's sequence (``EscrowInfo.sequence``). For a
+        pure time-based escrow leave ``condition`` / ``fulfillment`` empty.
+        """
+
+    @abstractmethod
+    async def submit_escrow_cancel(
+        self,
+        wallet_seed: str,
+        owner: str,
+        offer_sequence: int,
+    ) -> SubmitResult:
+        """Cancel an Escrow past its CancelAfter, reclaiming funds (EscrowCancel).
+
+        ``owner`` is the EscrowCreate's account; ``offer_sequence`` is the
+        EscrowCreate transaction's sequence (``EscrowInfo.sequence``).
+        """
+
+    @abstractmethod
     async def get_escrows(self, address: str) -> list[EscrowInfo]:
         """List Escrow objects owned by an address."""
 
@@ -351,6 +539,10 @@ class Transport(ABC):
         data: str = "",
     ) -> SubmitResult:
         """Set (create or update) the account's DID (DIDSet)."""
+
+    @abstractmethod
+    async def submit_did_delete(self, wallet_seed: str) -> SubmitResult:
+        """Delete the account's DID, freeing its owner reserve (DIDDelete)."""
 
     @abstractmethod
     async def get_did(self, address: str) -> DIDInfo | None:

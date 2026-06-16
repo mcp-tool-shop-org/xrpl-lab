@@ -15,6 +15,7 @@ from .base import (
     MPTIssuanceInfo,
     NetworkInfo,
     NFTInfo,
+    NFTOfferInfo,
     OfferInfo,
     SubmitResult,
     Transport,
@@ -94,23 +95,74 @@ class DryRunTransport(Transport):
         self._trust_lines: _PerAddressStore = _PerAddressStore()
         self._offers: _PerAddressStore = _PerAddressStore()
         self._offer_seq = 100  # starting sequence for fake offers
-        self._owner_count = 0  # tracks owned objects (trust lines, offers)
+        # Per-address owned-object counts (TRANSPORT-A-002). On testnet
+        # OwnerCount is strictly per-account; this dict is keyed by the acting
+        # wallet's derived address. The legacy ``self._owner_count`` global is
+        # preserved as a property aliasing the dry-run wallet's count so direct
+        # assignment (``transport._owner_count = N``) and the get_account_info
+        # fallback for arbitrary addresses keep working.
+        self._owner_counts: dict[str, int] = {}
         self._tx_fixtures: dict[str, TxInfo] = {}  # txid -> TxInfo for audit testing
         # AMM state
         self._amm_pools: dict[str, dict] = {}  # pair_key -> pool state
         self._lp_balances: dict[str, dict[str, str]] = {}  # address -> {lp_key: balance}
         # NFT state — minted NFTokens per owner address
         self._nfts: _PerAddressStore = _PerAddressStore()
+        # NFT offer book: offer_index -> dict(nft_id, amount, owner, destination,
+        # is_sell, currency, issuer). Mirrors the testnet nft_sell_offers /
+        # nft_buy_offers ledger objects so the marketplace module's offer-read,
+        # ownership-transfer, and royalty-split stay in parity with testnet.
+        self._nft_offers: dict[str, dict] = {}
+        self._nft_offer_seq = 0
+        # Issuer addresses that have enabled clawback (asfAllowTrustLineClawback).
+        # A Clawback against an issuer NOT in this set fails with tecNO_PERMISSION,
+        # matching the testnet engine result for clawback-without-the-flag.
+        self._clawback_enabled: set[str] = set()
         # Escrow / DID / MPT state
         self._escrows: _PerAddressStore = _PerAddressStore()
         self._mpts: _PerAddressStore = _PerAddressStore()
         self._dids: dict[str, DIDInfo] = {}  # one DID per account
+        # Deterministic clock for EscrowFinish/EscrowCancel time-gating.
+        # XRPL gates EscrowFinish on FinishAfter and EscrowCancel on
+        # CancelAfter, both in ripple-epoch seconds. Wall-clock would make
+        # the offline lifecycle test flaky (a short-FinishAfter escrow might
+        # or might not be finishable depending on how fast the test runs), so
+        # the dry-run transport reads time from this settable clock instead.
+        # Default: a far-future ripple time so a freshly-created escrow is
+        # immediately finishable AND cancellable, keeping the happy-path
+        # offline test deterministic regardless of wall-clock. Tests set it
+        # (via set_dry_clock) to a moment BEFORE FinishAfter/CancelAfter to
+        # exercise the not-yet-finishable / not-yet-cancellable error paths.
+        self._dry_clock: int = 4_000_000_000  # ~ripple-epoch year 2126
 
     def _next_txid(self) -> str:
         """Generate a unique deterministic transaction ID (per-instance counter)."""
         self._counter += 1
         raw = f"{_FAKE_TXID_PREFIX}-{self._counter}-{time.time()}"
         return hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
+
+    # ── Owner-count bookkeeping (TRANSPORT-A-002) ────────────────────────
+    #
+    # OwnerCount is per-account on testnet. We track it per derived address in
+    # ``self._owner_counts`` and increment/decrement under the acting wallet's
+    # address in each object-creating/removing method. ``self._owner_count``
+    # stays as a property aliasing the dry-run wallet's count (every dry-run
+    # seed collapses to ``_DRY_RUN_WALLET_ADDRESS`` via ``_address_from_seed``),
+    # so older code/tests that read or set the global keep working.
+
+    @property
+    def _owner_count(self) -> int:
+        return self._owner_counts.get(_DRY_RUN_WALLET_ADDRESS, 0)
+
+    @_owner_count.setter
+    def _owner_count(self, value: int) -> None:
+        self._owner_counts[_DRY_RUN_WALLET_ADDRESS] = value
+
+    def _inc_owner(self, address: str) -> None:
+        self._owner_counts[address] = self._owner_counts.get(address, 0) + 1
+
+    def _dec_owner(self, address: str) -> None:
+        self._owner_counts[address] = max(0, self._owner_counts.get(address, 0) - 1)
 
     @property
     def network_name(self) -> str:
@@ -258,7 +310,7 @@ class DryRunTransport(Transport):
                 )
             # Remove trust line and decrement owner count
             addr_lines.remove(existing)
-            self._owner_count = max(0, self._owner_count - 1)
+            self._dec_owner(wallet_address)
         elif existing:
             # Update existing trust line limit (don't create duplicate)
             existing.limit = limit
@@ -273,7 +325,7 @@ class DryRunTransport(Transport):
                     limit=limit,
                 )
             )
-            self._owner_count += 1
+            self._inc_owner(wallet_address)
 
         return SubmitResult(
             success=True,
@@ -302,15 +354,19 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: no trust line",
             )
 
-        # Realistic validation: check trust line exists on destination
-        # Search all addresses for a matching trust line (destination holds the trust line)
+        # Realistic validation: the DESTINATION holds the trust line, so credit
+        # the destination's own line (TRANSPORT-A-001). Previously this scanned
+        # ALL addresses and credited the first currency+issuer match regardless
+        # of destination — with 2+ holders of the same currency/issuer the wrong
+        # holder was credited. We now resolve the destination's live trust-line
+        # objects first (its explicit per-address bucket if present), and only
+        # fall back to the legacy/single-wallet collapsed bucket when the
+        # destination has no bucket of its own (preserves dry-run parity with
+        # testnet, where the destination's line is the one that moves).
         matching_tl = None
-        for addr_lines in self._trust_lines.values():
-            for tl in addr_lines:
-                if tl.currency == currency and tl.peer == issuer:
-                    matching_tl = tl
-                    break
-            if matching_tl is not None:
+        for tl in self._live_lines_for(destination):
+            if tl.currency == currency and tl.peer == issuer:
+                matching_tl = tl
                 break
 
         if matching_tl is None:
@@ -355,19 +411,34 @@ class DryRunTransport(Transport):
             explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
-    def _resolve_lines(self, address: str) -> list[TrustLineInfo]:
-        """Return trust lines for *address*, checking legacy bucket too."""
+    def _live_lines_for(self, address: str) -> list[TrustLineInfo]:
+        """Return the LIVE trust-line list backing *address* (mutations persist).
+
+        Resolution order mirrors ``_resolve_lines`` but returns the underlying
+        list object rather than a copy, so callers that credit a balance
+        (e.g. ``submit_issued_payment``) write through to the stored line:
+
+        1. The destination's own explicit per-address bucket (the testnet
+           reality — the holder's line is the one that moves).
+        2. The legacy flat bucket (tests that ``.append`` directly).
+        3. The single-wallet collapse fallback (``_address_from_seed`` maps
+           every dry-run seed to one address, so a trust line set via a seed
+           and a payment to an arbitrary destination still resolve to it).
+        """
         if address in self._trust_lines:
-            return list(self._trust_lines[address])
-        legacy = self._trust_lines.get(_PerAddressStore._LEGACY_KEY, [])
+            return self._trust_lines[address]
+        legacy = self._trust_lines.get(_PerAddressStore._LEGACY_KEY)
         if legacy:
-            return list(legacy)
-        # Single-wallet fallback: if only one real address, return those
+            return legacy
         real = {k: v for k, v in self._trust_lines.items()
                 if k != _PerAddressStore._LEGACY_KEY}
         if len(real) == 1:
-            return list(next(iter(real.values())))
+            return next(iter(real.values()))
         return []
+
+    def _resolve_lines(self, address: str) -> list[TrustLineInfo]:
+        """Return trust lines for *address*, checking legacy bucket too."""
+        return list(self._live_lines_for(address))
 
     async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
         return self._resolve_lines(address)
@@ -419,7 +490,7 @@ class DryRunTransport(Transport):
                 taker_gets=gets_str,
             )
         )
-        self._owner_count += 1
+        self._inc_owner(wallet_address)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -450,7 +521,7 @@ class DryRunTransport(Transport):
         before = len(addr_offers)
         addr_offers = [o for o in addr_offers if o.sequence != offer_sequence]
         if len(addr_offers) < before:
-            self._owner_count = max(0, self._owner_count - 1)
+            self._dec_owner(wallet_address)
         self._offers[wallet_address] = addr_offers
         return SubmitResult(
             success=True,
@@ -482,10 +553,20 @@ class DryRunTransport(Transport):
             balance_drops = "1000000000"
         else:
             balance_drops = "0"
+        # Owner count is per-account (TRANSPORT-A-002). Return this address's
+        # tracked count when it has one; otherwise fall back to the dry-run
+        # wallet's count via the ``_owner_count`` global alias. The fallback
+        # preserves the long-standing dry-run idiom where an object is created
+        # under a seed (collapsed to _DRY_RUN_WALLET_ADDRESS) and the count is
+        # then queried for an arbitrary display address.
+        if address in self._owner_counts:
+            owner_count = self._owner_counts[address]
+        else:
+            owner_count = self._owner_count
         return AccountSnapshot(
             address=address,
             balance_drops=balance_drops,
-            owner_count=self._owner_count,
+            owner_count=owner_count,
             sequence=42,
         )
 
@@ -633,7 +714,7 @@ class DryRunTransport(Transport):
         creator_address = _address_from_seed(wallet_seed)
         self._lp_balances.setdefault(creator_address, {})[lp_key] = initial_lp
 
-        self._owner_count += 1  # AMM position
+        self._inc_owner(creator_address)  # AMM position
 
         return SubmitResult(
             success=True,
@@ -877,6 +958,7 @@ class DryRunTransport(Transport):
         taxon: int = 0,
         transfer_fee: int = 0,
         transferable: bool = True,
+        mutable: bool = False,
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -887,11 +969,27 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: invalid NFTokenMint",
             )
 
+        # XRPL parity: a non-zero TransferFee (royalty) requires tfTransferable
+        # — the ledger rejects a royalty on a non-transferable NFT with
+        # temBAD_NFTOKEN_TRANSFER_FEE.
+        if transfer_fee and not transferable:
+            return SubmitResult(
+                success=False,
+                result_code="temBAD_NFTOKEN_TRANSFER_FEE",
+                fee="12",
+                error=(
+                    "[dry-run] TransferFee (royalty) requires the NFT to be "
+                    "transferable — set transferable=true."
+                ),
+            )
+
         owner = _address_from_seed(wallet_seed)
         txid = self._next_txid()
         nft_id = hashlib.sha256(
             f"{owner}-{uri}-{taxon}-{self._counter}".encode()
         ).hexdigest().upper()[:64]
+        # flags: tfTransferable=0x8, tfMutable=0x10 (XLS-46)
+        flags = (0x8 if transferable else 0) | (0x10 if mutable else 0)
         owned = self._nfts.setdefault(owner, [])
         owned.append(
             NFTInfo(
@@ -899,12 +997,12 @@ class DryRunTransport(Transport):
                 issuer=owner,
                 taxon=taxon,
                 uri=uri,
-                flags=0x8 if transferable else 0,
+                flags=flags,
                 transfer_fee=transfer_fee,
                 serial=len(owned) + 1,
             )
         )
-        self._owner_count += 1
+        self._inc_owner(owner)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -913,6 +1011,54 @@ class DryRunTransport(Transport):
             ledger_index=99999999,
             explorer_url="",  # dry-run tx is simulated — no public explorer
             nft_id=nft_id,
+        )
+
+    async def submit_nft_burn(
+        self,
+        wallet_seed: str,
+        nftoken_id: str,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Simulated failure: NFTokenBurn",
+            )
+        owner = _address_from_seed(wallet_seed)
+        # Find the NFT in the owner's bucket (with legacy / single-wallet
+        # fallbacks, same resolution get_account_nfts uses).
+        target_bucket = None
+        target = None
+        candidates = []
+        if owner in self._nfts:
+            candidates.append(owner)
+        candidates.append(_PerAddressStore._LEGACY_KEY)
+        real = {k: v for k, v in self._nfts.items()
+                if k != _PerAddressStore._LEGACY_KEY}
+        if owner not in self._nfts and len(real) == 1:
+            candidates.append(next(iter(real.keys())))
+        for key in candidates:
+            bucket = self._nfts.get(key, [])
+            for n in bucket:
+                if n.nft_id == nftoken_id:
+                    target_bucket = bucket
+                    target = n
+                    break
+            if target is not None:
+                break
+        if target is None:
+            # No such NFT — mirror testnet's tecNO_ENTRY for a burn of an
+            # NFTokenID the account does not own.
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error=("[dry-run] No NFToken found with that NFTokenID — it does "
+                       "not exist or you do not own it."),
+            )
+        target_bucket.remove(target)
+        self._dec_owner(owner)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS", fee="12",
+            ledger_index=99999999, explorer_url="",
         )
 
     async def get_account_nfts(self, address: str) -> list[NFTInfo]:
@@ -926,6 +1072,350 @@ class DryRunTransport(Transport):
         if len(real) == 1:
             return list(next(iter(real.values())))
         return []
+
+    def _find_nft_bucket(self, nftoken_id: str) -> tuple[list | None, NFTInfo | None]:
+        """Locate (bucket, NFTInfo) holding *nftoken_id* across all owner buckets."""
+        for key in list(self._nfts.keys()):
+            bucket = dict.__getitem__(self._nfts, key)
+            for n in bucket:
+                if n.nft_id == nftoken_id:
+                    return bucket, n
+        return None, None
+
+    async def submit_nft_create_offer(
+        self,
+        wallet_seed: str,
+        nftoken_id: str,
+        amount: str,
+        sell: bool = True,
+        destination: str = "",
+        owner: str = "",
+        currency: str = "XRP",
+        issuer: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Simulated failure: NFTokenCreateOffer",
+            )
+
+        # A sell offer requires the seller to actually own the NFT.
+        if sell:
+            _bucket, nft = self._find_nft_bucket(nftoken_id)
+            if nft is None:
+                return SubmitResult(
+                    success=False, result_code="tecNO_ENTRY", fee="12",
+                    error=(
+                        "[dry-run] Cannot list a sell offer — you do not own "
+                        f"NFToken {nftoken_id[:16]}..."
+                    ),
+                )
+            offer_owner = owner or _address_from_seed(wallet_seed)
+        else:
+            offer_owner = owner or _address_from_seed(wallet_seed)
+
+        self._nft_offer_seq += 1
+        # Deterministic offer index (parity stand-in for the ledger object id).
+        offer_index = hashlib.sha256(
+            f"offer-{nftoken_id}-{self._nft_offer_seq}".encode()
+        ).hexdigest().upper()[:64]
+        # Display string for the price, matching testnet _format_amount shape.
+        amount_disp = (
+            amount if currency == "XRP"
+            else f"{amount}/{currency}/{issuer[:12]}"
+        )
+        self._nft_offers[offer_index] = {
+            "nft_id": nftoken_id,
+            "amount": amount,
+            "amount_disp": amount_disp,
+            "owner": offer_owner,
+            "destination": destination,
+            "is_sell": sell,
+            "currency": currency,
+            "issuer": issuer,
+        }
+        self._inc_owner(offer_owner)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+            nft_offer_index=offer_index,
+        )
+
+    async def get_nft_offers(
+        self,
+        nftoken_id: str,
+        sell: bool = True,
+    ) -> list[NFTOfferInfo]:
+        out: list[NFTOfferInfo] = []
+        for idx, o in self._nft_offers.items():
+            if o["nft_id"] != nftoken_id or o["is_sell"] != sell:
+                continue
+            out.append(NFTOfferInfo(
+                offer_index=idx,
+                nft_id=o["nft_id"],
+                amount=o.get("amount_disp", o["amount"]),
+                owner=o["owner"],
+                destination=o.get("destination", ""),
+                is_sell=o["is_sell"],
+            ))
+        return out
+
+    async def submit_nft_accept_offer(
+        self,
+        wallet_seed: str,
+        sell_offer: str = "",
+        buy_offer: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Simulated failure: NFTokenAcceptOffer",
+            )
+
+        offer_index = sell_offer or buy_offer
+        if not offer_index:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error="[dry-run] NFTokenAcceptOffer requires a sell_offer or buy_offer index.",
+            )
+        offer = self._nft_offers.get(offer_index)
+        if offer is None:
+            # Mirror testnet's engine result for accepting a nonexistent offer.
+            return SubmitResult(
+                success=False, result_code="tecOBJECT_NOT_FOUND", fee="12",
+                error=(
+                    "[dry-run] No such NFTokenOffer — it does not exist, or it "
+                    "was already accepted/cancelled."
+                ),
+            )
+
+        nft_id = offer["nft_id"]
+        bucket, nft = self._find_nft_bucket(nft_id)
+        if nft is None or bucket is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error=f"[dry-run] NFToken {nft_id[:16]}... no longer exists.",
+            )
+
+        acceptor = _address_from_seed(wallet_seed)
+        seller = offer["owner"] if offer["is_sell"] else None
+        # For a sell offer: the acceptor (buyer) receives the NFT from the seller.
+        # For a buy offer: the acceptor (owner) sends the NFT to the buyer.
+        #
+        # Dry-run nuance: every seed collapses to one address via
+        # _address_from_seed, so a directed offer's ``destination`` (the
+        # intended buyer/seller — a real distinct wallet the marketplace module
+        # creates) is the reliable counterparty identity. We prefer it when set,
+        # falling back to the collapsed acceptor for untargeted offers. On
+        # testnet the real tx signer is the counterparty, so behavior matches.
+        directed = offer.get("destination", "")
+        if offer["is_sell"]:
+            buyer = directed or acceptor
+            new_owner = buyer
+            price_payer = buyer
+        else:
+            buyer = offer["owner"]
+            new_owner = buyer
+            price_payer = buyer
+            seller = directed or acceptor
+
+        # ── Royalty (TransferFee) split — Decimal-exact ──────────────────
+        # TransferFee is in 0.001% steps (e.g. 5000 = 5.000%). The issuer earns
+        # royalty = price * (transfer_fee / 100000); seller nets the remainder.
+        #
+        # XLS-20 rule (load-bearing): the TransferFee is charged ONLY when the
+        # seller is NOT the issuer. The FIRST sale (issuer -> buyer) pays no
+        # royalty; the fee is enforced on every SECONDARY sale (resale). The
+        # marketplace module is therefore built as a resale so the royalty is
+        # observably non-zero.
+        price = Decimal(offer["amount"])
+        fee_units = Decimal(nft.transfer_fee or 0)
+        seller_is_issuer = bool(seller) and seller == nft.issuer
+        royalty = (
+            Decimal("0") if seller_is_issuer
+            else price * fee_units / Decimal("100000")
+        )
+        # Quantize royalty to drops (6 dp) for XRP, exact otherwise. The
+        # seller's net (price - royalty) is computed below in drops at the
+        # settlement site so the integer-drop math is the single source of truth.
+        if offer.get("currency", "XRP") == "XRP":
+            _q = Decimal("0.000001")
+            royalty = royalty.quantize(_q, rounding=ROUND_HALF_UP)
+
+        # Move the NFT to the new owner's bucket.
+        bucket.remove(nft)
+        # Decrement the previous holder's owner-count, increment the new one.
+        # The previous holder is the issuer's collapsed bucket key — best effort.
+        self._nfts.setdefault(new_owner, []).append(nft)
+        self._inc_owner(new_owner)
+        # The seller no longer holds it; in the collapsed dry-run model the
+        # previous bucket key is the seller, so decrement there.
+        if seller:
+            self._dec_owner(seller)
+
+        # Settle XRP balances for the parity-observable money movement (only
+        # meaningful for XRP-priced offers; issued-currency settlement is left
+        # to trust-line balances which the marketplace module doesn't read).
+        if offer.get("currency", "XRP") == "XRP":
+            payer_drops = int(price * Decimal("1000000"))
+            royalty_drops = int(royalty * Decimal("1000000"))
+            seller_drops = payer_drops - royalty_drops
+            issuer_addr = nft.issuer
+            self._balances[price_payer] = self._balances.get(price_payer, 0) - payer_drops
+            if seller:
+                self._balances[seller] = self._balances.get(seller, 0) + seller_drops
+            self._balances[issuer_addr] = self._balances.get(issuer_addr, 0) + royalty_drops
+
+        # Consume the accepted offer (and clean up the offer's owner-count).
+        del self._nft_offers[offer_index]
+        self._dec_owner(offer["owner"])
+
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def submit_nft_modify(
+        self,
+        wallet_seed: str,
+        nftoken_id: str,
+        uri: str,
+        owner: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Simulated failure: NFTokenModify",
+            )
+
+        _bucket, nft = self._find_nft_bucket(nftoken_id)
+        if nft is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error=(
+                    f"[dry-run] No NFToken {nftoken_id[:16]}... found — it does "
+                    "not exist or you do not own it."
+                ),
+            )
+        # tfMutable is flag 0x10 (XLS-46). Modifying a non-mutable NFT fails.
+        if not (nft.flags & 0x10):
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    "[dry-run] NFToken is not mutable — it was minted without "
+                    "tfMutable, so its URI can never change. Mint with "
+                    "mutable=true to allow leveling/evolving."
+                ),
+            )
+        # Mutate the URI in place; the NFTokenID is unchanged (same asset).
+        nft.uri = uri
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    # ── Clawback methods ─────────────────────────────────────────────
+
+    async def submit_account_set_clawback(
+        self,
+        wallet_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecOWNERS", fee="12",
+                error="[dry-run] Simulated failure: AccountSet clawback",
+            )
+        # Key the flag by the issuer's REAL address when supplied. Every dry-run
+        # seed collapses to one synthetic address, so without the real address
+        # we could not tell a clawback-enabled issuer apart from a second issuer
+        # that never opted in (the failure-case module needs exactly that
+        # distinction). Fall back to the collapsed seed-address otherwise.
+        issuer = issuer_address or _address_from_seed(wallet_seed)
+        self._clawback_enabled.add(issuer)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def submit_clawback(
+        self,
+        issuer_seed: str,
+        holder_address: str,
+        currency: str,
+        amount: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Simulated failure: Clawback",
+            )
+
+        # Find the HOLDER's trust line for this currency. When the issuer's real
+        # address is known we match on it; otherwise (collapsed-seed unit tests)
+        # we match by currency alone and treat the line's peer as the issuer.
+        matching_tl = None
+        for tl in self._live_lines_for(holder_address):
+            if tl.currency != currency:
+                continue
+            if issuer_address and tl.peer != issuer_address:
+                continue
+            matching_tl = tl
+            break
+        if matching_tl is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_LINE", fee="12",
+                error=(
+                    f"[dry-run] No {currency} trust line from holder "
+                    f"{holder_address[:12]}... to this issuer — nothing to claw back."
+                ),
+            )
+
+        # The authoritative issuer identity is the real address when supplied,
+        # else the line's peer (which carries the real issuer on every path).
+        issuer = issuer_address or matching_tl.peer or _address_from_seed(issuer_seed)
+        # Clawback requires asfAllowTrustLineClawback to have been set first.
+        # Accept either the real-address key or the collapsed seed-address key
+        # (the latter for unit tests that enable via seed without a real addr).
+        if (
+            issuer not in self._clawback_enabled
+            and _address_from_seed(issuer_seed) not in self._clawback_enabled
+        ):
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    "[dry-run] Clawback refused — the issuer never enabled "
+                    "asfAllowTrustLineClawback (AccountSet) before issuing. "
+                    "That flag must be set on a fresh issuer before any tokens "
+                    "are issued; it cannot be enabled retroactively."
+                ),
+            )
+
+        try:
+            have = Decimal(matching_tl.balance)
+            claw = Decimal(amount)
+        except Exception:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid clawback amount: {amount}",
+            )
+        # XRPL clamps a clawback to the holder's balance (you can't claw more
+        # than they hold). Debit exactly min(amount, balance).
+        clawed = claw if claw <= have else have
+        new_balance = have - clawed
+        matching_tl.balance = (
+            str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
+        )
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
 
     # ── Escrow / DID / MPT methods ───────────────────────────────────
 
@@ -942,6 +1432,17 @@ class DryRunTransport(Transport):
             return list(next(iter(real.values())))
         return []
 
+    def set_dry_clock(self, ripple_time: int) -> None:
+        """Set the deterministic clock used to gate EscrowFinish/EscrowCancel.
+
+        ``ripple_time`` is ripple-epoch seconds (same units as FinishAfter /
+        CancelAfter). Tests set this BEFORE a FinishAfter to exercise the
+        not-yet-finishable error path, or BEFORE a CancelAfter to exercise the
+        not-yet-cancellable path. The default (far future) makes a fresh escrow
+        immediately finishable/cancellable so the happy path is deterministic.
+        """
+        self._dry_clock = int(ripple_time)
+
     async def submit_escrow_create(
         self,
         wallet_seed: str,
@@ -956,16 +1457,116 @@ class DryRunTransport(Transport):
                                 error="[dry-run] Simulated failure: escrow create")
         owner = _address_from_seed(wallet_seed)
         txid = self._next_txid()
+        seq = 1000 + self._counter
         self._escrows.setdefault(owner, []).append(
-            EscrowInfo(sequence=1000 + self._counter, amount=amount, destination=destination,
+            EscrowInfo(sequence=seq, amount=amount, destination=destination,
                        finish_after=finish_after, cancel_after=cancel_after)
         )
-        self._owner_count += 1
+        self._inc_owner(owner)
+        # Mirror testnet: return the create sequence as the SubmitResult.fee?
+        # No — fee is a string of drops. Expose the create-sequence via
+        # result_code? No. The contract is that get_escrows() carries it in
+        # EscrowInfo.sequence; callers read it from there (parity with testnet,
+        # where the sequence is derived from the Escrow's create tx, not the
+        # submit response). Keep SubmitResult shape identical to testnet.
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="")
 
     async def get_escrows(self, address: str) -> list[EscrowInfo]:
         return self._resolve(self._escrows, address)
+
+    def _find_escrow(self, owner: str, offer_sequence: int) -> EscrowInfo | None:
+        """Locate the live EscrowInfo for *owner* + create-sequence, or None."""
+        for e in self._resolve(self._escrows, owner):
+            if e.sequence == offer_sequence:
+                return e
+        return None
+
+    def _remove_escrow(self, owner: str, escrow: EscrowInfo) -> None:
+        """Remove *escrow* from the owner's live bucket and free its reserve."""
+        # _resolve may return the legacy or single-wallet fallback bucket, so
+        # mutate whichever real list actually contains this object.
+        for key in list(self._escrows.keys()):
+            bucket = dict.__getitem__(self._escrows, key)
+            if escrow in bucket:
+                bucket.remove(escrow)
+                break
+        # Owner-reserve is tracked under the derived dry-run address (every
+        # seed collapses to it), matching where submit_escrow_create incremented.
+        self._dec_owner(owner)
+
+    async def submit_escrow_finish(
+        self,
+        wallet_seed: str,
+        owner: str,
+        offer_sequence: int,
+        condition: str = "",
+        fulfillment: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
+                                error="[dry-run] Simulated failure: escrow finish")
+        target = self._find_escrow(owner, offer_sequence)
+        if target is None:
+            # No such escrow (wrong sequence / already finished / nonexistent).
+            # Mirror testnet's engine result for a missing Escrow ledger entry.
+            return SubmitResult(success=False, result_code="tecNO_TARGET", fee="12",
+                                error=("[dry-run] No escrow found for owner+sequence "
+                                       f"{offer_sequence} — wrong OfferSequence, or it "
+                                       "was already finished/cancelled."))
+        # Time gate: EscrowFinish can only succeed at/after FinishAfter.
+        if target.finish_after is not None and self._dry_clock < target.finish_after:
+            return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
+                                error=("[dry-run] EscrowFinish before FinishAfter — the "
+                                       "release time has not elapsed yet."))
+        txid = self._next_txid()
+        # Release the locked XRP to the destination, then remove the object.
+        # target.amount is the XRP value the create handler passed (e.g. "10").
+        # Credit the destination so the lifecycle test can observe the release.
+        try:
+            drops = int(Decimal(target.amount) * Decimal("1000000"))
+        except Exception:
+            drops = 0
+        if target.destination:
+            self._balances[target.destination] = (
+                self._balances.get(target.destination, 0) + drops
+            )
+        self._remove_escrow(owner, target)
+        return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="")
+
+    async def submit_escrow_cancel(
+        self,
+        wallet_seed: str,
+        owner: str,
+        offer_sequence: int,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
+                                error="[dry-run] Simulated failure: escrow cancel")
+        target = self._find_escrow(owner, offer_sequence)
+        if target is None:
+            return SubmitResult(success=False, result_code="tecNO_TARGET", fee="12",
+                                error=("[dry-run] No escrow found for owner+sequence "
+                                       f"{offer_sequence} — wrong OfferSequence, or it "
+                                       "was already finished/cancelled."))
+        # Time gate: EscrowCancel can only succeed at/after CancelAfter.
+        if target.cancel_after is not None and self._dry_clock < target.cancel_after:
+            return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
+                                error=("[dry-run] EscrowCancel before CancelAfter — the "
+                                       "cancel time has not elapsed yet."))
+        txid = self._next_txid()
+        # Cancel returns the locked XRP to the OWNER (reclaim path), then removes.
+        try:
+            drops = int(Decimal(target.amount) * Decimal("1000000"))
+        except Exception:
+            drops = 0
+        self._balances[owner] = self._balances.get(owner, 0) + drops
+        self._remove_escrow(owner, target)
+        return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="")
 
     async def submit_did_set(self, wallet_seed: str, uri: str = "", data: str = "") -> SubmitResult:
         if self._fail_next:
@@ -974,8 +1575,31 @@ class DryRunTransport(Transport):
                                 error="[dry-run] Simulated failure: DID set")
         owner = _address_from_seed(wallet_seed)
         if owner not in self._dids:
-            self._owner_count += 1
+            self._inc_owner(owner)
         self._dids[owner] = DIDInfo(account=owner, uri=uri, data=data)
+        return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                            fee="12", ledger_index=99999999, explorer_url="")
+
+    async def submit_did_delete(self, wallet_seed: str) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
+                                error="[dry-run] Simulated failure: DID delete")
+        owner = _address_from_seed(wallet_seed)
+        # Resolve the DID under the owner, with the single-DID fallback that
+        # get_did uses (dry-run seeds collapse to one address).
+        key = None
+        if owner in self._dids:
+            key = owner
+        elif len(self._dids) == 1:
+            key = next(iter(self._dids.keys()))
+        if key is None:
+            # Nothing to delete — mirror testnet's tecNO_ENTRY for DIDDelete
+            # on an account that has no DID object.
+            return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
+                                error="[dry-run] No DID to delete for this account.")
+        del self._dids[key]
+        self._dec_owner(key)
         return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
                             fee="12", ledger_index=99999999, explorer_url="")
 
@@ -1005,7 +1629,7 @@ class DryRunTransport(Transport):
             MPTIssuanceInfo(issuance_id=iid, maximum_amount=maximum_amount, asset_scale=asset_scale,
                             transfer_fee=transfer_fee, flags=0x20 if can_transfer else 0)
         )
-        self._owner_count += 1
+        self._inc_owner(owner)
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="")
 

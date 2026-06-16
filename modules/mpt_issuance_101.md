@@ -2,6 +2,7 @@
 id: mpt_issuance_101
 title: "MPT Issuance 101: A Game Currency in One Transaction"
 track: tokens
+kb_source: mpt-issuance-create-config
 summary: Issue a Multi-Purpose Token (XLS-33) as a game currency and verify it on-ledger.
 order: 30
 time: 15-20 min
@@ -19,7 +20,9 @@ checks:
 A **Multi-Purpose Token (MPT, XLS-33)** is the modern way to issue a fungible token on the
 XRPL — perfect for an in-game soft currency. Unlike trust-line IOUs, MPTs need **no trust line
 per holder**, carry native metadata, and define their entire policy — supply cap, decimal scale,
-transfer fee, and capability flags — in a **single `MPTokenIssuanceCreate` transaction**.
+an optional transfer fee, and capability flags — in a **single `MPTokenIssuanceCreate` transaction**.
+This lesson sets a supply cap, scale, and the transferable flag, and leaves the transfer fee at
+zero — you can add one later by passing `transfer_fee` to the issuance step.
 
 This runs on testnet — free and disposable.
 
@@ -53,7 +56,7 @@ maximum supply, and that it is transferable.
 
 You issued a native fungible token in one transaction and verified it on-ledger:
 
-1. **MPTokenIssuanceCreate** — defined supply cap, scale, fee, and flags in a single tx
+1. **MPTokenIssuanceCreate** — defined supply cap, scale, and flags in a single tx (transfer fee left at zero)
 2. **No trust lines** — holders opt in with one `MPTokenAuthorize`, not a per-token trust line
 3. **Verified** — `account_objects` shows the issuance you control
 

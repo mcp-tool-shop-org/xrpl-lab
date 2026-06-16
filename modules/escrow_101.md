@@ -2,6 +2,7 @@
 id: escrow_101
 title: "Escrow 101: Time-Locked XRP"
 track: payments
+kb_source: escrow-xrp
 summary: Lock XRP in a time-based escrow and verify it on-ledger.
 order: 40
 time: 15-20 min

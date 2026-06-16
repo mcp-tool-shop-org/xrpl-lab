@@ -29,6 +29,39 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 
+# COREBCD-001: actions that are registered but are NOT report-worthy — wallet
+# setup, faucet funding, and the completion-time report sink. Everything else
+# in the registry produces a transaction, verifies on-ledger state, or takes a
+# snapshot/audit the learner should see in the written report. Gating on this
+# small exclusion set (rather than a hardcoded allow-list) means every NEW
+# tx/verify action — incl. the v1.8.0 nfts/tokens/payments/identity actions —
+# is collected automatically and can never silently vanish from the report.
+_NON_REPORT_ACTIONS = frozenset({
+    "ensure_wallet",
+    "ensure_funded",
+    "create_issuer_wallet",
+    "fund_issuer",
+    "write_report",
+})
+
+
+def _is_reportable_action(action: str | None) -> bool:
+    """True if a step's *action* should contribute a section to the report.
+
+    Registry-derived single source (COREBCD-001): an action is reportable if
+    it is registered AND not one of the setup/no-output actions. The previous
+    hardcoded tuple drifted behind the registry and silently dropped the eight
+    v1.8.0 actions (mint_nft / verify_nft / create_escrow / verify_escrow /
+    set_did / verify_did / create_mpt_issuance / verify_mpt_issuance) from the
+    written module report even though their txids were saved to state.
+    """
+    if not action:
+        return False
+    from .registry import is_registered
+
+    return is_registered(action) and action not in _NON_REPORT_ACTIONS
+
+
 def _snapshot_context(context: dict) -> dict:
     """Deep-copy ``context`` for step rollback (F-BACKEND-B-004).
 
@@ -334,25 +367,11 @@ async def run_module(
                 console.print("\n[yellow]Module interrupted.[/]")
                 return False
 
-        # Collect report material
-        if step.action in (
-            "submit_payment", "submit_payment_fail", "verify_tx",
-            "set_trust_line", "issue_token", "issue_token_expect_fail",
-            "verify_trust_line",
-            "create_offer", "cancel_offer",
-            "verify_offer_present", "verify_offer_absent",
-            "snapshot_account", "verify_reserve_change",
-            "remove_trust_line", "verify_trust_line_removed",
-            "run_audit",
-            "ensure_amm_pair", "get_amm_info",
-            "amm_deposit", "verify_lp_received",
-            "amm_withdraw", "verify_withdrawal",
-            "snapshot_position", "verify_position_delta",
-            "strategy_offer_bid", "strategy_offer_ask",
-            "verify_module_offers", "cancel_module_offers",
-            "verify_module_offers_absent", "hygiene_summary",
-            "check_inventory", "place_safe_sides",
-        ):
+        # Collect report material. COREBCD-001: registry-derived predicate —
+        # any registered tx-producing / verify / snapshot / audit action is
+        # collected, so new actions (incl. the v1.8.0 NFT/escrow/DID/MPT ones)
+        # appear in the report without re-listing them here.
+        if _is_reportable_action(step.action):
             # FT-006: include action outcome in the report body
             step_heading = step.text.split("\n")[0][:100]
             outcome_lines: list[str] = [f"Action: `{step.action}`"]

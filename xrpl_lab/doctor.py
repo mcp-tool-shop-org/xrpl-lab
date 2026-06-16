@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import time
@@ -11,6 +12,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from .state import get_home_dir, get_workspace_dir, load_state, state_path
+
+logger = logging.getLogger(__name__)
 
 # Maximum lines retained in the clinic-friendly doctor.log (last-N tail).
 _DOCTOR_LOG_MAX_LINES = 100
@@ -135,7 +138,19 @@ async def _check_rpc() -> Check:
             "The testnet RPC may be down. Try again later or set XRPL_LAB_RPC_URL",
         )
     except Exception as exc:
-        return Check("RPC endpoint", False, str(exc), "Check XRPL_LAB_RPC_URL")
+        # COREBCD-002: str(exc) on a connection/proxy error commonly embeds the
+        # endpoint URL (and any configured proxy), which lands in the
+        # facilitator-shared support bundle / feedback markdown. Mirror the
+        # humanized TimeoutError branch: a path-free detail (exception TYPE
+        # only) + the actionable hint, with the full detail logged at WARNING
+        # to the package logger for the operator.
+        logger.warning("doctor _check_rpc failed: %s", exc)
+        return Check(
+            "RPC endpoint",
+            False,
+            f"Could not reach the RPC endpoint ({type(exc).__name__})",
+            "Check your internet connection or set XRPL_LAB_RPC_URL",
+        )
 
 
 async def _check_faucet() -> Check:
@@ -159,7 +174,16 @@ async def _check_faucet() -> Check:
             "The faucet may be down. Try again later or set XRPL_LAB_FAUCET_URL",
         )
     except Exception as exc:
-        return Check("Faucet", False, str(exc), "Check XRPL_LAB_FAUCET_URL")
+        # COREBCD-002: same endpoint/proxy-leak risk as _check_rpc — str(exc)
+        # on an httpx connect error embeds the faucet URL. Path-free detail +
+        # actionable hint to the facilitator; full detail to the WARNING log.
+        logger.warning("doctor _check_faucet failed: %s", exc)
+        return Check(
+            "Faucet",
+            False,
+            f"Could not reach the faucet ({type(exc).__name__})",
+            "The faucet may be down. Try again later or set XRPL_LAB_FAUCET_URL",
+        )
 
 
 def _check_env_overrides() -> Check:

@@ -77,7 +77,7 @@ class LabState(BaseModel):
     :func:`get_home_dir` before use.
     """
 
-    version: str = "1.7.1"
+    version: str = __version__
     network: str = DEFAULT_NETWORK
     wallet_path: str | None = None
     wallet_address: str | None = None
@@ -213,23 +213,34 @@ def load_state() -> LabState:
                     file=sys.stderr,
                 )
             return LabState.model_validate(data)
-        except (json.JSONDecodeError, ValueError, ValidationError):
-            # Corrupted state — back up to a versioned name so we never clobber
-            # a previous last-good .bak with the corrupt current. The atomic
-            # write path in save_state means an existing state.json.bak from
-            # any earlier run is the most recent intact snapshot we have, and
-            # corrupt-recovery should preserve, not overwrite, that file.
+        except (json.JSONDecodeError, ValueError, ValidationError, OSError) as exc:
+            # Unreadable / corrupted state — recover to a fresh LabState so a
+            # single bad (or locked-down) state.json never crashes the CLI.
+            #
+            # CORE-A-003: read_text() can raise OSError/PermissionError on a
+            # shared/locked-down machine. Catching it here (alongside the
+            # parse/validation errors) keeps a raw traceback — which prints
+            # the absolute state.json path + OS username — from escaping.
+            #
+            # The user-facing warning surfaces only the exception TYPE name,
+            # never str(exc) (which carries the absolute path on OSError) and
+            # never the backup path. This mirrors runner.py's recovery-save
+            # discipline: type name to the user, full detail to logs only.
             ts = int(time.time())
             bak = p.with_suffix(f'.json.corrupted.{ts}')
             try:
                 shutil.copy2(p, bak)
                 print(
-                    f"Warning: state file was corrupted, backup saved to {bak}",
+                    "Warning: state file could not be read "
+                    f"({type(exc).__name__}); a backup was saved and a fresh "
+                    "state was started. Run 'xrpl-lab doctor' to diagnose.",
                     file=sys.stderr,
                 )
             except OSError as bak_err:
                 print(
-                    f"Warning: state file was corrupted and backup failed: {bak_err}",
+                    "Warning: state file could not be read "
+                    f"({type(exc).__name__}) and the backup also failed "
+                    f"({type(bak_err).__name__}); a fresh state was started.",
                     file=sys.stderr,
                 )
             return LabState()

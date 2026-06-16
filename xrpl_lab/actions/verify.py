@@ -29,6 +29,26 @@ async def verify_tx(
     checks: list[str] = []
     failures: list[str] = []
 
+    # TXBCD-002: a READ-BACK failure (timeout / network / RPC error) is NOT a
+    # transaction failure. When fetch_tx couldn't reach the ledger it sets the
+    # distinct ``fetch_error`` field (NOT result_code), so we must NOT compare
+    # result_code against tesSUCCESS — doing so would report a tx that actually
+    # SUCCEEDED on-ledger as a verification FAILURE merely because the
+    # verification read-back timed out. Surface a distinct, non-failure-
+    # attributing message and return early without populating any failure that
+    # blames the transaction.
+    if tx.fetch_error:
+        return VerifyResult(
+            passed=False,
+            tx_info=tx,
+            checks=[],
+            failures=[
+                "Couldn't fetch the transaction to verify (network issue) — "
+                "it may still have succeeded on-ledger; retry verification. "
+                f"(details: {tx.fetch_error})"
+            ],
+        )
+
     # Check result code
     if expected_success:
         if tx.result_code == "tesSUCCESS":
