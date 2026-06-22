@@ -9,6 +9,7 @@ from decimal import ROUND_HALF_UP, Decimal, getcontext
 from .base import (
     AccountSnapshot,
     AmmInfo,
+    ChannelInfo,
     DIDInfo,
     EscrowInfo,
     FreezeStatus,
@@ -127,6 +128,8 @@ class DryRunTransport(Transport):
         # both keyed (holder, issuance_id).
         self._mpt_auths: set[tuple[str, str]] = set()
         self._mpt_balances: dict[tuple[str, str], Decimal] = {}
+        # Payment-channel state (FT-CURRIC-001): channel_id -> channel dict.
+        self._channels: dict[str, dict] = {}
         # Escrow / DID / MPT state
         self._escrows: _PerAddressStore = _PerAddressStore()
         self._mpts: _PerAddressStore = _PerAddressStore()
@@ -1802,3 +1805,145 @@ class DryRunTransport(Transport):
         bal = self._mpt_balances.get((holder, issuance_id), Decimal(0))
         bal = Decimal(str(bal))
         return str(int(bal)) if bal == int(bal) else str(bal)
+
+    # ── Payment-channel methods (FT-CURRIC-001) ──────────────────────
+
+    @staticmethod
+    def _dry_claim_sig(channel_id: str, drops: int) -> str:
+        # Deterministic simulated off-ledger claim signature (the dry-run seeds
+        # are not real XRPL keys, so we can't do real crypto — the testnet
+        # transport does). verify recomputes the same value.
+        return "DRYSIG" + hashlib.sha256(
+            f"{channel_id}:{drops}".encode()
+        ).hexdigest().upper()
+
+    async def submit_payment_channel_create(
+        self, wallet_seed: str, amount_xrp: str, destination: str,
+        settle_delay: int, public_key: str, cancel_after: int | None = None,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecUNFUNDED", fee="12",
+                error="[dry-run] Simulated failure: PaymentChannelCreate",
+            )
+        try:
+            drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        except Exception:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid channel amount: {amount_xrp}",
+            )
+        source = _address_from_seed(wallet_seed)
+        cid = hashlib.sha256(
+            f"{source}-chan-{self._counter}".encode()
+        ).hexdigest().upper()
+        self._channels[cid] = {
+            "amount": drops, "claimed": 0, "source": source,
+            "destination": destination, "settle_delay": settle_delay,
+            "public_key": public_key, "cancel_after": cancel_after,
+        }
+        self._inc_owner(source)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="", channel_id=cid,
+        )
+
+    async def submit_payment_channel_fund(
+        self, wallet_seed: str, channel_id: str, amount_xrp: str,
+        expiration: int | None = None,
+    ) -> SubmitResult:
+        ch = self._channels.get(channel_id)
+        if ch is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such channel to fund.",
+            )
+        try:
+            ch["amount"] += int(Decimal(amount_xrp) * Decimal("1000000"))
+        except Exception:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid fund amount: {amount_xrp}",
+            )
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def authorize_payment_channel_claim(
+        self, wallet_seed: str, channel_id: str, amount_xrp: str
+    ) -> str:
+        drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        return self._dry_claim_sig(channel_id, drops)
+
+    async def verify_payment_channel_claim(
+        self, channel_id: str, amount_xrp: str, public_key: str, signature: str
+    ) -> bool:
+        drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        return signature == self._dry_claim_sig(channel_id, drops)
+
+    async def submit_payment_channel_claim(
+        self, wallet_seed: str, channel_id: str, balance_xrp: str = "",
+        amount_xrp: str = "", signature: str = "", public_key: str = "",
+        close: bool = False,
+    ) -> SubmitResult:
+        ch = self._channels.get(channel_id)
+        if ch is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such channel to claim.",
+            )
+        if balance_xrp:
+            try:
+                new_claimed = int(Decimal(balance_xrp) * Decimal("1000000"))
+            except Exception:
+                return SubmitResult(
+                    success=False, result_code="temBAD_AMOUNT", fee="12",
+                    error=f"[dry-run] Invalid claim balance: {balance_xrp}",
+                )
+            if new_claimed > ch["amount"]:
+                return SubmitResult(
+                    success=False, result_code="tecUNFUNDED_PAYMENT", fee="12",
+                    error="[dry-run] Claim exceeds the channel's deposited amount.",
+                )
+            # Settle: move the newly-claimed delta to the destination.
+            delta = new_claimed - ch["claimed"]
+            if delta > 0:
+                self._balances[ch["destination"]] = (
+                    self._balances.get(ch["destination"], 0) + delta
+                )
+                ch["claimed"] = new_claimed
+        if close:
+            ch["closed"] = True
+            self._dec_owner(ch["source"])
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def get_account_channels(
+        self, address: str, destination: str = ""
+    ) -> list[ChannelInfo]:
+        out: list[ChannelInfo] = []
+        for cid, ch in self._channels.items():
+            if ch.get("closed"):
+                continue
+            # In dry-run every seed collapses to one address (_address_from_seed),
+            # so a channel's stored source is always the canonical dry-run wallet;
+            # match the requested address against it OR the collapsed address.
+            src = ch.get("source")
+            if src != address and src != _DRY_RUN_WALLET_ADDRESS:
+                continue
+            if destination and ch.get("destination") != destination:
+                continue
+            out.append(ChannelInfo(
+                channel_id=cid,
+                amount=str(ch["amount"]),
+                balance=str(ch["claimed"]),
+                destination=ch["destination"],
+                settle_delay=ch["settle_delay"],
+                public_key=ch["public_key"],
+                cancel_after=ch.get("cancel_after"),
+            ))
+        return out

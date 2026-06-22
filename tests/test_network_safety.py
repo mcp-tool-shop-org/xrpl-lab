@@ -169,6 +169,15 @@ _MAINNET_REFUSAL_CALLS = {
     "submit_mpt_payment": (
         lambda t: t.submit_mpt_payment("sEdSEED", "rHOLDER", "0" * 48, "100")
     ),
+    "submit_payment_channel_create": (
+        lambda t: t.submit_payment_channel_create("sEdSEED", "10", "rDEST", 86400, "EDPUBKEY")
+    ),
+    "submit_payment_channel_fund": (
+        lambda t: t.submit_payment_channel_fund("sEdSEED", "0" * 64, "5")
+    ),
+    "submit_payment_channel_claim": (
+        lambda t: t.submit_payment_channel_claim("sEdSEED", "0" * 64, balance_xrp="3")
+    ),
     "submit_nft_create_offer": (
         lambda t: t.submit_nft_create_offer("sEdSEED", "00080000ABC", "100")
     ),

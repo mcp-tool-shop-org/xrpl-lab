@@ -14,7 +14,10 @@ from urllib.parse import urlparse
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
 from xrpl.asyncio.transaction import submit_and_wait
+from xrpl.core.binarycodec import encode_for_signing_claim
+from xrpl.core.keypairs import derive_keypair, is_valid_message, sign
 from xrpl.models import (
+    AccountChannels,
     AccountInfo,
     AccountLines,
     AccountNFTs,
@@ -45,6 +48,10 @@ from xrpl.models import (
     OfferCancel,
     OfferCreate,
     Payment,
+    PaymentChannelClaim,
+    PaymentChannelClaimFlag,
+    PaymentChannelCreate,
+    PaymentChannelFund,
     TrustSet,
     TrustSetFlag,
     Tx,
@@ -56,6 +63,7 @@ from xrpl.wallet import Wallet
 from .base import (
     AccountSnapshot,
     AmmInfo,
+    ChannelInfo,
     DIDInfo,
     EscrowInfo,
     FreezeStatus,
@@ -94,6 +102,16 @@ def _extract_mpt_issuance_id(meta: dict) -> str:
                 or fields.get("MPTokenIssuanceID")
                 or created.get("LedgerIndex", "")
             )
+    return ""
+
+
+def _extract_channel_id(meta: dict) -> str:
+    """Pull the new channel id out of a PaymentChannelCreate's meta — the created
+    PayChannel object's ledger index IS the channel id."""
+    for node in meta.get("AffectedNodes", []):
+        created = node.get("CreatedNode", {})
+        if created.get("LedgerEntryType") == "PayChannel":
+            return created.get("LedgerIndex", "")
     return ""
 
 
@@ -1377,6 +1395,130 @@ class XRPLTestnetTransport(Transport):
                 "get_freeze_status failed for issuer %s", issuer_address, exc_info=True
             )
         return FreezeStatus(individual_frozen=individual, global_frozen=glob, found=found)
+
+    # ── Payment-channel methods (FT-CURRIC-001) ──────────────────────
+
+    async def submit_payment_channel_create(
+        self, wallet_seed: str, amount_xrp: str, destination: str,
+        settle_delay: int, public_key: str, cancel_after: int | None = None,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = PaymentChannelCreate(
+                account=wallet.address,
+                amount=xrp_to_drops(Decimal(amount_xrp)),
+                destination=destination,
+                settle_delay=settle_delay,
+                public_key=public_key or wallet.public_key,
+                cancel_after=cancel_after,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(
+            tx, wallet, "PaymentChannelCreate",
+            extract=lambda meta: {"channel_id": _extract_channel_id(meta)},
+        )
+
+    async def submit_payment_channel_fund(
+        self, wallet_seed: str, channel_id: str, amount_xrp: str,
+        expiration: int | None = None,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = PaymentChannelFund(
+                account=wallet.address,
+                channel=channel_id,
+                amount=xrp_to_drops(Decimal(amount_xrp)),
+                expiration=expiration,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "PaymentChannelFund")
+
+    async def submit_payment_channel_claim(
+        self, wallet_seed: str, channel_id: str, balance_xrp: str = "",
+        amount_xrp: str = "", signature: str = "", public_key: str = "",
+        close: bool = False,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            kwargs: dict = {"account": wallet.address, "channel": channel_id}
+            if balance_xrp:
+                kwargs["balance"] = xrp_to_drops(Decimal(balance_xrp))
+            if amount_xrp:
+                kwargs["amount"] = xrp_to_drops(Decimal(amount_xrp))
+            if signature:
+                kwargs["signature"] = signature
+            if public_key:
+                kwargs["public_key"] = public_key
+            if close:
+                kwargs["flags"] = PaymentChannelClaimFlag.TF_CLOSE
+            tx = PaymentChannelClaim(**kwargs)
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "PaymentChannelClaim")
+
+    async def get_account_channels(
+        self, address: str, destination: str = ""
+    ) -> list[ChannelInfo]:
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                req = AccountChannels(
+                    account=address,
+                    destination_account=destination or None,
+                    ledger_index="validated",
+                )
+                resp = await asyncio.wait_for(client.request(req), timeout=RPC_TIMEOUT)
+            out: list[ChannelInfo] = []
+            for ch in resp.result.get("channels", []):
+                out.append(ChannelInfo(
+                    channel_id=ch.get("channel_id", ""),
+                    amount=str(ch.get("amount", "0")),
+                    balance=str(ch.get("balance", "0")),
+                    destination=ch.get("destination_account", ""),
+                    settle_delay=int(ch.get("settle_delay", 0) or 0),
+                    public_key=ch.get("public_key", ""),
+                    expiration=_int_or_none(ch.get("expiration")),
+                    cancel_after=_int_or_none(ch.get("cancel_after")),
+                ))
+            return out
+        except Exception:
+            logger.warning("get_account_channels failed for %s", address, exc_info=True)
+            return []
+
+    async def authorize_payment_channel_claim(
+        self, wallet_seed: str, channel_id: str, amount_xrp: str
+    ) -> str:
+        # Off-ledger: sign the cumulative drops amount with the channel key.
+        drops = str(xrp_to_drops(Decimal(amount_xrp)))
+        blob = encode_for_signing_claim({"channel": channel_id, "amount": drops})
+        priv = derive_keypair(wallet_seed)[1]
+        return sign(bytes.fromhex(blob), priv)
+
+    async def verify_payment_channel_claim(
+        self, channel_id: str, amount_xrp: str, public_key: str, signature: str
+    ) -> bool:
+        drops = str(xrp_to_drops(Decimal(amount_xrp)))
+        blob = encode_for_signing_claim({"channel": channel_id, "amount": drops})
+        try:
+            return is_valid_message(bytes.fromhex(blob), bytes.fromhex(signature), public_key)
+        except Exception:
+            return False
 
     async def _account_objects(self, address: str) -> list[dict]:
         async with _rpc_client(self._rpc_url) as client:

@@ -51,6 +51,7 @@ class SubmitResult:
     nft_id: str = ""  # NFTokenID, set on a successful NFTokenMint
     nft_offer_index: str = ""  # NFTokenOffer ledger index, set on NFTokenCreateOffer
     mpt_issuance_id: str = ""  # MPTokenIssuanceID, set on a successful MPTokenIssuanceCreate
+    channel_id: str = ""  # PayChannel id, set on a successful PaymentChannelCreate
 
 
 @dataclass
@@ -167,6 +168,25 @@ class MPTIssuanceInfo:
     transfer_fee: int = 0
     flags: int = 0
     outstanding_amount: str = "0"
+
+
+@dataclass
+class ChannelInfo:
+    """A Payment Channel owned by an account (XRP-only on mainnet).
+
+    ``amount`` is the total XRP (drops) deposited into the channel;
+    ``balance`` is the cumulative amount (drops) already claimed by the
+    destination. The claimable-but-unclaimed amount is ``amount - balance``.
+    """
+
+    channel_id: str
+    amount: str = "0"  # total deposited, drops
+    balance: str = "0"  # cumulative claimed, drops
+    destination: str = ""
+    settle_delay: int = 0
+    public_key: str = ""
+    expiration: int | None = None
+    cancel_after: int | None = None
 
 
 @dataclass
@@ -653,3 +673,65 @@ class Transport(ABC):
     ) -> FreezeStatus:
         """Read whether the issuer froze the holder's (currency) trust line, and
         whether the issuer has Global Freeze set on its account."""
+
+    @abstractmethod
+    async def submit_payment_channel_create(
+        self,
+        wallet_seed: str,
+        amount_xrp: str,
+        destination: str,
+        settle_delay: int,
+        public_key: str,
+        cancel_after: int | None = None,
+    ) -> SubmitResult:
+        """Open an XRP payment channel (PaymentChannelCreate). Returns SubmitResult
+        with ``channel_id`` set on success. ``public_key`` is the channel's signing
+        key (the sender's wallet public key) used to verify off-ledger claims."""
+
+    @abstractmethod
+    async def submit_payment_channel_fund(
+        self,
+        wallet_seed: str,
+        channel_id: str,
+        amount_xrp: str,
+        expiration: int | None = None,
+    ) -> SubmitResult:
+        """Add XRP to an existing channel (PaymentChannelFund)."""
+
+    @abstractmethod
+    async def submit_payment_channel_claim(
+        self,
+        wallet_seed: str,
+        channel_id: str,
+        balance_xrp: str = "",
+        amount_xrp: str = "",
+        signature: str = "",
+        public_key: str = "",
+        close: bool = False,
+    ) -> SubmitResult:
+        """Settle and/or close a channel (PaymentChannelClaim).
+
+        The destination redeems a signed off-ledger claim by submitting the
+        cumulative ``balance``; the source can also ``close`` the channel.
+        """
+
+    @abstractmethod
+    async def get_account_channels(
+        self, address: str, destination: str = ""
+    ) -> list[ChannelInfo]:
+        """List payment channels the account is the SOURCE of (account_channels)."""
+
+    @abstractmethod
+    async def authorize_payment_channel_claim(
+        self, wallet_seed: str, channel_id: str, amount_xrp: str
+    ) -> str:
+        """Sign an OFF-LEDGER channel claim for a cumulative amount; returns the
+        signature hex. No network — this is the 'sign many, settle once' core of
+        a payment channel. Signs over the drops amount per the protocol."""
+
+    @abstractmethod
+    async def verify_payment_channel_claim(
+        self, channel_id: str, amount_xrp: str, public_key: str, signature: str
+    ) -> bool:
+        """Verify an off-ledger channel claim signature against the channel's
+        public key. No network."""

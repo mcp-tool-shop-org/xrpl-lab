@@ -56,6 +56,14 @@ from .actions.nft import (
     verify_nft_modified,
     verify_nft_owned_by,
 )
+from .actions.paychan import (
+    check_claim,
+    fund_channel,
+    open_channel,
+    redeem_claim,
+    sign_claim,
+    verify_channel,
+)
 from .actions.reserves import (
     _drops_to_xrp,
     compare_snapshots,
@@ -767,6 +775,217 @@ async def handle_verify_freeze(
         console.print(f"  [red]✗[/] {fail}")
 
     context["last_freeze_verify"] = result
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Payment-channel actions (FT-CURRIC-001 — payments track)
+# ---------------------------------------------------------------------------
+
+
+async def handle_create_channel_receiver(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    console.print("  Creating the receiver (merchant) wallet...")
+    receiver = create_wallet()
+    context["receiver_seed"] = _SecretValue(receiver.seed)
+    context["receiver_address"] = receiver.address
+    console.print(f"  Receiver wallet: [cyan]{receiver.address}[/]")
+    console.print("  Funding the receiver from the faucet...")
+    result = await transport.fund_from_faucet(receiver.address)
+    if result.success:
+        console.print(f"  Receiver funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    else:
+        console.print(f"  [yellow]Receiver funding: {result.message}[/]")
+    return context
+
+
+async def handle_open_channel(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    amount = args.get("amount", "10")
+    try:
+        settle_delay = int(args.get("settle_delay", "86400"))
+    except ValueError:
+        settle_delay = 86400
+    receiver = context.get("receiver_address", "")
+    if "wallet_seed" not in context or not receiver:
+        console.print("  [red]Missing sender wallet or receiver. Run previous steps first.[/]")
+        return context
+
+    console.print(f"  Opening a [cyan]{amount} XRP[/] channel to the receiver...")
+    result = await open_channel(
+        transport, context["wallet_seed"].get(), amount, receiver, settle_delay
+    )
+    if result.success:
+        console.print("  [green]Channel opened — XRP locked once, ready for many claims![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        console.print(f"  Channel ID: [cyan]{result.channel_id}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["channel_id"] = result.channel_id
+        # Capture the channel's signing key (the sender's) so the receiver can
+        # verify off-ledger claims against it later.
+        chans = await transport.get_account_channels(state.wallet_address or "")
+        match = next((c for c in chans if c.channel_id == result.channel_id), None)
+        context["channel_public_key"] = match.public_key if match else ""
+        state.record_tx(
+            txid=result.txid, module_id=context.get("module_id", ""),
+            network=state.network, success=True, explorer_url=result.explorer_url,
+        )
+        context.setdefault("txids", []).append(result.txid)
+    else:
+        console.print(f"  [red]Channel open failed: {result.error}[/]")
+        state.record_tx(
+            txid=result.txid or "failed", module_id=context.get("module_id", ""),
+            network=state.network, success=False,
+        )
+    save_state(state)
+    return context
+
+
+async def handle_fund_channel(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    amount = args.get("amount", "5")
+    channel_id = context.get("channel_id", "")
+    if "wallet_seed" not in context or not channel_id:
+        console.print("  [red]No channel to fund. Open a channel first.[/]")
+        return context
+
+    console.print(f"  Adding [cyan]{amount} XRP[/] to the channel...")
+    result = await fund_channel(transport, context["wallet_seed"].get(), channel_id, amount)
+    if result.success:
+        console.print("  [green]Channel funded![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        state.record_tx(
+            txid=result.txid, module_id=context.get("module_id", ""),
+            network=state.network, success=True, explorer_url=result.explorer_url,
+        )
+        context.setdefault("txids", []).append(result.txid)
+    else:
+        console.print(f"  [red]Channel fund failed: {result.error}[/]")
+        state.record_tx(
+            txid=result.txid or "failed", module_id=context.get("module_id", ""),
+            network=state.network, success=False,
+        )
+    save_state(state)
+    return context
+
+
+async def handle_sign_claim(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    amount = args.get("amount", "3")
+    channel_id = context.get("channel_id", "")
+    if "wallet_seed" not in context or not channel_id:
+        console.print("  [red]No channel. Open a channel first.[/]")
+        return context
+
+    console.print(f"  Signing an OFF-LEDGER claim for [cyan]{amount} XRP[/] (cumulative)...")
+    sig = await sign_claim(transport, context["wallet_seed"].get(), channel_id, amount)
+    context["claim_signature"] = sig
+    context["claim_amount"] = amount
+    console.print("  [green]Claim signed — no transaction, no fee.[/] Hand it to the receiver.")
+    console.print(f"  Signature: [dim]{sig[:40]}...[/]")
+    return context
+
+
+async def handle_verify_claim_signature(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    channel_id = context.get("channel_id", "")
+    amount = context.get("claim_amount", "")
+    sig = context.get("claim_signature", "")
+    pubkey = context.get("channel_public_key", "")
+    if not channel_id or not sig:
+        console.print("  [red]No signed claim to verify. Sign a claim first.[/]")
+        return context
+
+    ok = await check_claim(transport, channel_id, amount, pubkey, sig)
+    if ok:
+        console.print(
+            f"  [green]✓[/] Receiver verified the claim for {amount} XRP — "
+            "valid, off-ledger, instant."
+        )
+    else:
+        console.print("  [red]✗[/] Claim signature did NOT verify.")
+    context["last_claim_verify"] = ok
+    return context
+
+
+async def handle_redeem_claim(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    channel_id = context.get("channel_id", "")
+    balance = context.get("claim_amount", "")
+    sig = context.get("claim_signature", "")
+    pubkey = context.get("channel_public_key", "")
+    _raw = context.get("receiver_seed", "")
+    receiver_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    close = str(step.action_args.get("close", "false")).lower() in ("true", "1", "yes")
+
+    if not channel_id or not receiver_seed or not balance:
+        console.print("  [red]Missing channel, receiver, or claim. Run previous steps first.[/]")
+        return context
+
+    console.print(f"  Receiver redeeming the [cyan]{balance} XRP[/] claim on-ledger...")
+    result = await redeem_claim(
+        transport, receiver_seed, channel_id, balance,
+        signature=sig, public_key=pubkey, close=close,
+    )
+    if result.success:
+        console.print("  [green]Claim redeemed — funds settled to the receiver![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        state.record_tx(
+            txid=result.txid, module_id=context.get("module_id", ""),
+            network=state.network, success=True, explorer_url=result.explorer_url,
+        )
+        context.setdefault("txids", []).append(result.txid)
+    else:
+        console.print(f"  [red]Claim redeem failed: {result.error}[/]")
+        state.record_tx(
+            txid=result.txid or "failed", module_id=context.get("module_id", ""),
+            network=state.network, success=False,
+        )
+    save_state(state)
+    return context
+
+
+async def handle_verify_channel(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    channel_id = context.get("channel_id", "")
+    result = await verify_channel(
+        transport, state.wallet_address or "", channel_id=channel_id,
+        expect_amount_xrp=args.get("expect_amount"),
+        expect_balance_xrp=args.get("expect_balance"),
+    )
+    for check in result.checks:
+        console.print(f"  [green]✓[/] {check}")
+    for fail in result.failures:
+        console.print(f"  [red]✗[/] {fail}")
+    context["last_channel_verify"] = result
     return context
 
 
@@ -3498,6 +3717,64 @@ def _register_all() -> None:
             description="Verify the holder's MPT balance (optionally equals an expected amount)",
             payload_fields=[
                 PayloadField(name="expected", description="Expected MPT balance"),
+            ],
+        ),
+        # ── micropayments: payment channels (payments track) ──
+        ActionDef(
+            name="create_channel_receiver",
+            handler=handle_create_channel_receiver,
+            description="Create + fund the receiver (merchant) wallet for a payment channel",
+        ),
+        ActionDef(
+            name="open_channel",
+            handler=handle_open_channel,
+            description="Open an XRP payment channel to the receiver (PaymentChannelCreate)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP to lock in the channel"),
+                PayloadField(name="settle_delay", default="86400"),
+            ],
+        ),
+        ActionDef(
+            name="fund_channel",
+            handler=handle_fund_channel,
+            description="Add more XRP to an open channel (PaymentChannelFund)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="5", description="XRP to add"),
+            ],
+        ),
+        ActionDef(
+            name="sign_claim",
+            handler=handle_sign_claim,
+            description="Sign an OFF-LEDGER cumulative channel claim (no tx, no fee)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="3", description="Cumulative XRP claimed"),
+            ],
+        ),
+        ActionDef(
+            name="verify_claim_signature",
+            handler=handle_verify_claim_signature,
+            description="Receiver verifies a signed off-ledger claim against the channel key",
+        ),
+        ActionDef(
+            name="redeem_claim",
+            handler=handle_redeem_claim,
+            description="Receiver redeems a signed claim on-ledger (PaymentChannelClaim)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="close", default="false",
+                             description="Also close the channel (true|false)"),
+            ],
+        ),
+        ActionDef(
+            name="verify_channel",
+            handler=handle_verify_channel,
+            description="Verify a channel's deposited / claimed amounts on-ledger",
+            payload_fields=[
+                PayloadField(name="expect_amount", description="Expected deposited XRP"),
+                PayloadField(name="expect_balance", description="Expected claimed XRP"),
             ],
         ),
         # ── v2.0.0 game-economy control: NFT marketplace (nfts track) ──
