@@ -31,6 +31,7 @@ from xrpl.models import (
     EscrowFinish,
     IssuedCurrencyAmount,
     Memo,
+    MPTokenAuthorize,
     MPTokenIssuanceCreate,
     NFTBuyOffers,
     NFTokenAcceptOffer,
@@ -48,6 +49,7 @@ from xrpl.models import (
     TrustSetFlag,
     Tx,
 )
+from xrpl.models.amounts import MPTAmount
 from xrpl.utils import drops_to_xrp, get_nftoken_id, hex_to_str, str_to_hex, xrp_to_drops
 from xrpl.wallet import Wallet
 
@@ -70,6 +72,30 @@ from .base import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_mpt_issuance_id(meta: dict) -> str:
+    """Pull the new MPTokenIssuanceID out of an MPTokenIssuanceCreate's meta.
+
+    rippled returns ``mpt_issuance_id`` directly in the meta on recent
+    versions; otherwise we walk AffectedNodes for the created MPTokenIssuance
+    object whose ledger index IS the issuance id. Best-effort — the dry-run
+    transport sets the id directly, so the tested path is exact.
+    """
+    direct = meta.get("mpt_issuance_id", "")
+    if direct:
+        return direct
+    for node in meta.get("AffectedNodes", []):
+        created = node.get("CreatedNode", {})
+        if created.get("LedgerEntryType") == "MPTokenIssuance":
+            fields = created.get("NewFields", {})
+            return (
+                fields.get("mpt_issuance_id")
+                or fields.get("MPTokenIssuanceID")
+                or created.get("LedgerIndex", "")
+            )
+    return ""
+
 
 DEFAULT_RPC_URL = "https://s.altnet.rippletest.net:51234"
 DEFAULT_FAUCET_URL = "https://faucet.altnet.rippletest.net/accounts"
@@ -1192,8 +1218,13 @@ class XRPLTestnetTransport(Transport):
             )
         return await self._submit_tx(tx, wallet, "Clawback")
 
-    async def _submit_tx(self, tx, wallet, label: str) -> SubmitResult:
-        """Submit a built+signed transaction with retry/timeout, returning a parsed SubmitResult."""
+    async def _submit_tx(self, tx, wallet, label: str, extract=None) -> SubmitResult:
+        """Submit a built+signed transaction with retry/timeout, returning a parsed SubmitResult.
+
+        ``extract`` is an optional ``meta -> dict`` callback applied on success
+        to pull a created-object id out of the transaction metadata (e.g. the
+        new MPTokenIssuanceID); the returned dict is splatted into SubmitResult.
+        """
         last_error = ""
         for attempt in range(MAX_RETRIES + 1):
             try:
@@ -1214,14 +1245,22 @@ class XRPLTestnetTransport(Transport):
                 )
                 success = result_code == "tesSUCCESS"
                 error_msg = ""
-                if not success:
+                extra: dict = {}
+                if success:
+                    if extract is not None:
+                        try:
+                            extra = extract(meta) or {}
+                        except Exception:
+                            extra = {}
+                else:
                     from ..doctor import explain_result_code
 
                     info = explain_result_code(result_code)
                     error_msg = f"{info['meaning']}. {info['action']}"
                 return SubmitResult(
                     success=success, txid=txid, result_code=result_code, fee=fee,
-                    ledger_index=ledger_idx, explorer_url=self._explorer_url(txid), error=error_msg,
+                    ledger_index=ledger_idx, explorer_url=self._explorer_url(txid),
+                    error=error_msg, **extra,
                 )
             except TimeoutError:
                 last_error = f"{label} submission timed out. Try again in a minute."
@@ -1573,7 +1612,69 @@ class XRPLTestnetTransport(Transport):
             return SubmitResult(
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
-        return await self._submit_tx(tx, wallet, "MPTokenIssuanceCreate")
+        return await self._submit_tx(
+            tx, wallet, "MPTokenIssuanceCreate",
+            extract=lambda meta: {"mpt_issuance_id": _extract_mpt_issuance_id(meta)},
+        )
+
+    async def submit_mpt_authorize(
+        self,
+        holder_seed: str,
+        issuance_id: str,
+        unauthorize: bool = False,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(holder_seed)
+            tx = MPTokenAuthorize(
+                account=wallet.address,
+                mptoken_issuance_id=issuance_id,
+                flags=0x01 if unauthorize else 0,  # tfMPTUnauthorize
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "MPTokenAuthorize")
+
+    async def submit_mpt_payment(
+        self,
+        issuer_seed: str,
+        destination: str,
+        issuance_id: str,
+        amount: str,
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            tx = Payment(
+                account=wallet.address,
+                destination=destination,
+                amount=MPTAmount(mpt_issuance_id=issuance_id, value=str(amount)),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "Payment(MPT)")
+
+    async def get_mpt_balance(self, holder: str, issuance_id: str) -> str:
+        try:
+            objs = await self._account_objects(holder)
+        except Exception:
+            logger.warning("get_mpt_balance failed for %s", holder, exc_info=True)
+            return "0"
+        for o in objs:
+            if o.get("LedgerEntryType") != "MPToken":
+                continue
+            oid = o.get("MPTokenIssuanceID") or o.get("mpt_issuance_id", "")
+            if oid == issuance_id:
+                return str(o.get("MPTAmount", o.get("MPTAmount", "0")) or "0")
+        return "0"
 
     async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
         try:

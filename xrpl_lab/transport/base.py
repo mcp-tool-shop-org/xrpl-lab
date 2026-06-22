@@ -50,6 +50,7 @@ class SubmitResult:
     explorer_url: str = ""
     nft_id: str = ""  # NFTokenID, set on a successful NFTokenMint
     nft_offer_index: str = ""  # NFTokenOffer ledger index, set on NFTokenCreateOffer
+    mpt_issuance_id: str = ""  # MPTokenIssuanceID, set on a successful MPTokenIssuanceCreate
 
 
 @dataclass
@@ -578,6 +579,38 @@ class Transport(ABC):
     @abstractmethod
     async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
         """List MPT issuances created by an address."""
+
+    @abstractmethod
+    async def submit_mpt_authorize(
+        self,
+        holder_seed: str,
+        issuance_id: str,
+        unauthorize: bool = False,
+    ) -> SubmitResult:
+        """Holder opts in to hold an MPT issuance (MPTokenAuthorize, XLS-33).
+
+        The MPT analog of a trust line: a holder must authorize an issuance
+        before it can receive that token. ``unauthorize=True`` opts back out
+        (tfMPTUnauthorize), allowed only at a zero balance.
+        """
+
+    @abstractmethod
+    async def submit_mpt_payment(
+        self,
+        issuer_seed: str,
+        destination: str,
+        issuance_id: str,
+        amount: str,
+    ) -> SubmitResult:
+        """Pay an amount of an MPT to a holder (Payment with an MPT Amount).
+
+        Distributes the issued game currency to a player. The holder must have
+        authorized the issuance first (else tecNO_AUTH).
+        """
+
+    @abstractmethod
+    async def get_mpt_balance(self, holder: str, issuance_id: str) -> str:
+        """Read a holder's balance of an MPT issuance ("0" if none / unauthorized)."""
 
     @abstractmethod
     async def submit_set_freeze(

@@ -163,6 +163,12 @@ _MAINNET_REFUSAL_CALLS = {
     "submit_global_freeze": (
         lambda t: t.submit_global_freeze("sEdSEED", True)
     ),
+    "submit_mpt_authorize": (
+        lambda t: t.submit_mpt_authorize("sEdSEED", "0" * 48)
+    ),
+    "submit_mpt_payment": (
+        lambda t: t.submit_mpt_payment("sEdSEED", "rHOLDER", "0" * 48, "100")
+    ),
     "submit_nft_create_offer": (
         lambda t: t.submit_nft_create_offer("sEdSEED", "00080000ABC", "100")
     ),

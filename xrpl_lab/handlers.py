@@ -37,7 +37,13 @@ from .actions.escrow import (
     verify_escrow_finished,
 )
 from .actions.freeze import set_global_freeze, set_individual_freeze, verify_freeze
-from .actions.mpt import create_mpt_issuance, verify_mpt_issuance
+from .actions.mpt import (
+    authorize_mpt,
+    create_mpt_issuance,
+    send_mpt,
+    verify_mpt_balance,
+    verify_mpt_issuance,
+)
 from .actions.nft import (
     accept_nft_offer,
     burn_nft,
@@ -2302,10 +2308,89 @@ async def handle_create_mpt_issuance(
         if result.explorer_url:
             console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
         context["mpt_max"] = str(maximum_amount)
+        # Thread the new issuance id forward so mpt_authorize / mpt_payment /
+        # verify_mpt_balance can address this exact MPT (FT-CURRIC-004).
+        if result.mpt_issuance_id:
+            context["mpt_issuance_id"] = result.mpt_issuance_id
+            console.print(f"  Issuance ID: [cyan]{result.mpt_issuance_id}[/]")
     else:
         console.print(f"  [red]MPT issuance failed: {result.error}[/]")
         _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
+    return context
+
+
+async def handle_mpt_authorize(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    issuance_id = context.get("mpt_issuance_id", "")
+    if not issuance_id:
+        console.print("  [red]No MPT issuance id in context. Create the issuance first.[/]")
+        return context
+    if "wallet_seed" not in context:
+        console.print("  [red]No holder wallet in context. Run the wallet step first.[/]")
+        return context
+    console.print("  Authorizing this wallet to hold the MPT (MPTokenAuthorize)...")
+    result = await authorize_mpt(transport, context["wallet_seed"].get(), issuance_id)
+    if result.success:
+        console.print("  [green]Authorized — the holder can now receive this MPT.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]MPTokenAuthorize failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_mpt_payment(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    amount = args.get("amount", "100")
+    issuance_id = context.get("mpt_issuance_id", "")
+    _raw = context.get("issuer_seed", "")
+    issuer_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    holder = state.wallet_address or ""
+
+    if not issuance_id or not issuer_seed or not holder:
+        console.print("  [red]Missing issuance id, issuer wallet, or holder. Run prior steps.[/]")
+        return context
+
+    console.print(f"  Issuer paying [cyan]{amount}[/] MPT to the holder...")
+    result = await send_mpt(transport, issuer_seed, holder, issuance_id, amount)
+    if result.success:
+        console.print(f"  [green]{amount} MPT delivered to the player![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]MPT payment failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_mpt_balance(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    expected = args.get("expected")
+    issuance_id = context.get("mpt_issuance_id", "")
+    holder = state.wallet_address or ""
+    if not issuance_id or not holder:
+        console.print("  [red]Missing issuance id or holder. Run previous steps first.[/]")
+        return context
+    result = await verify_mpt_balance(transport, holder, issuance_id, expected=expected)
+    for check in result.checks:
+        console.print(f"  [green]✓[/] {check}")
+    for fail in result.failures:
+        console.print(f"  [red]✗[/] {fail}")
+    context["last_mpt_balance_verify"] = result
     return context
 
 
@@ -3389,6 +3474,30 @@ def _register_all() -> None:
                              description="Expected individual-freeze state (true|false)"),
                 PayloadField(name="expect_global",
                              description="Expected global-freeze state (true|false)"),
+            ],
+        ),
+        # ── game-economy control: MPT distribution (tokens track) ──
+        ActionDef(
+            name="mpt_authorize",
+            handler=handle_mpt_authorize,
+            description="Holder opts in to hold the MPT issuance (MPTokenAuthorize)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="mpt_payment",
+            handler=handle_mpt_payment,
+            description="Issuer pays an MPT amount to the holder (Payment with MPT Amount)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="100", description="MPT amount to send"),
+            ],
+        ),
+        ActionDef(
+            name="verify_mpt_balance",
+            handler=handle_verify_mpt_balance,
+            description="Verify the holder's MPT balance (optionally equals an expected amount)",
+            payload_fields=[
+                PayloadField(name="expected", description="Expected MPT balance"),
             ],
         ),
         # ── v2.0.0 game-economy control: NFT marketplace (nfts track) ──

@@ -123,6 +123,10 @@ class DryRunTransport(Transport):
         # (issuer, currency, holder) line; global freeze keys an issuer.
         self._frozen_lines: set[tuple[str, str, str]] = set()
         self._global_frozen: set[str] = set()
+        # MPT holder state (FT-CURRIC-004): authorizations + per-holder balances,
+        # both keyed (holder, issuance_id).
+        self._mpt_auths: set[tuple[str, str]] = set()
+        self._mpt_balances: dict[tuple[str, str], Decimal] = {}
         # Escrow / DID / MPT state
         self._escrows: _PerAddressStore = _PerAddressStore()
         self._mpts: _PerAddressStore = _PerAddressStore()
@@ -1731,7 +1735,70 @@ class DryRunTransport(Transport):
         )
         self._inc_owner(owner)
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
-                            ledger_index=99999999, explorer_url="")
+                            ledger_index=99999999, explorer_url="", mpt_issuance_id=iid)
 
     async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
         return self._resolve(self._mpts, address)
+
+    async def submit_mpt_authorize(
+        self, holder_seed: str, issuance_id: str, unauthorize: bool = False,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Simulated failure: MPTokenAuthorize",
+            )
+        holder = _address_from_seed(holder_seed)
+        key = (holder, issuance_id)
+        if unauthorize:
+            if Decimal(str(self._mpt_balances.get(key, 0))) != 0:
+                return SubmitResult(
+                    success=False, result_code="tecHAS_OBLIGATIONS", fee="12",
+                    error="[dry-run] Cannot unauthorize an MPT with a non-zero balance.",
+                )
+            self._mpt_auths.discard(key)
+        else:
+            self._mpt_auths.add(key)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def submit_mpt_payment(
+        self, issuer_seed: str, destination: str, issuance_id: str, amount: str,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecPATH_DRY", fee="12",
+                error="[dry-run] Simulated failure: MPT payment",
+            )
+        key = (destination, issuance_id)
+        # The holder must have authorized the issuance first (the MPT opt-in
+        # gate — the lesson's load-bearing concept).
+        if key not in self._mpt_auths:
+            return SubmitResult(
+                success=False, result_code="tecNO_AUTH", fee="12",
+                error=(
+                    "[dry-run] The destination has not authorized this MPT "
+                    "issuance (MPTokenAuthorize) — it cannot receive the token yet."
+                ),
+            )
+        try:
+            amt = Decimal(amount)
+        except Exception:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid MPT amount: {amount}",
+            )
+        self._mpt_balances[key] = Decimal(str(self._mpt_balances.get(key, 0))) + amt
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def get_mpt_balance(self, holder: str, issuance_id: str) -> str:
+        bal = self._mpt_balances.get((holder, issuance_id), Decimal(0))
+        bal = Decimal(str(bal))
+        return str(int(bal)) if bal == int(bal) else str(bal)
