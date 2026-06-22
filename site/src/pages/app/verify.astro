@@ -1,0 +1,256 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout title="Verify" activePage="verify">
+  <div class="screen-head">
+    <h1>Verify a proof</h1>
+    <p class="lede">Paste or drop a proof pack / certificate to check its integrity — and, with on-ledger mode, re-fetch every claimed transaction from the public XRPL.</p>
+  </div>
+
+  <div class="screen-inner">
+    <div class="card section">
+      <p class="eyebrow">Artifact JSON</p>
+      <label for="verify-input" class="sr-only">Proof pack or certificate JSON</label>
+      <textarea id="verify-input" class="vinput" spellcheck="false" autocomplete="off"
+        placeholder="Paste the contents of xrpl_lab_proof_pack.json or xrpl_lab_certificate.json here…"></textarea>
+
+      <!-- File drop / picker. The label is the styled dropzone; the input is
+           visually hidden but reachable for keyboard + assistive tech. -->
+      <div id="dropzone" class="dropzone" tabindex="-1">
+        <input id="verify-file" type="file" accept="application/json,.json" class="sr-only" />
+        <label for="verify-file" class="dropzone__label">
+          <span id="dropzone-text">Drop a <code class="mono">.json</code> file here, or click to choose</span>
+        </label>
+      </div>
+
+      <div class="row vcontrols">
+        <label class="checkrow">
+          <input id="verify-live" type="checkbox" />
+          <span>Verify on-ledger (<code class="mono">--live</code>) — re-fetch every txid from the public XRPL</span>
+        </label>
+        <button id="verify-btn" class="btn btn--primary" type="button">Verify</button>
+      </div>
+      <p class="muted vhint">On-ledger verification only checks testnet / devnet transactions; dry-run proofs have no public anchor and are reported honestly.</p>
+    </div>
+
+    <div id="verify-result" aria-live="polite"></div>
+  </div>
+
+  <style>
+    .vinput {
+      width: 100%; min-height: 180px; resize: vertical; box-sizing: border-box;
+      font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6;
+      color: var(--text); background: var(--inset);
+      border: 1px solid var(--line); border-radius: var(--r-sm);
+      padding: 12px 14px; margin-bottom: 12px;
+    }
+    .vinput:focus-visible { outline: none; border-color: var(--ok-edge); box-shadow: 0 0 0 2px var(--ok-fill); }
+    .dropzone {
+      border: 1px dashed var(--line-strong); border-radius: var(--r-sm);
+      background: var(--inset); margin-bottom: 14px; transition: border-color .15s, background .15s;
+    }
+    .dropzone.is-drag { border-color: var(--ok-edge); background: var(--ok-fill); }
+    .dropzone__label { display: block; cursor: pointer; padding: 16px; text-align: center; color: var(--text-2); font-size: 13.5px; }
+    .dropzone__label:hover { color: var(--text); }
+    .vcontrols { gap: 16px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+    .checkrow { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; color: var(--text-2); cursor: pointer; max-width: 560px; }
+    .checkrow input { margin-top: 2px; accent-color: var(--accent-solid); }
+    .vhint { font-size: 12.5px; margin: 12px 0 0; }
+    .vtable { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    .vtable th { text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+    .vtable td { padding: 9px 10px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
+    .vtable td.mono { font-family: var(--font-mono); font-size: 12px; word-break: break-all; }
+    .verdict { display: flex; align-items: center; gap: 12px; }
+    .verdict__ic { display: inline-flex; width: 22px; height: 22px; flex: none; }
+  </style>
+
+  <script>
+    import { fetchWithTimeout } from '../../lib/api';
+    import { icons, healthIcon, verifyBadge, esc } from '../../lib/dashboard-ui';
+
+    const API_BASE = 'http://localhost:8321';
+    const II = (svg: string) =>
+      `<span style="display:inline-flex;width:16px;height:16px;color:var(--text-3)">${svg}</span>`;
+
+    const input = document.getElementById('verify-input') as HTMLTextAreaElement;
+    const fileInput = document.getElementById('verify-file') as HTMLInputElement;
+    const dropzone = document.getElementById('dropzone') as HTMLElement;
+    const dropText = document.getElementById('dropzone-text') as HTMLElement;
+    const liveCheck = document.getElementById('verify-live') as HTMLInputElement;
+    const btn = document.getElementById('verify-btn') as HTMLButtonElement;
+    const resultEl = document.getElementById('verify-result') as HTMLElement;
+
+    // ── helpers ────────────────────────────────────────────────────────
+    function noticeHTML(icon: string, title: string, body: string) {
+      return `<div class="card section"><div class="empty"><span class="empty__ic">${icon}</span>
+        <div class="empty__t">${esc(title)}</div><div>${esc(body)}</div></div></div>`;
+    }
+
+    // Humanized fetch-error copy — mirrors the artifacts/overview pages. A 400
+    // (bad artifact) is NOT "offline"; report the server's structured detail.
+    function describeError(err: any): { title: string; body: string } {
+      if (err?.name === 'AbortError')
+        return { title: 'Request timed out', body: 'The API may be slow or restarting. Check that xrpl-lab serve is responsive, then retry.' };
+      if (err instanceof TypeError)
+        return { title: "Can't reach the API", body: 'API is offline. Run xrpl-lab serve in a terminal, then retry.' };
+      if (err?.httpStatus === 400)
+        return { title: 'Not a valid artifact', body: err?.detail || 'The pasted text is not a recognized proof pack or certificate. Paste the full JSON file generated by xrpl-lab.' };
+      if (err?.httpStatus)
+        return { title: `API error (HTTP ${err.httpStatus})`, body: 'The server is up but returned an error. Check the API logs and retry.' };
+      return { title: 'Verification failed', body: err?.message || 'Something went wrong. Retry, or check the API server.' };
+    }
+
+    // ── per-tx table (reuses run-page tx vocabulary + verify badges) ────
+    function txTableHTML(live: any) {
+      const rows = Array.isArray(live?.tx_results) ? live.tx_results : [];
+      if (rows.length === 0) {
+        return `<p class="muted" style="margin-top:14px">${esc(live?.note || 'No transactions to anchor on-ledger.')}</p>`;
+      }
+      const body = rows.map((t: any) => {
+        const link = t.explorer_url
+          ? `<a href="${esc(t.explorer_url)}" target="_blank" rel="noopener noreferrer">explorer &rarr;</a>`
+          : '<span class="muted">—</span>';
+        return `<tr>
+          <td class="mono">${esc(t.txid)}</td>
+          <td>${esc(t.network || '—')}</td>
+          <td>${verifyBadge(t.status)}</td>
+          <td>${link}</td>
+        </tr>
+        <tr><td colspan="4" class="muted" style="border-bottom:1px solid var(--line);padding-top:0;font-size:12.5px">${esc(t.reason || '')}</td></tr>`;
+      }).join('');
+      const summary = `<p class="muted" style="margin:0 0 10px;font-size:13px">${live.passed} passed · ${live.failed} failed · ${live.skipped} skipped${live.note ? ' · ' + esc(live.note) : ''}</p>`;
+      return `${summary}<table class="vtable"><thead><tr>
+        <th>Transaction</th><th>Network</th><th>Status</th><th>Link</th>
+      </tr></thead><tbody>${body}</tbody></table>`;
+    }
+
+    // ── full result card ────────────────────────────────────────────────
+    function resultHTML(r: any) {
+      const kind = r.artifact_kind === 'certificate' ? 'Certificate' : 'Proof pack';
+
+      // Headline verdict — hash + (if run) live, combined into overall_passed.
+      const ok = r.overall_passed;
+      const verdictIc = ok ? healthIcon('pass') : healthIcon('fail');
+      const verdictText = ok
+        ? `${kind} verified`
+        : (r.hash_valid ? `${kind} failed on-ledger verification` : `${kind} integrity check failed`);
+
+      // Identity header (best-effort, escaped — never trusted).
+      const meta = `<dl class="kv" style="margin-top:14px">
+        <dt>Type</dt><dd>${esc(kind)}</dd>
+        ${r.version ? `<dt>Version</dt><dd class="mono">${esc(r.version)}</dd>` : ''}
+        ${r.address ? `<dt>Address</dt><dd class="mono">${esc(r.address)}</dd>` : ''}
+        ${r.network ? `<dt>Network</dt><dd class="mono">${esc(r.network)}</dd>` : ''}
+      </dl>`;
+
+      // Hash layer (always present).
+      const hashLine = `<div class="row" style="gap:10px;align-items:center;margin-top:16px">
+        ${healthIcon(r.hash_valid ? 'pass' : 'fail')}
+        <div><strong>Integrity (SHA-256)</strong><div class="muted" style="font-size:13px">${esc(r.hash_message)}</div></div>
+      </div>`;
+
+      // Live layer (only if requested AND ran).
+      let liveBlock = '';
+      if (r.live_requested && r.hash_valid && r.live) {
+        liveBlock = `<p class="eyebrow" style="margin-top:22px">On-ledger verification</p>${txTableHTML(r.live)}`;
+      } else if (r.live_requested && !r.hash_valid) {
+        liveBlock = `<p class="muted" style="margin-top:16px">On-ledger verification skipped — the integrity check failed, so the artifact was edited locally and is untrustworthy regardless of its txids.</p>`;
+      }
+
+      return `<div class="card section">
+        <div class="verdict">
+          <span class="verdict__ic">${verdictIc}</span>
+          <h2 style="margin:0;font-size:18px">${esc(verdictText)}</h2>
+        </div>
+        ${meta}
+        ${hashLine}
+        ${liveBlock}
+      </div>`;
+    }
+
+    // ── verify action ──────────────────────────────────────────────────
+    async function runVerify() {
+      const raw = input.value.trim();
+      if (!raw) {
+        resultEl.innerHTML = noticeHTML(icons.alert, 'Nothing to verify',
+          'Paste a proof pack or certificate, or drop a .json file, then press Verify.');
+        return;
+      }
+
+      // Parse client-side first so a typo is caught instantly with a clear
+      // message — the server ALSO re-validates (never trusts the body).
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        resultEl.innerHTML = noticeHTML(icons.alert, 'Not valid JSON',
+          'The pasted text could not be parsed as JSON. Paste the full file contents, including the outermost { }.');
+        return;
+      }
+
+      btn.disabled = true;
+      const prevLabel = btn.textContent;
+      btn.textContent = 'Verifying…';
+      resultEl.innerHTML = `<div class="card section"><div class="skeleton" style="height:20px;width:40%"></div>
+        <div class="skeleton" style="height:14px;width:70%;margin-top:12px"></div></div>`;
+
+      try {
+        const live = liveCheck.checked;
+        const res = await fetchWithTimeout(`${API_BASE}/api/verify?live=${live}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(parsed),
+        });
+        if (!res.ok) {
+          let detail = '';
+          try {
+            const body = await res.json();
+            detail = body?.detail?.message || body?.message || '';
+          } catch { /* non-JSON error body */ }
+          const e: any = new Error(`Verify API returned ${res.status}`);
+          e.httpStatus = res.status;
+          e.detail = detail;
+          throw e;
+        }
+        const data = await res.json();
+        resultEl.innerHTML = resultHTML(data);
+      } catch (err: any) {
+        const { title, body } = describeError(err);
+        resultEl.innerHTML = noticeHTML(icons.alert, title, body);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prevLabel;
+      }
+    }
+
+    // ── file load (drop + picker) ──────────────────────────────────────
+    function loadFile(file: File) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        input.value = typeof reader.result === 'string' ? reader.result : '';
+        dropText.textContent = `Loaded ${file.name}`;
+      };
+      reader.onerror = () => {
+        dropText.textContent = `Couldn't read ${file.name}`;
+      };
+      reader.readAsText(file);
+    }
+
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files?.[0];
+      if (f) loadFile(f);
+    });
+
+    ['dragenter', 'dragover'].forEach((ev) =>
+      dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.add('is-drag'); }));
+    ['dragleave', 'drop'].forEach((ev) =>
+      dropzone.addEventListener(ev, (e) => { e.preventDefault(); dropzone.classList.remove('is-drag'); }));
+    dropzone.addEventListener('drop', (e: DragEvent) => {
+      const f = e.dataTransfer?.files?.[0];
+      if (f) loadFile(f);
+    });
+
+    btn.addEventListener('click', runVerify);
+  </script>
+</DashboardLayout>

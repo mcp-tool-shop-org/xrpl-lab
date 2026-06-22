@@ -170,6 +170,77 @@ export async function fetchDoctor(): Promise<DoctorResult> {
   return request<DoctorResult>('/api/doctor');
 }
 
+// --- Verify API (FT-PROOF-001 — browser proof verifier) ---
+// Mirrors xrpl_lab/api/schemas.py: VerifyResponse / VerifyLiveResult /
+// VerifyTxResult. The offline hash layer (hash_valid/hash_message) ALWAYS runs;
+// `live` is present only when on-ledger verification was requested AND the hash
+// passed (an edited artifact is untrustworthy regardless of its txids).
+
+export interface VerifyTxResult {
+  txid: string;
+  network: string;
+  status: string; // "PASS" | "FAIL" | "SKIPPED"
+  reason: string;
+  checks: string[];
+  explorer_url: string;
+}
+
+export interface VerifyLiveResult {
+  artifact_kind: string; // "proof_pack" | "certificate"
+  overall_passed: boolean;
+  no_onledger_txids: boolean;
+  passed: number;
+  failed: number;
+  skipped: number;
+  note: string;
+  tx_results: VerifyTxResult[];
+}
+
+export interface VerifyResponse {
+  artifact_kind: string; // "proof_pack" | "certificate"
+  hash_valid: boolean;
+  hash_message: string;
+  overall_passed: boolean;
+  live_requested: boolean;
+  live: VerifyLiveResult | null;
+  version: string;
+  address: string;
+  network: string;
+}
+
+/**
+ * POST a pasted proof pack / certificate to /api/verify.
+ *
+ * `artifact` is the parsed JSON object (untrusted — the server re-validates and
+ * never trusts its shape). `live` adds the on-ledger trust layer via `?live=`.
+ * On a non-OK response the body is the structured {code,message,hint} envelope;
+ * the caller surfaces it honestly rather than treating every failure as offline.
+ */
+export async function verifyArtifact(
+  artifact: unknown,
+  live: boolean
+): Promise<VerifyResponse> {
+  const res = await fetchWithTimeout(`${API_BASE}/api/verify?live=${live}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(artifact),
+  });
+  if (!res.ok) {
+    // Tag the status (and any structured detail) so the page can report the
+    // server's verdict — a 400 here is "bad artifact", not "API offline".
+    let detail = '';
+    try {
+      const body = await res.json();
+      detail = body?.detail?.message || body?.message || '';
+    } catch { /* non-JSON error body */ }
+    const e = new Error(`Verify API returned ${res.status}: ${res.statusText}`);
+    (e as any).httpStatus = res.status;
+    (e as any).detail = detail;
+    throw e;
+  }
+  return res.json() as Promise<VerifyResponse>;
+}
+
 // --- Run API (Wave 2) ---
 
 export interface RunResult {

@@ -773,3 +773,240 @@ class TestWsSendFailureBreadcrumb:
             "No ping-send-failure breadcrumb logged with the run_id "
             "(TXBCD-006)."
         )
+
+
+# ── FT-PROOF-001: POST /api/verify (browser proof verifier) ──────────
+#
+# The CLI already ships `xrpl-lab proof verify <file> [--live]`. FT-PROOF-001
+# makes the SAME trust loop reachable from the browser via POST /api/verify.
+# These tests pin the route's contract: it CALLS the existing reporting
+# functions (offline hash always; on-ledger only when asked AND hash passes),
+# returns the canonical VerifyResponse, and NEVER trusts the body — a malformed
+# or non-artifact body is a clean structured 400, not a 500.
+
+
+def _seal_artifact(obj: dict) -> dict:
+    """Compute + embed the canonical SHA-256 self-hash (matches reporting)."""
+    import hashlib
+    import json as _json
+
+    check = {k: v for k, v in obj.items() if k != "sha256"}
+    content = _json.dumps(check, sort_keys=True, separators=(",", ":"))
+    obj["sha256"] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    return obj
+
+
+def _sealed_proof_pack(transactions=None, *, address="rLearnerWalletAAAAAAAAAAAAAAAAA"):
+    """A minimal, correctly-sealed proof pack for the offline-hash path."""
+    pack = {
+        "xrpl_lab_proof_pack": True,
+        "version": "2.0.0",
+        "network": "testnet",
+        "address": address,
+        "completed_modules": [],
+        "transactions": transactions or [],
+        "total_transactions": len(transactions or []),
+    }
+    return _seal_artifact(pack)
+
+
+def _sealed_certificate():
+    cert = {
+        "xrpl_lab_certificate": True,
+        "version": "2.0.0",
+        "network": "testnet",
+        "address": "rLearnerWalletAAAAAAAAAAAAAAAAA",
+        "modules_completed": ["receipt_literacy"],
+        "total_modules": 1,
+        "total_transactions": 0,
+    }
+    return _seal_artifact(cert)
+
+
+@pytest.fixture()
+def verify_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """A bare TestClient with state/workspace redirected — enough for /api/verify
+    (the route reads nothing from disk; it verifies the posted body)."""
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
+    return TestClient(create_app())
+
+
+class TestVerifyHashLayer:
+    """Offline hash layer — the tamper-evidence floor that ALWAYS runs."""
+
+    def test_valid_pack_passes_hash(self, verify_client: TestClient) -> None:
+        from xrpl_lab.api.schemas import VerifyResponse
+
+        pack = _sealed_proof_pack()
+        resp = verify_client.post("/api/verify", json=pack)
+        assert resp.status_code == 200
+        data = resp.json()
+
+        # Round-trips through the canonical model with no drift.
+        model = VerifyResponse(**data)
+        assert set(data.keys()) == set(model.model_dump().keys())
+
+        assert data["artifact_kind"] == "proof_pack"
+        assert data["hash_valid"] is True
+        assert data["overall_passed"] is True
+        # Live not requested → no live block.
+        assert data["live_requested"] is False
+        assert data["live"] is None
+
+    def test_valid_certificate_passes_hash(self, verify_client: TestClient) -> None:
+        resp = verify_client.post("/api/verify", json=_sealed_certificate())
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["artifact_kind"] == "certificate"
+        assert data["hash_valid"] is True
+        assert data["overall_passed"] is True
+
+    def test_tampered_pack_fails_hash(self, verify_client: TestClient) -> None:
+        """Editing a field after sealing must break the self-hash → fail."""
+        pack = _sealed_proof_pack()
+        # Mutate a field WITHOUT recomputing the hash — classic tamper.
+        pack["address"] = "rEVILTAMPEREDADDRESSXXXXXXXXXXX"
+        resp = verify_client.post("/api/verify", json=pack)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["hash_valid"] is False
+        assert data["overall_passed"] is False
+        assert "mismatch" in data["hash_message"].lower()
+
+
+class TestVerifyBadBody:
+    """The body is UNTRUSTED — bad input is a clean structured 400, never 500."""
+
+    def test_malformed_json_is_400(self, verify_client: TestClient) -> None:
+        resp = verify_client.post(
+            "/api/verify",
+            content=b"{ this is not json ",
+            headers={"content-type": "application/json"},
+        )
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert detail["code"] == "INVALID_BODY"
+        assert {"code", "message", "hint"} <= set(detail.keys())
+
+    def test_non_object_body_is_400(self, verify_client: TestClient) -> None:
+        # A JSON array is valid JSON but not an artifact object.
+        resp = verify_client.post("/api/verify", json=[1, 2, 3])
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["code"] == "INVALID_BODY"
+
+    def test_unknown_artifact_is_400(self, verify_client: TestClient) -> None:
+        # Valid object, correct shape — but no proof/cert marker.
+        resp = verify_client.post("/api/verify", json={"hello": "world"})
+        assert resp.status_code == 400
+        assert resp.json()["detail"]["code"] == "UNKNOWN_ARTIFACT"
+
+
+class TestVerifyLiveLayer:
+    """On-ledger layer — only runs when asked AND the hash passes. Driven with
+    a DryRunTransport + set_tx_fixtures (NO real network) by monkeypatching the
+    reporting entry point the route calls, mirroring test_v2_verify.py's
+    injection pattern."""
+
+    def test_live_pass_for_validated_txid(
+        self, verify_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from xrpl_lab import reporting
+        from xrpl_lab.transport.base import TxInfo
+        from xrpl_lab.transport.dry_run import DryRunTransport
+
+        addr = "rLearnerWalletAAAAAAAAAAAAAAAAA"
+        txid = "A" * 64
+        pack = _sealed_proof_pack(
+            transactions=[{"txid": txid, "network": "testnet"}], address=addr
+        )
+
+        transport = DryRunTransport()
+        transport.set_tx_fixtures({
+            txid: TxInfo(
+                txid=txid,
+                tx_type="Payment",
+                account=addr,
+                result_code="tesSUCCESS",
+                ledger_index=42_000_000,
+                validated=True,
+            )
+        })
+
+        # The route calls reporting.verify_proof_pack_live(body) with no factory;
+        # inject the fixture transport by wrapping that call. The route imports
+        # the symbol into its own namespace, so patch it there.
+        real_live = reporting.verify_proof_pack_live
+
+        async def patched(pack_arg, *a, **kw):
+            return await real_live(pack_arg, transport=transport)
+
+        monkeypatch.setattr("xrpl_lab.api.routes.verify_proof_pack_live", patched)
+
+        resp = verify_client.post("/api/verify?live=true", json=pack)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["hash_valid"] is True
+        assert data["live_requested"] is True
+        assert data["live"] is not None
+        assert data["live"]["overall_passed"] is True
+        assert data["overall_passed"] is True
+        # The per-tx row carries a server-recomputed explorer URL for testnet.
+        rows = data["live"]["tx_results"]
+        assert len(rows) == 1
+        assert rows[0]["status"] == "PASS"
+        assert rows[0]["explorer_url"].startswith("https://testnet.xrpl.org/")
+
+    def test_live_fail_for_fake_txid(
+        self, verify_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A pack claiming a txid the ledger doesn't have → live FAIL even
+        though the self-hash is correct (the whole point of --live)."""
+        from xrpl_lab import reporting
+        from xrpl_lab.transport.base import TxInfo
+
+        txid = "F" * 64
+        pack = _sealed_proof_pack(
+            transactions=[{"txid": txid, "network": "testnet"}]
+        )
+
+        class _NotFound:
+            network_name = "testnet"
+
+            async def fetch_tx(self, txid_arg: str) -> TxInfo:
+                return TxInfo(txid=txid_arg)  # empty → not found
+
+        real_live = reporting.verify_proof_pack_live
+
+        async def patched(pack_arg, *a, **kw):
+            return await real_live(pack_arg, transport=_NotFound())
+
+        monkeypatch.setattr("xrpl_lab.api.routes.verify_proof_pack_live", patched)
+
+        resp = verify_client.post("/api/verify?live=true", json=pack)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["hash_valid"] is True
+        assert data["live"]["overall_passed"] is False
+        assert data["overall_passed"] is False
+        assert data["live"]["tx_results"][0]["status"] == "FAIL"
+
+    def test_live_skipped_when_hash_fails(
+        self, verify_client: TestClient
+    ) -> None:
+        """A tampered pack must NOT trigger the on-ledger fetch — an edited
+        artifact is untrustworthy regardless of its txids (mirrors the CLI)."""
+        pack = _sealed_proof_pack(
+            transactions=[{"txid": "A" * 64, "network": "testnet"}]
+        )
+        pack["network"] = "devnet"  # tamper without re-sealing
+        resp = verify_client.post("/api/verify?live=true", json=pack)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["hash_valid"] is False
+        assert data["live_requested"] is True
+        # Hash failed → live not attempted; no live block, overall fails.
+        assert data["live"] is None
+        assert data["overall_passed"] is False

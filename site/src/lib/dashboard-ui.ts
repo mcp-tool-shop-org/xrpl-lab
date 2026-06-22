@@ -68,6 +68,54 @@ export function runBadge(status: string): string {
   return `<span class="badge badge--${b.cls}" role="status">${glyph}<span>${b.label}</span></span>`;
 }
 
+/* ---------- verify badges (live tx verdicts: PASS | FAIL | SKIPPED) ---------- */
+// Reuses the run-state .badge--{done,failed,cancelled} styling so the verify
+// page's per-tx table reads with the SAME shape+glyph+label+hue vocabulary as
+// the run page's status pills — never hue alone. PASS → done (✓), FAIL →
+// failed (✗), SKIPPED → cancelled (⊘, "no on-ledger anchor", not an error).
+const VERIFY_BADGE: Record<string, { cls: string; glyph: string; label: string }> = {
+  PASS:    { cls: 'done',      glyph: '✓', label: 'PASS' },
+  FAIL:    { cls: 'failed',    glyph: '✗', label: 'FAIL' },
+  SKIPPED: { cls: 'cancelled', glyph: '⊘', label: 'SKIPPED' },
+};
+
+export function verifyBadge(status: string): string {
+  const b = VERIFY_BADGE[status] || VERIFY_BADGE.SKIPPED;
+  return `<span class="badge badge--${b.cls}" role="status"><span class="badge__glyph" aria-hidden="true">${b.glyph}</span><span>${esc(b.label)}</span></span>`;
+}
+
+/* ---------- file download (FT-PROOF-002 — artifact download) ---------- */
+/**
+ * Serialize an already-fetched object/string to a Blob and trigger a browser
+ * download. No backend call — the data is already in the browser. Used by the
+ * Artifacts page (proof pack / certificate as application/json, reports as
+ * text/markdown) and any future "save this artifact" affordance.
+ *
+ * `data`  — a string (written verbatim) or any JSON-serializable value
+ *           (pretty-printed with 2-space indent, matching the on-disk format
+ *           written by reporting.write_proof_pack / write_certificate).
+ * `filename` — the suggested download name (e.g. xrpl_lab_proof_pack.json).
+ * `mime`  — the Blob type (application/json | text/markdown).
+ */
+export function downloadFile(
+  data: unknown,
+  filename: string,
+  mime = 'application/json',
+): void {
+  const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  // Append → click → remove is the cross-browser-safe trigger; revoke the
+  // object URL after a tick so the download has started before we free it.
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 /* ---------- health icon (doctor checks: pass | warn | fail) ---------- */
 export function healthIcon(status: string): string {
   const map: Record<string, [string, string, string]> = {
