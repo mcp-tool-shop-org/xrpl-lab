@@ -56,15 +56,15 @@ Nessuna rete richiesta. Transazioni simulate per imparare il flusso di lavoro.
 
 ```
 <!-- BEGIN curriculum:auto readme-intro -->
-<!-- generato da scripts/gen_docs.py – non modificare manualmente; esegui il generatore -->
-21 moduli suddivisi in dieci percorsi: Fondamenti, NFT, Token, Pagamenti, Identità, DEX, Riserve, Audit, AMM e Capstone.
+<!-- generato da scripts/gen_docs.py – non modificare manualmente; eseguire lo script di generazione -->
+24 moduli suddivisi in dieci aree tematiche: Fondamenti, NFT, Token, Pagamenti, Identità, DEX, Riserve, Audit, AMM e Progetto finale.
 I prerequisiti sono specificati esplicitamente: la CLI e il linter li applicano.
 
-La colonna `#` corrisponde all'ordine mostrato da `xrpl-lab list` (ordine canonico dei percorsi).
+La colonna `#` corrisponde all'ordine mostrato da `xrpl-lab list` (ordine canonico delle aree tematiche).
 <!-- END curriculum:auto readme-intro -->
 
 <!-- BEGIN curriculum:auto readme-table -->
-<!-- generato da scripts/gen_docs.py – non modificare manualmente; esegui il generatore -->
+<!-- generato da scripts/gen_docs.py – non modificare manualmente; eseguire lo script di generazione -->
 | # | Modulo | Area tematica | Modalità | Prerequisiti | Risultati |
 |---|--------|-------|------|---------------|----------|
 | 1 | Alfabetizzazione delle ricevute | fondamenti | testnet | — | txid, report |
@@ -75,37 +75,40 @@ La colonna `#` corrisponde all'ordine mostrato da `xrpl-lab list` (ordine canoni
 | 6 | NFT Marketplace 101: Scambio di asset con royalty applicate | nfts | testnet | — | txid, report |
 | 7 | Dynamic NFTs 101: Un oggetto di gioco che aumenta di livello | nfts | testnet | — | txid, report |
 | 8 | MPT Issuance 101: Una valuta di gioco in una singola transazione | tokens | testnet | — | txid, report |
-| 9 | Clawback 101: La funzione di richiamo dell'emittente | tokens | testnet | — | txid, report |
-| 10 | Escrow 101: XRP con blocco temporale | payments | testnet | — | txid, report |
-| 11 | Escrow Finish 101: Rilascio di XRP bloccato | payments | testnet | Escrow 101: XRP con blocco temporale | txid, report |
-| 12 | DID 101: Identità on-ledger | identity | testnet | — | txid, report |
-| 13 | DEX Literacy: Offerte, libri degli ordini e cancellazioni | dex | testnet | Trust Lines 101: Valute emesse come relazioni | txid, report |
-| 14 | DEX Market Making 101: Guadagnare lo spread sul libro degli ordini | dex | testnet | DEX Literacy: Offerte, libri degli ordini e cancellazioni | txid, report |
-| 15 | DEX Inventory Guardrails: Non farti sbilanciare | dex | testnet | DEX Market Making 101: Guadagnare lo spread sul libro degli ordini | txid, report |
-| 16 | Reserves 101: Dove sono "andati" i tuoi XRP | riserve | testnet | Trust Lines 101: Valute emesse come relazioni | txid, report |
-| 17 | Account Hygiene: Liberare le riserve e ripulire gli oggetti | riserve | testnet | Reserves 101: Dove sono "andati" i tuoi XRP | txid, report |
-| 18 | Audit Mode: Verifica delle ricevute su larga scala | audit | testnet | Alfabetizzazione delle ricevute | report, audit_pack |
-| 19 | AMM Liquidity 101: Fornire liquidità e guadagnare commissioni | amm | dry-run | Trust Lines 101: Valute emesse come relazioni | txid, report |
-| 20 | DEX vs AMM Risk Literacy: Confronto tra strategie di trading | amm | dry-run | DEX Market Making 101: Guadagnare lo spread sul libro degli ordini, AMM Liquidity 101: Fornire liquidità e guadagnare commissioni | txid, report |
-| 21 | Capstone: Crea un'economia di gioco minima su XRPL | capstone | testnet | MPT Issuance 101: Una valuta di gioco in una singola transazione, NFT Minting 101: Il tuo primo asset di gioco, Escrow 101: XRP con blocco temporale, Audit Mode: Verifica delle ricevute su larga scala | txid, report, audit_pack |
+| 9 | MPT Distribution 101: Distribuzione della valuta ai giocatori | tokens | testnet | MPT Issuance 101: Una valuta di gioco in una singola transazione | txid, report |
+| 10 | Token Freeze 101: Il pulsante di pausa dell'emittente | tokens | testnet | — | txid, report |
+| 11 | Clawback 101: La leva per il richiamo dell'emittente | tokens | testnet | — | txid, report |
+| 12 | Escrow 101: XRP con blocco temporale | payments | testnet | — | txid, report |
+| 13 | Escrow Finish 101: Rilascio di XRP bloccati | payments | testnet | Escrow 101: XRP con blocco temporale | txid, report |
+| 14 | Payment Channels 101: Firma molte transazioni, esegui il saldo una sola volta | payments | testnet | — | txid, report |
+| 15 | DID 101: Identità on-ledger | identity | testnet | — | txid, report |
+| 16 | DEX Literacy: Offerte, libri degli ordini e cancellazioni | dex | testnet | Trust Lines 101: Valute emesse come relazioni | txid, report |
+| 17 | DEX Market Making 101: Guadagno dello spread sul libro degli ordini | dex | testnet | DEX Literacy: Offerte, libri degli ordini e cancellazioni | txid, report |
+| 18 | DEX Inventory Guardrails: Non sbilanciarti troppo | dex | testnet | DEX Market Making 101: Guadagno dello spread sul libro degli ordini | txid, report |
+| 19 | Reserves 101: Dove sono "andati" i tuoi XRP | riserve | testnet | Trust Lines 101: Valute emesse come relazioni | txid, report |
+| 20 | Account Hygiene: Liberare le riserve e ripulire gli oggetti | riserve | testnet | Reserves 101: Dove sono "andati" i tuoi XRP | txid, report |
+| 21 | Audit Mode: Verifica delle ricevute su larga scala | audit | testnet | Alfabetizzazione delle ricevute | report, audit_pack |
+| 22 | AMM Liquidity 101: Fornire liquidità e guadagnare commissioni | amm | dry-run | Trust Lines 101: Valute emesse come relazioni | txid, report |
+| 23 | DEX vs AMM Risk Literacy: Confronto tra strategie di trading | amm | dry-run | DEX Market Making 101: Guadagno dello spread sul libro degli ordini, AMM Liquidity 101: Fornire liquidità e guadagnare commissioni | txid, report |
+| 24 | Capstone: Crea un'economia di gioco minima su XRPL | capstone | testnet | MPT Issuance 101: Una valuta di gioco in una singola transazione, NFT Minting 101: Il tuo primo asset di gioco, Escrow 101: XRP con blocco temporale, Audit Mode: Verifica delle ricevute su larga scala | txid, report, audit_pack |
 <!-- END curriculum:auto readme-table -->
 
-La colonna **Risultati** elenca i tipi di artefatti che ogni modulo produce (`txid`, `report`, `audit_pack`); consulta la pagina di ciascun modulo nel [manuale](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) per la guida completa alle competenze e ciò che dimostri on-ledger.
+La colonna **Risultati** elenca i tipi di artefatti che ogni modulo produce (`txid`, `report`, `audit_pack`); consulta la pagina di ciascun modulo nel [manuale](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) per la guida completa alle competenze e ciò che dimostrerai sull'ledger.
 
 ### Aree tematiche
 
 <!-- BEGIN curriculum:auto readme-tracks -->
-<!-- generato da scripts/gen_docs.py – non modificare manualmente; esegui il generatore -->
-- **foundations** — portafoglio, pagamenti, trust lines, gestione degli errori
-- **nfts** — asset di gioco NFT: creazione, regolamento del marketplace, NFT dinamici (XLS-20)
-- **tokens** — emissione e richiamo di token multiuso (MPT) per valute di gioco (XLS-33)
-- **payments** — escrow e valore con blocco temporale
-- **identity** — identificatori decentralizzati (DID, XLS-40)
-- **dex** — offerte, libri degli ordini, market making, gestione dell'inventario
-- **reserves** — riserve di account, conteggio dei proprietari, pulizia
-- **audit** — verifica in batch, report di audit
-- **amm** — liquidità del market maker automatizzato, confronto DEX vs AMM
-- **capstone** — combina le competenze tra i percorsi in una singola creazione di economia di gioco
+<!-- generato da scripts/gen_docs.py – non modificare manualmente; eseguire lo script di generazione -->
+- **foundations** – portafoglio, pagamenti, trust lines, gestione degli errori
+- **nfts** – asset di gioco NFT: creazione, regolamento del marketplace, NFT dinamici (XLS-20)
+- **tokens** – emissione e richiamo di token multiuso (MPT) per valuta di gioco (XLS-33)
+- **payments** – escrow e valore con blocco temporale
+- **identity** – identificatori decentralizzati (DID, XLS-40)
+- **dex** – offerte, libri degli ordini, market making, gestione dell'inventario
+- **reserves** – riserve di account, conteggio dei proprietari, pulizia
+- **audit** – verifica in batch, report di audit
+- **amm** – liquidità per market maker automatizzato, confronto DEX vs AMM
+- **capstone** – combina le competenze tra le aree tematiche nella creazione di un'economia di gioco
 <!-- END curriculum:auto readme-tracks -->
 ```
 

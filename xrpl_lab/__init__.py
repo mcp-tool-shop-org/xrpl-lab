@@ -8,4 +8,4 @@ except PackageNotFoundError:
     # Source-checkout fallback (package not installed). MUST track
     # pyproject [project].version — the anti-drift gate in
     # tests/test_v2_core.py::test_version_matches_pyproject enforces this.
-    __version__ = "2.0.0"
+    __version__ = "2.2.0"
