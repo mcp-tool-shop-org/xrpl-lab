@@ -45,6 +45,7 @@ from xrpl.models import (
     OfferCreate,
     Payment,
     TrustSet,
+    TrustSetFlag,
     Tx,
 )
 from xrpl.utils import drops_to_xrp, get_nftoken_id, hex_to_str, str_to_hex, xrp_to_drops
@@ -55,6 +56,7 @@ from .base import (
     AmmInfo,
     DIDInfo,
     EscrowInfo,
+    FreezeStatus,
     FundResult,
     MPTIssuanceInfo,
     NetworkInfo,
@@ -1234,6 +1236,108 @@ class XRPLTestnetTransport(Transport):
                     await asyncio.sleep(RETRY_DELAY)
                     continue
         return SubmitResult(success=False, result_code="local_error", error=last_error)
+
+    # ── Token-freeze methods (FT-CURRIC-003) ─────────────────────────
+
+    async def submit_set_freeze(
+        self,
+        issuer_seed: str,
+        holder: str,
+        currency: str,
+        freeze: bool,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        # ``issuer_address`` is a dry-run aid (see base contract); the testnet
+        # path derives the account from the seed and ignores it.
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        flag = TrustSetFlag.TF_SET_FREEZE if freeze else TrustSetFlag.TF_CLEAR_FREEZE
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            # Individual freeze: the issuer sets tfSetFreeze on ITS side of the
+            # (currency, holder) trust line. LimitAmount.issuer carries the
+            # HOLDER (the counterparty); the issuer side keeps value 0.
+            tx = TrustSet(
+                account=wallet.address,
+                limit_amount=IssuedCurrencyAmount(
+                    currency=currency, issuer=holder, value="0",
+                ),
+                flags=int(flag),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "TrustSet(freeze)")
+
+    async def submit_global_freeze(
+        self,
+        issuer_seed: str,
+        enable: bool,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            if enable:
+                tx = AccountSet(
+                    account=wallet.address,
+                    set_flag=AccountSetAsfFlag.ASF_GLOBAL_FREEZE,
+                )
+            else:
+                tx = AccountSet(
+                    account=wallet.address,
+                    clear_flag=AccountSetAsfFlag.ASF_GLOBAL_FREEZE,
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AccountSet(global-freeze)")
+
+    async def get_freeze_status(
+        self,
+        issuer_address: str,
+        holder: str,
+        currency: str,
+    ) -> FreezeStatus:
+        individual = False
+        glob = False
+        found = False
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                lines_resp = await asyncio.wait_for(
+                    client.request(
+                        AccountLines(
+                            account=issuer_address, peer=holder,
+                            ledger_index="validated",
+                        )
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+                for line in lines_resp.result.get("lines", []):
+                    if line.get("currency") == currency and line.get("account") == holder:
+                        found = True
+                        # On the issuer's own account_lines, ``freeze`` is the
+                        # issuer-side Individual Freeze on this line.
+                        individual = bool(line.get("freeze", False))
+                        break
+                info_resp = await asyncio.wait_for(
+                    client.request(
+                        AccountInfo(account=issuer_address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+                flags = info_resp.result.get("account_data", {}).get("Flags", 0)
+                glob = bool(flags & 0x00400000)  # lsfGlobalFreeze
+        except Exception:
+            logger.warning(
+                "get_freeze_status failed for issuer %s", issuer_address, exc_info=True
+            )
+        return FreezeStatus(individual_frozen=individual, global_frozen=glob, found=found)
 
     async def _account_objects(self, address: str) -> list[dict]:
         async with _rpc_client(self._rpc_url) as client:

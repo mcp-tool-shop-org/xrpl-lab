@@ -11,6 +11,7 @@ from .base import (
     AmmInfo,
     DIDInfo,
     EscrowInfo,
+    FreezeStatus,
     FundResult,
     MPTIssuanceInfo,
     NetworkInfo,
@@ -118,6 +119,10 @@ class DryRunTransport(Transport):
         # A Clawback against an issuer NOT in this set fails with tecNO_PERMISSION,
         # matching the testnet engine result for clawback-without-the-flag.
         self._clawback_enabled: set[str] = set()
+        # Token-freeze state (FT-CURRIC-003). Individual freeze keys a
+        # (issuer, currency, holder) line; global freeze keys an issuer.
+        self._frozen_lines: set[tuple[str, str, str]] = set()
+        self._global_frozen: set[str] = set()
         # Escrow / DID / MPT state
         self._escrows: _PerAddressStore = _PerAddressStore()
         self._mpts: _PerAddressStore = _PerAddressStore()
@@ -1454,6 +1459,62 @@ class DryRunTransport(Transport):
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    # ── Token-freeze methods (FT-CURRIC-003) ─────────────────────────
+
+    async def submit_set_freeze(
+        self, issuer_seed: str, holder: str, currency: str,
+        freeze: bool, issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_LINE", fee="12",
+                error="[dry-run] Simulated failure: TrustSet freeze",
+            )
+        issuer = issuer_address or _address_from_seed(issuer_seed)
+        key = (issuer, currency, holder)
+        if freeze:
+            self._frozen_lines.add(key)
+        else:
+            self._frozen_lines.discard(key)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def submit_global_freeze(
+        self, issuer_seed: str, enable: bool, issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecOWNERS", fee="12",
+                error="[dry-run] Simulated failure: AccountSet global freeze",
+            )
+        issuer = issuer_address or _address_from_seed(issuer_seed)
+        if enable:
+            self._global_frozen.add(issuer)
+        else:
+            self._global_frozen.discard(issuer)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def get_freeze_status(
+        self, issuer_address: str, holder: str, currency: str,
+    ) -> FreezeStatus:
+        found = any(
+            tl.currency == currency
+            and (not issuer_address or tl.peer == issuer_address)
+            for tl in self._live_lines_for(holder)
+        )
+        individual = (issuer_address, currency, holder) in self._frozen_lines
+        glob = issuer_address in self._global_frozen
+        return FreezeStatus(
+            individual_frozen=individual, global_frozen=glob, found=found,
         )
 
     # ── Escrow / DID / MPT methods ───────────────────────────────────

@@ -36,6 +36,7 @@ from .actions.escrow import (
     verify_escrow,
     verify_escrow_finished,
 )
+from .actions.freeze import set_global_freeze, set_individual_freeze, verify_freeze
 from .actions.mpt import create_mpt_issuance, verify_mpt_issuance
 from .actions.nft import (
     accept_nft_offer,
@@ -643,6 +644,123 @@ async def handle_verify_trust_line_removed(
             console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_trust_line_verify"] = result
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Token-freeze actions (FT-CURRIC-003 — tokens track)
+# ---------------------------------------------------------------------------
+
+
+def _parse_bool_arg(raw: str | None) -> bool | None:
+    """Parse a module-arg flag to True/False, or None when the arg is absent."""
+    if raw is None:
+        return None
+    return str(raw).strip().lower() in ("true", "1", "yes", "on")
+
+
+async def handle_set_freeze(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    currency = args.get("currency", "GLD")
+    freeze = _parse_bool_arg(args.get("freeze", "true"))
+    _raw = context.get("issuer_seed", "")
+    issuer_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    issuer_address = context.get("issuer_address", "")
+    holder = state.wallet_address or ""
+
+    if not issuer_seed or not holder:
+        console.print("  [red]Missing issuer or holder wallet. Run previous steps first.[/]")
+        return context
+
+    verb = "Freezing" if freeze else "Unfreezing"
+    console.print(f"  {verb} the holder's [cyan]{currency}[/] trust line (issuer-side)...")
+    result = await set_individual_freeze(
+        transport, issuer_seed, holder, currency, bool(freeze), issuer_address
+    )
+
+    if result.success:
+        console.print(f"  [green]Individual freeze {'set' if freeze else 'cleared'}![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        state.record_tx(
+            txid=result.txid, module_id=context.get("module_id", ""),
+            network=state.network, success=True, explorer_url=result.explorer_url,
+        )
+        context.setdefault("txids", []).append(result.txid)
+    else:
+        console.print(f"  [red]Freeze tx failed: {result.error}[/]")
+        state.record_tx(
+            txid=result.txid or "failed", module_id=context.get("module_id", ""),
+            network=state.network, success=False,
+        )
+    save_state(state)
+    return context
+
+
+async def handle_set_global_freeze(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    enable = _parse_bool_arg(args.get("enable", "true"))
+    _raw = context.get("issuer_seed", "")
+    issuer_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    issuer_address = context.get("issuer_address", "")
+
+    if not issuer_seed:
+        console.print("  [red]No issuer wallet. Run the issuer step first.[/]")
+        return context
+
+    verb = "Enabling" if enable else "Clearing"
+    console.print(f"  {verb} Global Freeze on the issuer (halts ALL its tokens)...")
+    result = await set_global_freeze(transport, issuer_seed, bool(enable), issuer_address)
+
+    if result.success:
+        console.print(f"  [green]Global freeze {'enabled' if enable else 'cleared'}![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        state.record_tx(
+            txid=result.txid, module_id=context.get("module_id", ""),
+            network=state.network, success=True, explorer_url=result.explorer_url,
+        )
+        context.setdefault("txids", []).append(result.txid)
+    else:
+        console.print(f"  [red]Global freeze tx failed: {result.error}[/]")
+        state.record_tx(
+            txid=result.txid or "failed", module_id=context.get("module_id", ""),
+            network=state.network, success=False,
+        )
+    save_state(state)
+    return context
+
+
+async def handle_verify_freeze(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    args = step.action_args
+    currency = args.get("currency", "GLD")
+    issuer_address = context.get("issuer_address", "")
+    holder = state.wallet_address or ""
+    expect_individual = _parse_bool_arg(args.get("expect_individual"))
+    expect_global = _parse_bool_arg(args.get("expect_global"))
+
+    result = await verify_freeze(
+        transport, issuer_address, holder, currency,
+        expect_individual=expect_individual, expect_global=expect_global,
+    )
+
+    for check in result.checks:
+        console.print(f"  [green]✓[/] {check}")
+    for fail in result.failures:
+        console.print(f"  [red]✗[/] {fail}")
+
+    context["last_freeze_verify"] = result
     return context
 
 
@@ -3237,6 +3355,40 @@ def _register_all() -> None:
             payload_fields=[
                 PayloadField(name="currency", default="NOC"),
                 PayloadField(name="amount", default="10"),
+            ],
+        ),
+        # ── game-economy control: token freeze (tokens track) ──
+        ActionDef(
+            name="set_freeze",
+            handler=handle_set_freeze,
+            description="Issuer freezes/unfreezes a holder's trust line (TrustSet tfSetFreeze)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="GLD"),
+                PayloadField(name="freeze", default="true",
+                             description="true to freeze, false to unfreeze"),
+            ],
+        ),
+        ActionDef(
+            name="set_global_freeze",
+            handler=handle_set_global_freeze,
+            description="Issuer enables/clears Global Freeze (AccountSet asfGlobalFreeze)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="enable", default="true",
+                             description="true to enable, false to clear"),
+            ],
+        ),
+        ActionDef(
+            name="verify_freeze",
+            handler=handle_verify_freeze,
+            description="Verify on-ledger freeze state matches expected Individual/Global flags",
+            payload_fields=[
+                PayloadField(name="currency", default="GLD"),
+                PayloadField(name="expect_individual",
+                             description="Expected individual-freeze state (true|false)"),
+                PayloadField(name="expect_global",
+                             description="Expected global-freeze state (true|false)"),
             ],
         ),
         # ── v2.0.0 game-economy control: NFT marketplace (nfts track) ──

@@ -169,6 +169,22 @@ class MPTIssuanceInfo:
 
 
 @dataclass
+class FreezeStatus:
+    """Whether an issuer has frozen a holder's trust line and/or globally.
+
+    ``individual_frozen`` is the per-trust-line freeze the issuer set on the
+    (currency, holder) line via TrustSet tfSetFreeze. ``global_frozen`` is the
+    account-wide asfGlobalFreeze on the issuer (halts ALL its tokens).
+    ``found`` is False when the holder has no trust line for the currency
+    (so the individual-freeze read is undefined, not "unfrozen").
+    """
+
+    individual_frozen: bool = False
+    global_frozen: bool = False
+    found: bool = False
+
+
+@dataclass
 class AccountSnapshot:
     """Account state at a point in time — balance, owner count, reserves."""
 
@@ -562,3 +578,45 @@ class Transport(ABC):
     @abstractmethod
     async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
         """List MPT issuances created by an address."""
+
+    @abstractmethod
+    async def submit_set_freeze(
+        self,
+        issuer_seed: str,
+        holder: str,
+        currency: str,
+        freeze: bool,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Freeze (or unfreeze) an individual holder's trust line for a currency.
+
+        The ISSUER submits a TrustSet on the (currency, holder) line with
+        ``tfSetFreeze`` (or ``tfClearFreeze``) — Individual Freeze, the
+        per-holder sanction lever below clawback. ``issuer_address`` (the
+        issuer's real classic address) is used by the dry-run transport to key
+        per-issuer line state; the testnet transport derives it from the seed.
+        """
+
+    @abstractmethod
+    async def submit_global_freeze(
+        self,
+        issuer_seed: str,
+        enable: bool,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Enable (or clear) Global Freeze on the issuer (AccountSet asfGlobalFreeze).
+
+        Global Freeze halts ALL transfers of every token the account issues —
+        the economy-wide circuit breaker. ``issuer_address`` keys the dry-run
+        transport's per-issuer flag state.
+        """
+
+    @abstractmethod
+    async def get_freeze_status(
+        self,
+        issuer_address: str,
+        holder: str,
+        currency: str,
+    ) -> FreezeStatus:
+        """Read whether the issuer froze the holder's (currency) trust line, and
+        whether the issuer has Global Freeze set on its account."""

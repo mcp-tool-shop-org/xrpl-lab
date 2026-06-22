@@ -157,6 +157,12 @@ _MAINNET_REFUSAL_CALLS = {
     "submit_clawback": (
         lambda t: t.submit_clawback("sEdSEED", "rHOLDER", "GOLD", "30")
     ),
+    "submit_set_freeze": (
+        lambda t: t.submit_set_freeze("sEdSEED", "rHOLDER", "GLD", True)
+    ),
+    "submit_global_freeze": (
+        lambda t: t.submit_global_freeze("sEdSEED", True)
+    ),
     "submit_nft_create_offer": (
         lambda t: t.submit_nft_create_offer("sEdSEED", "00080000ABC", "100")
     ),
