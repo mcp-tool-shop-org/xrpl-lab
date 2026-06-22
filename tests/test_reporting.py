@@ -18,11 +18,39 @@ from xrpl_lab.reporting import (
 )
 from xrpl_lab.state import LabState
 
-# A pinned, recognizable seed value used by the adversarial "no secrets"
-# tests. The point is to assert this exact VALUE never lands in a
-# shareable artifact — a key-name-only check ("'seed' not in dumps") is
-# vacuous against a seedless state.
+# A pinned, recognizable seed value used by the adversarial "no secrets" tests.
 SENTINEL_SEED = "sEdSENTINELSEEDxxxxxxxxxxxxxx"
+
+# The CLOSED set of public fields each artifact is allowed to emit. The
+# generators build their output by hand from an explicit field list and NEVER
+# read the secret-bearing tier (~/.xrpl-lab/wallet.json) — so there is no
+# redaction step to test; the real regression risk is "a future edit adds a
+# field that carries something sensitive". Pinning these sets makes ANY new
+# field fail the gate and forces a reviewer to confirm it is non-secret. A
+# prior version of these tests planted a sentinel seed in a monkeypatched
+# workspace wallet.json the generator never opens, so the assertion passed
+# vacuously (it could not have failed). The allowlist + no-workspace-read guard
+# below replace it, and the *_gate_is_not_vacuous meta-tests prove they fire.
+_PROOF_TOPLEVEL_KEYS = {
+    "xrpl_lab_proof_pack", "version", "network", "endpoint", "address",
+    "generated_at", "completed_modules", "capstone", "transactions",
+    "receipt_table", "total_transactions", "successful_transactions",
+    "failed_transactions", "sha256",
+}
+_PROOF_MODULE_KEYS = {"module_id", "completed_at", "txids", "kb_source", "explorer_urls"}
+_PROOF_TX_KEYS = {"txid", "module_id", "success", "timestamp", "network", "explorer_url"}
+_PROOF_RECEIPT_KEYS = {"txid", "txid_full", "module", "status", "network", "timestamp"}
+_CERT_TOPLEVEL_KEYS = {
+    "xrpl_lab_certificate", "version", "network", "address", "generated_at",
+    "modules_completed", "module_titles", "total_modules",
+    "total_transactions", "successful_transactions", "summary_line", "sha256",
+}
+
+
+def _boom_workspace():
+    raise AssertionError(
+        "artifact generators must not read the workspace/secrets tier"
+    )
 
 
 @pytest.fixture
@@ -52,30 +80,42 @@ class TestProofPack:
         assert "transactions" in pack
         assert len(pack["transactions"]) == 2
 
-    def test_no_secrets(self, completed_state, tmp_path, monkeypatch):
-        """Adversarial: pin a known SENTINEL seed value into the
-        monkeypatched workspace (wallet.json) — a place the generator
-        could plausibly read — and assert that VALUE never appears in the
-        serialized proof pack. The old form asserted ``'seed' not in
-        json.dumps(<seedless state>)`` which is vacuously true: a state
-        with no seed can't leak one. We pin the value channel, not the
-        key name."""
-        ws = tmp_path / ".xrpl-lab"
-        ws.mkdir()
-        (ws / "wallet.json").write_text(
-            json.dumps({"seed": SENTINEL_SEED}), encoding="utf-8",
-        )
-        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: ws)
+    def test_no_secrets(self, completed_state, monkeypatch):
+        """The proof pack carries only allowlisted public fields and never
+        reads the secret-bearing tier.
+
+        Two real guards (replacing the old vacuous sentinel-in-an-unread-
+        wallet.json check): (1) make ``get_workspace_dir`` blow up — a
+        generator that reached for the workspace/secrets tier would raise; it
+        must still produce a pack, proving it does not. (2) Pin the exact set
+        of public keys at every level, so any future field addition fails here
+        and forces a reviewer to confirm it carries no secret."""
+        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", _boom_workspace)
 
         pack = generate_proof_pack(completed_state)
-        text = json.dumps(pack)
-        # The literal sentinel seed value must not appear anywhere.
-        assert SENTINEL_SEED not in text, (
-            "proof pack leaked the sentinel wallet seed value"
-        )
-        # Key-name guards stay as a cheap secondary signal.
-        assert "seed" not in text.lower()
-        assert "secret" not in text.lower()
+
+        assert set(pack) == _PROOF_TOPLEVEL_KEYS
+        for mod in pack["completed_modules"]:
+            assert set(mod) <= _PROOF_MODULE_KEYS
+        for tx in pack["transactions"]:
+            assert set(tx) <= _PROOF_TX_KEYS
+        for row in pack["receipt_table"]:
+            assert set(row) <= _PROOF_RECEIPT_KEYS
+
+        # Secondary signal: no obvious secret key names anywhere in the dump.
+        text = json.dumps(pack).lower()
+        assert "seed" not in text
+        assert "secret" not in text
+        assert "private" not in text
+
+    def test_no_secrets_gate_is_not_vacuous(self, completed_state):
+        """Meta-test: a leak regression (a new top-level field carrying a seed)
+        MUST break the public-key allowlist — proving the gate fires RED rather
+        than passing no matter what (testing-os learning #3)."""
+        pack = generate_proof_pack(completed_state)
+        pack["wallet_seed"] = SENTINEL_SEED  # simulate a future leak
+        assert set(pack) != _PROOF_TOPLEVEL_KEYS
+        assert SENTINEL_SEED in json.dumps(pack)
 
     def test_receipt_table(self, completed_state):
         pack = generate_proof_pack(completed_state)
@@ -129,24 +169,25 @@ class TestCertificate:
         assert "receipt_literacy" in cert["modules_completed"]
         assert cert["total_modules"] == 1
 
-    def test_no_secrets(self, completed_state, tmp_path, monkeypatch):
-        """Adversarial: same value-channel pin as
-        ``TestProofPack.test_no_secrets`` — a SENTINEL seed sits in the
-        monkeypatched workspace's wallet.json, and the serialized
-        certificate must not contain that VALUE."""
-        ws = tmp_path / ".xrpl-lab"
-        ws.mkdir()
-        (ws / "wallet.json").write_text(
-            json.dumps({"seed": SENTINEL_SEED}), encoding="utf-8",
-        )
-        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: ws)
+    def test_no_secrets(self, completed_state, monkeypatch):
+        """Same closed-allowlist + no-workspace-read guard as
+        ``TestProofPack.test_no_secrets``, applied to the certificate."""
+        monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", _boom_workspace)
 
         cert = generate_certificate(completed_state)
-        text = json.dumps(cert)
-        assert SENTINEL_SEED not in text, (
-            "certificate leaked the sentinel wallet seed value"
-        )
-        assert "seed" not in text.lower()
+
+        assert set(cert) == _CERT_TOPLEVEL_KEYS
+        text = json.dumps(cert).lower()
+        assert "seed" not in text
+        assert "secret" not in text
+        assert "private" not in text
+
+    def test_no_secrets_gate_is_not_vacuous(self, completed_state):
+        """Meta-test: a leak regression must break the certificate allowlist."""
+        cert = generate_certificate(completed_state)
+        cert["wallet_seed"] = SENTINEL_SEED
+        assert set(cert) != _CERT_TOPLEVEL_KEYS
+        assert SENTINEL_SEED in json.dumps(cert)
 
     def test_write(self, completed_state, tmp_path, monkeypatch):
         monkeypatch.setattr("xrpl_lab.reporting.get_workspace_dir", lambda: tmp_path)

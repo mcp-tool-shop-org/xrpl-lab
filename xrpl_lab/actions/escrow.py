@@ -124,6 +124,20 @@ async def verify_escrow_finished(
                 f"Escrow with create-sequence {offer_sequence} is still on-ledger"
             )
             return EscrowGoneResult(False, checks, failures)
+        # Guard against a FALSE "gone": EscrowInfo.sequence resolves to 0 when
+        # the testnet transport could not join the Escrow object back to its
+        # EscrowCreate (PreviousTxnID miss, or the create tx fell outside the
+        # account_tx window). If any still-present escrow has an unresolved
+        # create-sequence, we cannot prove THIS escrow was removed — so we must
+        # NOT claim the funds were released. Report indeterminate instead.
+        if any(e.sequence == 0 for e in escrows):
+            failures.append(
+                f"Could not confirm escrow {offer_sequence} was removed: "
+                f"{sum(1 for e in escrows if e.sequence == 0)} escrow(s) "
+                "on-ledger have an unresolved create-sequence — retry, or "
+                "check the address on a block explorer"
+            )
+            return EscrowGoneResult(False, checks, failures)
         checks.append(
             f"Escrow (create-sequence {offer_sequence}) is gone — funds released, "
             "reserve freed"

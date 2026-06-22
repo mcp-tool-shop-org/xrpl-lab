@@ -219,6 +219,24 @@ class DryRunTransport(Transport):
             )
 
         sender = _address_from_seed(wallet_seed)
+
+        # Parity with testnet: xrpl-py's xrp_to_drops rejects an XRP amount
+        # finer than 6 decimal places (1 drop = 0.000001 XRP). The dry-run
+        # previously truncated via int(amount * 1e6), so a >6dp amount "passed"
+        # here but fails on the real network — a dry-run pass that masks a
+        # testnet failure. Reject it the same way (normalize() so trailing
+        # zeros like "1.50000000" stay valid, matching xrp_to_drops).
+        if numeric_amount.normalize().as_tuple().exponent < -6:
+            return SubmitResult(
+                success=False,
+                txid="",
+                result_code="temBAD_AMOUNT",
+                fee="0",
+                error=(
+                    f"[dry-run] XRP amount finer than 6 decimal places "
+                    f"(1 drop = 0.000001 XRP): {amount}"
+                ),
+            )
         drops = int(numeric_amount * Decimal("1000000"))
 
         # F-BRIDGE-B-DRY-NEG-BAL: pre-validate sender balance before debiting.
@@ -396,8 +414,29 @@ class DryRunTransport(Transport):
                 error=f"[dry-run] Invalid amount: {amount}",
             )
 
-        txid = self._next_txid()
         new_balance = numeric_balance + numeric_amount
+        # Parity with testnet: an issued payment that pushes the holder above
+        # their trust-line limit fails (tecPATH_DRY) on the real network. The
+        # dry-run previously credited unconditionally, so an over-limit payment
+        # "passed" here but would fail on testnet — a dry-run pass masking a
+        # real failure. A zero/blank limit means "unset", so we skip the check.
+        try:
+            limit = Decimal(matching_tl.limit)
+        except Exception:
+            limit = Decimal("0")
+        if limit > 0 and new_balance > limit:
+            return SubmitResult(
+                success=False,
+                txid="",
+                result_code="tecPATH_DRY",
+                fee="12",
+                error=(
+                    f"[dry-run] issued payment exceeds trust-line limit: "
+                    f"new balance {new_balance} > limit {limit}"
+                ),
+            )
+
+        txid = self._next_txid()
         # Preserve integer representation when the result is a whole number
         matching_tl.balance = (
             str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)

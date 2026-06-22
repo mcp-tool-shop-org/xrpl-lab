@@ -10,6 +10,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 from .state import get_home_dir, get_workspace_dir, load_state, state_path
 
@@ -18,6 +19,31 @@ logger = logging.getLogger(__name__)
 # Maximum lines retained in the clinic-friendly doctor.log (last-N tail).
 _DOCTOR_LOG_MAX_LINES = 100
 _DOCTOR_LOG_FILENAME = "doctor.log"
+
+
+def _redact_path(p: Path | str) -> str:
+    """Home-/cwd-relativize a path for doctor output.
+
+    Doctor ``Check.detail`` strings flow into ``doctor.log`` and the
+    explicitly issue-shareable feedback bundle (``feedback.py``). A raw
+    absolute path leaks the OS username and home layout, so we render paths
+    as ``~/…`` or ``./…`` and never expose the absolute home prefix. Mirrors
+    the COREBCD-002 discipline already applied to the network checks, which
+    surface only ``type(exc).__name__`` rather than ``str(exc)``.
+    """
+    path = Path(p)
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return path.name
+    try:
+        return "~/" + str(resolved.relative_to(Path.home())).replace("\\", "/")
+    except (ValueError, OSError):
+        pass
+    try:
+        return "./" + str(resolved.relative_to(Path.cwd())).replace("\\", "/")
+    except (ValueError, OSError):
+        return resolved.name
 
 
 @dataclass
@@ -78,7 +104,10 @@ def _check_state() -> Check:
     except json.JSONDecodeError:
         return Check("State file", False, "Corrupted JSON", "Run: xrpl-lab reset")
     except OSError as exc:
-        return Check("State file", False, f"Unreadable: {exc}", "Check file permissions")
+        logger.warning("state file unreadable", exc_info=True)
+        return Check(
+            "State file", False, f"Unreadable ({type(exc).__name__})", "Check file permissions"
+        )
 
 
 def _check_workspace() -> Check:
@@ -93,18 +122,30 @@ def _check_workspace() -> Check:
             _ensure_dir_mode(ws, WORKSPACE_DIR_MODE)
             (ws / ".doctor-probe").write_text("ok", encoding="utf-8")
             (ws / ".doctor-probe").unlink()
-            return Check("Workspace", True, f"Created: {ws.resolve()}")
+            return Check("Workspace", True, f"Created: {_redact_path(ws)}")
         except OSError as exc:
-            return Check("Workspace", False, f"Cannot create: {exc}", "Check directory permissions")
+            logger.warning("workspace create failed", exc_info=True)
+            return Check(
+                "Workspace",
+                False,
+                f"Cannot create ({type(exc).__name__})",
+                "Check directory permissions",
+            )
 
     # Exists — check writable
     try:
         probe = ws / ".doctor-probe"
         probe.write_text("ok", encoding="utf-8")
         probe.unlink()
-        return Check("Workspace", True, f"Writable: {ws.resolve()}")
+        return Check("Workspace", True, f"Writable: {_redact_path(ws)}")
     except OSError as exc:
-        return Check("Workspace", False, f"Not writable: {exc}", "Check directory permissions")
+        logger.warning("workspace not writable", exc_info=True)
+        return Check(
+            "Workspace",
+            False,
+            f"Not writable ({type(exc).__name__})",
+            "Check directory permissions",
+        )
 
 
 async def _check_rpc() -> Check:
@@ -274,10 +315,11 @@ def _check_last_module_state() -> Check:
     try:
         state = load_state()
     except Exception as exc:  # noqa: BLE001 — state-file corruption is reported by _check_state
+        logger.warning("could not read state for last-module check", exc_info=True)
         return Check(
             "Last module state",
             False,
-            f"Could not read state: {exc}",
+            f"Could not read state ({type(exc).__name__})",
             "Run: xrpl-lab reset",
         )
 
@@ -359,7 +401,8 @@ def _check_last_module_state() -> Check:
                         f"{m.module_id} (missing prereqs: {','.join(missing)})"
                     )
         except Exception as exc:  # noqa: BLE001 — curriculum load is best-effort here
-            parts.append(f"curriculum check skipped: {exc}")
+            logger.warning("curriculum drift check skipped", exc_info=True)
+            parts.append(f"curriculum check skipped ({type(exc).__name__})")
             drift_modules = []
 
     if drift_modules:

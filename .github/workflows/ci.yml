@@ -8,6 +8,12 @@ on:
       - "tests/**"
       - "pyproject.toml"
       - ".github/workflows/**"
+      # Doc surfaces the drift gate (tests/test_docs_drift.py) pins — so a
+      # doc-only hand-edit that diverges from the curriculum manifest still
+      # re-runs the gate instead of merging stale.
+      - "README.md"
+      - "site/src/content/docs/handbook/**"
+      - "site/src/data/curriculum.json"
   pull_request:
     paths:
       - "xrpl_lab/**"
@@ -15,6 +21,12 @@ on:
       - "tests/**"
       - "pyproject.toml"
       - ".github/workflows/**"
+      # Doc surfaces the drift gate (tests/test_docs_drift.py) pins — so a
+      # doc-only hand-edit that diverges from the curriculum manifest still
+      # re-runs the gate instead of merging stale.
+      - "README.md"
+      - "site/src/content/docs/handbook/**"
+      - "site/src/data/curriculum.json"
   workflow_dispatch:
 
 concurrency:

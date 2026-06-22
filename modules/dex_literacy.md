@@ -40,7 +40,7 @@ already exist.
 ## Step 2: Fund your wallet
 
 Offers require XRP for fees and the owner reserve (each open offer increases
-the reserve by 2 XRP on mainnet, free on testnet).
+the reserve by 0.2 XRP on mainnet, free on testnet).
 
 <!-- action: ensure_funded -->
 
@@ -115,7 +115,7 @@ Key concepts to remember:
 - **Native DEX**: the XRPL order book is built into the protocol, not a smart contract
 - **TakerPays / TakerGets**: confusing at first, but remember — from the taker's perspective
 - **Offer sequence**: every offer gets a sequence number you use to cancel it
-- **Reserve impact**: each open offer costs 2 XRP reserve (released on cancel/fill)
+- **Reserve impact**: each open offer costs 0.2 XRP reserve (released on cancel/fill)
 - **Partial fills**: offers can be partially filled — the remaining amount stays on the book
 - **Self-trading**: you cannot fill your own offers
 

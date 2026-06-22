@@ -1284,18 +1284,30 @@ class XRPLTestnetTransport(Transport):
         index: dict[str, int] = {}
         try:
             async with _rpc_client(self._rpc_url) as client:
-                resp = await asyncio.wait_for(
-                    client.request(AccountTx(account=address, limit=200)),
-                    timeout=RPC_TIMEOUT,
-                )
-            for entry in resp.result.get("transactions", []):
-                tx = entry.get("tx") or entry.get("tx_json") or {}
-                if tx.get("TransactionType") != "EscrowCreate":
-                    continue
-                seq = _int_or_none(tx.get("Sequence"))
-                txid = tx.get("hash") or entry.get("hash", "")
-                if seq is not None and txid:
-                    index[txid] = seq
+                # Paginate via the account_tx marker so an EscrowCreate older
+                # than the most recent 200 txns is still found. Without this the
+                # join missed (sequence -> 0) and verify_escrow_finished could
+                # falsely report a still-locked escrow as "gone". Bounded to 10
+                # pages (~2000 txns) to cap round-trips for a busy account.
+                marker = None
+                for _ in range(10):
+                    resp = await asyncio.wait_for(
+                        client.request(
+                            AccountTx(account=address, limit=200, marker=marker)
+                        ),
+                        timeout=RPC_TIMEOUT,
+                    )
+                    for entry in resp.result.get("transactions", []):
+                        tx = entry.get("tx") or entry.get("tx_json") or {}
+                        if tx.get("TransactionType") != "EscrowCreate":
+                            continue
+                        seq = _int_or_none(tx.get("Sequence"))
+                        txid = tx.get("hash") or entry.get("hash", "")
+                        if seq is not None and txid:
+                            index[txid] = seq
+                    marker = resp.result.get("marker")
+                    if not marker:
+                        break
         except Exception:
             logger.warning(
                 "could not resolve EscrowCreate sequences for %s", address, exc_info=True

@@ -37,7 +37,7 @@ from a previous module, it will be loaded automatically.
 ## Step 2: Fund your wallet
 
 Trust line operations require XRP for transaction fees and the owner reserve
-(each trust line increases the reserve by 2 XRP on mainnet, free on testnet).
+(each trust line increases the reserve by 0.2 XRP on mainnet, free on testnet).
 
 <!-- action: ensure_funded -->
 
@@ -106,7 +106,7 @@ decide who you trust and for how much.
 Key concepts to remember:
 - **Trust lines are directional**: you trust the issuer, not the other way around
 - **Issuers can create tokens**: the balance is an obligation from issuer to holder
-- **Reserve costs**: each trust line increases your account reserve (2 XRP on mainnet)
+- **Reserve costs**: each trust line increases your account reserve (0.2 XRP on mainnet, set by validator vote)
 - **No surprise tokens**: unlike other chains, you cannot receive tokens you didn't agree to
 
 Your report is saved. Run `xrpl-lab proof-pack` when you're ready to
