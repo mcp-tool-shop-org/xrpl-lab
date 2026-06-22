@@ -101,7 +101,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
       <div class="grid section grid-stats">
         <div class="stat"><span class="stat__label">${II(icons.wallet)} Wallet</span><span class="stat__value"><span class="statdot statdot--${s.wallet_configured ? 'ok' : 'warn'}"></span><span class="mono nowrap" style="font-size:16px">${esc(walletShort)}</span></span></div>
-        <div class="stat"><span class="stat__label">${II(icons.net)} Network</span><span class="stat__value"><span class="statdot statdot--ok"></span>${esc(s.network || 'unknown')}</span></div>
+        <div class="stat"><span class="stat__label">${II(icons.net)} Network</span><span class="stat__value"><span class="statdot statdot--${s.network && s.network !== 'unknown' && s.network !== 'mainnet' ? 'ok' : 'warn'}"></span>${esc(s.network || 'unknown')}</span></div>
         <div class="stat"><span class="stat__label">${II(icons.doctor)} Doctor</span><span class="stat__value"><span class="statdot statdot--${doctorState}"></span>${doctorVal}</span></div>
         <div class="stat"><span class="stat__label">${II(icons.play)} Last run</span>${lastRunStat}</div>
       </div>

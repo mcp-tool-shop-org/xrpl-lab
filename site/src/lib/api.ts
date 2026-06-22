@@ -177,15 +177,6 @@ export interface RunResult {
   status: string;
 }
 
-export interface RunHandlers {
-  onStep?: (data: { action: string; index: number; total: number }) => void;
-  onOutput?: (data: { text: string }) => void;
-  onStepComplete?: (data: { action: string; success: boolean }) => void;
-  onTx?: (data: { txid: string; result_code: string }) => void;
-  onError?: (data: { message: string }) => void;
-  onComplete?: (data: { success: boolean; txids: string[]; report_path?: string }) => void;
-}
-
 export async function startModuleRun(id: string, dryRun: boolean): Promise<RunResult> {
   const res = await fetchWithTimeout(`${API_BASE}/api/run/${id}?dry_run=${dryRun}`, {
     method: 'POST',
@@ -236,37 +227,9 @@ export async function cancelRun(runId: string): Promise<{ ok: boolean; status: n
   return { ok: res.ok, status: res.status, statusText: res.statusText };
 }
 
-export function connectRunWebSocket(id: string, runId: string, handlers: RunHandlers): WebSocket {
-  const wsBase = API_BASE.replace(/^http/, 'ws');
-  const ws = new WebSocket(`${wsBase}/api/run/${id}/ws?run_id=${runId}`);
-
-  ws.addEventListener('message', (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      switch (msg.type) {
-        case 'step':
-          handlers.onStep?.(msg);
-          break;
-        case 'output':
-          handlers.onOutput?.(msg);
-          break;
-        case 'step_complete':
-          handlers.onStepComplete?.(msg);
-          break;
-        case 'tx':
-          handlers.onTx?.(msg);
-          break;
-        case 'error':
-          handlers.onError?.(msg);
-          break;
-        case 'complete':
-          handlers.onComplete?.(msg);
-          break;
-      }
-    } catch {
-      // ignore malformed messages
-    }
-  });
-
-  return ws;
-}
+// NOTE: a `connectRunWebSocket` helper was removed in the 2026-06-22 re-swarm
+// (B-FE-001). It was dead (no call sites) AND a resilience trap — a bare
+// WebSocket with none of the reconnect / liveness-watchdog / close-code
+// handling that the run page (run/[id].astro) inlines. If a shared WS client is
+// ever wanted, promote that page's resilient `connectWS` here rather than
+// reintroducing a defenseless duplicate.
