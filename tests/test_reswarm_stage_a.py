@@ -53,13 +53,16 @@ def test_check_workspace_detail_has_no_home_path(tmp_path, monkeypatch):
     check = _check_workspace()
 
     assert check.passed
-    # Never expose the absolute home prefix on the passing branch; the path is
-    # rendered in redacted ~/ or ./ form. (We don't assert the bare username is
-    # absent here because pytest's own tmp dir is literally "pytest-of-<user>";
-    # the home-prefix check is the real leak guard, and the dedicated
-    # _redact_path unit test covers the username-stripping on a clean path.)
+    # The real leak guard: never expose the absolute home prefix, and never
+    # emit the absolute resolved path (the buggy code did `ws.resolve()`).
+    # _redact_path returns a ~/, ./, or bare-basename form depending on where
+    # the workspace sits relative to home/cwd — all leak-free. We don't assert a
+    # specific prefix because on a CI runner the tmp dir is under neither home
+    # nor cwd, so the basename form is correct and expected (Windows tmp is
+    # under home, so it renders ~/… there — the cross-platform divergence that
+    # the absolute-path assertion below tolerates).
     assert str(Path.home()) not in check.detail
-    assert ": ~/" in check.detail or ": ./" in check.detail
+    assert str((tmp_path / "ws").resolve()) not in check.detail
 
 
 # ── A-ACTIONS-001: escrow false-"gone" guard ──────────────────────────────
