@@ -75,19 +75,22 @@ A coluna `#` corresponde à ordem exibida por `xrpl-lab list` (ordem canônica d
 | 6 | Mercado de NFTs 101: Negociação de Ativos com Royalties Definidos | nfts | testnet | — | txid, relatório |
 | 7 | NFTs Dinâmicos 101: Um Item de Jogo que Evolui | nfts | testnet | — | txid, relatório |
 | 8 | Emissão de MPT 101: Uma Moeda de Jogo em uma Única Transação | tokens | testnet | — | txid, relatório |
-| 9 | Reversão 101: A Ferramenta de Retirada do Emissor | tokens | testnet | — | txid, relatório |
-| 10 | Escrow 101: XRP com Prazo Determinado | pagamentos | testnet | — | txid, relatório |
-| 11 | Conclusão do Escrow 101: Liberação do XRP Bloqueado | pagamentos | testnet | Escrow 101: XRP com Prazo Determinado | txid, relatório |
-| 12 | DID 101: Identidade no Ledger | identidade | testnet | — | txid, relatório |
-| 13 | Conhecimentos sobre DEX: Ofertas, Livros de Ordens e Cancelamentos | dex | testnet | Linhas de Confiança 101: Moedas Emitidas como Relacionamentos | txid, relatório |
-| 14 | Criação de Mercado DEX 101: Obtenção de Lucro com o Spread no Livro de Ordens | dex | testnet | Conhecimentos sobre DEX: Ofertas, Livros de Ordens e Cancelamentos | txid, relatório |
-| 15 | Limites de Inventário DEX: Não se Deixe Desequilibrar | dex | testnet | Criação de Mercado DEX 101: Obtenção de Lucro com o Spread no Livro de Ordens | txid, relatório |
-| 16 | Reservas 101: Onde Seu XRP "Foi" | reservas | testnet | Linhas de Confiança 101: Moedas Emitidas como Relacionamentos | txid, relatório |
-| 17 | Higiene da Conta: Liberação de Reservas e Limpeza de Objetos | reservas | testnet | Reservas 101: Onde Seu XRP "Foi" | txid, relatório |
-| 18 | Modo de Auditoria: Verificação de Comprovantes em Larga Escala | auditoria | testnet | Alfabetização de recibos | relatório, audit_pack |
-| 19 | Liquidez AMM 101: Fornecimento de Liquidez e Obtenção de Taxas | amm | execução a seco | Linhas de Confiança 101: Moedas Emitidas como Relacionamentos | txid, relatório |
-| 20 | Conhecimentos sobre Riscos DEX vs AMM: Comparação de Estratégias de Negociação | amm | execução a seco | Criação de Mercado DEX 101: Obtenção de Lucro com o Spread no Livro de Ordens, Liquidez AMM 101: Fornecimento de Liquidez e Obtenção de Taxas | txid, relatório |
-| 21 | Projeto Final: Crie uma Economia de Jogo Mínima na XRPL | projeto final | testnet | Emissão de MPT 101: Uma Moeda de Jogo em uma Única Transação, Criação de NFTs 101: Seu Primeiro Ativo de Jogo, Escrow 101: XRP com Prazo Determinado, Modo de Auditoria: Verificação de Comprovantes em Larga Escala | txid, relatório, audit_pack |
+| 9 | Distribuição MPT 101: Como disponibilizar a moeda aos jogadores | tokens | testnet | Emissão de MPT 101: Uma Moeda de Jogo em uma Única Transação | txid, relatório |
+| 10 | Congelamento de Tokens 101: O botão de pausa do emissor | tokens | testnet | — | txid, relatório |
+| 11 | Reversão 101: A Ferramenta de Retirada do Emissor | tokens | testnet | — | txid, relatório |
+| 12 | Escrow 101: XRP com Prazo Determinado | pagamentos | testnet | — | txid, relatório |
+| 13 | Conclusão do Escrow 101: Liberação do XRP Bloqueado | pagamentos | testnet | Escrow 101: XRP com Prazo Determinado | txid, relatório |
+| 14 | Canais de Pagamento 101: Assine com vários, liquide uma vez | pagamentos | testnet | — | txid, relatório |
+| 15 | DID 101: Identidade no Ledger | identidade | testnet | — | txid, relatório |
+| 16 | Conhecimentos sobre DEX: Ofertas, Livros de Ordens e Cancelamentos | dex | testnet | Linhas de Confiança 101: Moedas Emitidas como Relacionamentos | txid, relatório |
+| 17 | Criação de Mercado DEX 101: Obtenção de Lucro com o Spread no Livro de Ordens | dex | testnet | Conhecimentos sobre DEX: Ofertas, Livros de Ordens e Cancelamentos | txid, relatório |
+| 18 | Limites de Inventário DEX: Não se Deixe Desequilibrar | dex | testnet | Criação de Mercado DEX 101: Obtenção de Lucro com o Spread no Livro de Ordens | txid, relatório |
+| 19 | Reservas 101: Onde Seu XRP "Foi" | reservas | testnet | Linhas de Confiança 101: Moedas Emitidas como Relacionamentos | txid, relatório |
+| 20 | Higiene da Conta: Liberação de Reservas e Limpeza de Objetos | reservas | testnet | Reservas 101: Onde Seu XRP "Foi" | txid, relatório |
+| 21 | Modo de Auditoria: Verificação de Comprovantes em Larga Escala | auditoria | testnet | Alfabetização de recibos | relatório, audit_pack |
+| 22 | Liquidez AMM 101: Fornecimento de Liquidez e Obtenção de Taxas | amm | execução a seco | Linhas de Confiança 101: Moedas Emitidas como Relacionamentos | txid, relatório |
+| 23 | Conhecimentos sobre Riscos DEX vs AMM: Comparação de Estratégias de Negociação | amm | execução a seco | Criação de Mercado DEX 101: Obtenção de Lucro com o Spread no Livro de Ordens, Liquidez AMM 101: Fornecimento de Liquidez e Obtenção de Taxas | txid, relatório |
+| 24 | Projeto Final: Crie uma Economia de Jogo Mínima na XRPL | projeto final | testnet | Emissão de MPT 101: Uma Moeda de Jogo em uma Única Transação, Criação de NFTs 101: Seu Primeiro Ativo de Jogo, Escrow 101: XRP com Prazo Determinado, Modo de Auditoria: Verificação de Comprovantes em Larga Escala | txid, relatório, audit_pack |
 <!-- END curriculum:auto readme-table -->
 
 A coluna **Resultados** lista os tipos de artefatos que cada módulo gera (`txid`, `relatório`, `audit_pack`); consulte a página de cada módulo no [manual](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) para obter o guia completo das habilidades e o que você demonstra no ledger.

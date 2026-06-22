@@ -714,8 +714,17 @@ async def _run_module_task(session: ModuleRunSession) -> None:
                     if not session.txids:
                         session.txids = list(cm.txids)
                     break
-        except Exception:
-            pass
+        except Exception as exc:
+            # The run already succeeded; this block only backfills
+            # report_path/txids for the 'complete' frame. Don't fail the run,
+            # but leave a breadcrumb so a "success but blank receipt" report is
+            # diagnosable (type name only — no path leak into the WS-captured
+            # console, matching the recovery-save discipline elsewhere).
+            logger.warning(
+                "post-run report-path collection failed for %s: %s",
+                session.module_id,
+                type(exc).__name__,
+            )
 
         session.status = "complete"
         _safe_put(

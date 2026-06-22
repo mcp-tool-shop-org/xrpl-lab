@@ -17,7 +17,7 @@ The page renders one card per known run. Each card shows:
 
 | Field | What it tells you |
 |-------|-------------------|
-| **Module ID** | Which module the learner is running (e.g., `trust-lines-101`) |
+| **Module ID** | Which module the learner is running (e.g., `trust_lines_101`) |
 | **Status badge** | One of ACTIVE / DONE / FAILED / CANCELLED — icon + color + text label so the signal survives projectors and color-blind users |
 | **Dry-run badge** | Present when the run is in offline-sandbox mode. Useful for spotting "this learner is in dry-run when they meant to be on testnet" |
 | **Elapsed time** | Seconds-or-minutes since the run started — drives your "is this learner stuck?" intuition |
@@ -35,7 +35,7 @@ The Kill button only renders for runs in the `running` status. The other three t
 
 Clicking Kill:
 
-1. Prompts for confirmation (browser `confirm()` dialog with the run's module ID + run ID)
+1. Prompts for confirmation (a branded, focus-trapped modal dialog showing the run's module ID + run ID)
 2. Fires `DELETE /api/runs/{run_id}` against the API
 3. The server cancels the underlying `asyncio` task, marks the run `status="cancelled"`, and emits a final `RUNTIME_CANCELLED` envelope onto the run's WebSocket queue
 4. Any connected dashboard WebSocket sees that envelope as its terminal frame, then the WS handler closes the socket with code 1000 (normal closure) — facilitator-initiated cancel is not an error, so the close code stays in the success range
@@ -62,7 +62,7 @@ curl http://localhost:8321/api/runs | jq
   "runs": [
     {
       "run_id": "5f8a...uuid...",
-      "module_id": "trust-lines-101",
+      "module_id": "trust_lines_101",
       "status": "running",
       "created_at": "2026-04-30T10:14:22.831Z",
       "elapsed_seconds": 47.2,
@@ -113,7 +113,7 @@ If you fork the page or wire your own JavaScript into it, follow the same patter
 The 4-status schema (`running` / `completed` / `failed` / `cancelled`) is canonical across both the API and the frontend. Two places where this matters:
 
 - **Schema definition** — `xrpl_lab/api/schemas.py` defines `RunInfo.status` with that comment.
-- **UI mapping** — the page's `statusBadge()` function has explicit handlers for all four values and a defensive fallback for anything else (which should not happen given the schema).
+- **UI mapping** — the page's `runBadge()` helper (in `lib/dashboard-ui.ts`) has explicit handlers for all four values and a defensive fallback for anything else (which should not happen given the schema).
 
 Don't introduce a fifth status without coordinating both ends — the runs page will fall back to a neutral badge for unknown values, which is functional but loses the semantic UI signal.
 

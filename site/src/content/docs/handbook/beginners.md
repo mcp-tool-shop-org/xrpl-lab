@@ -7,7 +7,7 @@ sidebar:
 
 ## What is this tool?
 
-XRPL Lab is a hands-on training workbook for the XRP Ledger. Instead of reading documentation and hoping you understand it, you work through 12 structured modules that each teach one skill and produce a verifiable artifact -- a transaction ID, a signed receipt, or a diagnostic report.
+XRPL Lab is a hands-on training workbook for the XRP Ledger. Instead of reading documentation and hoping you understand it, you work through 21 structured modules that each teach one skill and produce a verifiable artifact -- a transaction ID, a signed receipt, or a diagnostic report.
 
 Everything runs on the XRPL Testnet, a free sandbox that behaves like the real ledger but uses worthless test XRP. Nothing you do costs real money. The tool stores your wallet and progress locally on your machine, connects only to public testnet endpoints, and sends no telemetry.
 
@@ -88,7 +88,7 @@ This shows your wallet address, completed modules, and recent transactions.
 Once you have completed your first module:
 
 - Read the [Getting Started](/xrpl-lab/handbook/getting-started/) guide for details on data storage and network usage
-- Browse the [Modules](/xrpl-lab/handbook/modules/) page to see all 16 modules across the Foundations, NFTs, Tokens, Payments, Identity, DEX, Reserves, Audit, and AMM tracks
+- Browse the [Modules](/xrpl-lab/handbook/modules/) page to see all 21 modules across the Foundations, NFTs, Tokens, Payments, Identity, DEX, Reserves, Audit, AMM, and Capstone tracks
 - Check the [Commands](/xrpl-lab/handbook/commands/) reference for every CLI command and flag
 - Learn about [Artifacts](/xrpl-lab/handbook/artifacts/) -- proof packs, audit packs, and certificates that prove your work
 

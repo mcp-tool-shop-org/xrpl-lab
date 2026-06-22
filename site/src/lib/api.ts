@@ -170,20 +170,82 @@ export async function fetchDoctor(): Promise<DoctorResult> {
   return request<DoctorResult>('/api/doctor');
 }
 
+// --- Verify API (FT-PROOF-001 — browser proof verifier) ---
+// Mirrors xrpl_lab/api/schemas.py: VerifyResponse / VerifyLiveResult /
+// VerifyTxResult. The offline hash layer (hash_valid/hash_message) ALWAYS runs;
+// `live` is present only when on-ledger verification was requested AND the hash
+// passed (an edited artifact is untrustworthy regardless of its txids).
+
+export interface VerifyTxResult {
+  txid: string;
+  network: string;
+  status: string; // "PASS" | "FAIL" | "SKIPPED"
+  reason: string;
+  checks: string[];
+  explorer_url: string;
+}
+
+export interface VerifyLiveResult {
+  artifact_kind: string; // "proof_pack" | "certificate"
+  overall_passed: boolean;
+  no_onledger_txids: boolean;
+  passed: number;
+  failed: number;
+  skipped: number;
+  note: string;
+  tx_results: VerifyTxResult[];
+}
+
+export interface VerifyResponse {
+  artifact_kind: string; // "proof_pack" | "certificate"
+  hash_valid: boolean;
+  hash_message: string;
+  overall_passed: boolean;
+  live_requested: boolean;
+  live: VerifyLiveResult | null;
+  version: string;
+  address: string;
+  network: string;
+}
+
+/**
+ * POST a pasted proof pack / certificate to /api/verify.
+ *
+ * `artifact` is the parsed JSON object (untrusted — the server re-validates and
+ * never trusts its shape). `live` adds the on-ledger trust layer via `?live=`.
+ * On a non-OK response the body is the structured {code,message,hint} envelope;
+ * the caller surfaces it honestly rather than treating every failure as offline.
+ */
+export async function verifyArtifact(
+  artifact: unknown,
+  live: boolean
+): Promise<VerifyResponse> {
+  const res = await fetchWithTimeout(`${API_BASE}/api/verify?live=${live}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(artifact),
+  });
+  if (!res.ok) {
+    // Tag the status (and any structured detail) so the page can report the
+    // server's verdict — a 400 here is "bad artifact", not "API offline".
+    let detail = '';
+    try {
+      const body = await res.json();
+      detail = body?.detail?.message || body?.message || '';
+    } catch { /* non-JSON error body */ }
+    const e = new Error(`Verify API returned ${res.status}: ${res.statusText}`);
+    (e as any).httpStatus = res.status;
+    (e as any).detail = detail;
+    throw e;
+  }
+  return res.json() as Promise<VerifyResponse>;
+}
+
 // --- Run API (Wave 2) ---
 
 export interface RunResult {
   run_id: string;
   status: string;
-}
-
-export interface RunHandlers {
-  onStep?: (data: { action: string; index: number; total: number }) => void;
-  onOutput?: (data: { text: string }) => void;
-  onStepComplete?: (data: { action: string; success: boolean }) => void;
-  onTx?: (data: { txid: string; result_code: string }) => void;
-  onError?: (data: { message: string }) => void;
-  onComplete?: (data: { success: boolean; txids: string[]; report_path?: string }) => void;
 }
 
 export async function startModuleRun(id: string, dryRun: boolean): Promise<RunResult> {
@@ -236,37 +298,9 @@ export async function cancelRun(runId: string): Promise<{ ok: boolean; status: n
   return { ok: res.ok, status: res.status, statusText: res.statusText };
 }
 
-export function connectRunWebSocket(id: string, runId: string, handlers: RunHandlers): WebSocket {
-  const wsBase = API_BASE.replace(/^http/, 'ws');
-  const ws = new WebSocket(`${wsBase}/api/run/${id}/ws?run_id=${runId}`);
-
-  ws.addEventListener('message', (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      switch (msg.type) {
-        case 'step':
-          handlers.onStep?.(msg);
-          break;
-        case 'output':
-          handlers.onOutput?.(msg);
-          break;
-        case 'step_complete':
-          handlers.onStepComplete?.(msg);
-          break;
-        case 'tx':
-          handlers.onTx?.(msg);
-          break;
-        case 'error':
-          handlers.onError?.(msg);
-          break;
-        case 'complete':
-          handlers.onComplete?.(msg);
-          break;
-      }
-    } catch {
-      // ignore malformed messages
-    }
-  });
-
-  return ws;
-}
+// NOTE: a `connectRunWebSocket` helper was removed in the 2026-06-22 re-swarm
+// (B-FE-001). It was dead (no call sites) AND a resilience trap — a bare
+// WebSocket with none of the reconnect / liveness-watchdog / close-code
+// handling that the run page (run/[id].astro) inlines. If a shared WS client is
+// ever wanted, promote that page's resilient `connectWS` here rather than
+// reintroducing a defenseless duplicate.

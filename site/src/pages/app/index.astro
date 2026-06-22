@@ -101,7 +101,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
       <div class="grid section grid-stats">
         <div class="stat"><span class="stat__label">${II(icons.wallet)} Wallet</span><span class="stat__value"><span class="statdot statdot--${s.wallet_configured ? 'ok' : 'warn'}"></span><span class="mono nowrap" style="font-size:16px">${esc(walletShort)}</span></span></div>
-        <div class="stat"><span class="stat__label">${II(icons.net)} Network</span><span class="stat__value"><span class="statdot statdot--ok"></span>${esc(s.network || 'unknown')}</span></div>
+        <div class="stat"><span class="stat__label">${II(icons.net)} Network</span><span class="stat__value"><span class="statdot statdot--${s.network && s.network !== 'unknown' && s.network !== 'mainnet' ? 'ok' : 'warn'}"></span>${esc(s.network || 'unknown')}</span></div>
         <div class="stat"><span class="stat__label">${II(icons.doctor)} Doctor</span><span class="stat__value"><span class="statdot statdot--${doctorState}"></span>${doctorVal}</span></div>
         <div class="stat"><span class="stat__label">${II(icons.play)} Last run</span>${lastRunStat}</div>
       </div>
@@ -112,12 +112,20 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       </div>
 
       <div class="grid section grid-2">
-        <div class="card"><p class="eyebrow">Recent activity</p>${recent}</div>
         <a class="qa" href="/xrpl-lab/app/artifacts/">
           <span class="qa__ic">${icons.seal}</span>
           <span class="qa__t">Artifacts</span>
           <span class="qa__s">${s.has_proof_pack ? 'Proof pack' : 'No proof pack'} · ${s.has_certificate ? 'certificate' : 'no certificate'} · ${s.report_count} report${s.report_count === 1 ? '' : 's'}</span>
         </a>
+        <a class="qa" href="/xrpl-lab/app/verify/">
+          <span class="qa__ic">${icons.seal}</span>
+          <span class="qa__t">Verify a proof</span>
+          <span class="qa__s">Check a pasted proof pack or certificate — offline hash + on-ledger</span>
+        </a>
+      </div>
+
+      <div class="grid section grid-2">
+        <div class="card"><p class="eyebrow">Recent activity</p>${recent}</div>
       </div>`;
     }
 

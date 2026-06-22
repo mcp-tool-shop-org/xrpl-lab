@@ -22,7 +22,7 @@ XRPL — perfect for an in-game soft currency. Unlike trust-line IOUs, MPTs need
 per holder**, carry native metadata, and define their entire policy — supply cap, decimal scale,
 an optional transfer fee, and capability flags — in a **single `MPTokenIssuanceCreate` transaction**.
 This lesson sets a supply cap, scale, and the transferable flag, and leaves the transfer fee at
-zero — you can add one later by passing `transfer_fee` to the issuance step.
+zero — you can set a transfer fee on a *future* issuance by passing `transfer_fee` (an issuance's config is immutable once created, so this mints a new one).
 
 This runs on testnet — free and disposable.
 

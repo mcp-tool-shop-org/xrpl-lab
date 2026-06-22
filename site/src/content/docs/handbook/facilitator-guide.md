@@ -111,7 +111,7 @@ Most stuck states are one of two shapes. Match the shape, then run the playbook.
 Use granular reset:
 
 ```bash
-xrpl-lab reset --module trust-lines-101
+xrpl-lab reset --module trust_lines_101
 ```
 
 This removes that one module from `completed_modules`, clears its tx records and its workspace report, and leaves everything else (wallet, other modules, audit packs, certificates) untouched. The learner can re-run the module from scratch without losing any of their other work.
@@ -128,7 +128,7 @@ Full wipe (interactive, requires typing `RESET` to confirm):
 xrpl-lab reset
 ```
 
-Add `--keep-wallet` to preserve the wallet file (and the funded testnet balance) while wiping all module progress. Useful when the wallet is fine but the state file is corrupt or the workspace is in a weird half-finished state.
+`xrpl-lab reset` always preserves the wallet file (and its funded testnet balance) — it only wipes module progress and the workspace. Use it when the wallet is fine but the state file is corrupt or the workspace is in a weird half-finished state. (The old `--keep-wallet` flag is a deprecated no-op; the wallet is never touched.)
 
 **Decision rule:** prefer granular `--module` reset. Only fall back to the full wipe when the recovery hint explicitly tells you the state file is unreadable, or when you've already tried the granular path and the learner is still stuck. A workshop-day full reset is almost always overkill and erases the rest of their progress.
 

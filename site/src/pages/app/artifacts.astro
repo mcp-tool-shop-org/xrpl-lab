@@ -17,10 +17,16 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
   <script>
     import { fetchWithTimeout } from '../../lib/api';
-    import { icons, healthIcon, esc } from '../../lib/dashboard-ui';
+    import { icons, healthIcon, esc, downloadFile } from '../../lib/dashboard-ui';
 
     // Canonical API base — update in all app pages if port changes
     const API_BASE = 'http://localhost:8321';
+
+    // FT-PROOF-002: retain the already-fetched raw objects so the Download
+    // buttons can serialize them to a Blob with NO extra backend call. Keyed by
+    // a stable id used in the button's data-dl attribute. Reports are keyed by
+    // index (data-dl="report:N") since there can be many.
+    const downloads: Record<string, { data: unknown; filename: string; mime: string }> = {};
 
     const II = (svg: string) =>
       `<span style="display:inline-flex;width:16px;height:16px;color:var(--text-3)">${svg}</span>`;
@@ -69,6 +75,14 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       </div>`;
     }
 
+    // FT-PROOF-002: a Download button bound to a retained raw object by id.
+    // wireDownloads() reads the `downloads[id]` record on click and serializes
+    // it to a Blob — no backend round-trip (the data is already in the browser).
+    function downloadBtnHTML(id: string) {
+      return `<button class="btn btn--sm dl-artifact" type="button" data-dl="${esc(id)}">
+        ${II(icons.file)}<span>Download</span></button>`;
+    }
+
     /* ---------- skeletons ---------- */
     function skeletonPanel() {
       return `<p class="eyebrow">${sk('11px', '30%')}</p>
@@ -86,6 +100,9 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       const modules = Array.isArray(p.modules) ? p.modules : [];
       const generated = p.generated ? new Date(p.generated).toLocaleString() : 'unknown';
 
+      // FT-PROOF-002: retain the raw object for the Download button.
+      downloads['proof'] = { data: p, filename: 'xrpl_lab_proof_pack.json', mime: 'application/json' };
+
       const integrity = p.integrity
         ? `<p class="eyebrow" style="margin-top:18px">Integrity · SHA-256</p>${hashboxHTML(p.integrity)}`
         : '';
@@ -99,8 +116,11 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
           }).join('')}`
         : `<p class="muted" style="margin-top:18px">No modules recorded in this proof pack.</p>`;
 
-      return `<p class="eyebrow">Proof pack · v${esc(p.version)}</p>
-        <dl class="kv"><dt>Generated</dt><dd class="mono">${esc(generated)}</dd></dl>
+      return `<div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
+          <p class="eyebrow" style="margin:0">Proof pack · v${esc(p.version)}</p>
+          ${downloadBtnHTML('proof')}
+        </div>
+        <dl class="kv" style="margin-top:12px"><dt>Generated</dt><dd class="mono">${esc(generated)}</dd></dl>
         ${integrity}
         ${mods}`;
     }
@@ -117,12 +137,18 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
         ? mods.map((m: any) => `<span class="chip">${esc(m)}</span>`).join(' ')
         : '<span class="muted">none</span>';
 
+      // FT-PROOF-002: retain the raw object for the Download button.
+      downloads['cert'] = { data: c, filename: 'xrpl_lab_certificate.json', mime: 'application/json' };
+
       const hashbox = c.hash
         ? `<p class="eyebrow" style="margin-top:18px">Certificate hash</p>${hashboxHTML(c.hash)}`
         : '';
 
-      return `<p class="eyebrow">Certificate of completion</p>
-        <dl class="kv">
+      return `<div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
+          <p class="eyebrow" style="margin:0">Certificate of completion</p>
+          ${downloadBtnHTML('cert')}
+        </div>
+        <dl class="kv" style="margin-top:12px">
           <dt>${II(icons.award)} Holder</dt><dd>${esc(c.holder)}</dd>
           <dt>Issued</dt><dd class="mono">${esc(issued)}</dd>
           <dt>Modules completed</dt><dd>${chips}</dd>
@@ -131,17 +157,37 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
     }
 
     /* ---------- reports panel ---------- */
+    // Build a filesystem-safe <report>.md filename from the report title,
+    // falling back to a stable index when the title is empty/odd.
+    function reportFilename(title: string, idx: number): string {
+      const slug = String(title || '')
+        .trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+      return `${slug || `report_${idx + 1}`}.md`;
+    }
+
     function reportsHTML(reports: any) {
       if (!Array.isArray(reports) || reports.length === 0) {
         return emptyHTML(icons.file, 'No reports yet',
           'No reports generated yet. Complete a module to generate reports.');
       }
-      return reports.map((r: any) => {
+      return reports.map((r: any, idx: number) => {
         const date = r.generated ? new Date(r.generated).toLocaleDateString() : '';
+        // FT-PROOF-002: retain each report's markdown for its Download button.
+        const id = `report:${idx}`;
+        downloads[id] = {
+          data: typeof r.content === 'string' ? r.content : '',
+          filename: reportFilename(r.title, idx),
+          mime: 'text/markdown',
+        };
         return `<div class="report">
           <div class="report__head">
             <span class="report__title">${esc(r.title)}</span>
-            <span class="report__date">${esc(date)}</span>
+            <span class="row" style="gap:10px;align-items:center">
+              <span class="report__date">${esc(date)}</span>
+              ${downloadBtnHTML(id)}
+            </span>
           </div>
           <pre class="report__body">${esc(r.content)}</pre>
         </div>`;
@@ -215,6 +261,30 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       });
     }
 
+    /* ---------- download wiring (FT-PROOF-002) ---------- */
+    function wireDownloads(root: HTMLElement) {
+      root.querySelectorAll<HTMLButtonElement>('.dl-artifact').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.dl || '';
+          const rec = downloads[id];
+          if (!rec) return;
+          downloadFile(rec.data, rec.filename, rec.mime);
+          // Transient "Saved!" feedback, mirroring the copy-hash affordance.
+          const label = btn.querySelector('span');
+          if (!label) return;
+          const prev = label.textContent;
+          label.textContent = 'Saved!';
+          btn.style.borderColor = 'var(--ok-edge)';
+          btn.style.color = 'var(--accent-bright)';
+          setTimeout(() => {
+            label.textContent = prev;
+            btn.style.borderColor = '';
+            btn.style.color = '';
+          }, 1400);
+        });
+      });
+    }
+
     async function hydrate() {
       const root = document.getElementById('artifacts-root');
       if (!root) return;
@@ -267,6 +337,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       root.innerHTML = shellHTML(proof, cert, reports);
       wireTabs(root);
       wireCopy(root);
+      wireDownloads(root);
     }
 
     hydrate();

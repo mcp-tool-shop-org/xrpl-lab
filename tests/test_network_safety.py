@@ -157,6 +157,27 @@ _MAINNET_REFUSAL_CALLS = {
     "submit_clawback": (
         lambda t: t.submit_clawback("sEdSEED", "rHOLDER", "GOLD", "30")
     ),
+    "submit_set_freeze": (
+        lambda t: t.submit_set_freeze("sEdSEED", "rHOLDER", "GLD", True)
+    ),
+    "submit_global_freeze": (
+        lambda t: t.submit_global_freeze("sEdSEED", True)
+    ),
+    "submit_mpt_authorize": (
+        lambda t: t.submit_mpt_authorize("sEdSEED", "0" * 48)
+    ),
+    "submit_mpt_payment": (
+        lambda t: t.submit_mpt_payment("sEdSEED", "rHOLDER", "0" * 48, "100")
+    ),
+    "submit_payment_channel_create": (
+        lambda t: t.submit_payment_channel_create("sEdSEED", "10", "rDEST", 86400, "EDPUBKEY")
+    ),
+    "submit_payment_channel_fund": (
+        lambda t: t.submit_payment_channel_fund("sEdSEED", "0" * 64, "5")
+    ),
+    "submit_payment_channel_claim": (
+        lambda t: t.submit_payment_channel_claim("sEdSEED", "0" * 64, balance_xrp="3")
+    ),
     "submit_nft_create_offer": (
         lambda t: t.submit_nft_create_offer("sEdSEED", "00080000ABC", "100")
     ),

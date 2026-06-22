@@ -1216,8 +1216,8 @@ def serve(port: int, host: str, dry_run: bool):
 )
 @click.option(
     "--format", "fmt",
-    type=click.Choice(["table", "json"]), default="table",
-    help="Output format. Use json for scripting.",
+    type=click.Choice(["table", "json", "csv"]), default="table",
+    help="Output format. json for scripting; csv for a gradebook-ready roster.",
 )
 def cohort_status(cohort_dir: str, fmt: str):
     """Aggregate per-learner status across a cohort directory.
@@ -1297,6 +1297,34 @@ def cohort_status(cohort_dir: str, fmt: str):
             ],
         }
         print(json.dumps(out, indent=2))
+        return
+
+    if fmt == "csv":
+        # Gradebook-ready roster: one row per learner, paste-able into a
+        # spreadsheet / LMS. Warnings go to stderr so they never corrupt the
+        # CSV stream on stdout.
+        import csv as _csv
+        import sys
+
+        fieldnames = [
+            "learner_id", "wallet_address", "network", "completed_count",
+            "total_modules", "current_module", "blockers", "last_activity",
+        ]
+        writer = _csv.DictWriter(sys.stdout, fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({
+                "learner_id": row["learner_id"],
+                "wallet_address": row["wallet_address"] or "",
+                "network": row["network"],
+                "completed_count": row["completed_count"],
+                "total_modules": row["total_modules"],
+                "current_module": row["current_module"] or "",
+                "blockers": "; ".join(row["blockers"]) if row["blockers"] else "",
+                "last_activity": row["last_activity"] or "",
+            })
+        for lid, err in warnings:
+            print(f"warning: {lid}: {err}", file=sys.stderr)
         return
 
     # Rich table for facilitator at-a-glance

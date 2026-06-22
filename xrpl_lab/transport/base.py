@@ -50,6 +50,8 @@ class SubmitResult:
     explorer_url: str = ""
     nft_id: str = ""  # NFTokenID, set on a successful NFTokenMint
     nft_offer_index: str = ""  # NFTokenOffer ledger index, set on NFTokenCreateOffer
+    mpt_issuance_id: str = ""  # MPTokenIssuanceID, set on a successful MPTokenIssuanceCreate
+    channel_id: str = ""  # PayChannel id, set on a successful PaymentChannelCreate
 
 
 @dataclass
@@ -166,6 +168,41 @@ class MPTIssuanceInfo:
     transfer_fee: int = 0
     flags: int = 0
     outstanding_amount: str = "0"
+
+
+@dataclass
+class ChannelInfo:
+    """A Payment Channel owned by an account (XRP-only on mainnet).
+
+    ``amount`` is the total XRP (drops) deposited into the channel;
+    ``balance`` is the cumulative amount (drops) already claimed by the
+    destination. The claimable-but-unclaimed amount is ``amount - balance``.
+    """
+
+    channel_id: str
+    amount: str = "0"  # total deposited, drops
+    balance: str = "0"  # cumulative claimed, drops
+    destination: str = ""
+    settle_delay: int = 0
+    public_key: str = ""
+    expiration: int | None = None
+    cancel_after: int | None = None
+
+
+@dataclass
+class FreezeStatus:
+    """Whether an issuer has frozen a holder's trust line and/or globally.
+
+    ``individual_frozen`` is the per-trust-line freeze the issuer set on the
+    (currency, holder) line via TrustSet tfSetFreeze. ``global_frozen`` is the
+    account-wide asfGlobalFreeze on the issuer (halts ALL its tokens).
+    ``found`` is False when the holder has no trust line for the currency
+    (so the individual-freeze read is undefined, not "unfrozen").
+    """
+
+    individual_frozen: bool = False
+    global_frozen: bool = False
+    found: bool = False
 
 
 @dataclass
@@ -562,3 +599,139 @@ class Transport(ABC):
     @abstractmethod
     async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
         """List MPT issuances created by an address."""
+
+    @abstractmethod
+    async def submit_mpt_authorize(
+        self,
+        holder_seed: str,
+        issuance_id: str,
+        unauthorize: bool = False,
+    ) -> SubmitResult:
+        """Holder opts in to hold an MPT issuance (MPTokenAuthorize, XLS-33).
+
+        The MPT analog of a trust line: a holder must authorize an issuance
+        before it can receive that token. ``unauthorize=True`` opts back out
+        (tfMPTUnauthorize), allowed only at a zero balance.
+        """
+
+    @abstractmethod
+    async def submit_mpt_payment(
+        self,
+        issuer_seed: str,
+        destination: str,
+        issuance_id: str,
+        amount: str,
+    ) -> SubmitResult:
+        """Pay an amount of an MPT to a holder (Payment with an MPT Amount).
+
+        Distributes the issued game currency to a player. The holder must have
+        authorized the issuance first (else tecNO_AUTH).
+        """
+
+    @abstractmethod
+    async def get_mpt_balance(self, holder: str, issuance_id: str) -> str:
+        """Read a holder's balance of an MPT issuance ("0" if none / unauthorized)."""
+
+    @abstractmethod
+    async def submit_set_freeze(
+        self,
+        issuer_seed: str,
+        holder: str,
+        currency: str,
+        freeze: bool,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Freeze (or unfreeze) an individual holder's trust line for a currency.
+
+        The ISSUER submits a TrustSet on the (currency, holder) line with
+        ``tfSetFreeze`` (or ``tfClearFreeze``) — Individual Freeze, the
+        per-holder sanction lever below clawback. ``issuer_address`` (the
+        issuer's real classic address) is used by the dry-run transport to key
+        per-issuer line state; the testnet transport derives it from the seed.
+        """
+
+    @abstractmethod
+    async def submit_global_freeze(
+        self,
+        issuer_seed: str,
+        enable: bool,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Enable (or clear) Global Freeze on the issuer (AccountSet asfGlobalFreeze).
+
+        Global Freeze halts ALL transfers of every token the account issues —
+        the economy-wide circuit breaker. ``issuer_address`` keys the dry-run
+        transport's per-issuer flag state.
+        """
+
+    @abstractmethod
+    async def get_freeze_status(
+        self,
+        issuer_address: str,
+        holder: str,
+        currency: str,
+    ) -> FreezeStatus:
+        """Read whether the issuer froze the holder's (currency) trust line, and
+        whether the issuer has Global Freeze set on its account."""
+
+    @abstractmethod
+    async def submit_payment_channel_create(
+        self,
+        wallet_seed: str,
+        amount_xrp: str,
+        destination: str,
+        settle_delay: int,
+        public_key: str,
+        cancel_after: int | None = None,
+    ) -> SubmitResult:
+        """Open an XRP payment channel (PaymentChannelCreate). Returns SubmitResult
+        with ``channel_id`` set on success. ``public_key`` is the channel's signing
+        key (the sender's wallet public key) used to verify off-ledger claims."""
+
+    @abstractmethod
+    async def submit_payment_channel_fund(
+        self,
+        wallet_seed: str,
+        channel_id: str,
+        amount_xrp: str,
+        expiration: int | None = None,
+    ) -> SubmitResult:
+        """Add XRP to an existing channel (PaymentChannelFund)."""
+
+    @abstractmethod
+    async def submit_payment_channel_claim(
+        self,
+        wallet_seed: str,
+        channel_id: str,
+        balance_xrp: str = "",
+        amount_xrp: str = "",
+        signature: str = "",
+        public_key: str = "",
+        close: bool = False,
+    ) -> SubmitResult:
+        """Settle and/or close a channel (PaymentChannelClaim).
+
+        The destination redeems a signed off-ledger claim by submitting the
+        cumulative ``balance``; the source can also ``close`` the channel.
+        """
+
+    @abstractmethod
+    async def get_account_channels(
+        self, address: str, destination: str = ""
+    ) -> list[ChannelInfo]:
+        """List payment channels the account is the SOURCE of (account_channels)."""
+
+    @abstractmethod
+    async def authorize_payment_channel_claim(
+        self, wallet_seed: str, channel_id: str, amount_xrp: str
+    ) -> str:
+        """Sign an OFF-LEDGER channel claim for a cumulative amount; returns the
+        signature hex. No network — this is the 'sign many, settle once' core of
+        a payment channel. Signs over the drops amount per the protocol."""
+
+    @abstractmethod
+    async def verify_payment_channel_claim(
+        self, channel_id: str, amount_xrp: str, public_key: str, signature: str
+    ) -> bool:
+        """Verify an off-ledger channel claim signature against the channel's
+        public key. No network."""

@@ -10,6 +10,7 @@ export const config: SiteConfig = {
   logoBadge: 'XL',
   brandName: 'XRPL Lab',
   repoUrl: 'https://github.com/mcp-tool-shop-org/xrpl-lab',
+  npmUrl: 'https://www.npmjs.com/package/@mcptoolshop/xrpl-lab',
   footerText: 'MIT Licensed — built by <a href="https://mcp-tool-shop.github.io/" style="color:var(--color-muted);text-decoration:underline">MCP Tool Shop</a>',
 
   hero: {
@@ -58,7 +59,7 @@ export const config: SiteConfig = {
         { title: 'Start learning', code: 'xrpl-lab start\n# or offline:\nxrpl-lab start --dry-run' },
         { title: 'Run a module', code: 'xrpl-lab run receipt_literacy' },
         { title: 'Verify your work', code: 'xrpl-lab audit --txids .xrpl-lab/last_run_txids.txt \\\n  --expect presets/strategy_mm101.json' },
-        { title: 'Web UI', code: 'xrpl-lab serve\n# Open http://localhost:4321/xrpl-lab/app/' },
+        { title: 'Web UI', code: 'xrpl-lab serve\n# then open the dashboard URL it prints' },
       ],
     },
     {

@@ -11,7 +11,15 @@ from fastapi import APIRouter, HTTPException, Request
 from .. import __version__
 from ..doctor import run_doctor
 from ..modules import load_all_modules
-from ..reporting import generate_certificate, generate_proof_pack
+from ..reporting import (
+    _explorer_url,
+    generate_certificate,
+    generate_proof_pack,
+    verify_certificate,
+    verify_certificate_live,
+    verify_proof_pack,
+    verify_proof_pack_live,
+)
 from ..state import get_workspace_dir, load_state
 from ..transport.xrpl_testnet import classify_network, get_rpc_url
 from .schemas import (
@@ -28,6 +36,9 @@ from .schemas import (
     RunListResponse,
     StatusResponse,
     TrackProgressItem,
+    VerifyLiveResult,
+    VerifyResponse,
+    VerifyTxResult,
 )
 
 
@@ -280,6 +291,167 @@ def get_report(module_id: str) -> ReportDetail:
     return ReportDetail(
         module_id=module_id,
         content=report_path.read_text(encoding="utf-8"),
+    )
+
+
+# -- /api/verify -----------------------------------------------------------
+#
+# Browser-reachable proof/certificate verification (FT-PROOF-001). The CLI
+# already ships `xrpl-lab proof verify <file> [--live]`; this endpoint exposes
+# the SAME trust loop to the dashboard so a facilitator (or anyone handed a
+# pack) can paste/drop the JSON and check it without a terminal.
+#
+# It imports and CALLS the existing reporting functions — it does NOT
+# reimplement verification:
+#   * verify_proof_pack / verify_certificate  → offline SHA-256 (tamper-evidence)
+#   * verify_proof_pack_live / verify_certificate_live → on-ledger re-fetch
+#
+# The body is UNTRUSTED. It can be any JSON the client pasted, so every access
+# is defensive: a non-dict body, or one missing both artifact markers, is a
+# clean structured 400 (same {code,message,hint} envelope used across this
+# module) — never a 500 stack.
+
+
+def _verify_explorer_url(tx: dict) -> str:
+    """Recompute the explorer link for one live tx-result from its OWN network.
+
+    Mirrors reporting._tx_detail: never trust a URL the pasted body supplied —
+    derive it from the tx's recorded network (testnet/devnet → link, everything
+    else → "") so a forged pack can't smuggle a misleading link into the table.
+    """
+    return _explorer_url(tx.get("txid", "") or "", tx.get("network", "") or "")
+
+
+def _live_to_schema(live) -> VerifyLiveResult:
+    """Map a reporting.LiveVerificationResult to the API VerifyLiveResult model,
+    enriching each per-tx entry with a server-recomputed explorer URL."""
+    d = live.to_dict()
+    tx_results = [
+        VerifyTxResult(
+            txid=tx.get("txid", ""),
+            network=tx.get("network", ""),
+            status=tx.get("status", ""),
+            reason=tx.get("reason", ""),
+            checks=list(tx.get("checks", []) or []),
+            explorer_url=_verify_explorer_url(tx),
+        )
+        for tx in d.get("tx_results", [])
+    ]
+    return VerifyLiveResult(
+        artifact_kind=d.get("artifact_kind", ""),
+        overall_passed=d.get("overall_passed", False),
+        no_onledger_txids=d.get("no_onledger_txids", False),
+        passed=d.get("passed", 0),
+        failed=d.get("failed", 0),
+        skipped=d.get("skipped", 0),
+        note=d.get("note", ""),
+        tx_results=tx_results,
+    )
+
+
+@router.post("/verify")
+async def verify_artifact(request: Request) -> VerifyResponse:
+    """Verify a pasted proof pack OR certificate — offline hash + optional --live.
+
+    Request body: the artifact JSON object (a proof pack or a certificate). An
+    optional ``live`` flag — accepted as a ``?live=true`` query param OR a
+    top-level ``"live": true`` body key — adds the on-ledger trust layer (re-fetch
+    every claimed txid from the public XRPL and confirm it exists, is validated,
+    and succeeded). The offline SHA-256 check ALWAYS runs; ``live`` ADDS to it.
+
+    Mirrors the CLI exactly: the hash layer is tamper-evidence and the live layer
+    is ground truth, and the live check is only attempted when the hash passed
+    (an edited artifact is untrustworthy regardless of its txids).
+    """
+    # The body is untrusted — a parse failure is a clean 400, never a 500.
+    try:
+        body = await request.json()
+    except Exception as exc:  # malformed / empty / non-JSON
+        raise HTTPException(status_code=400, detail={
+            "code": "INVALID_BODY",
+            "message": "Request body is not valid JSON.",
+            "hint": "POST the proof pack or certificate JSON object as the body.",
+        }) from exc
+
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail={
+            "code": "INVALID_BODY",
+            "message": "Request body must be a JSON object (a proof pack or certificate).",
+            "hint": "Paste the full xrpl_lab_proof_pack.json or xrpl_lab_certificate.json.",
+        })
+
+    # ``live`` from query (?live=true) takes precedence; fall back to a body key.
+    # Both are coerced defensively — the body value can be anything.
+    live_param = request.query_params.get("live")
+    if live_param is not None:
+        live = live_param.lower() in ("1", "true", "yes", "on")
+    else:
+        live = bool(body.get("live") is True)
+
+    # Detect the artifact kind from its marker. A body carrying neither marker is
+    # not something we know how to verify → structured 400 (not a silent pass).
+    is_pack = body.get("xrpl_lab_proof_pack") is True
+    is_cert = body.get("xrpl_lab_certificate") is True
+    if not is_pack and not is_cert:
+        raise HTTPException(status_code=400, detail={
+            "code": "UNKNOWN_ARTIFACT",
+            "message": (
+                "Body is not a recognized XRPL Lab artifact — it is missing the "
+                "xrpl_lab_proof_pack / xrpl_lab_certificate marker."
+            ),
+            "hint": "Paste a proof pack or certificate generated by xrpl-lab.",
+        })
+
+    artifact_kind = "proof_pack" if is_pack else "certificate"
+
+    # Offline hash layer — ALWAYS runs (tamper-evidence). Reuses the EXACT same
+    # functions the CLI calls; no reimplementation here.
+    if is_pack:
+        hash_valid, hash_message = verify_proof_pack(body)
+    else:
+        hash_valid, hash_message = verify_certificate(body)
+
+    # On-ledger layer — only when asked AND the hash passed. Construct the
+    # transport the SAME way the CLI does (no factory → reporting's default
+    # public-RPC factory). Defensive: a live-check exception degrades to "hash
+    # only" rather than a 500, since the hash verdict is still meaningful.
+    live_schema: VerifyLiveResult | None = None
+    live_ok = True
+    if live and hash_valid:
+        try:
+            if is_pack:
+                live_result = await verify_proof_pack_live(body)
+            else:
+                live_result = await verify_certificate_live(body)
+            live_schema = _live_to_schema(live_result)
+            live_ok = live_result.overall_passed
+        except Exception:
+            # On-ledger check failed to run (network, RPC). Keep the hash verdict;
+            # surface the degradation honestly via a synthetic note, do not 500.
+            live_schema = VerifyLiveResult(
+                artifact_kind=artifact_kind,
+                overall_passed=False,
+                no_onledger_txids=False,
+                note=(
+                    "On-ledger verification could not be completed (the public "
+                    "ledger was unreachable). The offline integrity check still "
+                    "applies; retry --live when the network is reachable."
+                ),
+            )
+            live_ok = False
+
+    overall_passed = hash_valid and (live_ok if (live and hash_valid) else True)
+
+    return VerifyResponse(
+        artifact_kind=artifact_kind,
+        hash_valid=hash_valid,
+        hash_message=hash_message,
+        overall_passed=overall_passed,
+        live_requested=live,
+        live=live_schema,
+        version=str(body.get("version", "") or ""),
+        address=str(body.get("address", "") or ""),
+        network=str(body.get("network", "") or ""),
     )
 
 

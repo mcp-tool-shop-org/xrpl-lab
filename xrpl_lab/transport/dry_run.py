@@ -9,8 +9,10 @@ from decimal import ROUND_HALF_UP, Decimal, getcontext
 from .base import (
     AccountSnapshot,
     AmmInfo,
+    ChannelInfo,
     DIDInfo,
     EscrowInfo,
+    FreezeStatus,
     FundResult,
     MPTIssuanceInfo,
     NetworkInfo,
@@ -118,6 +120,16 @@ class DryRunTransport(Transport):
         # A Clawback against an issuer NOT in this set fails with tecNO_PERMISSION,
         # matching the testnet engine result for clawback-without-the-flag.
         self._clawback_enabled: set[str] = set()
+        # Token-freeze state (FT-CURRIC-003). Individual freeze keys a
+        # (issuer, currency, holder) line; global freeze keys an issuer.
+        self._frozen_lines: set[tuple[str, str, str]] = set()
+        self._global_frozen: set[str] = set()
+        # MPT holder state (FT-CURRIC-004): authorizations + per-holder balances,
+        # both keyed (holder, issuance_id).
+        self._mpt_auths: set[tuple[str, str]] = set()
+        self._mpt_balances: dict[tuple[str, str], Decimal] = {}
+        # Payment-channel state (FT-CURRIC-001): channel_id -> channel dict.
+        self._channels: dict[str, dict] = {}
         # Escrow / DID / MPT state
         self._escrows: _PerAddressStore = _PerAddressStore()
         self._mpts: _PerAddressStore = _PerAddressStore()
@@ -219,6 +231,24 @@ class DryRunTransport(Transport):
             )
 
         sender = _address_from_seed(wallet_seed)
+
+        # Parity with testnet: xrpl-py's xrp_to_drops rejects an XRP amount
+        # finer than 6 decimal places (1 drop = 0.000001 XRP). The dry-run
+        # previously truncated via int(amount * 1e6), so a >6dp amount "passed"
+        # here but fails on the real network — a dry-run pass that masks a
+        # testnet failure. Reject it the same way (normalize() so trailing
+        # zeros like "1.50000000" stay valid, matching xrp_to_drops).
+        if numeric_amount.normalize().as_tuple().exponent < -6:
+            return SubmitResult(
+                success=False,
+                txid="",
+                result_code="temBAD_AMOUNT",
+                fee="0",
+                error=(
+                    f"[dry-run] XRP amount finer than 6 decimal places "
+                    f"(1 drop = 0.000001 XRP): {amount}"
+                ),
+            )
         drops = int(numeric_amount * Decimal("1000000"))
 
         # F-BRIDGE-B-DRY-NEG-BAL: pre-validate sender balance before debiting.
@@ -396,8 +426,29 @@ class DryRunTransport(Transport):
                 error=f"[dry-run] Invalid amount: {amount}",
             )
 
-        txid = self._next_txid()
         new_balance = numeric_balance + numeric_amount
+        # Parity with testnet: an issued payment that pushes the holder above
+        # their trust-line limit fails (tecPATH_DRY) on the real network. The
+        # dry-run previously credited unconditionally, so an over-limit payment
+        # "passed" here but would fail on testnet — a dry-run pass masking a
+        # real failure. A zero/blank limit means "unset", so we skip the check.
+        try:
+            limit = Decimal(matching_tl.limit)
+        except Exception:
+            limit = Decimal("0")
+        if limit > 0 and new_balance > limit:
+            return SubmitResult(
+                success=False,
+                txid="",
+                result_code="tecPATH_DRY",
+                fee="12",
+                error=(
+                    f"[dry-run] issued payment exceeds trust-line limit: "
+                    f"new balance {new_balance} > limit {limit}"
+                ),
+            )
+
+        txid = self._next_txid()
         # Preserve integer representation when the result is a whole number
         matching_tl.balance = (
             str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
@@ -1417,6 +1468,62 @@ class DryRunTransport(Transport):
             fee="12", ledger_index=99999999, explorer_url="",
         )
 
+    # ── Token-freeze methods (FT-CURRIC-003) ─────────────────────────
+
+    async def submit_set_freeze(
+        self, issuer_seed: str, holder: str, currency: str,
+        freeze: bool, issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_LINE", fee="12",
+                error="[dry-run] Simulated failure: TrustSet freeze",
+            )
+        issuer = issuer_address or _address_from_seed(issuer_seed)
+        key = (issuer, currency, holder)
+        if freeze:
+            self._frozen_lines.add(key)
+        else:
+            self._frozen_lines.discard(key)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def submit_global_freeze(
+        self, issuer_seed: str, enable: bool, issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecOWNERS", fee="12",
+                error="[dry-run] Simulated failure: AccountSet global freeze",
+            )
+        issuer = issuer_address or _address_from_seed(issuer_seed)
+        if enable:
+            self._global_frozen.add(issuer)
+        else:
+            self._global_frozen.discard(issuer)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def get_freeze_status(
+        self, issuer_address: str, holder: str, currency: str,
+    ) -> FreezeStatus:
+        found = any(
+            tl.currency == currency
+            and (not issuer_address or tl.peer == issuer_address)
+            for tl in self._live_lines_for(holder)
+        )
+        individual = (issuer_address, currency, holder) in self._frozen_lines
+        glob = issuer_address in self._global_frozen
+        return FreezeStatus(
+            individual_frozen=individual, global_frozen=glob, found=found,
+        )
+
     # ── Escrow / DID / MPT methods ───────────────────────────────────
 
     @staticmethod
@@ -1631,7 +1738,212 @@ class DryRunTransport(Transport):
         )
         self._inc_owner(owner)
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
-                            ledger_index=99999999, explorer_url="")
+                            ledger_index=99999999, explorer_url="", mpt_issuance_id=iid)
 
     async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
         return self._resolve(self._mpts, address)
+
+    async def submit_mpt_authorize(
+        self, holder_seed: str, issuance_id: str, unauthorize: bool = False,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Simulated failure: MPTokenAuthorize",
+            )
+        holder = _address_from_seed(holder_seed)
+        key = (holder, issuance_id)
+        if unauthorize:
+            if Decimal(str(self._mpt_balances.get(key, 0))) != 0:
+                return SubmitResult(
+                    success=False, result_code="tecHAS_OBLIGATIONS", fee="12",
+                    error="[dry-run] Cannot unauthorize an MPT with a non-zero balance.",
+                )
+            self._mpt_auths.discard(key)
+        else:
+            self._mpt_auths.add(key)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def submit_mpt_payment(
+        self, issuer_seed: str, destination: str, issuance_id: str, amount: str,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecPATH_DRY", fee="12",
+                error="[dry-run] Simulated failure: MPT payment",
+            )
+        key = (destination, issuance_id)
+        # The holder must have authorized the issuance first (the MPT opt-in
+        # gate — the lesson's load-bearing concept).
+        if key not in self._mpt_auths:
+            return SubmitResult(
+                success=False, result_code="tecNO_AUTH", fee="12",
+                error=(
+                    "[dry-run] The destination has not authorized this MPT "
+                    "issuance (MPTokenAuthorize) — it cannot receive the token yet."
+                ),
+            )
+        try:
+            amt = Decimal(amount)
+        except Exception:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid MPT amount: {amount}",
+            )
+        self._mpt_balances[key] = Decimal(str(self._mpt_balances.get(key, 0))) + amt
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def get_mpt_balance(self, holder: str, issuance_id: str) -> str:
+        bal = self._mpt_balances.get((holder, issuance_id), Decimal(0))
+        bal = Decimal(str(bal))
+        return str(int(bal)) if bal == int(bal) else str(bal)
+
+    # ── Payment-channel methods (FT-CURRIC-001) ──────────────────────
+
+    @staticmethod
+    def _dry_claim_sig(channel_id: str, drops: int) -> str:
+        # Deterministic simulated off-ledger claim signature (the dry-run seeds
+        # are not real XRPL keys, so we can't do real crypto — the testnet
+        # transport does). verify recomputes the same value.
+        return "DRYSIG" + hashlib.sha256(
+            f"{channel_id}:{drops}".encode()
+        ).hexdigest().upper()
+
+    async def submit_payment_channel_create(
+        self, wallet_seed: str, amount_xrp: str, destination: str,
+        settle_delay: int, public_key: str, cancel_after: int | None = None,
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecUNFUNDED", fee="12",
+                error="[dry-run] Simulated failure: PaymentChannelCreate",
+            )
+        try:
+            drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        except Exception:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid channel amount: {amount_xrp}",
+            )
+        source = _address_from_seed(wallet_seed)
+        cid = hashlib.sha256(
+            f"{source}-chan-{self._counter}".encode()
+        ).hexdigest().upper()
+        self._channels[cid] = {
+            "amount": drops, "claimed": 0, "source": source,
+            "destination": destination, "settle_delay": settle_delay,
+            "public_key": public_key, "cancel_after": cancel_after,
+        }
+        self._inc_owner(source)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="", channel_id=cid,
+        )
+
+    async def submit_payment_channel_fund(
+        self, wallet_seed: str, channel_id: str, amount_xrp: str,
+        expiration: int | None = None,
+    ) -> SubmitResult:
+        ch = self._channels.get(channel_id)
+        if ch is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such channel to fund.",
+            )
+        try:
+            ch["amount"] += int(Decimal(amount_xrp) * Decimal("1000000"))
+        except Exception:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid fund amount: {amount_xrp}",
+            )
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def authorize_payment_channel_claim(
+        self, wallet_seed: str, channel_id: str, amount_xrp: str
+    ) -> str:
+        drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        return self._dry_claim_sig(channel_id, drops)
+
+    async def verify_payment_channel_claim(
+        self, channel_id: str, amount_xrp: str, public_key: str, signature: str
+    ) -> bool:
+        drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        return signature == self._dry_claim_sig(channel_id, drops)
+
+    async def submit_payment_channel_claim(
+        self, wallet_seed: str, channel_id: str, balance_xrp: str = "",
+        amount_xrp: str = "", signature: str = "", public_key: str = "",
+        close: bool = False,
+    ) -> SubmitResult:
+        ch = self._channels.get(channel_id)
+        if ch is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such channel to claim.",
+            )
+        if balance_xrp:
+            try:
+                new_claimed = int(Decimal(balance_xrp) * Decimal("1000000"))
+            except Exception:
+                return SubmitResult(
+                    success=False, result_code="temBAD_AMOUNT", fee="12",
+                    error=f"[dry-run] Invalid claim balance: {balance_xrp}",
+                )
+            if new_claimed > ch["amount"]:
+                return SubmitResult(
+                    success=False, result_code="tecUNFUNDED_PAYMENT", fee="12",
+                    error="[dry-run] Claim exceeds the channel's deposited amount.",
+                )
+            # Settle: move the newly-claimed delta to the destination.
+            delta = new_claimed - ch["claimed"]
+            if delta > 0:
+                self._balances[ch["destination"]] = (
+                    self._balances.get(ch["destination"], 0) + delta
+                )
+                ch["claimed"] = new_claimed
+        if close:
+            ch["closed"] = True
+            self._dec_owner(ch["source"])
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def get_account_channels(
+        self, address: str, destination: str = ""
+    ) -> list[ChannelInfo]:
+        out: list[ChannelInfo] = []
+        for cid, ch in self._channels.items():
+            if ch.get("closed"):
+                continue
+            # In dry-run every seed collapses to one address (_address_from_seed),
+            # so a channel's stored source is always the canonical dry-run wallet;
+            # match the requested address against it OR the collapsed address.
+            src = ch.get("source")
+            if src != address and src != _DRY_RUN_WALLET_ADDRESS:
+                continue
+            if destination and ch.get("destination") != destination:
+                continue
+            out.append(ChannelInfo(
+                channel_id=cid,
+                amount=str(ch["amount"]),
+                balance=str(ch["claimed"]),
+                destination=ch["destination"],
+                settle_delay=ch["settle_delay"],
+                public_key=ch["public_key"],
+                cancel_after=ch.get("cancel_after"),
+            ))
+        return out

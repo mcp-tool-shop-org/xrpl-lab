@@ -72,19 +72,22 @@ La colonne `#` correspond à l’ordre affiché par `xrpl-lab list` (ordre canon
 | 6 | Marché NFT 101 : échange d’actifs avec des redevances appliquées | nft | testnet | — | txid, rapport |
 | 7 | NFT dynamiques 101 : un objet de jeu qui évolue | nft | testnet | — | txid, rapport |
 | 8 | Émission MPT 101 : une devise de jeu en une seule transaction | jetons | testnet | — | txid, rapport |
-| 9 | Rétractation 101 : l’outil de rappel de l’émetteur | jetons | testnet | — | txid, rapport |
-| 10 | Escrow 101 : XRP avec verrouillage temporel | paiements | testnet | — | txid, rapport |
-| 11 | Fin d’escrow 101 : libération du XRP verrouillé | paiements | testnet | Escrow 101 : XRP avec verrouillage temporel | txid, rapport |
-| 12 | DID 101 : identité sur le registre | identité | testnet | — | txid, rapport |
-| 13 | Maîtrise de DEX : ordres, carnets d’ordres et annulations | dex | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
-| 14 | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres | dex | testnet | Maîtrise de DEX : ordres, carnets d’ordres et annulations | txid, rapport |
-| 15 | Garanties d’inventaire DEX : ne vous laissez pas déséquilibrer | dex | testnet | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres | txid, rapport |
-| 16 | Réserves 101 : où votre XRP est « allé » | réserves | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
-| 17 | Hygiène des comptes : libération des réserves et nettoyage des objets | réserves | testnet | Réserves 101 : où votre XRP est « allé » | txid, rapport |
-| 18 | Mode audit : vérification à grande échelle des reçus | audit | testnet | Maîtrise des reçus | rapport, pack d’audit |
-| 19 | Liquidité AMM 101 : fourniture de liquidités et perception de frais | amm | exécution à blanc | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
-| 20 | Maîtrise des risques DEX par rapport à AMM : comparaison des stratégies de négociation | amm | exécution à blanc | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres, liquidité AMM 101 : fourniture de liquidités et perception de frais | txid, rapport |
-| 21 | Module de synthèse : mettre en place une économie de jeu minimale sur XRPL | module de synthèse | testnet | Émission MPT 101 : une devise de jeu en une seule transaction, création de NFT 101 : votre premier actif de jeu, escrow 101 : XRP avec verrouillage temporel, mode audit : vérification à grande échelle des reçus | txid, rapport, pack d’audit |
+| 9 | Initiation à la distribution de MPT : comment acheminer la devise vers les joueurs. | jetons | testnet | Émission MPT 101 : une devise de jeu en une seule transaction | txid, rapport |
+| 10 | Initiation aux jetons bloqués : le bouton « pause » de l’émetteur. | jetons | testnet | — | txid, rapport |
+| 11 | Rétractation 101 : l’outil de rappel de l’émetteur | jetons | testnet | — | txid, rapport |
+| 12 | Escrow 101 : XRP avec verrouillage temporel | paiements | testnet | — | txid, rapport |
+| 13 | Fin d’escrow 101 : libération du XRP verrouillé | paiements | testnet | Escrow 101 : XRP avec verrouillage temporel | txid, rapport |
+| 14 | Initiation aux canaux de paiement : signez plusieurs contrats, effectuez un seul règlement. | paiements | testnet | — | txid, rapport |
+| 15 | DID 101 : identité sur le registre | identité | testnet | — | txid, rapport |
+| 16 | Maîtrise de DEX : ordres, carnets d’ordres et annulations | dex | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
+| 17 | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres | dex | testnet | Maîtrise de DEX : ordres, carnets d’ordres et annulations | txid, rapport |
+| 18 | Garanties d’inventaire DEX : ne vous laissez pas déséquilibrer | dex | testnet | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres | txid, rapport |
+| 19 | Réserves 101 : où votre XRP est « allé » | réserves | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
+| 20 | Hygiène des comptes : libération des réserves et nettoyage des objets | réserves | testnet | Réserves 101 : où votre XRP est « allé » | txid, rapport |
+| 21 | Mode audit : vérification à grande échelle des reçus | audit | testnet | Maîtrise des reçus | rapport, pack d’audit |
+| 22 | Liquidité AMM 101 : fourniture de liquidités et perception de frais | amm | exécution à blanc | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
+| 23 | Maîtrise des risques DEX par rapport à AMM : comparaison des stratégies de négociation | amm | exécution à blanc | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres, liquidité AMM 101 : fourniture de liquidités et perception de frais | txid, rapport |
+| 24 | Module de synthèse : mettre en place une économie de jeu minimale sur XRPL | module de synthèse | testnet | Émission MPT 101 : une devise de jeu en une seule transaction, création de NFT 101 : votre premier actif de jeu, escrow 101 : XRP avec verrouillage temporel, mode audit : vérification à grande échelle des reçus | txid, rapport, pack d’audit |
 <!-- END curriculum:auto readme-table -->
 
 La colonne **Produit** répertorie les types d’exemples que chaque module génère (`txid`, `rapport`, `pack d’audit`) ; consultez la page de chaque module dans le [manuel](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) pour obtenir une présentation complète des compétences et ce que vous prouvez sur le registre.

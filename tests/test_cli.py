@@ -970,3 +970,28 @@ class TestCohortStatus:
         assert alice["completed_count"] == 1
         bob = data["learners"][1]
         assert bob["completed_count"] == 0
+
+    def test_cohort_status_csv_format(self, tmp_path):
+        """FT-CLI-002: --format csv yields a gradebook-ready roster — a
+        header row plus one row per learner, parseable by csv.DictReader."""
+        import csv as csv_lib
+        import io
+
+        cohort = tmp_path / "cohort"
+        cohort.mkdir()
+        _make_fake_learner(cohort, "alice", completed=["receipt_literacy"])
+        _make_fake_learner(cohort, "bob", completed=[])
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "cohort-status", "--dir", str(cohort), "--format", "csv",
+        ])
+        assert result.exit_code == 0
+        reader = csv_lib.DictReader(io.StringIO(result.output))
+        assert reader.fieldnames is not None
+        assert "learner_id" in reader.fieldnames
+        assert "completed_count" in reader.fieldnames
+        assert "blockers" in reader.fieldnames
+        rows = list(reader)
+        assert [r["learner_id"] for r in rows] == ["alice", "bob"]
+        assert rows[0]["completed_count"] == "1"

@@ -189,9 +189,32 @@ class TestSupportBundle:
         assert "Learner" in msg
 
     def test_no_secrets_in_bundle_dict(self) -> None:
-        """Support bundles must never contain seeds or private keys."""
+        """Support bundles carry only allowlisted public fields.
+
+        The learner-status dict is built by hand from public fields and never
+        includes the wallet seed (which lives in ~/.xrpl-lab/wallet.json). The
+        old check ('seed'/'secret'/'private' absent from a seedless dump) was
+        vacuous — a seedless state cannot leak a seed regardless of the code.
+        Pin the exact public-key set so any new field that could carry a secret
+        fails here, and prove the gate is not vacuous below."""
         ls = get_learner_status(_make_state())
         d = ls.to_dict()
+
+        allowed = {
+            "version", "wallet_address", "network", "current_module",
+            "current_track", "current_mode", "completed_modules",
+            "completed_count", "total_modules", "blockers", "is_blocked",
+            "track_progress", "last_activity", "last_module",
+            "total_transactions", "failed_transactions", "has_proof_pack",
+            "has_certificate", "report_count",
+        }
+        assert set(d) == allowed
+
+        # Non-vacuity: a regression adding a seed-bearing field breaks the gate.
+        leaked = dict(d, wallet_seed="sEdSENTINELSEEDxxxxxxxxxxxxxx")
+        assert set(leaked) != allowed
+
+        # Secondary signal: no obvious secret key names.
         text = json.dumps(d).lower()
         assert "seed" not in text
         assert "secret" not in text

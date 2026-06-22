@@ -1,4 +1,59 @@
 # Changelog
+## 2.2.0 — 2026-06-22
+
+**Re-swarm release** — a full dogfood re-swarm over the shipped v2.0.0: a four-stage
+health pass (every finding cross-family verified), then six new capabilities. Three new
+curriculum modules round out the game-economy tracks, the proof-by-artifact loop becomes
+checkable in the browser, and the facilitator/CLI surface gains the exports workshops
+actually need.
+
+### Added
+- **Payment Channels** — `payment_channel_101`, a new **payments**-track module teaching XRP
+  micropayments: lock XRP once, sign many **off-ledger** claims for free, and let the receiver
+  settle the latest on-ledger (`PaymentChannelCreate` / `Fund` / `Claim`). The native rail for
+  tipping, pay-per-action, and streaming rewards — "sign many, settle once". XRP-only on
+  mainnet, taught honestly.
+- **Token Freeze** — `token_freeze_101` (**tokens** track): the issuer's two non-destructive
+  sanction levers below clawback — **Individual Freeze** (`TrustSet` tfSetFreeze, one holder)
+  and **Global Freeze** (`AccountSet` asfGlobalFreeze, the whole currency), both reversible.
+  Deep Freeze (XLS-77d) is deliberately excluded as not-yet-mainnet-live.
+- **MPT distribution** — `mpt_distribution_101` (**tokens** track): the missing half of the MPT
+  story — a holder opts in (`MPTokenAuthorize`), then the issuer actually **pays** the token to
+  a player (Payment with an MPT amount). The issued game currency finally moves.
+- **Browser proof verifier** — a new **Verify** dashboard page (and `POST /api/verify`) checks a
+  pasted proof pack or certificate: offline SHA-256 integrity plus optional on-ledger `--live`
+  re-fetch of every transaction. The "anyone can re-check this proof against the public XRPL"
+  promise is now reachable without the Python CLI.
+- **Download artifacts** from the dashboard (proof pack / certificate / reports), and
+  `xrpl-lab cohort-status --format csv` for a gradebook-ready cohort roster.
+
+### Fixed / Security
+- **The "no secrets in proof pack / certificate" gate was vacuous.** It planted a sentinel seed
+  in a `wallet.json` the artifact generators never read, so it could not have failed. Replaced
+  with a real closed public-field allowlist plus a meta-test that proves the gate fires on a
+  leak regression. The product's headline "no secrets" guarantee is now actually tested.
+- **Three modules taught a 10×-wrong XRPL reserve.** The owner reserve was stated as 2 XRP; it
+  was reduced to **0.2 XRP** on 2024-12-02. Corrected in the trust-line, DEX-literacy, and
+  market-making modules.
+- **`doctor` no longer leaks filesystem paths** (which carry the OS username/home) into the
+  shareable feedback bundle — the path-redaction fix is extended to the local-filesystem checks
+  it previously missed.
+- **`verify_escrow_finished` no longer falsely reports an escrow "gone"** when the testnet
+  create-sequence lookup can't be resolved; it now reports indeterminate and paginates the lookup.
+- **Dry-run ↔ testnet parity**: the dry-run now rejects the same inputs testnet rejects — XRP
+  amounts finer than 6 decimal places, and issued payments over the trust-line limit — so a
+  dry-run "pass" can't mask a real-network failure.
+
+### Changed
+- `doctor` and the WebSocket runner gained diagnostic breadcrumbs for previously-silent failure
+  paths; the dashboard Network status indicator now reflects the real network; a dead, less-
+  resilient WebSocket client was removed from the dashboard library; the CI drift gate now also
+  guards doc-only edits.
+
+### Tests + tooling
+- **1062 → 1105 tests** (deterministic, 3× stable), ruff clean, site builds. **21 → 24 modules.**
+  Every new signing method is covered by the testnet-only mainnet-refusal completeness gate.
+
 ## 2.0.0 — 2026-06-16
 
 **Prove It For Real** — a major release that makes the "prove by artifact" thesis literally true, completes every transaction lifecycle the curriculum teaches, and adds a game-economy controls track. Driven by a full dogfood swarm (health pass A/B/C/D + a three-wave feature pass + final test), every change adversarially verified.

@@ -102,7 +102,7 @@ Each offer is a live commitment on the ledger.
 ## Step 11: Snapshot after placing offers
 
 Two new owned objects: one bid, one ask. Your owner count should
-have increased by 2. Each locks 2 XRP in reserve.
+have increased by 2. Each locks 0.2 XRP in reserve.
 
 <!-- action: snapshot_position label=after_offers -->
 
@@ -160,7 +160,7 @@ Operator checklist for real market making:
 - **Spread = profit margin**: wider spread = safer but less likely to fill
 - **Inventory risk**: if only one side fills, you're exposed to direction
 - **Adverse selection**: informed traders fill your stale orders
-- **Reserve cost**: every open offer locks 2 XRP — dozens of offers
+- **Reserve cost**: every open offer locks 0.2 XRP — dozens of offers
   locks significant reserve
 - **Monitor and cancel stale orders**: never leave orders unattended
 

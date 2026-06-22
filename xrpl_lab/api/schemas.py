@@ -123,6 +123,65 @@ class ReportDetail(BaseModel):
     content: str
 
 
+# -- /api/verify -----------------------------------------------------------
+
+
+class VerifyTxResult(BaseModel):
+    """Per-tx on-ledger verdict — mirrors reporting.TxLiveResult.to_dict().
+
+    ``status`` is the live verdict ("PASS" | "FAIL" | "SKIPPED"); ``explorer_url``
+    is recomputed server-side from the tx's own recorded network (testnet/devnet
+    get a link, dry-run/local/simulated get "") so the browser table can link a
+    real-network txid to its public explorer entry without trusting a value the
+    pasted JSON supplied.
+    """
+
+    txid: str
+    network: str
+    status: str  # LIVE_PASS | LIVE_FAIL | LIVE_SKIPPED
+    reason: str
+    checks: list[str] = Field(default_factory=list)
+    explorer_url: str = ""
+
+
+class VerifyLiveResult(BaseModel):
+    """Aggregate on-ledger verdict — mirrors reporting.LiveVerificationResult.to_dict()."""
+
+    artifact_kind: str  # "proof_pack" | "certificate"
+    overall_passed: bool
+    no_onledger_txids: bool = False
+    passed: int = 0
+    failed: int = 0
+    skipped: int = 0
+    note: str = ""
+    tx_results: list[VerifyTxResult] = Field(default_factory=list)
+
+
+class VerifyResponse(BaseModel):
+    """Response for POST /api/verify — the browser-reachable equivalent of the
+    CLI ``proof verify`` / ``cert-verify``.
+
+    The offline hash layer (``hash_valid`` / ``hash_message``) ALWAYS runs and is
+    tamper-evidence. The on-ledger ``live`` layer is present only when the request
+    asked for it AND the hash passed (a locally-edited artifact is untrustworthy
+    regardless of what its txids resolve to, so the live check is not attempted —
+    mirrors the CLI). ``artifact_kind`` is "proof_pack" | "certificate", detected
+    from the body's marker. ``overall_passed`` is the single headline verdict:
+    hash must pass, and — when a live check ran — it must pass too.
+    """
+
+    artifact_kind: str  # "proof_pack" | "certificate"
+    hash_valid: bool
+    hash_message: str
+    overall_passed: bool
+    live_requested: bool = False
+    live: VerifyLiveResult | None = None
+    # Echoed identity fields (best-effort, never trusted) for the result header.
+    version: str = ""
+    address: str = ""
+    network: str = ""
+
+
 # -- /api/run --------------------------------------------------------------
 
 
