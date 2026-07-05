@@ -23,6 +23,12 @@ from .actions.amm import (
     verify_lp_received,
     verify_withdrawal,
 )
+from .actions.credentials import (
+    accept_credential,
+    create_credential,
+    delete_credential,
+    verify_credential,
+)
 from .actions.dex import (
     cancel_offer,
     create_offer,
@@ -3105,6 +3111,299 @@ async def handle_verify_did_deleted(
     return context
 
 
+# ---------------------------------------------------------------------------
+# Credential actions (FC-002 — identity track, XLS-70)
+# ---------------------------------------------------------------------------
+
+
+async def handle_create_subject_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund the SUBJECT wallet the learner's account will attest.
+
+    Two-party credentials need a second account: the learner's wallet is the
+    ISSUER, this one is the SUBJECT. The subject is funded so a CredentialCreate
+    against it does NOT hit tecNO_TARGET (the unfunded-subject error is taught
+    on a separate, intentionally-unfunded address below).
+    """
+    console.print("  Creating the subject (player) wallet...")
+    subject = create_wallet()
+    context["subject_seed"] = _SecretValue(subject.seed)
+    context["subject_address"] = subject.address
+    console.print(f"  Subject wallet: [cyan]{subject.address}[/]")
+    console.print("  Funding the subject from the faucet (so it's a real target)...")
+    result = await transport.fund_from_faucet(subject.address)
+    if result.success:
+        console.print(f"  Subject funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
+    else:
+        console.print(f"  [yellow]Subject funding: {result.message}[/]")
+    return context
+
+
+async def handle_create_credential_unfunded(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attest a credential against an UNFUNDED subject — teaches tecNO_TARGET.
+
+    A CredentialCreate whose Subject is not a funded account on-ledger fails
+    ``tecNO_TARGET``: you cannot attest an account that doesn't exist yet.
+    """
+    args = step.action_args
+    credential_type = args.get("credential_type", "over21")
+    # A syntactically-valid but unfunded classic address (never faucet-funded).
+    unfunded = args.get("subject", "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe")
+    if "wallet_seed" not in context:
+        console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
+        return context
+    issuer_seed = context["wallet_seed"].get()
+    issuer_address = state.wallet_address or ""
+    console.print(
+        f"  [yellow]Attempting to attest '{credential_type}' against an "
+        f"UNFUNDED subject (expecting tecNO_TARGET)...[/]"
+    )
+    result = await create_credential(
+        transport, issuer_seed, unfunded, credential_type,
+        issuer_address=issuer_address,
+    )
+    if result.success:
+        # Unexpected success (e.g. a transport that doesn't model the unfunded
+        # case): record the real tx so the pack stays honest, per CORE-A-004.
+        console.print(
+            "  [yellow]Unexpected success — the subject was fundable on this "
+            "transport. Recording the tx.[/]"
+        )
+    else:
+        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Issuer attests a credential about the funded subject (CredentialCreate)."""
+    args = step.action_args
+    credential_type = args.get("credential_type", "over21")
+    uri = args.get("uri", "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
+        return context
+    subject_address = context.get("subject_address", "")
+    if not subject_address:
+        console.print("  [red]No subject wallet. Run the subject-wallet step first.[/]")
+        return context
+    issuer_seed = context["wallet_seed"].get()
+    issuer_address = state.wallet_address or ""
+    console.print(
+        f"  Attesting credential type [cyan]{credential_type}[/] about "
+        f"subject [cyan]{subject_address[:12]}...[/] (PROVISIONAL until accepted)"
+    )
+    result = await create_credential(
+        transport, issuer_seed, subject_address, credential_type, uri=uri,
+        issuer_address=issuer_address,
+    )
+    if result.success:
+        console.print("  [green]Credential created — provisional, awaiting subject accept.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["credential_type"] = credential_type
+        context["credential_issuer"] = issuer_address
+        context["credential_subject"] = subject_address
+    else:
+        console.print(f"  [red]CredentialCreate failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_credential_duplicate(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Re-attest the SAME (subject, issuer, type) — teaches tecDUPLICATE.
+
+    (subject, issuer, CredentialType) is unique per issuer: a second identical
+    credential fails ``tecDUPLICATE``.
+    """
+    args = step.action_args
+    credential_type = args.get("credential_type", context.get("credential_type", "over21"))
+    if "wallet_seed" not in context:
+        console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
+        return context
+    subject_address = context.get("subject_address", "")
+    if not subject_address:
+        console.print("  [red]No subject wallet. Run the subject-wallet step first.[/]")
+        return context
+    issuer_seed = context["wallet_seed"].get()
+    issuer_address = state.wallet_address or ""
+    console.print(
+        "  [yellow]Re-attesting the SAME credential (expecting tecDUPLICATE)...[/]"
+    )
+    result = await create_credential(
+        transport, issuer_seed, subject_address, credential_type,
+        issuer_address=issuer_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — no live duplicate existed on this "
+            "transport. Recording the tx.[/]"
+        )
+    else:
+        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_accept_credential_wrong_party(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The ISSUER tries to accept — teaches that ONLY the subject can accept.
+
+    CredentialAccept must be signed by the subject. When the issuer (or any
+    non-subject) tries, there is no matching provisional credential under their
+    own address and the ledger rejects it (tecNO_ENTRY / temMALFORMED).
+    """
+    credential_type = context.get("credential_type", "over21")
+    issuer_address = context.get("credential_issuer", state.wallet_address or "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
+        return context
+    issuer_seed = context["wallet_seed"].get()
+    console.print(
+        "  [yellow]Issuer attempting to accept its own credential "
+        "(expecting rejection — only the subject may accept)...[/]"
+    )
+    # The issuer signs an accept naming ITSELF as the acting account — there is
+    # no provisional credential keyed under the issuer-as-subject, so it fails.
+    result = await accept_credential(
+        transport, issuer_seed, issuer_address, credential_type,
+        subject_address=issuer_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the transport did not enforce "
+            "subject-only accept. Recording the tx.[/]"
+        )
+    else:
+        console.print(f"  [green]Expected rejection:[/] {result.result_code}")
+        console.print(
+            "  [dim]Only the subject account named in the credential can accept "
+            "it — this is the 'you hold your own passport' rule.[/]"
+        )
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_accept_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Subject accepts the credential — makes it valid, reserve moves to subject."""
+    credential_type = context.get("credential_type", "over21")
+    issuer_address = context.get("credential_issuer", state.wallet_address or "")
+    subject_address = context.get("subject_address", "")
+    _raw = context.get("subject_seed", "")
+    subject_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    if not subject_seed or not subject_address:
+        console.print("  [red]No subject wallet. Run the subject-wallet step first.[/]")
+        return context
+    console.print(
+        "  Subject accepting the credential — clears provisional state, "
+        "reserve moves from issuer to subject..."
+    )
+    result = await accept_credential(
+        transport, subject_seed, issuer_address, credential_type,
+        subject_address=subject_address,
+    )
+    if result.success:
+        console.print("  [green]Credential accepted — now VALID on-ledger![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]CredentialAccept failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Verify the subject holds a VALID (accepted) credential from the issuer."""
+    credential_type = context.get("credential_type", "over21")
+    issuer_address = context.get("credential_issuer", state.wallet_address or "")
+    subject_address = context.get("subject_address", "")
+    if not subject_address or not issuer_address:
+        console.print("  [red]No credential in context. Run the create/accept steps first.[/]")
+        # FT-001: prerequisites missing → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_credential", passed=False,
+            failures=[
+                "subject/issuer missing — the steps that produce them did not run"
+            ],
+        )
+        return context
+    result = await verify_credential(
+        transport, subject_address, issuer_address, credential_type
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    if result.passed:
+        console.print("  [green]Credential is VALID — the gate would pass this player.[/]")
+    context["last_credential_verify"] = result
+    _record_verification(
+        context, "verify_credential", result.passed, result.failures
+    )
+    return context
+
+
+async def handle_delete_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Subject deletes the credential, reclaiming its reserve (CredentialDelete)."""
+    credential_type = context.get("credential_type", "over21")
+    issuer_address = context.get("credential_issuer", state.wallet_address or "")
+    subject_address = context.get("subject_address", "")
+    _raw = context.get("subject_seed", "")
+    subject_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    if not subject_seed or not subject_address:
+        console.print("  [red]No subject wallet. Run the subject-wallet step first.[/]")
+        return context
+    console.print("  Subject deleting the credential — reclaiming the owner reserve...")
+    result = await delete_credential(
+        transport, subject_seed, issuer_address, subject_address, credential_type,
+        wallet_address=subject_address,
+    )
+    if result.success:
+        console.print("  [green]Credential deleted — reserve freed (revocation path).[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]CredentialDelete failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
 async def handle_create_mpt_issuance(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -4155,6 +4454,69 @@ def _register_all() -> None:
             name="verify_did_deleted",
             handler=handle_verify_did_deleted,
             description="Verify the account's DID was deleted (gone, reserve freed)",
+        ),
+        # ── Credentials (FC-002, XLS-70) ──
+        ActionDef(
+            name="create_subject_wallet",
+            handler=handle_create_subject_wallet,
+            description="Create + fund the subject (player) wallet to be attested",
+        ),
+        ActionDef(
+            name="create_credential_unfunded",
+            handler=handle_create_credential_unfunded,
+            description="Attest a credential against an unfunded subject (teaches tecNO_TARGET)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="credential_type", default="over21",
+                             description="Credential tag (hex-encoded automatically)"),
+                PayloadField(name="subject",
+                             description="Unfunded subject address to attest against"),
+            ],
+        ),
+        ActionDef(
+            name="create_credential",
+            handler=handle_create_credential,
+            description="Issuer attests a credential about the subject (CredentialCreate)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="credential_type", default="over21",
+                             description="Credential tag (e.g. kyc, over21; hex-encoded)"),
+                PayloadField(name="uri",
+                             description="Optional URI to an off-chain VC (immutable)"),
+            ],
+        ),
+        ActionDef(
+            name="create_credential_duplicate",
+            handler=handle_create_credential_duplicate,
+            description="Re-attest the same credential (teaches tecDUPLICATE)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="credential_type", default="over21",
+                             description="Credential tag (must match the first)"),
+            ],
+        ),
+        ActionDef(
+            name="accept_credential_wrong_party",
+            handler=handle_accept_credential_wrong_party,
+            description="Issuer tries to accept (teaches only-the-subject-can-accept)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="accept_credential",
+            handler=handle_accept_credential,
+            description="Subject accepts the credential — makes it valid, reserve moves",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_credential",
+            handler=handle_verify_credential,
+            description="Verify the subject holds a VALID (accepted) credential on-ledger",
+        ),
+        ActionDef(
+            name="delete_credential",
+            handler=handle_delete_credential,
+            description="Delete the credential, reclaiming reserve (CredentialDelete / revoke)",
+            wallet_required=True,
         ),
         ActionDef(
             name="create_mpt_issuance",

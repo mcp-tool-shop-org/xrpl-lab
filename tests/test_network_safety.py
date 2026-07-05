@@ -207,6 +207,22 @@ _MAINNET_REFUSAL_CALLS = {
             "sEdSEED", "GLD", "rISSUER", "50", "rDEST", 999999999
         )
     ),
+    # ── FC-002 Credentials (XLS-70) signing methods ──
+    # CredentialCreate/Accept/Delete each sign a real tx (issuer attests, subject
+    # accepts moving the reserve, either party deletes to revoke), so the
+    # testnet-only invariant applies — each MUST call _network_guard() before
+    # Wallet.from_seed like every other signing method.
+    "submit_credential_create": (
+        lambda t: t.submit_credential_create("sEdSEED", "rSUBJECT", "6F7665723231")
+    ),
+    "submit_credential_accept": (
+        lambda t: t.submit_credential_accept("sEdSEED", "rISSUER", "6F7665723231")
+    ),
+    "submit_credential_delete": (
+        lambda t: t.submit_credential_delete(
+            "sEdSEED", "rISSUER", "rSUBJECT", "6F7665723231"
+        )
+    ),
 }
 
 # AMM submit_* methods are stubs that return result_code="notSupported"

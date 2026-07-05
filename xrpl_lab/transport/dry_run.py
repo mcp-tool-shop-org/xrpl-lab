@@ -10,6 +10,7 @@ from .base import (
     AccountSnapshot,
     AmmInfo,
     ChannelInfo,
+    CredentialInfo,
     DIDInfo,
     EscrowInfo,
     FreezeStatus,
@@ -243,6 +244,15 @@ class DryRunTransport(Transport):
         self._escrows: _PerAddressStore = _PerAddressStore()
         self._mpts: _PerAddressStore = _PerAddressStore()
         self._dids: dict[str, DIDInfo] = {}  # one DID per account
+        # Credential state (FC-002, XLS-70). Every dry-run seed collapses to one
+        # synthetic address, so a credential MUST be keyed by the EXPLICIT
+        # subject + issuer + type passed as arguments (exactly like clawback /
+        # freeze key on issuer_address) — otherwise issuer and subject would be
+        # indistinguishable and the two-party accept model could not be modeled.
+        # Key: (subject, issuer, credential_type_hex) -> CredentialInfo. The
+        # reserve is charged to the issuer while provisional and moves to the
+        # subject on accept, mirrored via _inc_owner / _dec_owner.
+        self._credentials: dict[tuple[str, str, str], CredentialInfo] = {}
         # Deterministic clock for EscrowFinish/EscrowCancel time-gating.
         # XRPL gates EscrowFinish on FinishAfter and EscrowCancel on
         # CancelAfter, both in ripple-epoch seconds. Wall-clock would make
@@ -2172,6 +2182,123 @@ class DryRunTransport(Transport):
         if len(self._dids) == 1:
             return next(iter(self._dids.values()))
         return None
+
+    # ── Credential methods (FC-002, XLS-70) ──────────────────────────────
+    #
+    # Two-party model, modeled offline: create -> provisional; accept (subject
+    # only) -> valid + reserve moves issuer->subject. Keyed by the EXPLICIT
+    # (subject, issuer, type_hex) so the two parties are distinguishable despite
+    # every dry-run seed collapsing to one address.
+
+    async def submit_credential_create(
+        self,
+        issuer_seed: str,
+        subject: str,
+        credential_type: str,
+        uri: str = "",
+        expiration: int | None = None,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="temMALFORMED", fee="12",
+                                error="[dry-run] Simulated failure: credential create")
+        issuer = issuer_address or _address_from_seed(issuer_seed)
+        # tecNO_TARGET — the subject must be a FUNDED account on-ledger.
+        if subject not in self._funded_addresses:
+            return SubmitResult(
+                success=False, result_code="tecNO_TARGET", fee="12",
+                error="[dry-run] Subject is not a funded account (tecNO_TARGET) — "
+                      "fund the subject before attesting a credential.",
+            )
+        key = (subject, issuer, credential_type)
+        # tecDUPLICATE — (subject, issuer, type) is unique per issuer.
+        if key in self._credentials:
+            return SubmitResult(
+                success=False, result_code="tecDUPLICATE", fee="12",
+                error="[dry-run] A credential with this (subject, issuer, type) "
+                      "already exists (tecDUPLICATE).",
+            )
+        self._credentials[key] = CredentialInfo(
+            subject=subject, issuer=issuer, credential_type=credential_type,
+            accepted=False, uri=uri, expiration=expiration,
+        )
+        # Provisional: the ISSUER holds the owner reserve until accept.
+        self._inc_owner(issuer)
+        return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                            fee="12", ledger_index=99999999, explorer_url="")
+
+    async def submit_credential_accept(
+        self,
+        subject_seed: str,
+        issuer: str,
+        credential_type: str,
+        subject_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
+                                error="[dry-run] Simulated failure: credential accept")
+        subject = subject_address or _address_from_seed(subject_seed)
+        key = (subject, issuer, credential_type)
+        cred = self._credentials.get(key)
+        # tecNO_ENTRY — nothing to accept for this (subject, issuer, type). This
+        # is ALSO the path a NON-subject hits: only the subject's address keys a
+        # matching provisional credential, so an issuer/other accepting finds
+        # none under their own address and is rejected (subject-only accept).
+        if cred is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No provisional credential to accept for this "
+                      "(subject, issuer, type). Only the SUBJECT can accept, and "
+                      "the issuer must have created it first (tecNO_ENTRY).",
+            )
+        if cred.accepted:
+            # Already valid — accepting again is a no-op-ish duplicate.
+            return SubmitResult(
+                success=False, result_code="tecDUPLICATE", fee="12",
+                error="[dry-run] Credential already accepted (tecDUPLICATE).",
+            )
+        cred.accepted = True
+        # The owner reserve moves from the issuer to the subject on accept.
+        self._dec_owner(issuer)
+        self._inc_owner(subject)
+        return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                            fee="12", ledger_index=99999999, explorer_url="")
+
+    async def submit_credential_delete(
+        self,
+        wallet_seed: str,
+        issuer: str,
+        subject: str,
+        credential_type: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
+                                error="[dry-run] Simulated failure: credential delete")
+        key = (subject, issuer, credential_type)
+        cred = self._credentials.pop(key, None)
+        if cred is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such credential to delete (tecNO_ENTRY).",
+            )
+        # Reclaim the reserve from whoever currently holds it: the subject once
+        # accepted, otherwise the issuer.
+        holder = subject if cred.accepted else issuer
+        self._dec_owner(holder)
+        return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                            fee="12", ledger_index=99999999, explorer_url="")
+
+    async def get_credential(
+        self,
+        subject: str,
+        issuer: str,
+        credential_type: str,
+    ) -> CredentialInfo | None:
+        return self._credentials.get((subject, issuer, credential_type))
 
     async def submit_mpt_issuance_create(
         self,

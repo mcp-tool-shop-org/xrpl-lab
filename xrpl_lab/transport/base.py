@@ -171,6 +171,26 @@ class DIDInfo:
 
 
 @dataclass
+class CredentialInfo:
+    """A Credential ledger object (XLS-70) — an issuer's attestation about a subject.
+
+    A credential is owned (reserve-wise) by the issuer while PROVISIONAL and by
+    the subject once ACCEPTED. ``accepted`` reflects the ``lsfAccepted`` flag:
+    the subject must run CredentialAccept for the credential to become valid.
+    ``credential_type`` is the raw hex tag (opaque; issuer + verifier agree on
+    the plaintext out-of-band). ``uri`` is decoded UTF-8 if possible, else hex,
+    and is IMMUTABLE after create.
+    """
+
+    subject: str
+    issuer: str
+    credential_type: str  # hex tag as stored on-ledger
+    accepted: bool = False
+    uri: str = ""
+    expiration: int | None = None
+
+
+@dataclass
 class MPTIssuanceInfo:
     """A Multi-Purpose Token issuance created by an account."""
 
@@ -667,6 +687,72 @@ class Transport(ABC):
     @abstractmethod
     async def get_did(self, address: str) -> DIDInfo | None:
         """Get the account's DID object, or None."""
+
+    @abstractmethod
+    async def submit_credential_create(
+        self,
+        issuer_seed: str,
+        subject: str,
+        credential_type: str,
+        uri: str = "",
+        expiration: int | None = None,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Issuer attests a credential about *subject* (CredentialCreate, XLS-70).
+
+        Mints a PROVISIONAL credential the subject must later accept. ``subject``
+        is the account being attested and MUST be funded (else ``tecNO_TARGET``).
+        ``credential_type`` is a hex tag (1-64 bytes). ``uri`` (optional, 1-256
+        bytes, hex-encoded here) points at an off-chain verifiable credential and
+        is IMMUTABLE once set. A duplicate (subject, issuer, type) fails
+        ``tecDUPLICATE``. ``issuer_address`` is a dry-run keying aid — the testnet
+        transport derives the issuer from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_credential_accept(
+        self,
+        subject_seed: str,
+        issuer: str,
+        credential_type: str,
+        subject_address: str = "",
+    ) -> SubmitResult:
+        """Subject accepts a provisional credential (CredentialAccept, XLS-70).
+
+        ONLY the subject account can accept. Acceptance clears the provisional
+        state (sets ``lsfAccepted``) and transfers the owner reserve from the
+        issuer to the subject. ``subject_address`` is a dry-run keying aid;
+        the testnet transport derives the subject from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_credential_delete(
+        self,
+        wallet_seed: str,
+        issuer: str,
+        subject: str,
+        credential_type: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Delete a credential, reclaiming its reserve (CredentialDelete, XLS-70).
+
+        Either the issuer or the subject may delete it (revocation). ``wallet_seed``
+        signs; ``issuer`` / ``subject`` / ``credential_type`` identify the object.
+        ``wallet_address`` is a dry-run keying aid, ignored by the testnet path.
+        """
+
+    @abstractmethod
+    async def get_credential(
+        self,
+        subject: str,
+        issuer: str,
+        credential_type: str,
+    ) -> CredentialInfo | None:
+        """Read the (subject, issuer, credential_type) Credential object, or None.
+
+        ``credential_type`` is the hex tag. Returns the object whether provisional
+        or accepted; the caller inspects ``CredentialInfo.accepted`` for validity.
+        """
 
     @abstractmethod
     async def submit_mpt_issuance_create(

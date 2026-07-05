@@ -27,6 +27,9 @@ from xrpl.models import (
     AccountSetAsfFlag,
     AccountTx,
     Clawback,
+    CredentialAccept,
+    CredentialCreate,
+    CredentialDelete,
     DIDDelete,
     DIDSet,
     EscrowCancel,
@@ -65,6 +68,7 @@ from .base import (
     AccountSnapshot,
     AmmInfo,
     ChannelInfo,
+    CredentialInfo,
     DIDInfo,
     EscrowInfo,
     FreezeStatus,
@@ -1871,6 +1875,135 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
         return await self._submit_tx(tx, wallet, "DIDDelete")
+
+    # ── Credential methods (FC-002, XLS-70) ──────────────────────────────
+    #
+    # ``credential_type`` arrives already hex-encoded (the action layer encodes
+    # the plaintext tag). Each signing method calls _network_guard() BEFORE
+    # Wallet.from_seed so a mainnet override never signs — same invariant as
+    # every other write method (pinned by test_network_safety).
+
+    async def submit_credential_create(
+        self,
+        issuer_seed: str,
+        subject: str,
+        credential_type: str,
+        uri: str = "",
+        expiration: int | None = None,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            tx = CredentialCreate(
+                account=wallet.address,
+                subject=subject,
+                credential_type=credential_type,
+                uri=str_to_hex(uri) if uri else None,
+                expiration=expiration,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CredentialCreate")
+
+    async def submit_credential_accept(
+        self,
+        subject_seed: str,
+        issuer: str,
+        credential_type: str,
+        subject_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(subject_seed)
+            tx = CredentialAccept(
+                account=wallet.address,
+                issuer=issuer,
+                credential_type=credential_type,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CredentialAccept")
+
+    async def submit_credential_delete(
+        self,
+        wallet_seed: str,
+        issuer: str,
+        subject: str,
+        credential_type: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = CredentialDelete(
+                account=wallet.address,
+                issuer=issuer,
+                subject=subject,
+                credential_type=credential_type,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CredentialDelete")
+
+    async def get_credential(
+        self,
+        subject: str,
+        issuer: str,
+        credential_type: str,
+    ) -> CredentialInfo | None:
+        # Credential objects live in the SUBJECT's account_objects once accepted
+        # AND in the issuer's while provisional; the subject is named on the
+        # object either way, so read the subject's objects and match on issuer +
+        # type. (A provisional credential the subject hasn't accepted is owned by
+        # the issuer's directory, so also fall back to the issuer's objects.)
+        want_type = (credential_type or "").upper()
+        for owner in (subject, issuer):
+            try:
+                objs = await self._account_objects(owner)
+            except Exception:
+                logger.warning("get_credential failed for %s", owner, exc_info=True)
+                continue
+            for o in objs:
+                if o.get("LedgerEntryType") != "Credential":
+                    continue
+                if o.get("Subject", "") != subject:
+                    continue
+                if o.get("Issuer", "") != issuer:
+                    continue
+                if (o.get("CredentialType", "") or "").upper() != want_type:
+                    continue
+                # lsfAccepted = 0x00010000 — set once the subject accepts.
+                flags = int(o.get("Flags", 0) or 0)
+                accepted = bool(flags & 0x00010000)
+
+                def _dec(h):
+                    try:
+                        return hex_to_str(h) if h else ""
+                    except Exception:
+                        return h or ""
+
+                return CredentialInfo(
+                    subject=subject,
+                    issuer=issuer,
+                    credential_type=o.get("CredentialType", ""),
+                    accepted=accepted,
+                    uri=_dec(o.get("URI", "")),
+                    expiration=o.get("Expiration"),
+                )
+        return None
 
     async def submit_mpt_issuance_create(
         self,
