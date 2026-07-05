@@ -545,6 +545,112 @@ class DryRunTransport(Transport):
             explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
+    async def submit_partial_payment(
+        self,
+        issuer_seed: str,
+        destination: str,
+        currency: str,
+        issuer: str,
+        amount: str,
+        deliver_min: str,
+        send_max: str,
+        memo: str = "",
+    ) -> SubmitResult:
+        """Simulate an issued-currency Payment with tfPartialPayment (FC-003).
+
+        THE LESSON: this returns ``tesSUCCESS`` but delivers LESS than ``amount``
+        (it delivers ``deliver_min`` — the reduced floor), and exposes the real
+        figure via ``delivered_amount`` on the ``fetch_tx`` read-back. A naive
+        backend crediting the ``Amount`` field over-credits by
+        ``amount - deliver_min``. XRP-to-XRP partial payments are FORBIDDEN
+        on-ledger (``temBAD_SEND_XRP_PARTIAL``); this transport rejects them the
+        same way so the dry-run stays in parity with testnet.
+        """
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecPATH_DRY", fee="12",
+                error="[dry-run] Simulated failure: partial payment",
+            )
+
+        # Parity: the ledger refuses XRP→XRP partial payments outright.
+        if currency == "XRP":
+            return SubmitResult(
+                success=False, result_code="temBAD_SEND_XRP_PARTIAL", fee="12",
+                error=(
+                    "[dry-run] XRP-to-XRP partial payments are forbidden "
+                    "(temBAD_SEND_XRP_PARTIAL) — demonstrate with an issued "
+                    "currency instead."
+                ),
+            )
+
+        # The DESTINATION holds the trust line (same resolution as
+        # submit_issued_payment). No line → tecPATH_DRY, matching testnet.
+        matching_tl = None
+        for tl in self._live_lines_for(destination):
+            if tl.currency == currency and tl.peer == issuer:
+                matching_tl = tl
+                break
+        if matching_tl is None:
+            return SubmitResult(
+                success=False, result_code="tecPATH_DRY", fee="12",
+                error=(
+                    "[dry-run] No trust line for "
+                    f"{currency}/{issuer[:12]}... — recipient must set a trust "
+                    "line first"
+                ),
+            )
+
+        try:
+            requested = Decimal(str(amount))       # the Amount field (DeliverMax cap)
+            delivered = Decimal(str(deliver_min))  # what actually moves (reduced)
+        except Exception:
+            return SubmitResult(
+                success=False, txid="", result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid amount: {amount}/{deliver_min}",
+            )
+
+        # Credit the DELIVERED amount (the reduced figure) to the holder's line —
+        # NOT the requested Amount. This is what makes the exploit demonstrable:
+        # the on-ledger balance moves by delivered_amount, while the tx's Amount
+        # field still claims the full ``requested``.
+        try:
+            prev = Decimal(matching_tl.balance)
+        except Exception:
+            prev = Decimal("0")
+        new_balance = prev + delivered
+        matching_tl.balance = (
+            str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
+        )
+
+        txid = self._next_txid()
+
+        def _fmt(value: Decimal) -> str:
+            v = str(int(value)) if value == int(value) else str(value)
+            return f"{v}/{currency}/{issuer}"
+
+        # Record a per-txid fixture so fetch_tx returns BOTH the claimed Amount
+        # (the cap) AND the honest delivered_amount metadata. This is the crux:
+        # the lesson reads delivered_amount off this validated tx.
+        self._tx_fixtures[txid] = TxInfo(
+            txid=txid,
+            tx_type="Payment",
+            account=_address_from_seed(issuer_seed),
+            destination=destination,
+            amount=_fmt(requested),            # Amount / DeliverMax — the CAP
+            fee="12",
+            result_code="tesSUCCESS",
+            ledger_index=99999999,
+            memos=[memo] if memo else ["XRPLLAB|PARTIAL"],
+            validated=True,
+            delivered_amount=_fmt(delivered),  # what ACTUALLY moved
+        )
+
+        return SubmitResult(
+            success=True, txid=txid, result_code="tesSUCCESS", fee="12",
+            ledger_index=99999999, explorer_url="",
+        )
+
     def _live_lines_for(self, address: str) -> list[TrustLineInfo]:
         """Return the LIVE trust-line list backing *address* (mutations persist).
 

@@ -52,6 +52,7 @@ from xrpl.models import (
     PaymentChannelClaimFlag,
     PaymentChannelCreate,
     PaymentChannelFund,
+    PaymentFlag,
     TrustSet,
     TrustSetFlag,
     Tx,
@@ -899,6 +900,56 @@ class XRPLTestnetTransport(Transport):
             result_code="local_error",
             error=last_error,
         )
+
+    async def submit_partial_payment(
+        self,
+        issuer_seed: str,
+        destination: str,
+        currency: str,
+        issuer: str,
+        amount: str,
+        deliver_min: str,
+        send_max: str,
+        memo: str = "",
+    ) -> SubmitResult:
+        """Submit an issued-currency Payment with tfPartialPayment (FC-003).
+
+        Builds a ``Payment`` carrying ``flags=PaymentFlag.TF_PARTIAL_PAYMENT``
+        (0x00020000), ``Amount`` as the DeliverMax cap, ``DeliverMin`` as the
+        accepted floor, and ``SendMax`` capping source spend. The ledger may
+        REDUCE delivery below ``Amount`` and still return ``tesSUCCESS`` — the
+        real figure lands in the validated tx's ``delivered_amount`` metadata,
+        which ``fetch_tx`` surfaces. XRP-to-XRP is forbidden on-ledger
+        (``temBAD_SEND_XRP_PARTIAL``); this path is issued-currency only.
+        """
+        # Testnet-only invariant: refuse to sign against mainnet/unknown BEFORE
+        # Wallet.from_seed (mirrors every other signing method — see
+        # tests/test_network_safety.py::_MAINNET_REFUSAL_CALLS).
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            tx = Payment(
+                account=wallet.address,
+                destination=destination,
+                amount=IssuedCurrencyAmount(
+                    currency=currency, issuer=issuer, value=amount,
+                ),
+                deliver_min=IssuedCurrencyAmount(
+                    currency=currency, issuer=issuer, value=deliver_min,
+                ),
+                send_max=IssuedCurrencyAmount(
+                    currency=currency, issuer=issuer, value=send_max,
+                ),
+                flags=PaymentFlag.TF_PARTIAL_PAYMENT,
+                memos=_memo_field(memo) or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "Payment(partial)")
 
     async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
         try:
@@ -2165,12 +2216,27 @@ class XRPLTestnetTransport(Transport):
             meta = result.get("meta", {})
             memos_raw = result.get("Memos", [])
 
+            # FC-003: delivered_amount is a METADATA field (meta.delivered_amount)
+            # on a validated tx — the ACTUAL amount delivered, distinct from the
+            # Amount field (the requested cap). For XRP it's a drops string; for
+            # tokens it's a {currency, issuer, value} object. Legacy pre-2014
+            # partial payments can carry the literal string "unavailable". Route
+            # it through _format_amount so the token-object case renders as
+            # "value/currency/issuer" (matching the Amount display below).
+            delivered_raw = meta.get("delivered_amount")
+            if delivered_raw is None:
+                delivered_str = ""
+            elif delivered_raw == "unavailable":
+                delivered_str = "unavailable"
+            else:
+                delivered_str = self._format_amount(delivered_raw)
+
             return TxInfo(
                 txid=txid,
                 tx_type=result.get("TransactionType", ""),
                 account=result.get("Account", ""),
                 destination=result.get("Destination", ""),
-                amount=str(result.get("Amount", "0")),
+                amount=self._format_amount(result.get("Amount", "0")),
                 fee=result.get("Fee", "0"),
                 result_code=meta.get("TransactionResult", ""),
                 # TR-005: match the submit paths' fallback chain. A validated tx
@@ -2185,6 +2251,7 @@ class XRPLTestnetTransport(Transport):
                 memos=_decode_memos(memos_raw),
                 validated=result.get("validated", False),
                 raw=result,
+                delivered_amount=delivered_str,
             )
         except TimeoutError:
             # TXBCD-002: a READ-BACK failure is NOT a tx failure. Populate the

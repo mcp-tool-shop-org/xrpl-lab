@@ -81,6 +81,18 @@ class TxInfo:
     validated: bool = False
     raw: dict | None = None
     fetch_error: str | None = None
+    # FC-003 (delivered_amount / partial-payment exploit): the ACTUAL amount
+    # delivered, a METADATA field on a VALIDATED transaction — distinct from the
+    # ``amount`` field above (the tx's Amount / API-v2 DeliverMax, which is only
+    # the requested CAP). When tfPartialPayment is set, delivery is REDUCED and
+    # ``delivered_amount`` is what really moved; ``amount`` still shows the full
+    # requested cap. Crediting a user from ``amount`` instead of
+    # ``delivered_amount`` IS the #1 XRPL integration bug. For XRP this is a
+    # drops string; for tokens it is a ``value/currency/issuer`` display string.
+    # Legacy pre-2014 partial payments can carry the literal string
+    # "unavailable". Empty string means the field was absent (a non-partial tx
+    # where delivered == Amount, or a transport that did not populate it).
+    delivered_amount: str = ""
 
 
 @dataclass
@@ -292,6 +304,32 @@ class Transport(ABC):
         memo: str = "",
     ) -> SubmitResult:
         """Submit a payment of issued currency (not XRP)."""
+
+    @abstractmethod
+    async def submit_partial_payment(
+        self,
+        issuer_seed: str,
+        destination: str,
+        currency: str,
+        issuer: str,
+        amount: str,
+        deliver_min: str,
+        send_max: str,
+        memo: str = "",
+    ) -> SubmitResult:
+        """Submit an issued-currency Payment with the tfPartialPayment flag.
+
+        FC-003 — the partial-payment exploit. ``tfPartialPayment`` (0x00020000)
+        tells the ledger to REDUCE delivery instead of failing the whole tx: the
+        constraint is ``DeliverMin <= delivered <= amount`` (Amount is the cap /
+        DeliverMax) and total source spent ``<= SendMax``. The tx can then return
+        ``tesSUCCESS`` while delivering FAR LESS than ``amount`` claims — a naive
+        backend that credits ``amount`` loses money.
+
+        XRP-to-XRP partial payments are FORBIDDEN (``temBAD_SEND_XRP_PARTIAL``),
+        so this method is issued-currency only. Both transports set the flag and
+        surface the reduced ``delivered_amount`` on the resulting validated tx.
+        """
 
     @abstractmethod
     async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:

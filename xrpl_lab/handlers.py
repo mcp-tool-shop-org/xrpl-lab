@@ -57,6 +57,10 @@ from .actions.nft import (
     verify_nft_modified,
     verify_nft_owned_by,
 )
+from .actions.partial_payment import (
+    send_partial_payment,
+    verify_delivered_amount,
+)
 from .actions.paychan import (
     check_claim,
     fund_channel,
@@ -2906,6 +2910,116 @@ async def handle_verify_mpt_balance(
     return context
 
 
+# ---------------------------------------------------------------------------
+# Partial-payment exploit / delivered_amount (FC-003 — payments track)
+# ---------------------------------------------------------------------------
+
+
+async def handle_send_partial_payment(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Issuer sends an issued-currency Payment WITH tfPartialPayment that
+    UNDER-delivers — the setup for the delivered_amount lesson (FC-003)."""
+    args = step.action_args
+    currency = args.get("currency", "LAB")
+    amount = args.get("amount", "100")          # Amount field / DeliverMax — the CAP
+    deliver_min = args.get("deliver_min", "10")  # what actually gets delivered
+    send_max = args.get("send_max", "10")        # caps source spend (forces the reduction)
+    _raw = context.get("issuer_seed", "")
+    issuer_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    issuer_address = context.get("issuer_address", "")
+    holder = state.wallet_address or ""
+
+    if not issuer_seed or not issuer_address or not holder:
+        console.print(
+            "  [red]Missing issuer wallet or holder. Run the trust-line / issuer "
+            "steps first.[/]"
+        )
+        return context
+
+    console.print(
+        f"  Issuer sending [cyan]{amount} {currency}[/] with "
+        f"[yellow]tfPartialPayment[/] (SendMax {send_max}, DeliverMin "
+        f"{deliver_min})..."
+    )
+    console.print(
+        "  [dim]The Amount field will claim the full amount; the flag lets the "
+        "ledger deliver LESS and still return tesSUCCESS.[/]"
+    )
+    result = await send_partial_payment(
+        transport, issuer_seed, holder, currency, issuer_address,
+        amount, deliver_min, send_max, memo="XRPLLAB|PARTIAL",
+    )
+    if result.success:
+        console.print("  [green]Partial payment submitted — tesSUCCESS.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        console.print(
+            "  [yellow]But how much actually arrived? Read delivered_amount to "
+            "find out — never the Amount field.[/]"
+        )
+        context["partial_payment_txid"] = result.txid
+        context["partial_payment_amount"] = amount
+        context["partial_payment_delivered"] = deliver_min
+    else:
+        console.print(f"  [red]Partial payment failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_delivered_amount(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Read delivered_amount off the validated tx and contrast it with the
+    Amount field — proving the partial-payment exploit (FC-003)."""
+    txid = context.get("partial_payment_txid", "")
+    expected = context.get("partial_payment_delivered")
+    if not txid:
+        console.print(
+            "  [red]No partial-payment tx to inspect. Run the partial-payment "
+            "step first.[/]"
+        )
+        # FT-001: the step that produces the txid never ran → honest FAILED
+        # verification, not an invisible skip.
+        _record_verification(
+            context, "verify_delivered_amount", passed=False,
+            failures=[
+                "partial_payment_txid missing — the step that produces it did not run"
+            ],
+        )
+        return context
+
+    result = await verify_delivered_amount(transport, txid, expected_delivered=expected)
+    for check in result.checks:
+        console.print(f"  [green]✓[/] {check}")
+    for fail in result.failures:
+        console.print(f"  [red]✗[/] {fail}")
+
+    if result.exploit_demonstrated:
+        console.print()
+        console.print(
+            "  [bold yellow]THE EXPLOIT:[/] the tx said tesSUCCESS and its "
+            f"Amount field claimed [cyan]{result.amount_field}[/], but only "
+            f"[cyan]{result.delivered_amount}[/] was actually delivered. A "
+            "backend crediting the Amount field would hand out money it never "
+            "received."
+        )
+        console.print(
+            "  [dim]Lesson (RECEIVING): always read delivered_amount, never "
+            "DeliverMax, and only after tesSUCCESS + validated:true.[/]"
+        )
+
+    context["last_delivered_amount_verify"] = result
+    _record_verification(
+        context, "verify_delivered_amount", result.passed, result.failures
+    )
+    return context
+
+
 async def handle_verify_mpt_issuance(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -4110,6 +4224,34 @@ def _register_all() -> None:
                 PayloadField(name="expect_amount", description="Expected deposited XRP"),
                 PayloadField(name="expect_balance", description="Expected claimed XRP"),
             ],
+        ),
+        # ── partial-payment exploit / delivered_amount (payments track) ──
+        ActionDef(
+            name="send_partial_payment",
+            handler=handle_send_partial_payment,
+            description=(
+                "Issuer sends an issued-currency Payment WITH tfPartialPayment "
+                "that under-delivers (sets up the delivered_amount exploit)"
+            ),
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="LAB",
+                             description="Issued currency to send"),
+                PayloadField(name="amount", default="100",
+                             description="Amount field / DeliverMax — the requested CAP"),
+                PayloadField(name="deliver_min", default="10",
+                             description="DeliverMin — the floor actually delivered"),
+                PayloadField(name="send_max", default="10",
+                             description="SendMax — caps source spend, forcing the reduction"),
+            ],
+        ),
+        ActionDef(
+            name="verify_delivered_amount",
+            handler=handle_verify_delivered_amount,
+            description=(
+                "Read delivered_amount off the validated tx and contrast it with "
+                "the Amount field — proves the partial-payment exploit"
+            ),
         ),
         # ── v2.0.0 game-economy control: NFT marketplace (nfts track) ──
         ActionDef(

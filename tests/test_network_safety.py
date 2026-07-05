@@ -120,6 +120,14 @@ _MAINNET_REFUSAL_CALLS = {
     "submit_issued_payment": (
         lambda t: t.submit_issued_payment("sEdSEED", "rDEST", "USD", "rISSUER", "5")
     ),
+    # FC-003 partial-payment exploit: tfPartialPayment issued Payment. Signs a
+    # real tx, so the testnet-only invariant applies — MUST call _network_guard()
+    # before Wallet.from_seed like every other signing method.
+    "submit_partial_payment": (
+        lambda t: t.submit_partial_payment(
+            "sEdSEED", "rDEST", "USD", "rISSUER", "5", "1", "5"
+        )
+    ),
     "submit_offer_create": (
         lambda t: t.submit_offer_create("sEdSEED", "USD", "5", "rISSUER", "XRP", "10", "")
     ),
