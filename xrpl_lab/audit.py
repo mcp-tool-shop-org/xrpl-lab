@@ -61,6 +61,11 @@ class AuditReport:
     endpoint: str
     tool_version: str
     timestamp: str
+    # CL-001: provenance. True when the audit ran against the offline
+    # DryRunTransport (fabricated tesSUCCESS/validated verdicts), NOT a live
+    # ledger. Defaults False so every existing constructor keeps the real
+    # (on-ledger) pack shape unchanged.
+    dry_run: bool = False
 
     @property
     def total(self) -> int:
@@ -266,12 +271,16 @@ async def run_audit(
     config: AuditConfig | None = None,
     endpoint: str = "",
     on_progress=None,
+    dry_run: bool = False,
 ) -> AuditReport:
     """Run audit on a list of txids. Returns AuditReport.
 
     Args:
         on_progress: optional callable(i, total, txid) called before each fetch,
                      where i is 1-based index.
+        dry_run: CL-001 provenance. When True the audit ran against the offline
+                 DryRunTransport (fabricated verdicts) — sealed into the pack
+                 hash and surfaced as a SIMULATED banner in reports.
     """
     if config is None:
         config = AuditConfig()
@@ -292,6 +301,7 @@ async def run_audit(
         endpoint=endpoint or net_info.rpc_url,
         tool_version=__version__,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        dry_run=dry_run,
     )
 
 
@@ -302,7 +312,19 @@ def write_audit_report_md(report: AuditReport, path: Path) -> Path:
     """Write a markdown audit report."""
     lines: list[str] = []
     lines.append("# XRPL Lab Audit Report\n")
+    # CL-001: a dry-run audit is NOT a proof — the offline transport fabricates
+    # tesSUCCESS/validated for any txid. Mark it unmistakably so a simulated
+    # report is never mistaken for an on-ledger one in a shareable handoff.
+    if report.dry_run:
+        lines.append(
+            "> **⚠ SIMULATED — not on-ledger, not a proof.** This report was "
+            "produced with `--dry-run` (offline sandbox). Verdicts are "
+            "fabricated by the local transport and prove nothing about the "
+            "real XRPL ledger. Re-run without `--dry-run` on testnet for a "
+            "genuine audit.\n"
+        )
     lines.append(f"- **Tool version**: {report.tool_version}")
+    lines.append(f"- **Network**: {'dry-run (SIMULATED)' if report.dry_run else 'testnet'}")
     lines.append(f"- **Endpoint**: {report.endpoint}")
     lines.append(f"- **Timestamp**: {report.timestamp}")
     lines.append(f"- **Transactions**: {report.total}")
@@ -354,6 +376,15 @@ def write_audit_report_csv(report: AuditReport, path: Path) -> Path:
     # DD-1: audit reports are workshop-shareable. 0o755.
     _ensure_dir_mode(path.parent, WORKSPACE_DIR_MODE)
     buf = io.StringIO()
+    # CL-001: prepend a comment banner when the audit was simulated so a
+    # shared CSV can't be mistaken for on-ledger evidence. Leading '#' keeps
+    # it out of the parsed data for spreadsheet/skiprows consumers.
+    if report.dry_run:
+        buf.write(
+            "# SIMULATED — not on-ledger, not a proof. "
+            "Produced with --dry-run (offline sandbox); verdicts are "
+            "fabricated and prove nothing about the real XRPL ledger.\n"
+        )
     writer = csv.writer(buf)
     writer.writerow([
         "txid", "status", "tx_type", "result_code",
@@ -393,6 +424,19 @@ def write_audit_pack(report: AuditReport, path: Path) -> Path:
         "tool": "xrpl-lab",
         "version": report.tool_version,
         "endpoint": report.endpoint,
+        # CL-001: provenance sealed into the pack. ``dry_run`` and ``network``
+        # are ordinary top-level keys, so they participate in the sort_keys
+        # canonical serialization that ``integrity_sha256`` hashes below — the
+        # seal is non-vacuous (flipping either WITHOUT recomputing the hash is
+        # detected). This is tamper-EVIDENT, not tamper-PROOF: the hash is an
+        # unkeyed digest the holder fully controls, so a determined forger can
+        # set dry_run=false and recompute a valid hash. The real defense against
+        # passing a simulated pack off as real is the on-ledger ``--live`` check
+        # (the DRYRUN- txids resolve to nothing on the public ledger), not this
+        # digest. What the seal + the visible SIMULATED banner prevent is the
+        # ACCIDENTAL case — a dry-run pack quietly mistaken for a real one.
+        "dry_run": report.dry_run,
+        "network": "dry-run" if report.dry_run else "testnet",
         "timestamp": report.timestamp,
         "summary": {
             "total": report.total,

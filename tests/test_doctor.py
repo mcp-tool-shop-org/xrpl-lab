@@ -62,15 +62,15 @@ class TestResultCodePedagogy:
         info = explain_result_code("tecNO_DST")
         # Concept: account doesn't exist on the ledger / never been funded.
         assert "doesn't exist" in info["meaning"] or "never been funded" in info["meaning"]
-        # Concept: send 10 XRP to activate (the base reserve).
-        assert "10 XRP" in info["action"]
+        # Concept: send the base reserve (1 XRP) to activate.
+        assert "1 XRP" in info["action"]
         assert "base reserve" in info["action"] or "activate" in info["action"]
 
     def test_tec_no_dst_insuf_xrp_teaches_base_reserve(self):
         info = explain_result_code("tecNO_DST_INSUF_XRP")
         # Concept: every account must lock up a base reserve.
         assert "base reserve" in info["meaning"]
-        assert "10 XRP" in info["meaning"]
+        assert "1 XRP" in info["meaning"]
         # Concept: reserve is a minimum balance, not a fee.
         assert "minimum balance" in info["meaning"]
         assert "not a fee" in info["meaning"]

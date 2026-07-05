@@ -75,14 +75,16 @@ class CurriculumGraph:
         return visited
 
     def is_reachable(self, module_id: str) -> bool:
-        """True if all transitive prerequisites exist in the graph."""
-        try:
-            for req in self.all_prerequisites(module_id):
-                if req not in self.modules:
-                    return False
-        except RecursionError:
-            return False
-        return True
+        """True if all transitive prerequisites exist in the graph.
+
+        BC-007: ``all_prerequisites`` is an iterative stack-walk with a visited
+        set — it cannot recurse, so the former recursion-depth guard around it
+        was dead code and has been removed.
+        """
+        return all(
+            req in self.modules
+            for req in self.all_prerequisites(module_id)
+        )
 
     def roots(self) -> list[str]:
         """Modules with no prerequisites (entry points)."""

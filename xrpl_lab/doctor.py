@@ -529,7 +529,7 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
             "doesn't exist yet or has never been funded."
         ),
         "action": (
-            "Verify the address. If it's new, send at least 10 XRP first "
+            "Verify the address. If it's new, send at least 1 XRP first "
             "(XRPL's base reserve) to activate it on the ledger."
         ),
     },
@@ -537,12 +537,12 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
         "category": "claimed",
         "meaning": (
             "Destination exists but doesn't hold enough XRP. XRPL requires "
-            "every account to lock up a base reserve (10 XRP) — this is a "
+            "every account to lock up a base reserve (1 XRP) — this is a "
             "minimum balance, not a fee. Additional reserves apply per owned "
             "object (trust line, offer)."
         ),
         "action": (
-            "Send enough XRP so the account has 10 XRP available "
+            "Send enough XRP so the account has 1 XRP available "
             "(excluding any locked in trust lines or offers)."
         ),
     },

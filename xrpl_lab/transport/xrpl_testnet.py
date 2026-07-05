@@ -611,17 +611,36 @@ class XRPLTestnetTransport(Transport):
                 error=f"Invalid amount: {amount!r} — expected a numeric value like '10' or '1.5'",
             )
 
+        # TR-004: build the wallet + tx model ONCE outside the retry loop.
+        # Previously the Payment (and its wallet) were reconstructed on every
+        # attempt, so a non-timeout failure after broadcast could re-enter the
+        # loop and build a DISTINCT transaction — a double-broadcast risk.
+        # Building once means every attempt resubmits the same logical tx.
+        #
+        # Idempotency contract (residual — see report): submit_and_wait still
+        # autofills internally, so it picks a fresh Sequence per call. TRUE
+        # sequence-level idempotency needs autofill_and_sign ONCE followed by
+        # submit_and_wait(signed_tx, autofill=False); that refactor is deferred
+        # because it moves the network seam and would require re-mocking the
+        # retry tests (test_transport.py, sibling-owned). The change here closes
+        # the object-rebuild half of the defect without disturbing that seam.
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            payment = Payment(
+                account=wallet.address,
+                destination=destination,
+                amount=xrp_to_drops(amount_f),  # xrp_to_drops accepts Decimal
+                memos=_memo_field(memo) or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
             try:
-                wallet = Wallet.from_seed(wallet_seed)
-                payment = Payment(
-                    account=wallet.address,
-                    destination=destination,
-                    amount=xrp_to_drops(amount_f),  # xrp_to_drops accepts Decimal
-                    memos=_memo_field(memo) or None,
-                )
                 async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(payment, client, wallet),
@@ -1815,7 +1834,7 @@ class XRPLTestnetTransport(Transport):
                 continue
             oid = o.get("MPTokenIssuanceID") or o.get("mpt_issuance_id", "")
             if oid == issuance_id:
-                return str(o.get("MPTAmount", o.get("MPTAmount", "0")) or "0")
+                return str(o.get("MPTAmount", "0") or "0")
         return "0"
 
     async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
@@ -1877,20 +1896,29 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
+        # TR-004: build the wallet + tx model ONCE outside the retry loop so a
+        # retry resubmits the same logical tx rather than a freshly-built one.
+        # (Same idempotency residual as submit_payment — see its comment.)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            offer = OfferCreate(
+                account=wallet.address,
+                taker_pays=self._amount_obj(
+                    taker_pays_currency, taker_pays_value, taker_pays_issuer
+                ),
+                taker_gets=self._amount_obj(
+                    taker_gets_currency, taker_gets_value, taker_gets_issuer
+                ),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
             try:
-                wallet = Wallet.from_seed(wallet_seed)
-                offer = OfferCreate(
-                    account=wallet.address,
-                    taker_pays=self._amount_obj(
-                        taker_pays_currency, taker_pays_value, taker_pays_issuer
-                    ),
-                    taker_gets=self._amount_obj(
-                        taker_gets_currency, taker_gets_value, taker_gets_issuer
-                    ),
-                )
                 async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(offer, client, wallet),
@@ -1964,15 +1992,24 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
+        # TR-004: build the wallet + tx model ONCE outside the retry loop so a
+        # retry resubmits the same logical tx rather than a freshly-built one.
+        # (Same idempotency residual as submit_payment — see its comment.)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            cancel = OfferCancel(
+                account=wallet.address,
+                offer_sequence=offer_sequence,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
             try:
-                wallet = Wallet.from_seed(wallet_seed)
-                cancel = OfferCancel(
-                    account=wallet.address,
-                    offer_sequence=offer_sequence,
-                )
                 async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(cancel, client, wallet),
@@ -2107,7 +2144,15 @@ class XRPLTestnetTransport(Transport):
                 amount=str(result.get("Amount", "0")),
                 fee=result.get("Fee", "0"),
                 result_code=meta.get("TransactionResult", ""),
-                ledger_index=_int_or_none(result.get("ledger_index")),
+                # TR-005: match the submit paths' fallback chain. A validated tx
+                # response may carry ledger_index only under inLedger or in meta;
+                # reading the top-level field alone left a validated tx showing a
+                # null ledger_index, weakening the artifact.
+                ledger_index=_int_or_none(
+                    result.get("ledger_index")
+                    or result.get("inLedger")
+                    or (result.get("meta") or {}).get("ledger_index")
+                ),
                 memos=_decode_memos(memos_raw),
                 validated=result.get("validated", False),
                 raw=result,

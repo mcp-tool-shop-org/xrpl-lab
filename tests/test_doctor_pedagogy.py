@@ -61,9 +61,9 @@ class TestDoctorPedagogyHumanized:
         action = info["action"]
         # Concept: destination not on ledger / never funded.
         assert "ledger" in meaning or "exist" in meaning
-        # Concept: send 10 XRP first to activate the account.
-        assert "10 XRP" in action
-        # Concept: 10 XRP is the base reserve, not arbitrary.
+        # Concept: send the base reserve (1 XRP) first to activate the account.
+        assert "1 XRP" in action
+        # Concept: 1 XRP is the base reserve, not arbitrary.
         assert "base reserve" in action or "activate" in action
 
     def test_tec_no_dst_insuf_xrp_teaches_minimum_balance_concept(self):
@@ -71,8 +71,8 @@ class TestDoctorPedagogyHumanized:
         meaning = info["meaning"]
         # Concept: the reserve is locked, not consumed.
         assert "lock" in meaning.lower()
-        # Concept: 10 XRP is the floor.
-        assert "10 XRP" in meaning
+        # Concept: 1 XRP (the base reserve) is the floor.
+        assert "1 XRP" in meaning
         # Concept: it's a minimum balance, distinct from a fee.
         assert "minimum balance" in meaning
         assert "not a fee" in meaning

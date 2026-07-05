@@ -58,22 +58,22 @@ class TestPositionSnapshot:
             owner_count=2,
             offer_count=0,
         )
-        # base reserve = 10 XRP, owner reserve = 2 XRP * 2 = 4 XRP
-        # total reserved = 14 XRP = 14_000_000 drops
-        # spendable = 50_000_000 - 14_000_000 = 36_000_000
-        assert snap.spendable_estimate_drops == 36_000_000
+        # base reserve = 1 XRP, owner reserve = 0.2 XRP * 2 = 0.4 XRP
+        # total reserved = 1.4 XRP = 1_400_000 drops
+        # spendable = 50_000_000 - 1_400_000 = 48_600_000
+        assert snap.spendable_estimate_drops == 48_600_000
 
     def test_spendable_zero_when_under_reserve(self):
         snap = PositionSnapshot(
             timestamp=time.time(),
             account=AccountSnapshot(
                 address="rTEST",
-                balance_drops="5000000",  # 5 XRP (below 10 XRP base reserve)
+                balance_drops="500000",  # 0.5 XRP (below 1 XRP base reserve)
                 owner_count=0,
             ),
             trust_lines=[],
             offers=[],
-            xrp_balance="5000000",
+            xrp_balance="500000",
             owner_count=0,
             offer_count=0,
         )
@@ -93,9 +93,9 @@ class TestPositionSnapshot:
             owner_count=10,
             offer_count=0,
         )
-        # reserved = 10 XRP + 10*2 XRP = 30 XRP = 30_000_000
-        # spendable = 100_000_000 - 30_000_000 = 70_000_000
-        assert snap.spendable_estimate_drops == 70_000_000
+        # reserved = 1 XRP + 10*0.2 XRP = 3 XRP = 3_000_000
+        # spendable = 100_000_000 - 3_000_000 = 97_000_000
+        assert snap.spendable_estimate_drops == 97_000_000
 
 
 @pytest.mark.asyncio
@@ -533,7 +533,7 @@ class TestCheckInventory:
         assert inv.any_allowed
 
     def test_xrp_too_low_blocks_bid(self):
-        # 15 XRP total, base reserve 10 XRP = 5 XRP spendable < 20 XRP threshold
+        # 15 XRP total, base reserve 1 XRP = 14 XRP spendable < 20 XRP threshold
         snap = self._make_snap(balance_drops="15000000", lab_balance="500")
         inv = check_inventory(snap, "LAB", min_xrp_drops=20_000_000)
         assert not inv.can_bid

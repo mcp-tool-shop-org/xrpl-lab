@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from decimal import ROUND_HALF_UP, Decimal, getcontext
+from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal, getcontext
 
 from .base import (
     AccountSnapshot,
@@ -53,6 +53,64 @@ def _address_from_seed(wallet_seed: str) -> str:
     because no real key derivation is possible without a valid XRPL seed.
     """
     return _DRY_RUN_WALLET_ADDRESS
+
+
+# ── XRP amount validation — TRUE parity with xrpl.utils.xrp_to_drops ──────
+#
+# TR-001/TR-002/TR-003: the dry-run must convert XRP→drops IDENTICALLY to the
+# real network so a dry-run "pass" never masks a testnet failure (and a
+# dry-run "reject" never masks a testnet success). This reimplements
+# ``xrp_to_drops`` in pure stdlib (dry_run.py intentionally has no xrpl-py
+# import — it is the OFFLINE transport):
+#
+#   * ROUND an amount finer than 6dp to the nearest drop, ROUND_HALF_EVEN
+#     (banker's rounding) — 10.1234567 XRP → 10123457 drops, matching the
+#     network. The OLD code rejected >6dp with a comment falsely claiming
+#     "xrp_to_drops rejects >6dp"; xrp_to_drops ROUNDS, it does not reject.
+#   * REJECT a negative amount or a rounded result below 1 drop ("too small").
+#   * REJECT an amount above 100_000_000_000 XRP ("too large").
+#
+# Verified byte-for-byte against xrpl-py 4.5.0's xrp_to_drops over a
+# 100k-value random sweep (see tests/test_reswarm3_transport.py rationale).
+
+_MAX_XRP = Decimal("100000000000")  # 1e11 — xrpl-py's MAX_XRP ceiling
+_ONE_DROP_XRP = Decimal("0.000001")  # 1 drop = 1e-6 XRP
+
+
+class DryRunAmountError(ValueError):
+    """A dry-run XRP amount that the real network would reject.
+
+    Carries the ``temBAD_AMOUNT`` shape testnet surfaces so callers can turn
+    it straight into a failing ``SubmitResult`` without re-deriving the code.
+    """
+
+    result_code = "temBAD_AMOUNT"
+
+
+def _validate_xrp_amount(amount: str) -> int:
+    """Convert an XRP *amount* to integer drops, mirroring ``xrp_to_drops``.
+
+    Rounds >6dp to the nearest drop (ROUND_HALF_EVEN); raises
+    :class:`DryRunAmountError` for negative / sub-drop ("too small") and
+    over-ceiling ("too large") amounts — the exact set the network rejects.
+    """
+    try:
+        xrp = Decimal(str(amount))
+    except Exception as exc:  # noqa: BLE001 — normalize any Decimal parse error
+        raise DryRunAmountError(f"Invalid amount: {amount}") from exc
+    if not xrp.is_finite():
+        raise DryRunAmountError(f"Invalid amount: {amount}")
+    # "too large" is checked against the raw XRP value (pre-round), matching
+    # xrp_to_drops which validates the magnitude before converting to drops.
+    if xrp > _MAX_XRP:
+        raise DryRunAmountError(f"XRP amount {amount} is too large.")
+    drops = int(
+        (xrp / _ONE_DROP_XRP).quantize(Decimal(1), rounding=ROUND_HALF_EVEN)
+    )
+    if drops < 1:
+        # Covers negatives and any amount that rounds below a single drop.
+        raise DryRunAmountError(f"XRP amount {amount} is too small.")
+    return drops
 
 
 class _PerAddressStore(dict):
@@ -219,37 +277,22 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: insufficient funds",
             )
 
-        try:
-            numeric_amount = Decimal(amount)
-        except Exception:
-            return SubmitResult(
-                success=False,
-                txid="",
-                result_code="temBAD_AMOUNT",
-                fee="0",
-                error=f"[dry-run] Invalid amount: {amount}",
-            )
-
         sender = _address_from_seed(wallet_seed)
 
-        # Parity with testnet: xrpl-py's xrp_to_drops rejects an XRP amount
-        # finer than 6 decimal places (1 drop = 0.000001 XRP). The dry-run
-        # previously truncated via int(amount * 1e6), so a >6dp amount "passed"
-        # here but fails on the real network — a dry-run pass that masks a
-        # testnet failure. Reject it the same way (normalize() so trailing
-        # zeros like "1.50000000" stay valid, matching xrp_to_drops).
-        if numeric_amount.normalize().as_tuple().exponent < -6:
+        # TRUE parity with testnet: xrpl-py's xrp_to_drops ROUNDS a >6dp amount
+        # to the nearest drop (ROUND_HALF_EVEN) and REJECTS negative / sub-drop
+        # ("too small") and > 100_000_000_000 XRP ("too large"). The shared
+        # helper mirrors that exactly, so a dry-run result matches the network.
+        try:
+            drops = _validate_xrp_amount(amount)
+        except DryRunAmountError as exc:
             return SubmitResult(
                 success=False,
                 txid="",
-                result_code="temBAD_AMOUNT",
+                result_code=exc.result_code,
                 fee="0",
-                error=(
-                    f"[dry-run] XRP amount finer than 6 decimal places "
-                    f"(1 drop = 0.000001 XRP): {amount}"
-                ),
+                error=f"[dry-run] {exc}",
             )
-        drops = int(numeric_amount * Decimal("1000000"))
 
         # F-BRIDGE-B-DRY-NEG-BAL: pre-validate sender balance before debiting.
         # Previously the debit ran unconditionally, allowing a funded sender's
@@ -512,6 +555,19 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] Simulated failure: unfunded offer",
             )
+
+        # Parity with testnet: an XRP offer leg goes through xrp_to_drops there,
+        # so reject the same bad XRP amounts (negative / sub-drop / too-large)
+        # the network rejects. Issued-currency legs are validated by the ledger,
+        # not xrp_to_drops, so they are left as-is.
+        try:
+            if taker_pays_currency == "XRP":
+                _validate_xrp_amount(taker_pays_value)
+            if taker_gets_currency == "XRP":
+                _validate_xrp_amount(taker_gets_value)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
 
         txid = self._next_txid()
         seq = self._offer_seq
@@ -1151,6 +1207,15 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: NFTokenCreateOffer",
             )
 
+        # Parity with testnet: an XRP-priced NFT offer routes the price through
+        # xrp_to_drops there, so reject the same bad XRP amounts the network does.
+        if currency == "XRP":
+            try:
+                _validate_xrp_amount(amount)
+            except DryRunAmountError as exc:
+                return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                    error=f"[dry-run] {exc}")
+
         # A sell offer requires the seller to actually own the NFT.
         if sell:
             _bucket, nft = self._find_nft_bucket(nftoken_id)
@@ -1562,6 +1627,13 @@ class DryRunTransport(Transport):
             self._fail_next = False
             return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
                                 error="[dry-run] Simulated failure: escrow create")
+        # Parity with testnet: reject the same bad XRP amounts (negative /
+        # sub-drop / too-large) the network rejects before locking any funds.
+        try:
+            _validate_xrp_amount(amount)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
         owner = _address_from_seed(wallet_seed)
         txid = self._next_txid()
         seq = 1000 + self._counter
@@ -1631,9 +1703,10 @@ class DryRunTransport(Transport):
         # Release the locked XRP to the destination, then remove the object.
         # target.amount is the XRP value the create handler passed (e.g. "10").
         # Credit the destination so the lifecycle test can observe the release.
+        # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
         try:
-            drops = int(Decimal(target.amount) * Decimal("1000000"))
-        except Exception:
+            drops = _validate_xrp_amount(target.amount)
+        except DryRunAmountError:
             drops = 0
         if target.destination:
             self._balances[target.destination] = (
@@ -1666,9 +1739,10 @@ class DryRunTransport(Transport):
                                        "cancel time has not elapsed yet."))
         txid = self._next_txid()
         # Cancel returns the locked XRP to the OWNER (reclaim path), then removes.
+        # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
         try:
-            drops = int(Decimal(target.amount) * Decimal("1000000"))
-        except Exception:
+            drops = _validate_xrp_amount(target.amount)
+        except DryRunAmountError:
             drops = 0
         self._balances[owner] = self._balances.get(owner, 0) + drops
         self._remove_escrow(owner, target)
@@ -1827,12 +1901,13 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecUNFUNDED", fee="12",
                 error="[dry-run] Simulated failure: PaymentChannelCreate",
             )
+        # Parity with testnet: round >6dp, reject negative/sub-drop/too-large.
         try:
-            drops = int(Decimal(amount_xrp) * Decimal("1000000"))
-        except Exception:
+            drops = _validate_xrp_amount(amount_xrp)
+        except DryRunAmountError as exc:
             return SubmitResult(
-                success=False, result_code="temBAD_AMOUNT", fee="12",
-                error=f"[dry-run] Invalid channel amount: {amount_xrp}",
+                success=False, result_code=exc.result_code, fee="12",
+                error=f"[dry-run] Invalid channel amount: {exc}",
             )
         source = _address_from_seed(wallet_seed)
         cid = hashlib.sha256(
@@ -1859,12 +1934,13 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecNO_ENTRY", fee="12",
                 error="[dry-run] No such channel to fund.",
             )
+        # Parity with testnet: round >6dp, reject negative/sub-drop/too-large.
         try:
-            ch["amount"] += int(Decimal(amount_xrp) * Decimal("1000000"))
-        except Exception:
+            ch["amount"] += _validate_xrp_amount(amount_xrp)
+        except DryRunAmountError as exc:
             return SubmitResult(
-                success=False, result_code="temBAD_AMOUNT", fee="12",
-                error=f"[dry-run] Invalid fund amount: {amount_xrp}",
+                success=False, result_code=exc.result_code, fee="12",
+                error=f"[dry-run] Invalid fund amount: {exc}",
             )
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
@@ -1874,13 +1950,19 @@ class DryRunTransport(Transport):
     async def authorize_payment_channel_claim(
         self, wallet_seed: str, channel_id: str, amount_xrp: str
     ) -> str:
-        drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        # TR-003: round (HALF_EVEN via the shared helper), don't truncate — so
+        # the off-ledger claim signature matches what settlement would compute.
+        drops = _validate_xrp_amount(amount_xrp)
         return self._dry_claim_sig(channel_id, drops)
 
     async def verify_payment_channel_claim(
         self, channel_id: str, amount_xrp: str, public_key: str, signature: str
     ) -> bool:
-        drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        # TR-003: round (HALF_EVEN) to match authorize_payment_channel_claim.
+        try:
+            drops = _validate_xrp_amount(amount_xrp)
+        except DryRunAmountError:
+            return False
         return signature == self._dry_claim_sig(channel_id, drops)
 
     async def submit_payment_channel_claim(
@@ -1894,13 +1976,29 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecNO_ENTRY", fee="12",
                 error="[dry-run] No such channel to claim.",
             )
+        # AC-001 support: a claim that carries an off-ledger authorization
+        # (signature and/or public_key) MUST also name the amount it authorizes.
+        # On-ledger, PaymentChannelClaim requires the Amount field alongside a
+        # Signature; a signed claim missing its amount is malformed. Reject it
+        # here so the actions-side bug (redeem_claim omitting Amount) is caught
+        # in dry-run instead of silently settling on balance alone.
+        if (signature or public_key) and not amount_xrp:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    "[dry-run] Signed channel claim is missing its Amount — a "
+                    "PaymentChannelClaim carrying a Signature must include the "
+                    "amount the claim authorizes."
+                ),
+            )
         if balance_xrp:
+            # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
             try:
-                new_claimed = int(Decimal(balance_xrp) * Decimal("1000000"))
-            except Exception:
+                new_claimed = _validate_xrp_amount(balance_xrp)
+            except DryRunAmountError as exc:
                 return SubmitResult(
-                    success=False, result_code="temBAD_AMOUNT", fee="12",
-                    error=f"[dry-run] Invalid claim balance: {balance_xrp}",
+                    success=False, result_code=exc.result_code, fee="12",
+                    error=f"[dry-run] Invalid claim balance: {exc}",
                 )
             if new_claimed > ch["amount"]:
                 return SubmitResult(

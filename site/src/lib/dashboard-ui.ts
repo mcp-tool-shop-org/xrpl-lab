@@ -9,8 +9,12 @@
  */
 
 export const esc = (s: unknown): string =>
-  String(s ?? '').replace(/[&<>"]/g, (c) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string
+  String(s ?? '').replace(/[&<>"']/g, (c) => (
+    // Escape the single quote too (&#39;) so this shared escaper is safe in BOTH
+    // double- and single-quoted attribute contexts. Today every attribute sink
+    // is double-quoted, but a future author reusing esc() in a single-quoted
+    // attribute would otherwise open an attribute-breakout XSS hole (AW-002).
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
   ));
 
 export const elFrom = (html: string): HTMLElement => {

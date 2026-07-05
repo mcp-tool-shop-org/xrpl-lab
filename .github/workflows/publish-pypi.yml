@@ -57,6 +57,30 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Defense-in-depth (TC-003): this job builds+publishes to PyPI under the
+      # workflow_run trigger, which trusts release.yml's own version gate. Assert
+      # the resolved tag matches pyproject [project].version HERE too, so a
+      # misconfigured or bypassed upstream can't push a version-mismatched wheel.
+      # Mirrors release.yml's tomllib check. tomllib is stdlib in 3.11+. The tag
+      # comes from workflow_run.head_branch (chained releases) OR release.tag_name
+      # (hand-cut releases) — the SAME ref the checkout above used; workflow_dispatch
+      # sets both to empty, in which case we skip the assertion (nothing to gate).
+      - name: Verify tag matches pyproject.toml version
+        env:
+          TAG_REF: ${{ github.event.workflow_run.head_branch || github.event.release.tag_name || '' }}
+        run: |
+          if [ -z "${TAG_REF}" ]; then
+            echo "No tag ref (workflow_dispatch) — skipping version gate."
+            exit 0
+          fi
+          PY_VERSION=$(python3 -c "import tomllib; print(tomllib.loads(open('pyproject.toml').read())['project']['version'])")
+          TAG_VERSION="${TAG_REF#v}"
+          echo "pyproject.toml: ${PY_VERSION} | tag: ${TAG_REF} -> ${TAG_VERSION}"
+          if [ "${PY_VERSION}" != "${TAG_VERSION}" ]; then
+            echo "::error::Tag ${TAG_VERSION} does not match pyproject.toml version ${PY_VERSION}"
+            exit 1
+          fi
+
       - name: Build sdist + wheel
         run: |
           python -m pip install --upgrade build

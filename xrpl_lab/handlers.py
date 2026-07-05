@@ -8,6 +8,7 @@ uniform signature::
 
 from __future__ import annotations
 
+import logging
 import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -98,6 +99,8 @@ from .registry import ActionDef, PayloadField, register
 from .runtime import _SecretValue, ensure_funded, ensure_wallet
 from .state import LabState, ensure_workspace, save_state
 from .transport.base import Transport
+
+logger = logging.getLogger(__name__)
 
 
 def _require(
@@ -816,6 +819,14 @@ async def handle_open_channel(
         settle_delay = int(args.get("settle_delay", "86400"))
     except ValueError:
         settle_delay = 86400
+    # BC-005: a bare `except ValueError` lets a negative settle_delay through to
+    # the tx builder (SettleDelay is an unsigned field on-ledger). Floor at 0.
+    if settle_delay < 0:
+        console.print(
+            f"  [yellow]settle_delay {settle_delay} is invalid "
+            f"(must be >= 0); using 0.[/]"
+        )
+        settle_delay = 0
     receiver = context.get("receiver_address", "")
     if "wallet_seed" not in context or not receiver:
         console.print("  [red]Missing sender wallet or receiver. Run previous steps first.[/]")
@@ -834,9 +845,29 @@ async def handle_open_channel(
         context["channel_id"] = result.channel_id
         # Capture the channel's signing key (the sender's) so the receiver can
         # verify off-ledger claims against it later.
-        chans = await transport.get_account_channels(state.wallet_address or "")
-        match = next((c for c in chans if c.channel_id == result.channel_id), None)
-        context["channel_public_key"] = match.public_key if match else ""
+        #
+        # BC-001: this read-back is a network round-trip. If it raises (a
+        # transient RPC error), the channel is ALREADY open on-ledger and its
+        # XRP is locked — losing the txid here would leave a real, funded
+        # channel with no recorded transaction. The public key is only used to
+        # verify off-ledger claims and the downstream verify tolerates an empty
+        # value, so on failure we record an empty key and continue straight to
+        # record_tx. The successful on-ledger action must ALWAYS be recorded.
+        try:
+            chans = await transport.get_account_channels(state.wallet_address or "")
+            match = next((c for c in chans if c.channel_id == result.channel_id), None)
+            context["channel_public_key"] = match.public_key if match else ""
+        except Exception as exc:
+            logger.warning(
+                "channel public-key read-back failed for channel %s: %s",
+                result.channel_id, type(exc).__name__,
+            )
+            console.print(
+                "  [yellow]Note: could not read back the channel's signing key "
+                "(transient). The channel is open and recorded; off-ledger claim "
+                "verification may need the key re-fetched later.[/]"
+            )
+            context["channel_public_key"] = ""
         state.record_tx(
             txid=result.txid, module_id=context.get("module_id", ""),
             network=state.network, success=True, explorer_url=result.explorer_url,
@@ -1202,11 +1233,26 @@ async def handle_verify_reserve_change(
     after_snap = context.get(after_key)
 
     if not before_snap or not after_snap:
-        console.print(
-            "  [red]Missing snapshots. Run snapshot steps "
-            "first.[/]"
+        # BC-004: a missing (or mislabeled) snapshot must FAIL the step, not
+        # silently `return context`. Silently passing lets a mislabeled
+        # snapshot slip a verify step through without verifying anything — the
+        # proof pack would then imply a lesson that was never checked. Surface
+        # a structured failure via the existing LabException pipeline.
+        raise LabException(
+            LabError(
+                code="STATE_MISSING_SNAPSHOT",
+                message=(
+                    f"Cannot verify reserve change: missing snapshot "
+                    f"'{args.get('before', 'before')}' and/or "
+                    f"'{args.get('after', 'after')}'."
+                ),
+                hint=(
+                    "Run the snapshot_reserves steps that capture the "
+                    "'before' and 'after' states before this verify step, and "
+                    "check the before/after labels match those snapshots."
+                ),
+            )
         )
-        return context
 
     result = compare_snapshots(
         before_snap, after_snap,
@@ -1829,11 +1875,23 @@ async def handle_verify_position_delta(
     after_snap = context.get(after_key)
 
     if not before_snap or not after_snap:
-        console.print(
-            "  [red]Missing position snapshots. "
-            "Run snapshot_position steps first.[/]"
+        # BC-004: same contract as verify_reserve_change — a missing or
+        # mislabeled position snapshot must fail the step, never silently pass.
+        raise LabException(
+            LabError(
+                code="STATE_MISSING_SNAPSHOT",
+                message=(
+                    f"Cannot verify position delta: missing position snapshot "
+                    f"'{args.get('before', 'before')}' and/or "
+                    f"'{args.get('after', 'after')}'."
+                ),
+                hint=(
+                    "Run the snapshot_position steps that capture the 'before' "
+                    "and 'after' states before this verify step, and check the "
+                    "before/after labels match those snapshots."
+                ),
+            )
         )
-        return context
 
     result = compare_positions(
         before_snap, after_snap,
@@ -2093,6 +2151,18 @@ async def handle_mint_nft(
         transfer_fee = int(args.get("transfer_fee", "0"))
     except ValueError:
         transfer_fee = 0
+    # BC-005: transfer_fee is the NFT royalty in units of 1/1000 of a percent;
+    # the protocol caps it at 50000 (= 50%). A bare `except ValueError` only
+    # catches NON-numeric input, so a valid-but-out-of-range int (e.g. 999999)
+    # would flow to the builder and fail on-ledger with an opaque error. Clamp
+    # into range with a warning so the lesson still runs.
+    if transfer_fee < 0 or transfer_fee > 50000:
+        clamped = max(0, min(transfer_fee, 50000))
+        console.print(
+            f"  [yellow]transfer_fee {transfer_fee} is out of range "
+            f"(0–50000 = 0–50%); clamping to {clamped}.[/]"
+        )
+        transfer_fee = clamped
     transferable = str(args.get("transferable", "true")).lower() != "false"
     mutable = str(args.get("mutable", "false")).lower() in ("true", "1", "yes")
 
@@ -2271,6 +2341,16 @@ async def handle_create_escrow(
         delay = int(args.get("finish_seconds", "120"))
     except ValueError:
         delay = 120
+    # BC-005: a bare `except ValueError` lets a valid-but-nonsensical negative
+    # delay (e.g. -100) through, producing a FinishAfter in the PAST — the
+    # escrow would be finishable immediately (or the tx rejected), silently
+    # breaking the time-lock lesson. Require at least 1 second in the future.
+    if delay < 1:
+        console.print(
+            f"  [yellow]finish_seconds {delay} is invalid "
+            f"(must be >= 1); using 1.[/]"
+        )
+        delay = 1
     finish_after = int(time.time()) - _RIPPLE_EPOCH + delay
     cancel_after = finish_after + 86400
     console.print(f"  Creating time-based escrow: [cyan]{amount}[/] XRP, finishable in ~{delay}s")
@@ -3000,10 +3080,9 @@ async def handle_accept_nft_offer(
         if result.explorer_url:
             console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
         context["nft_buyer_address"] = buyer_addr
-        context["nft_seller_address"] = (
-            issuer_addr if context.get("nft_offer_seller_role") == "buyer"
-            else context.get("buyer_address", "")
-        )
+        # BC-006: the former `context["nft_seller_address"] = ...` write was
+        # dead — handle_verify_nft_trade verifies ownership against
+        # `nft_prev_owner` (set below), never `nft_seller_address`. Removed.
         # Re-read the issuer balance to surface the royalty delta (resale only).
         issuer_after = await transport.get_balance(issuer_addr)
         context["nft_issuer_balance_before"] = issuer_before

@@ -623,6 +623,13 @@ def proof_verify(file: str, json_output: bool, live: bool):
     # Hash layer ALWAYS runs (tamper-evidence). --live ADDS on-ledger truth.
     valid, message = verify_proof_pack(pack)
 
+    # A dry-run (or mixed) pack carries only simulated txids — it is NOT a proof
+    # of anything on the public ledger. Surface that loudly on the verify surface
+    # (parity with the audit pack's SIMULATED banner) so a green integrity PASS
+    # is never mistaken for on-ledger truth. The `network` field is sealed inside
+    # the hashed pack, so this reflects the real provenance.
+    simulated = str(pack.get("network", "")).lower() in ("dry-run", "dry_run", "mixed")
+
     # The live check runs even when the hash check fails so the report is
     # complete — BUT a hash failure still fails the command overall (a
     # tamper-evident artifact that's been edited is untrustworthy regardless
@@ -645,6 +652,7 @@ def proof_verify(file: str, json_output: bool, live: bool):
             "modules_completed": len(pack.get("completed_modules", [])),
             "total_transactions": pack.get("total_transactions", 0),
             "sha256": pack.get("sha256", ""),
+            "simulated": simulated,
             "message": message,
         }
         if live:
@@ -658,6 +666,14 @@ def proof_verify(file: str, json_output: bool, live: bool):
             console.print("\n  [green]✅ PASS[/] — Proof pack integrity verified.\n")
         else:
             console.print(f"\n  [red]❌ FAIL[/] — {message}\n")
+
+        if simulated:
+            console.print(
+                "  [yellow]⚠ SIMULATED — this pack was generated in --dry-run "
+                "mode. Its transactions are not on any ledger; a passing "
+                "integrity check proves the file is intact, NOT that anything "
+                "happened on the XRPL. Run without --dry-run for a real proof.[/]\n"
+            )
 
         console.print(f"  [bold]File:[/]         {path}")
         console.print(f"  [bold]Version:[/]      {pack.get('version', '?')}")
@@ -738,6 +754,10 @@ def cert_verify(file: str, json_output: bool, live: bool):
     # Hash layer ALWAYS runs (tamper-evidence). --live ADDS on-ledger truth.
     valid, message = verify_certificate(cert)
 
+    # A dry-run/mixed certificate proves nothing on-ledger — surface it loudly
+    # (parity with the proof-pack and audit SIMULATED banners).
+    simulated = str(cert.get("network", "")).lower() in ("dry-run", "dry_run", "mixed")
+
     live_result = None
     live_ok = True
     if live and valid:
@@ -754,6 +774,7 @@ def cert_verify(file: str, json_output: bool, live: bool):
             "modules_completed": cert.get("total_modules", 0),
             "total_transactions": cert.get("total_transactions", 0),
             "sha256": cert.get("sha256", ""),
+            "simulated": simulated,
             "message": message,
         }
         if live:
@@ -767,6 +788,13 @@ def cert_verify(file: str, json_output: bool, live: bool):
             console.print("\n  [green]✅ PASS[/] — Certificate integrity verified.\n")
         else:
             console.print(f"\n  [red]❌ FAIL[/] — {message}\n")
+
+        if simulated:
+            console.print(
+                "  [yellow]⚠ SIMULATED — this certificate was generated in "
+                "--dry-run mode. It attests to no on-ledger activity; a passing "
+                "integrity check proves only that the file is intact.[/]\n"
+            )
 
         console.print(f"  [bold]File:[/]         {path}")
         console.print(f"  [bold]Version:[/]      {cert.get('version', '?')}")
@@ -971,11 +999,25 @@ def audit(txids_path: str, expect_path: str | None, csv_path: str | None,
 
     transport = _get_transport(dry_run)
     report = asyncio.run(run_audit(transport, txids, config))
+    # CL-001: stamp the dry-run flag onto the report so the pack seals its
+    # provenance and the reports carry a SIMULATED banner — a --dry-run audit
+    # is a fabricated sandbox result, never an on-ledger proof. Set here rather
+    # than threaded through the run_audit call so the plumbing stays compatible
+    # with existing 3-arg run_audit test doubles; run_audit also accepts a
+    # ``dry_run=`` kwarg for direct callers.
+    report.dry_run = dry_run
 
     # Console summary
     console.print()
     console.print(Panel("[bold]XRPL Lab Audit[/]", border_style="blue"))
     console.print()
+    if dry_run:
+        # CL-001: make the simulated nature unmissable at the console too.
+        console.print(
+            "  [yellow]⚠ SIMULATED — not on-ledger, not a proof "
+            "(--dry-run offline sandbox).[/]"
+        )
+        console.print()
     console.print(f"  Checked: [bold]{report.total}[/] transactions")
     console.print(f"  Pass:    [green]{report.passed}[/]")
     console.print(f"  Fail:    [red]{report.failed}[/]")
@@ -1011,6 +1053,14 @@ def audit(txids_path: str, expect_path: str | None, csv_path: str | None,
         write_audit_pack(report, pack_out)
         console.print(f"  Audit pack: [green]{pack_out}[/]")
     console.print()
+
+    # CL-002: gate the exit code so CI / facilitators can branch on the
+    # result. Every other verify-family command exits non-zero on failure;
+    # audit previously always returned 0, silently passing broken cohorts.
+    # Use exit 3 (PARTIAL_ taxonomy in errors.py) when any checked txid
+    # failed or was not found; exit 0 only when all checked txids pass.
+    if report.failed > 0 or report.not_found > 0:
+        raise SystemExit(3)
 
 
 @main.command("last-run")
@@ -1290,7 +1340,11 @@ def cohort_status(cohort_dir: str, fmt: str):
 
     if fmt == "json":
         out = {
-            "cohort_dir": str(cohort_path.resolve()),
+            # CL-005: emit the basename only. ``resolve()`` produced an
+            # absolute path leaking the facilitator's OS username (and drive)
+            # into a shareable roster — build_session_manifest uses basename
+            # for exactly this reason, so match it for parity.
+            "cohort_dir": cohort_path.name or str(cohort_path),
             "learners": rows,
             "warnings": [
                 {"learner_id": lid, "error": err} for lid, err in warnings
@@ -1327,8 +1381,11 @@ def cohort_status(cohort_dir: str, fmt: str):
             print(f"warning: {lid}: {err}", file=sys.stderr)
         return
 
-    # Rich table for facilitator at-a-glance
-    table = Table(title=f"Cohort Status — {cohort_path}", expand=True)
+    # Rich table for facilitator at-a-glance. Use the basename (like the --format
+    # json branch): facilitators screenshot/paste this, and an absolute --dir
+    # would otherwise leak their OS username/home into a shareable roster.
+    cohort_label = cohort_path.name or str(cohort_path)
+    table = Table(title=f"Cohort Status — {cohort_label}", expand=True)
     table.add_column("Learner", style="bold")
     table.add_column("Progress")
     table.add_column("Current")
@@ -1354,7 +1411,7 @@ def cohort_status(cohort_dir: str, fmt: str):
     console.print()
     if not rows and not warnings:
         console.print(
-            f"[yellow]No learner workspaces found under {cohort_path}.[/] "
+            f"[yellow]No learner workspaces found under {cohort_label}.[/] "
             "Each learner subdir should contain .xrpl-lab/state.json."
         )
         console.print()
@@ -1659,8 +1716,11 @@ def fund(dry_run: bool):
     """Fund your wallet from the testnet faucet."""
     state = load_state()
     if not state.wallet_address:
+        # CL-003: no-wallet is a STATE_NO_WALLET error (errors.py -> exit 1),
+        # not a success. A bare ``return`` (exit 0) let scripts and the
+        # facilitator treat "no wallet" as "funded".
         console.print("[red]No wallet found. Run 'xrpl-lab wallet create' first.[/]")
-        return
+        raise SystemExit(1)
 
     transport = _get_transport(dry_run)
     result = asyncio.run(transport.fund_from_faucet(state.wallet_address))
@@ -1697,14 +1757,27 @@ def send(destination: str, amount: str, memo: str, dry_run: bool):
     except (ValueError, InvalidOperation):
         console.print("[red]Invalid amount — must be a number[/]")
         raise SystemExit(2) from None
+    # CL-004: reject non-finite values BEFORE they reach the transport.
+    # ``Decimal("Infinity")`` / ``Decimal("1e500")`` parse cleanly and are
+    # NOT <= 0, so the old guard let them through to the transport catch-all.
+    # is_finite() rejects Infinity/-Infinity/NaN; the upper bound rejects the
+    # overflow case (1e500) — XRP total supply is 100e9, nothing legitimately
+    # exceeds it.
+    if not amount_f.is_finite():
+        console.print("[red]Amount must be a finite number[/]")
+        raise SystemExit(2)
     if amount_f <= 0:
         console.print("[red]Amount must be positive[/]")
+        raise SystemExit(2)
+    if amount_f > Decimal("100000000000"):  # 100e9 XRP max supply
+        console.print("[red]Amount exceeds the maximum XRP supply (100e9)[/]")
         raise SystemExit(2)
 
     w = load_wallet()
     if not w:
+        # CL-003: no-wallet -> STATE_NO_WALLET (errors.py exit 1), not exit 0.
         console.print("[red]No wallet found. Run 'xrpl-lab wallet create' first.[/]")
-        return
+        raise SystemExit(1)
 
     transport = _get_transport(dry_run)
     result = asyncio.run(
@@ -1754,6 +1827,11 @@ def verify(txid: str, dry_run: bool):
     console.print(f"  Amount: {tx.amount}")
     if tx.memos:
         console.print(f"  Memos: {', '.join(tx.memos)}")
+
+    # Exit non-zero on a failed verdict so CI/facilitator scripts can gate on it
+    # (parity with proof-verify / cert-verify / support-bundle / lint / audit).
+    if not result.passed:
+        raise SystemExit(1)
 
 
 # ── Module group: scaffolding + lint helpers ────────────────────────
@@ -1934,9 +2012,22 @@ def lint(glob_pattern: str, json_output: bool, no_curriculum: bool):
     for p in paths:
         result.issues.extend(lint_module_file(p, kb_slugs=kb_slugs))
 
+    # CL-006: curriculum validation is inherently whole-catalog (prereqs,
+    # cycles, tracks span ALL modules). When the caller asked for a strict
+    # SUBSET of the catalog, running it surfaces — and fails on — errors for
+    # modules the caller never named. Detect the subset case and auto-skip
+    # curriculum, printing a clear note. `--no-curriculum` still works (it
+    # short-circuits before this). A full-catalog lint is unaffected.
+    full_catalog = sorted(Path(".").glob("modules/*.md"))
+    is_strict_subset = bool(full_catalog) and set(paths) < set(full_catalog)
+
+    curriculum_skipped_for_subset = False
     # Curriculum-level validation (when linting the full set)
     if not no_curriculum:
-        result.issues.extend(lint_curriculum())
+        if is_strict_subset:
+            curriculum_skipped_for_subset = True
+        else:
+            result.issues.extend(lint_curriculum())
 
     if json_output:
         print(result.to_json())
@@ -1953,6 +2044,13 @@ def lint(glob_pattern: str, json_output: bool, no_curriculum: bool):
             f"[red]{result.error_count} error(s)[/], "
             f"[yellow]{result.warning_count} warning(s)[/]"
         )
+        if curriculum_skipped_for_subset:
+            console.print(
+                "  [dim]Curriculum checks (prereqs, cycles, tracks) span "
+                "all modules and were skipped for this subset glob. "
+                "Run 'xrpl-lab lint' with no glob for full-catalog "
+                "curriculum validation.[/]"
+            )
         if kb_slugs is not None:
             console.print(
                 f"  [dim]kb_source cross-check: validated against "

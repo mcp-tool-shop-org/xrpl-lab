@@ -180,6 +180,11 @@ class VerifyResponse(BaseModel):
     version: str = ""
     address: str = ""
     network: str = ""
+    # True when the artifact was generated in --dry-run mode (network dry-run or
+    # mixed): a passing hash proves the file is intact, NOT that anything is on
+    # the ledger. The client must show a SIMULATED warning (parity with the CLI
+    # proof-verify/cert-verify and the audit-pack banner).
+    simulated: bool = False
 
 
 # -- /api/run --------------------------------------------------------------

@@ -61,9 +61,19 @@ async def redeem_claim(
     transport: Transport, wallet_seed: str, channel_id: str, balance_xrp: str,
     signature: str = "", public_key: str = "", close: bool = False,
 ) -> SubmitResult:
-    """Redeem a signed claim on-ledger (the receiver settles the cumulative balance)."""
+    """Redeem a signed claim on-ledger (the receiver settles the cumulative balance).
+
+    When a NON-source account submits the claim carrying a ``Signature``,
+    rippled REQUIRES the ``Amount`` field, and Amount must equal the value the
+    signature was computed over — otherwise the tx is ``temMALFORMED``. The
+    receiver here is a distinct wallet, so we pass ``amount_xrp=balance_xrp``:
+    both are the cumulative claim value and are equal. (A source-only close with
+    no signature omits Amount, which the empty ``balance_xrp``/``amount_xrp``
+    handles.)
+    """
     return await transport.submit_payment_channel_claim(
         wallet_seed, channel_id, balance_xrp=balance_xrp,
+        amount_xrp=balance_xrp,
         signature=signature, public_key=public_key, close=close,
     )
 
