@@ -1635,6 +1635,67 @@ class XRPLTestnetTransport(Transport):
             )
         return await self._submit_tx(tx, wallet, "EscrowCreate")
 
+    async def submit_allow_trustline_locking(
+        self,
+        issuer_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        # XLS-85 per-asset opt-in: AccountSet asfAllowTrustLineLocking on the
+        # issuer, without which any token escrow of this issuer's IOU fails
+        # tecNO_PERMISSION. ``issuer_address`` is a dry-run aid; the testnet path
+        # derives the account from the seed and ignores it. Signs a real tx, so
+        # the testnet-only invariant applies — guard BEFORE Wallet.from_seed.
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            tx = AccountSet(
+                account=wallet.address,
+                set_flag=AccountSetAsfFlag.ASF_ALLOW_TRUSTLINE_LOCKING,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AccountSet(AllowTrustLineLocking)")
+
+    async def submit_token_escrow_create(
+        self,
+        source_seed: str,
+        currency: str,
+        issuer: str,
+        value: str,
+        destination: str,
+        cancel_after: int,
+        finish_after: int | None = None,
+        source_address: str = "",
+    ) -> SubmitResult:
+        # XLS-85 token escrow: EscrowCreate whose Amount is an
+        # IssuedCurrencyAmount (IOU) rather than XRP drops. CancelAfter is
+        # mandatory on-ledger; the issuer opt-in and issuer-as-source rules are
+        # enforced by rippled (returning tecNO_PERMISSION). ``source_address`` is
+        # a dry-run aid; the testnet path derives the source from the seed.
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(source_seed)
+            tx = EscrowCreate(
+                account=wallet.address,
+                amount=IssuedCurrencyAmount(
+                    currency=currency, issuer=issuer, value=value
+                ),
+                destination=destination,
+                cancel_after=cancel_after,
+                finish_after=finish_after,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "EscrowCreate(token)")
+
     async def _escrow_create_sequences(self, address: str) -> dict[str, int]:
         """Map ``PreviousTxnID`` → EscrowCreate sequence for *address* (TRANSPORT-A-003).
 

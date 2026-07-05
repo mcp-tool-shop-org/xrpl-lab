@@ -84,6 +84,12 @@ from .actions.strategy import (
     strategy_memo,
     write_last_run,
 )
+from .actions.token_escrow import (
+    create_token_escrow,
+    set_allow_trustline_locking,
+    verify_token_moved,
+)
+from .actions.token_escrow import finish_escrow as finish_token_escrow
 from .actions.trust_line import (
     clawback_tokens,
     enable_clawback,
@@ -2680,6 +2686,322 @@ async def handle_verify_escrow_finished(
     return context
 
 
+# ---------------------------------------------------------------------------
+# Token escrow actions (FC-001 — XLS-85, payments track)
+# ---------------------------------------------------------------------------
+
+
+async def handle_set_allow_trustline_locking(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Issuer opts in per-asset (AccountSet asfAllowTrustLineLocking, XLS-85)."""
+    _raw_issuer = context.get("issuer_seed", "")
+    issuer_seed = _raw_issuer.get() if isinstance(_raw_issuer, _SecretValue) else _raw_issuer
+    if not issuer_seed:
+        console.print("  [red]No issuer wallet in context. Run the issuer step first.[/]")
+        return context
+    issuer_address = context.get("issuer_address", "")
+    console.print(
+        "  Issuer opting in to token escrow "
+        "([cyan]asfAllowTrustLineLocking[/]) — required before this IOU can be escrowed..."
+    )
+    result = await set_allow_trustline_locking(transport, issuer_seed, issuer_address)
+    if result.success:
+        console.print("  [green]Allow Trust Line Locking enabled on the issuer.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["allow_trustline_locking"] = True
+    else:
+        console.print(f"  [red]Opt-in failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_token_recipient(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund a third-party recipient wallet and set its trust line.
+
+    The recipient must trust the issuer for the currency BEFORE the escrowed
+    token can land on their line at finish.
+    """
+    args = step.action_args
+    currency = args.get("currency", "GLD")
+    limit = args.get("limit", "1000")
+    issuer_address = context.get("issuer_address", "")
+    if not issuer_address:
+        console.print("  [red]No issuer in context. Run the issuer step first.[/]")
+        return context
+
+    console.print("  Creating the recipient (third-party) wallet...")
+    recipient = create_wallet()
+    context["recipient_seed"] = _SecretValue(recipient.seed)
+    context["recipient_address"] = recipient.address
+    console.print(f"  Recipient wallet: [cyan]{recipient.address}[/]")
+
+    fund = await transport.fund_from_faucet(recipient.address)
+    if fund.success:
+        console.print(f"  Recipient funded! Balance: [green]{fund.balance} XRP[/]")
+    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    else:
+        console.print(f"  [yellow]Recipient funding: {fund.message}[/]")
+
+    console.print(f"  Recipient trusting the issuer for [cyan]{currency}[/]...")
+    ts = await set_trust_line(
+        transport, recipient.seed, issuer_address, currency, limit
+    )
+    if ts.success:
+        console.print("  [green]Recipient trust line set.[/]")
+    else:
+        console.print(f"  [yellow]Recipient trust line: {ts.error}[/]")
+    return context
+
+
+async def handle_snapshot_recipient_balance(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Capture the recipient's issued balance (the before-value for the checkpoint)."""
+    args = step.action_args
+    currency = args.get("currency", "GLD")
+    label = args.get("label", "before")
+    recipient = context.get("recipient_address", "")
+    issuer_address = context.get("issuer_address", "")
+    if not recipient:
+        console.print("  [red]No recipient wallet. Run the recipient step first.[/]")
+        return context
+    lines = await transport.get_trust_lines(recipient)
+    bal = "0"
+    for tl in lines:
+        if tl.currency == currency and (not issuer_address or tl.peer == issuer_address):
+            bal = tl.balance
+            break
+    context[f"recipient_balance_{label}"] = bal
+    if label == "before":
+        context["token_balance_before"] = bal
+    console.print(f"  Recipient {currency} balance ({label}): [cyan]{bal}[/]")
+    return context
+
+
+async def handle_create_token_escrow(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Holder escrows N of an issued token to the recipient (XLS-85 EscrowCreate)."""
+    args = step.action_args
+    currency = args.get("currency", "GLD")
+    value = args.get("amount", "50")
+    issuer_address = context.get("issuer_address", "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    holder_seed = context["wallet_seed"].get()
+    holder_address = state.wallet_address or ""
+    recipient = context.get("recipient_address") or args.get("destination") or ""
+    if not issuer_address or not recipient:
+        console.print(
+            "  [red]Missing issuer or recipient. Run the issuer and recipient "
+            "steps first.[/]"
+        )
+        return context
+
+    # CancelAfter is MANDATORY for a token escrow (XLS-85). Default a day out.
+    try:
+        cancel_seconds = int(args.get("cancel_seconds", "86400"))
+    except ValueError:
+        console.print("  [yellow]Invalid cancel_seconds, using default (86400).[/]")
+        cancel_seconds = 86400
+    if cancel_seconds < 1:
+        cancel_seconds = 1
+    cancel_after = int(time.time()) - _RIPPLE_EPOCH + cancel_seconds
+
+    console.print(
+        f"  Holder escrowing [cyan]{value} {currency}[/] to the recipient "
+        f"(mandatory CancelAfter ~{cancel_seconds}s out)..."
+    )
+    result = await create_token_escrow(
+        transport, holder_seed, currency, issuer_address, value, recipient,
+        cancel_after=cancel_after, finish_after=None, source_address=holder_address,
+    )
+    if result.success:
+        console.print("  [green]Token escrow created — IOU locked on-ledger![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["token_escrow_currency"] = currency
+        context["token_escrow_issuer"] = issuer_address
+        context["token_escrow_amount"] = value
+        context["token_escrow_recipient"] = recipient
+        owner = holder_address
+        escrows = await transport.get_escrows(owner)
+        if escrows:
+            seq = escrows[-1].sequence
+            context["token_escrow_owner"] = owner
+            context["token_escrow_cancel_after"] = cancel_after
+            if seq:
+                context["token_escrow_sequence"] = seq
+                console.print(f"  Escrow create-sequence: [cyan]{seq}[/]")
+    else:
+        console.print(f"  [red]Token escrow failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_token_escrow_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attempt a token escrow WITHOUT the issuer opt-in — expects tecNO_PERMISSION.
+
+    Submit-and-learn: this is the failure a learner hits if the issuer never set
+    asfAllowTrustLineLocking. It routes the tec code through explain_result_code
+    so the failure teaches the opt-in rule inline.
+    """
+    args = step.action_args
+    currency = args.get("currency", "NOP")
+    value = args.get("amount", "50")
+    # A second, DELIBERATELY-not-opted-in issuer keyed by a separate address so
+    # the main issuer's opt-in doesn't accidentally satisfy this one.
+    issuer_address = context.get("noopt_issuer_address") or context.get("issuer_address", "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    holder_seed = context["wallet_seed"].get()
+    holder_address = state.wallet_address or ""
+    recipient = context.get("recipient_address") or holder_address
+
+    try:
+        cancel_seconds = int(args.get("cancel_seconds", "86400"))
+    except ValueError:
+        cancel_seconds = 86400
+    cancel_after = int(time.time()) - _RIPPLE_EPOCH + max(1, cancel_seconds)
+
+    console.print(
+        f"  [yellow]Attempting to escrow {value} {currency} with NO issuer "
+        f"opt-in (expecting tecNO_PERMISSION)...[/]"
+    )
+    result = await create_token_escrow(
+        transport, holder_seed, currency, issuer_address, value, recipient,
+        cancel_after=cancel_after, finish_after=None, source_address=holder_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the issuer may already be opted in "
+            "on this transport.[/]"
+        )
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context.setdefault("txids", []).append(result.txid)
+        state.record_tx(
+            txid=result.txid or "failed", module_id=context.get("module_id", ""),
+            network=state.network, success=True, explorer_url=result.explorer_url,
+        )
+    else:
+        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    save_state(state)
+    return context
+
+
+async def handle_finish_token_escrow(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Recipient finishes the token escrow, releasing the IOU (EscrowFinish)."""
+    owner = context.get("token_escrow_owner") or state.wallet_address or ""
+    seq = context.get("token_escrow_sequence")
+    if not owner or seq is None:
+        console.print(
+            "  [red]No token escrow to finish — run the create-token-escrow "
+            "step first so its create-sequence is captured.[/]"
+        )
+        return context
+    # The recipient submits the finish (either party may finish a time-based
+    # escrow; the funds always go to the destination). Fall back to the holder's
+    # wallet if a dedicated recipient seed wasn't created.
+    _raw = context.get("recipient_seed", "")
+    finisher_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    if not finisher_seed and "wallet_seed" in context:
+        finisher_seed = context["wallet_seed"].get()
+    if not finisher_seed:
+        console.print("  [red]No wallet to submit EscrowFinish.[/]")
+        return context
+
+    console.print(
+        f"  Recipient finishing the token escrow "
+        f"(owner {owner[:12]}..., OfferSequence {seq})..."
+    )
+    result = await finish_token_escrow(transport, finisher_seed, owner, seq)
+    if result.success:
+        console.print("  [green]Token escrow finished — IOU released to the recipient![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]EscrowFinish failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_token_moved(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Checkpoint: the escrowed IOU reached the recipient's trust line."""
+    recipient = context.get("token_escrow_recipient") or context.get("recipient_address", "")
+    currency = context.get("token_escrow_currency", "GLD")
+    issuer = context.get("token_escrow_issuer") or context.get("issuer_address", "")
+    before = context.get("token_balance_before", "0")
+    expected = context.get("token_escrow_amount")
+
+    if not recipient or not issuer:
+        console.print(
+            "  [red]No recipient/issuer in context — the token-escrow steps did "
+            "not run.[/]"
+        )
+        # Honest-pack contract: a verify that COULD NOT run is a FAILED
+        # verification, not a silent skip (else the module stays vacuously
+        # verified=True). Record on this missing-prerequisite path too.
+        _record_verification(
+            context, "verify_token_moved", passed=False,
+            failures=[
+                "recipient/issuer missing — the token-escrow steps that produce "
+                "them did not run"
+            ],
+        )
+        return context
+
+    result = await verify_token_moved(
+        transport, recipient, currency, issuer,
+        before=before, expected_increase=expected,
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    if result.passed:
+        console.print("  [green]Token moved — the escrowed IOU is now the recipient's.[/]")
+    context["last_token_moved_verify"] = result
+    _record_verification(
+        context, "verify_token_moved", result.passed, result.failures
+    )
+    return context
+
+
 async def handle_set_did(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -3747,6 +4069,66 @@ def _register_all() -> None:
             name="verify_escrow_finished",
             handler=handle_verify_escrow_finished,
             description="Verify an escrow was finished/cancelled (object gone, reserve freed)",
+        ),
+        # ── FC-001: token escrow (XLS-85) — payments track ──
+        ActionDef(
+            name="set_allow_trustline_locking",
+            handler=handle_set_allow_trustline_locking,
+            description="Issuer opts in to token escrow (AccountSet asfAllowTrustLineLocking)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="create_token_recipient",
+            handler=handle_create_token_recipient,
+            description="Create + fund a third-party recipient and set its trust line",
+            payload_fields=[
+                PayloadField(name="currency", default="GLD"),
+                PayloadField(name="limit", default="1000"),
+            ],
+        ),
+        ActionDef(
+            name="snapshot_recipient_balance",
+            handler=handle_snapshot_recipient_balance,
+            description="Snapshot the recipient's issued balance (before/after the escrow)",
+            payload_fields=[
+                PayloadField(name="currency", default="GLD"),
+                PayloadField(name="label", default="before"),
+            ],
+        ),
+        ActionDef(
+            name="create_token_escrow",
+            handler=handle_create_token_escrow,
+            description="Holder escrows an issued token (IOU) to a recipient (XLS-85)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="GLD"),
+                PayloadField(name="amount", default="50", description="IOU amount to escrow"),
+                PayloadField(name="destination", description="Recipient (defaults to context)"),
+                PayloadField(name="cancel_seconds", type="int", default="86400",
+                             description="Seconds until CancelAfter (mandatory for token escrow)"),
+            ],
+        ),
+        ActionDef(
+            name="create_token_escrow_expect_fail",
+            handler=handle_create_token_escrow_expect_fail,
+            description="Attempt a token escrow without issuer opt-in (expects tecNO_PERMISSION)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="NOP"),
+                PayloadField(name="amount", default="50"),
+                PayloadField(name="cancel_seconds", type="int", default="86400"),
+            ],
+        ),
+        ActionDef(
+            name="finish_token_escrow",
+            handler=handle_finish_token_escrow,
+            description="Recipient finishes the token escrow, releasing the IOU (EscrowFinish)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_token_moved",
+            handler=handle_verify_token_moved,
+            description="Verify the escrowed IOU reached the recipient's trust line",
         ),
         ActionDef(
             name="set_did",

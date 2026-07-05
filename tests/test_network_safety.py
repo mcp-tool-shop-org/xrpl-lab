@@ -195,6 +195,18 @@ _MAINNET_REFUSAL_CALLS = {
     "submit_nft_modify": (
         lambda t: t.submit_nft_modify("sEdSEED", "00080000ABC", "ipfs://x")
     ),
+    # ── FC-001 token escrow (XLS-85) signing methods ──
+    # AccountSet asfAllowTrustLineLocking (issuer opt-in) and the token
+    # EscrowCreate (issued Amount) both sign a real tx, so the testnet-only
+    # invariant applies — each MUST call _network_guard() before Wallet.from_seed.
+    "submit_allow_trustline_locking": (
+        lambda t: t.submit_allow_trustline_locking("sEdSEED", "rISSUER")
+    ),
+    "submit_token_escrow_create": (
+        lambda t: t.submit_token_escrow_create(
+            "sEdSEED", "GLD", "rISSUER", "50", "rDEST", 999999999
+        )
+    ),
 }
 
 # AMM submit_* methods are stubs that return result_code="notSupported"

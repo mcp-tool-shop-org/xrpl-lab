@@ -222,6 +222,17 @@ class DryRunTransport(Transport):
         # (issuer, currency, holder) line; global freeze keys an issuer.
         self._frozen_lines: set[tuple[str, str, str]] = set()
         self._global_frozen: set[str] = set()
+        # Token-escrow opt-in state (FC-001, XLS-85). An issuer address in this
+        # set has enabled asfAllowTrustLineLocking, so its IOU can be escrowed.
+        # A token EscrowCreate against an issuer NOT in this set fails
+        # tecNO_PERMISSION, matching the network's engine result for the
+        # missing-opt-in case. Locked IOU amounts (currency/issuer/value + the
+        # source that owes them) ride on the EscrowInfo via a parallel dict so
+        # the release can credit the recipient's trust line on finish.
+        self._locking_enabled: set[str] = set()
+        # (owner, sequence) -> (currency, issuer, value, source_address) for the
+        # token that a given escrow locked, so finish/cancel can move the IOU.
+        self._token_escrow_amounts: dict[tuple[str, int], tuple[str, str, str, str]] = {}
         # MPT holder state (FT-CURRIC-004): authorizations + per-holder balances,
         # both keyed (holder, issuance_id).
         self._mpt_auths: set[tuple[str, str]] = set()
@@ -1835,6 +1846,173 @@ class DryRunTransport(Transport):
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="")
 
+    # ── Token escrow (XLS-85 / FC-001) ───────────────────────────────
+
+    async def submit_allow_trustline_locking(
+        self,
+        issuer_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecOWNERS", fee="12",
+                error="[dry-run] Simulated failure: AccountSet allow-trustline-locking",
+            )
+        # Key by the issuer's REAL address when supplied — every dry-run seed
+        # collapses to one synthetic address, so without the real address we
+        # could not tell an opted-in issuer apart from one that never opted in
+        # (the failure-case module needs exactly that distinction).
+        issuer = issuer_address or _address_from_seed(issuer_seed)
+        self._locking_enabled.add(issuer)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    def _find_iou_line(
+        self, address: str, currency: str, issuer: str
+    ) -> TrustLineInfo | None:
+        """Locate *address*'s live trust line for currency/issuer, or None."""
+        for tl in self._live_lines_for(address):
+            if tl.currency == currency and tl.peer == issuer:
+                return tl
+        return None
+
+    async def submit_token_escrow_create(
+        self,
+        source_seed: str,
+        currency: str,
+        issuer: str,
+        value: str,
+        destination: str,
+        cancel_after: int,
+        finish_after: int | None = None,
+        source_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Simulated failure: token escrow create",
+            )
+        source = source_address or _address_from_seed(source_seed)
+
+        # Rule 1 (XLS-85): the token's ISSUER cannot be the escrow SOURCE — an
+        # issuer escrowing its own token as sender fails tecNO_PERMISSION.
+        if source == issuer:
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    "[dry-run] The token's issuer cannot be the escrow source. "
+                    "An issuer escrowing its OWN token as sender fails "
+                    "tecNO_PERMISSION — the issuer opts in and issues to a "
+                    "holder; the HOLDER escrows the token to a third party."
+                ),
+            )
+
+        # Rule 2 (XLS-85): the issuer must have opted in via
+        # asfAllowTrustLineLocking, else EscrowCreate fails tecNO_PERMISSION.
+        # Accept either the real-address key or the collapsed seed-address key
+        # (unit tests that opt in via seed without a real addr).
+        if (
+            issuer not in self._locking_enabled
+            and _address_from_seed(issuer) not in self._locking_enabled
+        ):
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    f"[dry-run] Token escrow refused — the issuer of {currency} "
+                    "never enabled asfAllowTrustLineLocking (AccountSet). XLS-85 "
+                    "requires the issuer to opt in per-asset before anyone can "
+                    "escrow that IOU; without it, EscrowCreate fails "
+                    "tecNO_PERMISSION."
+                ),
+            )
+
+        # Rule 3 (XLS-85): CancelAfter is mandatory for a token escrow. The
+        # action layer already rejects a missing CancelAfter locally; enforce it
+        # here too so a direct transport caller can't skip it.
+        if cancel_after is None:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    "[dry-run] Token escrow requires a CancelAfter — unlike XRP, "
+                    "there is no open-ended token escrow (XLS-85)."
+                ),
+            )
+
+        # Lock the source's IOU: debit their trust-line balance now, credit the
+        # recipient on finish (or refund the source on cancel). The source must
+        # actually hold the token.
+        line = self._find_iou_line(source, currency, issuer)
+        if line is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_LINE", fee="12",
+                error=(
+                    f"[dry-run] The source holds no {currency} trust line from "
+                    f"{issuer[:12]}... — nothing to escrow."
+                ),
+            )
+        try:
+            have = Decimal(line.balance)
+            lock = Decimal(value)
+        except Exception:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid token amount: {value}",
+            )
+        if lock <= 0 or lock > have:
+            return SubmitResult(
+                success=False, result_code="tecUNFUNDED", fee="12",
+                error=(
+                    f"[dry-run] Cannot escrow {value} {currency} — the source "
+                    f"holds only {line.balance}."
+                ),
+            )
+        new_balance = have - lock
+        line.balance = (
+            str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
+        )
+
+        txid = self._next_txid()
+        seq = 1000 + self._counter
+        # EscrowInfo.amount carries a display string for the token (parity with
+        # the testnet get_escrows, which formats a dict Amount as value/CUR/iss).
+        display = f"{value}/{currency}/{issuer[:12]}"
+        self._escrows.setdefault(source, []).append(
+            EscrowInfo(
+                sequence=seq, amount=display, destination=destination,
+                finish_after=finish_after, cancel_after=cancel_after,
+            )
+        )
+        # Remember the real token so finish/cancel can move the IOU.
+        self._token_escrow_amounts[(source, seq)] = (currency, issuer, value, source)
+        self._inc_owner(source)
+        return SubmitResult(
+            success=True, txid=txid, result_code="tesSUCCESS", fee="12",
+            ledger_index=99999999, explorer_url="",
+        )
+
+    def _credit_iou(self, address: str, currency: str, issuer: str, value: str) -> None:
+        """Credit *value* of currency/issuer to *address*'s trust line (create if absent)."""
+        line = self._find_iou_line(address, currency, issuer)
+        if line is None:
+            # No line yet — create one so the released token has somewhere to
+            # land (mirrors a recipient who set a trust line before finishing).
+            line = TrustLineInfo(
+                account=address, peer=issuer, currency=currency,
+                balance="0", limit="0",
+            )
+            self._trust_lines.setdefault(address, []).append(line)
+        try:
+            new_balance = Decimal(line.balance) + Decimal(value)
+        except Exception:
+            return
+        line.balance = (
+            str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
+        )
+
     async def get_escrows(self, address: str) -> list[EscrowInfo]:
         return self._resolve(self._escrows, address)
 
@@ -1884,6 +2062,17 @@ class DryRunTransport(Transport):
                                 error=("[dry-run] EscrowFinish before FinishAfter — the "
                                        "release time has not elapsed yet."))
         txid = self._next_txid()
+        # Token escrow (XLS-85): release the locked IOU to the destination's
+        # trust line, not XRP. Look up the token this escrow locked; if present
+        # this is a token escrow and we credit the recipient's issued balance.
+        token = self._token_escrow_amounts.pop((owner, offer_sequence), None)
+        if token is not None:
+            currency, issuer, value, _src = token
+            if target.destination:
+                self._credit_iou(target.destination, currency, issuer, value)
+            self._remove_escrow(owner, target)
+            return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
+                                fee="12", ledger_index=99999999, explorer_url="")
         # Release the locked XRP to the destination, then remove the object.
         # target.amount is the XRP value the create handler passed (e.g. "10").
         # Credit the destination so the lifecycle test can observe the release.
@@ -1922,6 +2111,15 @@ class DryRunTransport(Transport):
                                 error=("[dry-run] EscrowCancel before CancelAfter — the "
                                        "cancel time has not elapsed yet."))
         txid = self._next_txid()
+        # Token escrow (XLS-85): cancel refunds the locked IOU to the SOURCE
+        # (the owner who locked it), not XRP.
+        token = self._token_escrow_amounts.pop((owner, offer_sequence), None)
+        if token is not None:
+            currency, issuer, value, _src = token
+            self._credit_iou(owner, currency, issuer, value)
+            self._remove_escrow(owner, target)
+            return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
+                                fee="12", ledger_index=99999999, explorer_url="")
         # Cancel returns the locked XRP to the OWNER (reclaim path), then removes.
         # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
         try:

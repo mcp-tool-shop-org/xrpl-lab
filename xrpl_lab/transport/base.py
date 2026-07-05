@@ -574,6 +574,51 @@ class Transport(ABC):
         """Create a time-based XRP Escrow (EscrowCreate)."""
 
     @abstractmethod
+    async def submit_allow_trustline_locking(
+        self,
+        issuer_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Enable asfAllowTrustLineLocking on the issuer (AccountSet — XLS-85).
+
+        This is the per-asset opt-in that makes an issuer's IOU escrowable. It
+        MUST be set on the ISSUER account before any holder can create a token
+        escrow of that currency; a token EscrowCreate against an issuer that
+        never set it fails ``tecNO_PERMISSION``.
+
+        ``issuer_address`` is the issuer's real classic address. The testnet
+        transport ignores it (it derives the address from the seed); the dry-run
+        transport uses it to key per-issuer flag state, because every dry-run
+        seed collapses to one synthetic address and could not otherwise tell an
+        opted-in issuer apart from one that never opted in.
+        """
+
+    @abstractmethod
+    async def submit_token_escrow_create(
+        self,
+        source_seed: str,
+        currency: str,
+        issuer: str,
+        value: str,
+        destination: str,
+        cancel_after: int,
+        finish_after: int | None = None,
+        source_address: str = "",
+    ) -> SubmitResult:
+        """Create a token (IOU) escrow — EscrowCreate with an issued Amount (XLS-85).
+
+        Locks ``value`` of ``currency``/``issuer`` from the source account to
+        ``destination``. The network enforces three preconditions this method
+        surfaces as tec/tem-shaped results: the token issuer must have opted in
+        (``asfAllowTrustLineLocking``, else ``tecNO_PERMISSION``); the token's
+        issuer cannot be the escrow source (else ``tecNO_PERMISSION``); and a
+        ``CancelAfter`` is mandatory. ``source_address`` is the source's real
+        classic address, used by the dry-run transport to resolve the source's
+        trust line and check the issuer-as-source rule (the testnet path derives
+        the source from the seed and ignores it).
+        """
+
+    @abstractmethod
     async def submit_escrow_finish(
         self,
         wallet_seed: str,
