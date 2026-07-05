@@ -52,6 +52,8 @@ class SubmitResult:
     nft_offer_index: str = ""  # NFTokenOffer ledger index, set on NFTokenCreateOffer
     mpt_issuance_id: str = ""  # MPTokenIssuanceID, set on a successful MPTokenIssuanceCreate
     channel_id: str = ""  # PayChannel id, set on a successful PaymentChannelCreate
+    domain_id: str = ""  # DomainID (Hash256), set on a successful PermissionedDomainSet (create)
+    offer_sequence: int | None = None  # placing tx Sequence, set on a permissioned OfferCreate
 
 
 @dataclass
@@ -188,6 +190,26 @@ class CredentialInfo:
     accepted: bool = False
     uri: str = ""
     expiration: int | None = None
+
+
+@dataclass
+class PermissionedDomainInfo:
+    """A PermissionedDomain ledger object (XLS-80) — a credential-gated domain.
+
+    A domain gates access to a permissioned book: an account may place a
+    permissioned offer (or fund a gated treasury) in the domain only if it
+    holds a VALID credential the domain lists in ``accepted_credentials``.
+    ``domain_id`` is the Hash256 the ledger derives from (Owner, Sequence) at
+    create time — distinct per (owner, sequence), NOT idempotent, so it must be
+    tracked off-ledger after creation. ``accepted_credentials`` is the full
+    accepted set as ``(issuer, credential_type_hex)`` pairs; the list is
+    REPLACED wholesale on every PermissionedDomainSet (never patched), so a
+    'modify' that forgets to re-list an entry silently revokes it.
+    """
+
+    domain_id: str
+    owner: str
+    accepted_credentials: list[tuple[str, str]]  # [(issuer, credential_type_hex), ...]
 
 
 @dataclass
@@ -753,6 +775,79 @@ class Transport(ABC):
         ``credential_type`` is the hex tag. Returns the object whether provisional
         or accepted; the caller inspects ``CredentialInfo.accepted`` for validity.
         """
+
+    @abstractmethod
+    async def submit_permissioned_domain_set(
+        self,
+        owner_seed: str,
+        accepted_credentials: list[tuple[str, str]],
+        domain_id: str = "",
+        owner_address: str = "",
+    ) -> SubmitResult:
+        """Create or modify a Permissioned Domain (PermissionedDomainSet, XLS-80).
+
+        ``accepted_credentials`` is the FULL intended accepted set — a list of
+        1-10 ``(issuer, credential_type_hex)`` pairs, no duplicates. It COMPLETELY
+        REPLACES the domain's prior list (partial updates are not supported), so a
+        modify that drops an entry silently revokes access for everyone holding
+        that credential. Omit ``domain_id`` to CREATE a new domain (the ledger
+        derives a fresh Hash256 from Owner + Sequence; the created id is returned
+        on ``SubmitResult.domain_id``); pass ``domain_id`` to MODIFY that existing
+        domain (owner-only — a non-owner modify fails an ownership error). No
+        transaction-specific flags. ``owner_address`` is a dry-run keying aid; the
+        testnet transport derives the owner from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_permissioned_domain_delete(
+        self,
+        owner_seed: str,
+        domain_id: str,
+        owner_address: str = "",
+    ) -> SubmitResult:
+        """Delete a Permissioned Domain (PermissionedDomainDelete, XLS-80).
+
+        The named compensator for ``submit_permissioned_domain_set`` (create):
+        it frees the owner-reserve slot the domain consumed. A domain blocks its
+        owner's account deletion until it is deleted. Only the owner may delete.
+        ``owner_address`` is a dry-run keying aid, ignored by the testnet path.
+        """
+
+    @abstractmethod
+    async def submit_permissioned_offer_create(
+        self,
+        wallet_seed: str,
+        taker_pays_currency: str,
+        taker_pays_value: str,
+        taker_pays_issuer: str,
+        taker_gets_currency: str,
+        taker_gets_value: str,
+        taker_gets_issuer: str,
+        domain_id: str,
+        hybrid: bool = False,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Place a permissioned DEX offer scoped to a domain (OfferCreate + DomainID, XLS-81).
+
+        Setting ``domain_id`` scopes the offer to a permissioned domain: the
+        placing account MUST hold a valid credential the domain accepts, or the
+        offer fails. A plain permissioned offer (``hybrid=False``) matches ONLY the
+        domain's permissioned book; a hybrid offer (``hybrid=True`` → the
+        ``tfHybrid`` flag) matches BOTH the domain book AND the open DEX.
+
+        NOTE the rail distinction this method makes concrete: eligibility is proven
+        by ``DomainID`` (holding an accepted credential), NOT by ``CredentialIDs``
+        (the deposit-authorization rail) — putting CredentialIDs on an OfferCreate
+        does nothing for permissioned trading. ``wallet_address`` is a dry-run
+        keying aid, ignored by the testnet path. On success the placing tx's
+        Sequence is returned on ``SubmitResult.offer_sequence``.
+        """
+
+    @abstractmethod
+    async def get_permissioned_domains(
+        self, owner: str
+    ) -> list[PermissionedDomainInfo]:
+        """List Permissioned Domains owned by an account (account_objects PermissionedDomain)."""
 
     @abstractmethod
     async def submit_mpt_issuance_create(

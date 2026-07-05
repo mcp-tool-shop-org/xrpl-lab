@@ -20,6 +20,7 @@ from .base import (
     NFTInfo,
     NFTOfferInfo,
     OfferInfo,
+    PermissionedDomainInfo,
     SubmitResult,
     Transport,
     TrustLineInfo,
@@ -253,6 +254,12 @@ class DryRunTransport(Transport):
         # reserve is charged to the issuer while provisional and moves to the
         # subject on accept, mirrored via _inc_owner / _dec_owner.
         self._credentials: dict[tuple[str, str, str], CredentialInfo] = {}
+        # Permissioned Domains (FC-004, XLS-80), keyed by synthetic DomainID.
+        # Each unique (owner, sequence) yields a DISTINCT DomainID — modeled by
+        # a monotonic counter folded into a synthetic hash, so re-running create
+        # produces a NEW id (never idempotently the old one).
+        self._domains: dict[str, PermissionedDomainInfo] = {}
+        self._domain_seq: int = 0
         # Deterministic clock for EscrowFinish/EscrowCancel time-gating.
         # XRPL gates EscrowFinish on FinishAfter and EscrowCancel on
         # CancelAfter, both in ripple-epoch seconds. Wall-clock would make
@@ -2299,6 +2306,204 @@ class DryRunTransport(Transport):
         credential_type: str,
     ) -> CredentialInfo | None:
         return self._credentials.get((subject, issuer, credential_type))
+
+    # ── Permissioned Domains & Gated DEX (FC-004, XLS-80 / XLS-81) ────────
+    #
+    # Domains gate a permissioned book by credential. Modeled offline:
+    #   * create (no domain_id) -> a NEW synthetic DomainID per call (distinct
+    #     per (owner, sequence), never idempotent); consumes an owner-reserve.
+    #   * modify (domain_id) -> owner-only; AcceptedCredentials is REPLACED
+    #     wholesale (full-replace revocation gotcha lives here).
+    #   * permissioned OfferCreate -> the placer MUST currently hold an ACCEPTED
+    #     credential the domain lists, else the offer FAILS (never rests).
+    #   * delete -> owner-only; frees the reserve (named compensator).
+
+    def _next_domain_id(self, owner: str) -> str:
+        """Derive a fresh, distinct DomainID from (owner, monotonic sequence)."""
+        self._domain_seq += 1
+        raw = f"{owner}-domain-{self._domain_seq}"
+        return hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
+
+    def _holds_accepted_credential(
+        self, holder: str, accepted: list[tuple[str, str]]
+    ) -> bool:
+        """True if *holder* holds a VALID (accepted) credential the domain lists.
+
+        Membership is OR over the accepted set: one matching accepted credential
+        is enough. A provisional (not-yet-accepted) credential does NOT count —
+        eligibility requires a valid credential, matching the ledger's rule.
+        """
+        for issuer, ctype_hex in accepted:
+            cred = self._credentials.get((holder, issuer, ctype_hex))
+            if cred is not None and cred.accepted:
+                return True
+        return False
+
+    async def submit_permissioned_domain_set(
+        self,
+        owner_seed: str,
+        accepted_credentials: list[tuple[str, str]],
+        domain_id: str = "",
+        owner_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="temDISABLED", fee="12",
+                                error="[dry-run] Simulated failure: PermissionedDomains "
+                                      "amendment inactive (temDISABLED)")
+        owner = owner_address or _address_from_seed(owner_seed)
+        # AcceptedCredentials must be 1-10 entries, no duplicates (malformed).
+        if not accepted_credentials or len(accepted_credentials) > 10:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error="[dry-run] AcceptedCredentials must list 1-10 credentials "
+                      "(temMALFORMED).",
+            )
+        if len(set(accepted_credentials)) != len(accepted_credentials):
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error="[dry-run] AcceptedCredentials must not contain duplicates "
+                      "(temMALFORMED).",
+            )
+
+        if not domain_id:
+            # CREATE: a NEW distinct DomainID; owner pays a new reserve slot.
+            new_id = self._next_domain_id(owner)
+            self._domains[new_id] = PermissionedDomainInfo(
+                domain_id=new_id, owner=owner,
+                accepted_credentials=list(accepted_credentials),
+            )
+            self._inc_owner(owner)
+            return SubmitResult(success=True, txid=self._next_txid(),
+                                result_code="tesSUCCESS", fee="12",
+                                ledger_index=99999999, explorer_url="",
+                                domain_id=new_id)
+
+        # MODIFY: owner-only; full-replace of AcceptedCredentials.
+        domain = self._domains.get(domain_id)
+        if domain is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such domain to modify (tecNO_ENTRY).",
+            )
+        if domain.owner != owner:
+            # Ownership error — only the original owner may modify.
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Only the domain owner may modify it "
+                      "(tecNO_PERMISSION).",
+            )
+        # The accepted list is REPLACED wholesale — not patched. Dropping an
+        # entry here silently revokes access for everyone holding it.
+        domain.accepted_credentials = list(accepted_credentials)
+        return SubmitResult(success=True, txid=self._next_txid(),
+                            result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="",
+                            domain_id=domain_id)
+
+    async def submit_permissioned_domain_delete(
+        self,
+        owner_seed: str,
+        domain_id: str,
+        owner_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
+                                error="[dry-run] Simulated failure: domain delete")
+        owner = owner_address or _address_from_seed(owner_seed)
+        domain = self._domains.get(domain_id)
+        if domain is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such domain to delete (tecNO_ENTRY).",
+            )
+        if domain.owner != owner:
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Only the domain owner may delete it "
+                      "(tecNO_PERMISSION).",
+            )
+        del self._domains[domain_id]
+        # Compensator: frees the owner-reserve slot the domain consumed.
+        self._dec_owner(owner)
+        return SubmitResult(success=True, txid=self._next_txid(),
+                            result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="")
+
+    async def submit_permissioned_offer_create(
+        self,
+        wallet_seed: str,
+        taker_pays_currency: str,
+        taker_pays_value: str,
+        taker_pays_issuer: str,
+        taker_gets_currency: str,
+        taker_gets_value: str,
+        taker_gets_issuer: str,
+        domain_id: str,
+        hybrid: bool = False,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecUNFUNDED_OFFER", fee="12",
+                                error="[dry-run] Simulated failure: unfunded offer")
+        # Parity with the plain OfferCreate XRP-amount validation.
+        try:
+            if taker_pays_currency == "XRP":
+                _validate_xrp_amount(taker_pays_value)
+            if taker_gets_currency == "XRP":
+                _validate_xrp_amount(taker_gets_value)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
+
+        placer = wallet_address or _address_from_seed(wallet_seed)
+        domain = self._domains.get(domain_id)
+        if domain is None:
+            # No such domain to scope the offer to.
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such Permissioned Domain (tecNO_ENTRY).",
+            )
+        # ELIGIBILITY GATE — the placer must currently hold a VALID credential the
+        # domain accepts, or the permissioned offer fails (never rests). This is
+        # the whole point of the DomainID rail.
+        if not self._holds_accepted_credential(
+            placer, domain.accepted_credentials
+        ):
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] The placing account holds no credential accepted "
+                      "by this domain — permissioned offer rejected "
+                      "(tecNO_PERMISSION). Eligibility is proven by DomainID + a "
+                      "held accepted credential, NOT by CredentialIDs.",
+            )
+
+        # Eligible: the offer rests on the (per-address) book like a normal offer.
+        seq = self._offer_seq
+        self._offer_seq += 1
+        if taker_pays_currency == "XRP":
+            pays_str = taker_pays_value
+        else:
+            pays_str = f"{taker_pays_value}/{taker_pays_currency}/{taker_pays_issuer[:12]}"
+        if taker_gets_currency == "XRP":
+            gets_str = taker_gets_value
+        else:
+            gets_str = f"{taker_gets_value}/{taker_gets_currency}/{taker_gets_issuer[:12]}"
+        self._offers.setdefault(placer, []).append(
+            OfferInfo(sequence=seq, taker_pays=pays_str, taker_gets=gets_str)
+        )
+        self._inc_owner(placer)
+        return SubmitResult(success=True, txid=self._next_txid(),
+                            result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="",
+                            offer_sequence=seq)
+
+    async def get_permissioned_domains(
+        self, owner: str
+    ) -> list[PermissionedDomainInfo]:
+        return [d for d in self._domains.values() if d.owner == owner]
 
     async def submit_mpt_issuance_create(
         self,

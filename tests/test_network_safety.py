@@ -223,6 +223,24 @@ _MAINNET_REFUSAL_CALLS = {
             "sEdSEED", "rISSUER", "rSUBJECT", "6F7665723231"
         )
     ),
+    # ── FC-004 Permissioned Domains & Gated DEX (XLS-80 / XLS-81) ──
+    # PermissionedDomainSet/Delete and the permissioned OfferCreate (DomainID)
+    # each sign a real tx (owner stands up / rotates / tears down a gated domain;
+    # a credentialed account places a scoped offer), so the testnet-only
+    # invariant applies — each MUST call _network_guard() before Wallet.from_seed.
+    "submit_permissioned_domain_set": (
+        lambda t: t.submit_permissioned_domain_set(
+            "sEdSEED", [("rISSUER", "6F7665723231")]
+        )
+    ),
+    "submit_permissioned_domain_delete": (
+        lambda t: t.submit_permissioned_domain_delete("sEdSEED", "A" * 64)
+    ),
+    "submit_permissioned_offer_create": (
+        lambda t: t.submit_permissioned_offer_create(
+            "sEdSEED", "LAB", "50", "rISSUER", "XRP", "10", "", "A" * 64
+        )
+    ),
 }
 
 # AMM submit_* methods are stubs that return result_code="notSupported"

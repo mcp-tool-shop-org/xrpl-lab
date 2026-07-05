@@ -75,6 +75,13 @@ from .actions.paychan import (
     sign_claim,
     verify_channel,
 )
+from .actions.permissioned_domains import (
+    create_permissioned_offer,
+    delete_permissioned_domain,
+    set_permissioned_domain,
+    verify_domain,
+    verify_permissioned_offer,
+)
 from .actions.reserves import (
     _drops_to_xrp,
     compare_snapshots,
@@ -3404,6 +3411,395 @@ async def handle_delete_credential(
     return context
 
 
+# ---------------------------------------------------------------------------
+# Permissioned Domains & Gated DEX actions (FC-004 — XLS-80 / XLS-81)
+# ---------------------------------------------------------------------------
+#
+# Composes with credentials (FC-002): the learner's wallet is the ISSUER and
+# the domain OWNER; the funded SUBJECT holds the accepted credential and is the
+# eligible trader; a second uncredentialed wallet demonstrates the eligibility
+# gate. The credential must be CREATED and ACCEPTED (reuse the FC-002 steps in
+# the module) before the domain lists it.
+
+
+async def handle_create_permissioned_domain(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Owner creates a Permissioned Domain listing the accepted credential.
+
+    Omits DomainID → CREATE. AcceptedCredentials lists the {issuer,
+    credential_type} the FC-002 steps issued. The derived DomainID is tracked
+    in context (off-ledger) — it is NOT idempotently recreatable.
+    """
+    if "wallet_seed" not in context:
+        console.print("  [red]No owner wallet in context. Run the wallet step first.[/]")
+        return context
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    credential_type = context.get("credential_type", "over21")
+    # The domain accepts the SAME {issuer, type} the credential module issued.
+    issuer_address = context.get("credential_issuer", owner_address)
+    console.print(
+        f"  Creating a Permissioned Domain accepting credential "
+        f"[cyan]{credential_type}[/] from issuer [cyan]{issuer_address[:12]}...[/]"
+    )
+    result = await set_permissioned_domain(
+        transport, owner_seed,
+        [(issuer_address, credential_type)],
+        owner_address=owner_address,
+    )
+    if result.success:
+        console.print("  [green]Permissioned Domain created![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        console.print(f"  DomainID: [cyan]{result.domain_id}[/]")
+        console.print(
+            "  [dim]Track this DomainID off-ledger — each (owner, sequence) yields "
+            "a DISTINCT id; re-running create makes a NEW domain.[/]"
+        )
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["domain_id"] = result.domain_id
+        context["domain_issuer"] = issuer_address
+        context["domain_credential_type"] = credential_type
+    else:
+        console.print(f"  [red]PermissionedDomainSet failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_permissioned_offer(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The CREDENTIALED account places a permissioned offer (DomainID) — succeeds.
+
+    The subject holds the accepted credential the domain lists, so the offer,
+    scoped to the DomainID, is eligible and rests on the permissioned book.
+    ``hybrid`` (optional) sets tfHybrid so it also matches the open DEX.
+    """
+    args = step.action_args
+    pays_currency = args.get("pays_currency", "LAB")
+    pays_value = args.get("pays_value", "50")
+    gets_currency = args.get("gets_currency", "XRP")
+    gets_value = args.get("gets_value", "10")
+    hybrid = _parse_bool_arg(args.get("hybrid", "false")) or False
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    _raw = context.get("subject_seed", "")
+    subject_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    subject_address = context.get("subject_address", "")
+    if not subject_seed or not subject_address:
+        console.print("  [red]No credentialed (subject) wallet. Run the FC-002 steps first.[/]")
+        return context
+    issuer_address = context.get("domain_issuer", context.get("credential_issuer", ""))
+    pays_issuer = "" if pays_currency == "XRP" else issuer_address
+    gets_issuer = "" if gets_currency == "XRP" else issuer_address
+    console.print(
+        f"  Credentialed account placing a permissioned offer "
+        f"({'hybrid' if hybrid else 'plain'}) scoped to the DomainID..."
+    )
+    result = await create_permissioned_offer(
+        transport, subject_seed,
+        pays_currency, pays_value, pays_issuer,
+        gets_currency, gets_value, gets_issuer,
+        domain_id=domain_id, hybrid=hybrid,
+        wallet_address=subject_address,
+    )
+    if result.success:
+        console.print("  [green]Permissioned offer placed — the credential admits it![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        console.print(f"  Offer sequence: [cyan]{result.offer_sequence}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["permissioned_offer_seq"] = result.offer_sequence
+    else:
+        console.print(f"  [red]Permissioned offer failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_uncredentialed_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund a second wallet that holds NO accepted credential.
+
+    Used to demonstrate the eligibility gate: this account's permissioned offer
+    will be REJECTED because it holds no credential the domain accepts.
+    """
+    console.print("  Creating an un-credentialed (outsider) wallet...")
+    outsider = create_wallet()
+    context["outsider_seed"] = _SecretValue(outsider.seed)
+    context["outsider_address"] = outsider.address
+    console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
+    console.print("  Funding it from the faucet (so it's a real account)...")
+    result = await transport.fund_from_faucet(outsider.address)
+    if result.success:
+        console.print(f"  Outsider funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
+    else:
+        console.print(f"  [yellow]Outsider funding: {result.message}[/]")
+    return context
+
+
+async def handle_create_permissioned_offer_uncredentialed(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The UN-credentialed account places a permissioned offer — FAILS.
+
+    It holds no credential the domain accepts, so the offer scoped to the
+    DomainID is rejected before it can rest. This is the eligibility gate.
+    """
+    args = step.action_args
+    pays_currency = args.get("pays_currency", "LAB")
+    pays_value = args.get("pays_value", "50")
+    gets_currency = args.get("gets_currency", "XRP")
+    gets_value = args.get("gets_value", "10")
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    _raw = context.get("outsider_seed", "")
+    outsider_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    outsider_address = context.get("outsider_address", "")
+    if not outsider_seed or not outsider_address:
+        console.print("  [red]No outsider wallet. Run the outsider-wallet step first.[/]")
+        return context
+    issuer_address = context.get("domain_issuer", context.get("credential_issuer", ""))
+    pays_issuer = "" if pays_currency == "XRP" else issuer_address
+    gets_issuer = "" if gets_currency == "XRP" else issuer_address
+    console.print(
+        "  [yellow]Un-credentialed account attempting a permissioned offer "
+        "(expecting rejection — it holds no accepted credential)...[/]"
+    )
+    result = await create_permissioned_offer(
+        transport, outsider_seed,
+        pays_currency, pays_value, pays_issuer,
+        gets_currency, gets_value, gets_issuer,
+        domain_id=domain_id, hybrid=False,
+        wallet_address=outsider_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the transport did not enforce the "
+            "eligibility gate. Recording the tx.[/]"
+        )
+        context["uncredentialed_offer_seq"] = result.offer_sequence
+    else:
+        console.print(f"  [green]Expected rejection:[/] {result.result_code}")
+        console.print(
+            "  [dim]Eligibility to trade in a domain is proven by holding an "
+            "accepted credential via DomainID — NOT by CredentialIDs (the "
+            "deposit-auth rail). This account holds neither.[/]"
+        )
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_modify_domain_drop_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Modify the domain with an EMPTY-of-the-old-entry accepted set (full replace).
+
+    Teaches the full-replace revocation gotcha: AcceptedCredentials is replaced
+    wholesale. Re-listing a DIFFERENT credential (and dropping the original)
+    silently revokes access for everyone holding the dropped type — invalidating
+    their open permissioned offers. Here we swap the accepted set to a decoy
+    {issuer, type} so the previously-eligible subject is now excluded.
+    """
+    if "wallet_seed" not in context:
+        console.print("  [red]No owner wallet in context. Run the wallet step first.[/]")
+        return context
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    issuer_address = context.get("domain_issuer", owner_address)
+    decoy_type = step.action_args.get("replacement_type", "region-XX")
+    console.print(
+        "  [yellow]Modifying the domain — replacing the accepted set with a "
+        "DECOY credential (dropping the original)...[/]"
+    )
+    console.print(
+        "  [dim]AcceptedCredentials is a FULL REPLACE — the original type is "
+        "silently revoked, stranding its holders' permissioned offers.[/]"
+    )
+    result = await set_permissioned_domain(
+        transport, owner_seed,
+        [(issuer_address, decoy_type)],
+        domain_id=domain_id,
+        owner_address=owner_address,
+    )
+    if result.success:
+        console.print("  [green]Domain modified — accepted set fully replaced.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]PermissionedDomainSet (modify) failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_modify_domain_nonowner(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """A NON-owner tries to modify the domain — rejected (owner-only).
+
+    Only the original owner may modify a domain. The un-credentialed outsider
+    wallet (created above) attempts the modify and is rejected.
+    """
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    _raw = context.get("outsider_seed", "")
+    outsider_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    outsider_address = context.get("outsider_address", "")
+    if not outsider_seed or not outsider_address:
+        console.print("  [red]No outsider wallet. Run the outsider-wallet step first.[/]")
+        return context
+    issuer_address = context.get("domain_issuer", "")
+    console.print(
+        "  [yellow]Non-owner attempting to modify the domain "
+        "(expecting rejection — owner-only)...[/]"
+    )
+    result = await set_permissioned_domain(
+        transport, outsider_seed,
+        [(issuer_address, "hijack")],
+        domain_id=domain_id,
+        owner_address=outsider_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the transport did not enforce "
+            "owner-only modify. Recording the tx.[/]"
+        )
+    else:
+        console.print(f"  [green]Expected rejection:[/] {result.result_code}")
+        console.print(
+            "  [dim]Domain-owner key custody matters — only the owner may "
+            "rotate a domain's policy.[/]"
+        )
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_delete_permissioned_domain(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Owner deletes the domain, freeing its reserve (PermissionedDomainDelete).
+
+    The named compensator: frees the owner-reserve slot. A domain blocks
+    owner-account deletion until it is removed.
+    """
+    if "wallet_seed" not in context:
+        console.print("  [red]No owner wallet in context. Run the wallet step first.[/]")
+        return context
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    console.print("  Owner deleting the domain — reclaiming the owner reserve (compensator)...")
+    result = await delete_permissioned_domain(
+        transport, owner_seed, domain_id, owner_address=owner_address
+    )
+    if result.success:
+        console.print("  [green]Domain deleted — reserve freed.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context.pop("domain_id", None)
+    else:
+        console.print(f"  [red]PermissionedDomainDelete failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_domain(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Verify the domain exists and (optionally) accepts the expected credential."""
+    owner_address = state.wallet_address or ""
+    domain_id = context.get("domain_id", "")
+    expect_issuer = context.get("domain_issuer", "")
+    expect_type = context.get("domain_credential_type", "")
+    if not domain_id or not owner_address:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        # FT-001: prerequisites missing → the on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_domain", passed=False,
+            failures=["domain_id/owner missing — the step that produces it did not run"],
+        )
+        return context
+    result = await verify_domain(
+        transport, owner_address, domain_id,
+        expect_issuer=expect_issuer, expect_credential_type=expect_type,
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    context["last_domain_verify"] = result
+    _record_verification(
+        context, "verify_domain", result.passed, result.failures
+    )
+    return context
+
+
+async def handle_verify_permissioned_offer(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Verify the credentialed account's permissioned offer is resting on-ledger."""
+    subject_address = context.get("subject_address", "")
+    offer_seq = context.get("permissioned_offer_seq")
+    if not subject_address or offer_seq is None:
+        console.print("  [red]No permissioned offer in context. Place it first.[/]")
+        # FT-001: prerequisites missing → the on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_permissioned_offer", passed=False,
+            failures=[
+                "subject/offer sequence missing — the step that produces them did not run"
+            ],
+        )
+        return context
+    result = await verify_permissioned_offer(
+        transport, subject_address, offer_seq, expect_placed=True
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    context["last_permissioned_offer_verify"] = result
+    _record_verification(
+        context, "verify_permissioned_offer", result.passed, result.failures
+    )
+    return context
+
+
 async def handle_create_mpt_issuance(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -4517,6 +4913,76 @@ def _register_all() -> None:
             handler=handle_delete_credential,
             description="Delete the credential, reclaiming reserve (CredentialDelete / revoke)",
             wallet_required=True,
+        ),
+        # ── Permissioned Domains & Gated DEX (FC-004, XLS-80 / XLS-81) ──
+        ActionDef(
+            name="create_permissioned_domain",
+            handler=handle_create_permissioned_domain,
+            description="Owner creates a Permissioned Domain accepting the credential (XLS-80)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="create_permissioned_offer",
+            handler=handle_create_permissioned_offer,
+            description="Credentialed account places a permissioned offer (DomainID) — succeeds",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="pays_currency", default="LAB"),
+                PayloadField(name="pays_value", default="50"),
+                PayloadField(name="gets_currency", default="XRP"),
+                PayloadField(name="gets_value", default="10"),
+                PayloadField(name="hybrid", type="bool", default="false",
+                             description="tfHybrid — also match the open DEX"),
+            ],
+        ),
+        ActionDef(
+            name="create_uncredentialed_wallet",
+            handler=handle_create_uncredentialed_wallet,
+            description="Create + fund an outsider wallet that holds no accepted credential",
+        ),
+        ActionDef(
+            name="create_permissioned_offer_uncredentialed",
+            handler=handle_create_permissioned_offer_uncredentialed,
+            description="Un-credentialed account's permissioned offer is rejected (gate)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="pays_currency", default="LAB"),
+                PayloadField(name="pays_value", default="50"),
+                PayloadField(name="gets_currency", default="XRP"),
+                PayloadField(name="gets_value", default="10"),
+            ],
+        ),
+        ActionDef(
+            name="modify_domain_drop_credential",
+            handler=handle_modify_domain_drop_credential,
+            description="Full-replace modify that drops the credential (teaches silent revocation)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="replacement_type", default="region-XX",
+                             description="Decoy credential type that replaces the accepted set"),
+            ],
+        ),
+        ActionDef(
+            name="modify_domain_nonowner",
+            handler=handle_modify_domain_nonowner,
+            description="Non-owner tries to modify the domain (teaches owner-only)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="delete_permissioned_domain",
+            handler=handle_delete_permissioned_domain,
+            description="Owner deletes the domain, freeing reserve (compensator, XLS-80)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_domain",
+            handler=handle_verify_domain,
+            description="Verify the Permissioned Domain exists and accepts the credential",
+        ),
+        ActionDef(
+            name="verify_permissioned_offer",
+            handler=handle_verify_permissioned_offer,
+            description="Verify the credentialed account's permissioned offer is resting",
         ),
         ActionDef(
             name="create_mpt_issuance",

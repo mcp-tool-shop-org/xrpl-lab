@@ -50,17 +50,23 @@ from xrpl.models import (
     NFTSellOffers,
     OfferCancel,
     OfferCreate,
+    OfferCreateFlag,
     Payment,
     PaymentChannelClaim,
     PaymentChannelClaimFlag,
     PaymentChannelCreate,
     PaymentChannelFund,
     PaymentFlag,
+    PermissionedDomainDelete,
+    PermissionedDomainSet,
     TrustSet,
     TrustSetFlag,
     Tx,
 )
 from xrpl.models.amounts import MPTAmount
+from xrpl.models.transactions.permissioned_domain_set import (
+    Credential as PDCredential,
+)
 from xrpl.utils import drops_to_xrp, get_nftoken_id, hex_to_str, str_to_hex, xrp_to_drops
 from xrpl.wallet import Wallet
 
@@ -78,6 +84,7 @@ from .base import (
     NFTInfo,
     NFTOfferInfo,
     OfferInfo,
+    PermissionedDomainInfo,
     SubmitResult,
     Transport,
     TrustLineInfo,
@@ -117,6 +124,21 @@ def _extract_channel_id(meta: dict) -> str:
         created = node.get("CreatedNode", {})
         if created.get("LedgerEntryType") == "PayChannel":
             return created.get("LedgerIndex", "")
+    return ""
+
+
+def _extract_domain_id(meta: dict) -> str:
+    """Pull the new DomainID out of a PermissionedDomainSet (create) meta.
+
+    The created PermissionedDomain object's ledger index IS the DomainID (the
+    Hash256 derived from Owner + Sequence). Best-effort walk of AffectedNodes;
+    the dry-run transport sets the id directly, so the offline-tested path is
+    exact."""
+    for node in meta.get("AffectedNodes", []):
+        created = node.get("CreatedNode", {})
+        if created.get("LedgerEntryType") == "PermissionedDomain":
+            fields = created.get("NewFields", {})
+            return fields.get("DomainID") or created.get("LedgerIndex", "")
     return ""
 
 
@@ -2004,6 +2026,161 @@ class XRPLTestnetTransport(Transport):
                     expiration=o.get("Expiration"),
                 )
         return None
+
+    # ── Permissioned Domains & Gated DEX (FC-004, XLS-80 / XLS-81) ────────
+    #
+    # xrpl-py 4.5.0 has native models: PermissionedDomainSet /
+    # PermissionedDomainDelete, an OfferCreate ``domain_id`` field, and
+    # OfferCreateFlag.TF_HYBRID. AcceptedCredentials wrap each {Issuer,
+    # CredentialType} in a Credential model. Each signing method calls
+    # _network_guard() BEFORE Wallet.from_seed — same invariant every other
+    # write method holds, pinned by test_network_safety.
+
+    async def submit_permissioned_domain_set(
+        self,
+        owner_seed: str,
+        accepted_credentials: list[tuple[str, str]],
+        domain_id: str = "",
+        owner_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(owner_seed)
+            creds = [
+                PDCredential(issuer=iss, credential_type=ctype)
+                for iss, ctype in accepted_credentials
+            ]
+            tx = PermissionedDomainSet(
+                account=wallet.address,
+                accepted_credentials=creds,
+                # Omit DomainID to create; include it to modify (owner-only).
+                domain_id=domain_id or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        # On a CREATE, surface the derived DomainID; on a MODIFY, echo the
+        # supplied one (no created node to read).
+        if domain_id:
+            def _extract(meta: dict, _did=domain_id) -> dict:
+                return {"domain_id": _did}
+        else:
+            def _extract(meta: dict) -> dict:
+                return {"domain_id": _extract_domain_id(meta)}
+        return await self._submit_tx(tx, wallet, "PermissionedDomainSet", extract=_extract)
+
+    async def submit_permissioned_domain_delete(
+        self,
+        owner_seed: str,
+        domain_id: str,
+        owner_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(owner_seed)
+            tx = PermissionedDomainDelete(
+                account=wallet.address,
+                domain_id=domain_id,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "PermissionedDomainDelete")
+
+    async def submit_permissioned_offer_create(
+        self,
+        wallet_seed: str,
+        taker_pays_currency: str,
+        taker_pays_value: str,
+        taker_pays_issuer: str,
+        taker_gets_currency: str,
+        taker_gets_value: str,
+        taker_gets_issuer: str,
+        domain_id: str,
+        hybrid: bool = False,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            offer = OfferCreate(
+                account=wallet.address,
+                taker_pays=self._amount_obj(
+                    taker_pays_currency, taker_pays_value, taker_pays_issuer
+                ),
+                taker_gets=self._amount_obj(
+                    taker_gets_currency, taker_gets_value, taker_gets_issuer
+                ),
+                domain_id=domain_id,
+                # tfHybrid also matches the open DEX; plain permissioned matches
+                # only the domain book. CredentialIDs are NOT used — eligibility
+                # rides on the DomainID (a held accepted credential), a DIFFERENT
+                # rail from the deposit-authorization CredentialIDs.
+                flags=OfferCreateFlag.TF_HYBRID if hybrid else 0,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+
+        def _extract(meta: dict) -> dict:
+            return {}
+
+        result = await self._submit_tx(
+            offer, wallet, "PermissionedOfferCreate", extract=_extract
+        )
+        # Surface the placing tx's Sequence (the value OfferCancel would consume)
+        # by reading it back — the signed model autofilled it, so re-derive from
+        # the account's resting offers on success. Best-effort; a failure leaves
+        # offer_sequence None.
+        if result.success and result.offer_sequence is None:
+            try:
+                offers = await self.get_account_offers(wallet.address)
+                if offers:
+                    result.offer_sequence = offers[-1].sequence
+            except Exception:
+                logger.warning(
+                    "permissioned offer sequence read-back failed", exc_info=True
+                )
+        return result
+
+    async def get_permissioned_domains(
+        self, owner: str
+    ) -> list[PermissionedDomainInfo]:
+        try:
+            objs = await self._account_objects(owner)
+        except Exception:
+            logger.warning(
+                "get_permissioned_domains failed for %s", owner, exc_info=True
+            )
+            return []
+        domains: list[PermissionedDomainInfo] = []
+        for o in objs:
+            if o.get("LedgerEntryType") != "PermissionedDomain":
+                continue
+            accepted: list[tuple[str, str]] = []
+            for entry in o.get("AcceptedCredentials", []):
+                cred = entry.get("Credential", entry)
+                iss = cred.get("Issuer", "")
+                ctype = (cred.get("CredentialType", "") or "").upper()
+                if iss:
+                    accepted.append((iss, ctype))
+            domains.append(
+                PermissionedDomainInfo(
+                    domain_id=o.get("index", "") or o.get("DomainID", ""),
+                    owner=owner,
+                    accepted_credentials=accepted,
+                )
+            )
+        return domains
 
     async def submit_mpt_issuance_create(
         self,
