@@ -1,4 +1,76 @@
 # Changelog
+## 2.3.0 — 2026-07-05
+
+**Third dogfood re-swarm** — a full health pass (bug/security → proactive → humanization →
+visual polish, every finding adversarially cross-verified), then the honest-pack feature
+finished end-to-end and four new mainnet-live curriculum modules. **21 → 28 modules, 1105 →
+1346 tests.**
+
+### Added
+- **Token Escrow** — `token_escrow_101` (**payments** track): escrow *issued currency*, not
+  just XRP (TokenEscrow / XLS-85, mainnet-live 2026-02-12). Teaches the mandatory per-asset
+  issuer opt-in (`asfAllowTrustLineLocking` — missing it → `tecNO_PERMISSION`), the
+  issuer-cannot-be-source rule, and the mandatory `CancelAfter` (no open-ended token escrow).
+- **Credentials** — `credentials_101` (**identity** track): on-ledger KYC / age attestations
+  (XLS-70, mainnet-live 2025-09-04). The two-party model — an issuer creates a provisional
+  attestation, the *subject* accepts it (transferring the owner reserve to the subject) — with
+  the `tecNO_TARGET` / `tecDUPLICATE` / subject-only-accept teaching paths.
+- **Permissioned Domains & Gated DEX** — `permissioned_domains_101` (**identity** track,
+  advanced): compose credentials into a compliant gated economy (XLS-80/81). A domain lists
+  accepted credentials; a credentialed account trades in it, an un-credentialed one is refused.
+  Teaches the full-replace revocation gotcha, the `CredentialIDs`-vs-`DomainID` conflation, and
+  the `PermissionedDomainDelete` compensator.
+- **Delivered Amount: the partial-payment exploit** — `delivered_amount_101` (**payments**):
+  the #1 XRPL backend footgun. A `tfPartialPayment` Payment returns `tesSUCCESS` while
+  delivering far less than its `Amount` claims; a backend that credits `Amount`/`DeliverMax`
+  instead of the metadata `delivered_amount` loses money. Submit-and-learn demonstration.
+- **Verified status, visible everywhere** — the honest-pack verification state now surfaces in
+  `xrpl-lab status` / `list` / `tracks`, `/api/status`, `/api/modules`, and the dashboard
+  (a completed-but-unverified module reads distinctly from a proven one), not just in
+  `proof verify`.
+
+### Fixed / Security
+- **The proof pack could claim a verification that never happened.** The pack now carries a
+  per-module `verified` flag and a top-level `all_verified` folded into its SHA-256 seal, and a
+  module whose on-ledger verification **failed** (or could not run because a prior step didn't
+  produce its output) is recorded as UNVERIFIED — no longer a silently-green "completed". 20
+  verify handlers that short-circuited on a missing prerequisite now record the honest verdict.
+- **The flagship payment-channel module taught a transaction rippled would reject** — the
+  `PaymentChannelClaim` redeem step omitted the required `Amount` field (`temMALFORMED` on real
+  testnet; the dry-run masked it). Fixed, with a dry-run guard so it can't regress.
+- **A 10×-stale reserve fact** — `doctor` and the strategy estimate taught the pre-2024 10 XRP
+  base / 2 XRP owner reserve (the network reduced them to 1 / 0.2 on 2024-12-02, and the
+  curriculum already taught the correct figure). Corrected, single-sourced in `reserves.py`, and
+  guarded so it can't drift again (code *and* module prose).
+- **Deep Freeze (XLS-77d) was taught as not-yet-mainnet-live** — it activated on 2025-05-05;
+  the freeze module now teaches it as the real compliance-grade tier.
+- **Dry-run ↔ testnet parity** — the dry-run now rounds >6-decimal XRP amounts to the nearest
+  drop exactly like the network (the prior release rejected them on a factually-wrong premise),
+  rejects negative / over-max amounts the network rejects, and no longer lets a negative AMM
+  deposit silently corrupt the pool.
+- **`audit --dry-run` minted a hash-sealed "verified" pack over fabricated results** — the audit
+  pack now stamps its dry-run provenance into the seal and renders a SIMULATED banner;
+  `xrpl-lab audit` exits non-zero on a failed verdict; `verify --tx` does too.
+- **DoS / hardening** — `/api/verify` gained request-body and claim-count caps; a transitive
+  `msgpack` CVE (GHSA-6v7p-g79w-8964) was floored to 1.2.1; `cohort-status` no longer leaks an
+  absolute `--dir` path into a shareable roster.
+
+### Changed
+- The `doctor` regained its **warning** tier — informational checks (curriculum drift, a safe
+  env override) no longer read as red failures under an "environment is broken" banner.
+- The dashboard landing surfaces the blockers / next-step the server already computed; the module
+  page cautions before running with unmet prerequisites; proof/certificate verify failures now
+  say *how to fix* them; mobile-drawer focus-trap + `Escape` + a skip-to-content link close the
+  dashboard a11y gaps.
+- `xrpl-py` transaction construction for all four new tx types verified against xrpl-py 4.5 via
+  `.to_xrpl()` serialization; every new signing method is covered by the reflection-based
+  testnet-only mainnet-refusal completeness gate.
+
+### Tests + tooling
+- **1105 → 1346 tests** (deterministic, 3× stable), ruff clean, `pip-audit` clean, site builds,
+  `gen_docs --check` current. **21 → 28 modules.** Every stage adversarially cross-verified;
+  the honest-pack proof-contract change and all four new modules independently re-audited.
+
 ## 2.2.0 — 2026-06-22
 
 **Re-swarm release** — a full dogfood re-swarm over the shipped v2.0.0: a four-stage
