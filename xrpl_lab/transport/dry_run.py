@@ -113,6 +113,46 @@ def _validate_xrp_amount(amount: str) -> int:
     return drops
 
 
+def _validate_issued_amount(amount: str) -> Decimal:
+    """Guard a non-XRP amount (issued currency / LP tokens) for AMM math.
+
+    ``_validate_xrp_amount``'s drop rounding / range ceiling is XRP-specific and
+    does not apply to issued-currency or LP-token legs, but the AMM math still
+    must not receive a NEGATIVE or NON-NUMERIC value: a negative product crashes
+    ``sqrt()`` with an uncaught ``InvalidOperation``, and a negative deposit on
+    an existing pool would silently shrink it (PT-001 / PT-002). Reject both with
+    the ``temBAD_AMOUNT`` shape testnet surfaces so callers turn it straight into
+    a failing ``SubmitResult``.
+    """
+    try:
+        value = Decimal(str(amount))
+    except Exception as exc:  # noqa: BLE001 — normalize any Decimal parse error
+        raise DryRunAmountError(f"Invalid amount: {amount}") from exc
+    if not value.is_finite():
+        raise DryRunAmountError(f"Invalid amount: {amount}")
+    if value < 0:
+        raise DryRunAmountError(f"Amount {amount} is negative.")
+    return value
+
+
+def _validate_amm_leg(currency: str, value: str) -> None:
+    """Reject a NEGATIVE or NON-NUMERIC AMM asset leg with ``temBAD_AMOUNT``.
+
+    The AMM path deliberately supports ZERO (a zero-liquidity pool) and SUB-DROP
+    positive amounts (handled downstream by the ``tecAMM_INVALID_TOKENS``
+    "would mint 0 LP" check), so this does NOT apply ``_validate_xrp_amount``'s
+    min-1-drop floor — that would reject those legitimate cases before the
+    AMM-specific logic runs. The only universally-invalid AMM inputs are
+    negative (physically impossible: crashes ``sqrt()`` on create / silently
+    shrinks the pool on deposit — PT-001 / PT-002) and non-numeric (crashes with
+    ConversionSyntax). ``currency`` is accepted for call-site symmetry with the
+    XRP/issued distinction but the guard is identical for both kinds.
+
+    Raises :class:`DryRunAmountError` (``temBAD_AMOUNT``) on a bad amount.
+    """
+    _validate_issued_amount(value)
+
+
 class _PerAddressStore(dict):
     """Dict keyed by address that also supports legacy list-like access.
 
@@ -767,6 +807,17 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: AMM creation failed",
             )
 
+        # PT-001: validate BOTH legs before any Decimal math. A negative product
+        # crashes ``(a * b).sqrt()`` with an uncaught InvalidOperation (opaque
+        # "Step failed: InvalidOperation"); a non-numeric leg crashes with
+        # ConversionSyntax. Surface a teachable temBAD_AMOUNT instead.
+        try:
+            _validate_amm_leg(asset_a_currency, asset_a_value)
+            _validate_amm_leg(asset_b_currency, asset_b_value)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
+
         key = self._amm_pair_key(
             asset_a_currency, asset_a_issuer,
             asset_b_currency, asset_b_issuer,
@@ -863,6 +914,20 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] No AMM found for this asset pair",
             )
+
+        # PT-001 / PT-002 (load-bearing): validate BOTH legs BEFORE the ratio
+        # math and BEFORE any pool mutation. A NEGATIVE deposit on an existing
+        # pool previously SILENTLY SUCCEEDED — it shrank the pool and credited
+        # negative LP (deposit -5 on 100/100 -> tesSUCCESS, pool 95/95, LP 95),
+        # teaching a physically-impossible outcome. A non-numeric leg crashed
+        # the Decimal() below with ConversionSyntax. Reject both here with a
+        # teachable temBAD_AMOUNT, leaving the pool untouched.
+        try:
+            _validate_amm_leg(asset_a_currency, asset_a_value)
+            _validate_amm_leg(asset_b_currency, asset_b_value)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
 
         txid = self._next_txid()
 
@@ -974,6 +1039,19 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] No AMM found for this asset pair",
             )
+
+        # PT-001: guard the LP-token leg BEFORE the bare Decimal() below. A
+        # non-numeric lp_token_value crashed with ConversionSyntax (opaque
+        # "Step failed: InvalidOperation"); a negative one is an invalid burn.
+        # lp_token_value is an LP-token amount (not XRP), so the XRP rounding /
+        # range rules don't apply — use the issued-amount guard. An empty value
+        # means "burn all" and is left to the current_lp fallback below.
+        if lp_token_value:
+            try:
+                _validate_issued_amount(lp_token_value)
+            except DryRunAmountError as exc:
+                return SubmitResult(success=False, result_code=exc.result_code,
+                                    fee="12", error=f"[dry-run] {exc}")
 
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
         withdrawer_address = _address_from_seed(wallet_seed)

@@ -185,6 +185,11 @@ class VerifyResponse(BaseModel):
     # the ledger. The client must show a SIMULATED warning (parity with the CLI
     # proof-verify/cert-verify and the audit-pack banner).
     simulated: bool = False
+    # False when a completed module failed its on-ledger verification (the sealed
+    # pack's all_verified). Integrity can still pass while not every lesson was
+    # proven — the client shows an UNVERIFIED warning. Defaults True for packs
+    # generated before the verified-flag change.
+    all_verified: bool = True
 
 
 # -- /api/run --------------------------------------------------------------

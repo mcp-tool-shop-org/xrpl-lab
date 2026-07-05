@@ -12,11 +12,32 @@ drops constants) makes these fail — the guard goes RED on the exact
 regression it exists to catch.
 """
 
+import re
 from decimal import Decimal
+from pathlib import Path
+
+import pytest
 
 from xrpl_lab import reserves
 from xrpl_lab.actions.strategy import _BASE_RESERVE_DROPS, _OWNER_RESERVE_DROPS
 from xrpl_lab.doctor import explain_result_code
+
+_MODULES_DIR = Path(__file__).resolve().parent.parent / "modules"
+
+# Modules that teach a reserve figure in prose (PTC-003). Stage A guarded the
+# reserve values in CODE (reserves.py / doctor.py / strategy.py); the module
+# markdown was correct but UNguarded, so it could drift independently.
+_RESERVE_MODULES = [
+    "dex_literacy.md",
+    "dex_market_making_101.md",
+    "trust_lines_101.md",
+    "reserves_101.md",
+]
+
+# The pre-2024 stale figures, matched only where they'd be a RESERVE claim.
+# `(?<!\d\.)` keeps "0.2 XRP" from matching as "2 XRP".
+_STALE_OWNER = re.compile(r"(?<!\d\.)\b2 XRP\b")
+_STALE_BASE = re.compile(r"\b10 XRP\b")
 
 
 class TestReserveConstants:
@@ -53,3 +74,29 @@ class TestSingleSourceInvariant:
         doctor_meaning = explain_result_code("tecNO_DST_INSUF_XRP")["meaning"]
         assert f"{reserves.BASE_RESERVE_XRP} XRP" in doctor_meaning
         assert _BASE_RESERVE_DROPS == reserves.BASE_RESERVE_XRP * 1_000_000
+
+
+class TestModuleProseReserveDrift:
+    """PTC-003 — the curriculum prose must track the canonical reserve values,
+    not just the code. Scoped to reserve-context lines so a legit non-reserve
+    amount (e.g. an offer 'ask (2 XRP)') is never mistaken for a reserve claim."""
+
+    @staticmethod
+    def _reserve_lines(text: str) -> list[str]:
+        return [ln for ln in text.splitlines() if "reserve" in ln.lower()]
+
+    @pytest.mark.parametrize(
+        "module", ["dex_literacy.md", "dex_market_making_101.md", "trust_lines_101.md"]
+    )
+    def test_owner_reserve_prose_is_canonical(self, module):
+        content = (_MODULES_DIR / module).read_text(encoding="utf-8")
+        owner = f"{reserves.OWNER_RESERVE_XRP} XRP"  # "0.2 XRP"
+        assert owner in content, f"{module} should teach the owner reserve as {owner}"
+        for line in self._reserve_lines(content):
+            assert not _STALE_OWNER.search(line), f"{module}: stale owner reserve in: {line!r}"
+
+    def test_base_reserve_prose_is_canonical(self):
+        content = (_MODULES_DIR / "reserves_101.md").read_text(encoding="utf-8")
+        assert f"{reserves.BASE_RESERVE_XRP} XRP" in content  # "1 XRP"
+        for line in self._reserve_lines(content):
+            assert not _STALE_BASE.search(line), f"reserves_101.md: stale base reserve in: {line!r}"

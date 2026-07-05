@@ -153,6 +153,14 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       </div>`
         : '';
 
+      // UNVERIFIED banner — a completed module failed its on-ledger verification.
+      const unverifiedBanner = (r.all_verified === false)
+        ? `<div class="row" style="gap:10px;align-items:flex-start;margin-top:14px;padding:12px 14px;border:1px solid var(--warn, #b8860b);border-radius:8px;background:rgba(184,134,11,0.10)">
+        <strong style="color:var(--warn, #b8860b)">⚠ UNVERIFIED</strong>
+        <div class="muted" style="font-size:13px">One or more completed modules failed their on-ledger verification. Integrity still passes (the file is intact), but not every lesson was proven — re-run the affected module(s) for a fully-verified pack.</div>
+      </div>`
+        : '';
+
       // Hash layer (always present).
       const hashLine = `<div class="row" style="gap:10px;align-items:center;margin-top:16px">
         ${healthIcon(r.hash_valid ? 'pass' : 'fail')}
@@ -173,6 +181,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
           <h2 style="margin:0;font-size:18px">${esc(verdictText)}</h2>
         </div>
         ${simBanner}
+        ${unverifiedBanner}
         ${meta}
         ${hashLine}
         ${liveBlock}

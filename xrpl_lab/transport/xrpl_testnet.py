@@ -696,6 +696,17 @@ class XRPLTestnetTransport(Transport):
                 if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
+                    # PT-004 (observability breadcrumb): this is a NON-TIMEOUT
+                    # failure — distinct from the benign timeout retry above. If
+                    # the first submission actually landed on-ledger before the
+                    # error surfaced, the resubmit here is a possible DUPLICATE
+                    # tx (the documented idempotency residual — submit_and_wait
+                    # autofills a fresh Sequence per call). Log a warning so a
+                    # facilitator can spot a double-submit in the logs.
+                    logger.warning(
+                        "resubmitting after post-broadcast failure — "
+                        "possible duplicate if the first landed"
+                    )
                     logger.info(
                         "Retry %d/%d after %ds",
                         attempt + 1, MAX_RETRIES, RETRY_DELAY,
@@ -1970,6 +1981,15 @@ class XRPLTestnetTransport(Transport):
                 if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
+                    # PT-004 (observability breadcrumb): NON-TIMEOUT failure —
+                    # if the first submission landed on-ledger before the error
+                    # surfaced, this resubmit is a possible DUPLICATE tx (the
+                    # documented idempotency residual). Log a warning so a
+                    # facilitator can spot a double-submit in the logs.
+                    logger.warning(
+                        "resubmitting after post-broadcast failure — "
+                        "possible duplicate if the first landed"
+                    )
                     logger.info(
                         "Retry %d/%d after %ds",
                         attempt + 1, MAX_RETRIES, RETRY_DELAY,
@@ -2061,6 +2081,15 @@ class XRPLTestnetTransport(Transport):
                 if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
+                    # PT-004 (observability breadcrumb): NON-TIMEOUT failure —
+                    # if the first submission landed on-ledger before the error
+                    # surfaced, this resubmit is a possible DUPLICATE tx (the
+                    # documented idempotency residual). Log a warning so a
+                    # facilitator can spot a double-submit in the logs.
+                    logger.warning(
+                        "resubmitting after post-broadcast failure — "
+                        "possible duplicate if the first landed"
+                    )
                     logger.info(
                         "Retry %d/%d after %ds",
                         attempt + 1, MAX_RETRIES, RETRY_DELAY,

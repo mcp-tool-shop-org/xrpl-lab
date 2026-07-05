@@ -473,19 +473,38 @@ def _run_doctor_and_display():
 
     report = asyncio.run(run_doctor())
 
+    # Three tiers, matching the dashboard's /api/doctor rendering: green check
+    # for pass, amber "!" for informational WARN checks (curriculum drift, a
+    # safe-but-present env override, the last-error breadcrumb), red cross for
+    # hard failures. A warn is NOT a broken environment - showing it as a red
+    # cross over-alarmed a learner whose setup was fine.
+    has_hard_failure = False
     for check in report.checks:
-        icon = "[green]\u2713[/]" if check.passed else "[red]\u2717[/]"
+        severity = getattr(check, "severity", "fail")
+        if severity == "warn":
+            icon = "[yellow]![/]"
+        elif check.passed:
+            icon = "[green]\u2713[/]"
+        else:
+            icon = "[red]\u2717[/]"
+            has_hard_failure = True
         console.print(f"  {icon} [bold]{check.name}[/]")
         if check.detail:
             console.print(f"    {check.detail}")
-        if check.hint and not check.passed:
+        # Show the actionable hint for hard failures AND warns - a warn like
+        # the last-error breadcrumb carries a "run verify" hint even though it
+        # "passed" (informational). Only a plain green pass hides its hint.
+        if check.hint and (severity == "warn" or not check.passed):
             console.print(f"    [yellow]{check.hint}[/]")
 
     console.print()
-    if report.all_passed:
+    if has_hard_failure:
+        console.print(f"[red]{report.summary} — needs attention.[/]")
+    elif report.all_passed:
         console.print(f"[green]{report.summary} — all good.[/]")
     else:
-        console.print(f"[yellow]{report.summary}[/]")
+        # Warns present but no hard fail — environment is fine, just noteworthy.
+        console.print(f"[yellow]{report.summary} — all good (see notes above).[/]")
     console.print()
 
 
@@ -630,6 +649,13 @@ def proof_verify(file: str, json_output: bool, live: bool):
     # the hashed pack, so this reflects the real provenance.
     simulated = str(pack.get("network", "")).lower() in ("dry-run", "dry_run", "mixed")
 
+    # A pack can be integrity-valid yet contain a module whose on-ledger
+    # verification FAILED (the runner records verified=False and folds
+    # all_verified into the sealed pack). Surface that so a green integrity
+    # PASS is never read as "every lesson was proven". Default True for
+    # back-compat with packs generated before the verified-flag change.
+    all_verified = bool(pack.get("all_verified", True))
+
     # The live check runs even when the hash check fails so the report is
     # complete — BUT a hash failure still fails the command overall (a
     # tamper-evident artifact that's been edited is untrustworthy regardless
@@ -653,6 +679,7 @@ def proof_verify(file: str, json_output: bool, live: bool):
             "total_transactions": pack.get("total_transactions", 0),
             "sha256": pack.get("sha256", ""),
             "simulated": simulated,
+            "all_verified": all_verified,
             "message": message,
         }
         if live:
@@ -673,6 +700,14 @@ def proof_verify(file: str, json_output: bool, live: bool):
                 "mode. Its transactions are not on any ledger; a passing "
                 "integrity check proves the file is intact, NOT that anything "
                 "happened on the XRPL. Run without --dry-run for a real proof.[/]\n"
+            )
+
+        if not all_verified:
+            console.print(
+                "  [yellow]⚠ UNVERIFIED — one or more completed modules failed "
+                "their on-ledger verification. The integrity check still passes "
+                "(the file is intact), but not every lesson was proven. Re-run "
+                "the affected module(s) for a fully-verified pack.[/]\n"
             )
 
         console.print(f"  [bold]File:[/]         {path}")
@@ -1739,7 +1774,17 @@ def fund(dry_run: bool):
         console.print(f"[yellow]{err.message}[/]")
         console.print(f"  [dim]{err.hint}[/]")
         raise SystemExit(LabException(err).exit_code)
+    # PC-003: a GENERIC (non-rate-limited) faucet failure must ALSO exit
+    # non-zero — matching the rate-limited path above and the no-wallet guard.
+    # Printing "Funding failed" then returning 0 let a cohort script's
+    # `xrpl-lab fund && next-step` treat a failed fund as success. Give the
+    # learner the actionable next step and a non-zero exit so scripts stop.
     console.print(f"[red]Funding failed:[/] {result.message}")
+    console.print(
+        "  [dim]The testnet faucet may be busy — wait a moment and retry: "
+        "xrpl-lab fund[/]"
+    )
+    raise SystemExit(2)
 
 
 @main.command()

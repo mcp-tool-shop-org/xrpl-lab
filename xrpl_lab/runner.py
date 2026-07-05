@@ -240,6 +240,15 @@ async def run_module(
 
     report_sections: list[tuple[str, str]] = []
 
+    # RESWARM3 (verified flag + honest pack): track whether EVERY on-ledger
+    # verification this run performed passed. Starts True (a module with no
+    # verify steps is vacuously verified — back-compat) and is flipped False by
+    # the first failing verification. Recorded onto the CompletedModule at the
+    # end so the proof pack is honest. A failed verification does NOT raise —
+    # the lesson continues; it only downgrades this flag + the failing step's
+    # dashboard success signal.
+    all_verified = True
+
     for i, step in enumerate(module.steps):
         # Render step text
         console.print(Markdown(step.text))
@@ -273,6 +282,12 @@ async def run_module(
             # each with THIS step's result_code — not for every historical
             # txid on every step (O(steps*txids) + stale result codes).
             _prev_txid_count = len(context.get("txids", []))
+            # RESWARM3: remember how many verification records existed BEFORE
+            # this step so we inspect ONLY the entries THIS step appended (a
+            # handler calls _record_verification into context["verifications"]).
+            # Mirrors the BC-003 _prev_txid_count slice pattern so a later step
+            # can't be blamed for an earlier step's verdict.
+            _prev_verif_count = len(context.get("verifications", []))
             try:
                 context = await _execute_action(
                     step, state, transport,
@@ -369,12 +384,32 @@ async def run_module(
                     if inspect.isawaitable(_r):
                         await _r
 
+            # RESWARM3: consume THIS step's verification verdicts. A handler
+            # already printed its checks/failures (kept); here we (a) do NOT
+            # raise — the lesson continues; (b) fold a failed verification into
+            # the module-level all_verified flag; and (c) flip this step's
+            # dashboard success to False (PB-001) so api/runner_ws.py forwards
+            # the real state instead of always-green for a pure verify step
+            # (whose last_submit.success only reflects the last SUBMIT, never a
+            # verify). Only the entries appended by THIS step are inspected.
+            step_verifications = context.get("verifications", [])[_prev_verif_count:]
+            step_verify_failed = any(
+                not v.get("passed", True) for v in step_verifications
+            )
+            if step_verify_failed:
+                all_verified = False
+
             # Fire step_complete callback
             if on_step_complete is not None:
                 success = True
                 last_submit = context.get("last_submit")
                 if last_submit and hasattr(last_submit, "success"):
                     success = bool(last_submit.success)
+                # A failed verification in this step makes the step unsuccessful
+                # even when the (possibly earlier) submit succeeded — the
+                # on-ledger check is the step's real verdict for the dashboard.
+                if step_verify_failed:
+                    success = False
                 _r = on_step_complete(step.action, success)
                 if inspect.isawaitable(_r):
                     await _r
@@ -441,6 +476,10 @@ async def run_module(
         module_id=module.id,
         txids=context["txids"],
         report_path=str(report_path),
+        # RESWARM3: honest completion — records verified=False when any
+        # on-ledger verification this run failed, so the proof pack's
+        # per-module `verified` + top-level `all_verified` tell the truth.
+        verified=all_verified,
     )
     # B-BACKEND-005: guard the completion save like the recovery save. The
     # module already ran and its report is on disk, so a save failure here

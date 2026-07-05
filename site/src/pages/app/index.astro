@@ -59,6 +59,24 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       const lr = s.last_run;
       const tracks = s.track_progress || [];
 
+      // PC-002: surface the blockers / next-up the server already computes —
+      // the CLI shows these prominently, but the dashboard (a fresh learner's
+      // first stop) was dropping them. The blocker strings already carry the
+      // exact fix command.
+      const blockers = s.blockers || [];
+      const nextStep = (s.is_blocked && blockers.length)
+        ? `<div class="grid section"><div class="card" style="border-color:var(--warn,#b8860b)">
+            <p class="eyebrow">${II(icons.alert)} Next step</p>
+            <div class="checks">${blockers.map((b: any) => `<div class="check">${healthIcon('warn')}<div><div class="check__msg">${esc(b)}</div></div></div>`).join('')}</div>
+          </div></div>`
+        : s.current_module
+        ? `<div class="grid section"><a class="qa" href="/xrpl-lab/app/modules/">
+            <span class="qa__ic">${icons.play}</span>
+            <span class="qa__t">Up next: ${esc(s.current_module)}</span>
+            <span class="qa__s">${[s.current_track, s.current_mode].filter(Boolean).map((x: any) => esc(x)).join(' · ') || 'Continue where you left off'}</span>
+          </a></div>`
+        : '';
+
       const lastRunStat = lr
         ? `<span class="stat__value" style="font-size:15px">${esc(lr.module)} ${runBadge(lr.success ? 'completed' : 'failed')}</span>`
         : `<span class="stat__value muted" style="font-size:15px">No runs yet</span>`;
@@ -81,6 +99,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
         : `<p class="muted">No track data yet.</p>`;
 
       return `
+      ${nextStep}
       <div class="grid section grid-2-wide items-stretch">
         <div class="card">
           <p class="eyebrow">Overall progress</p>

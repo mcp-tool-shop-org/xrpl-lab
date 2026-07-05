@@ -287,6 +287,40 @@ async def handle_submit_payment_fail(
 # ---------------------------------------------------------------------------
 
 
+def _record_verification(
+    context: dict,
+    action: str,
+    passed: bool,
+    failures: list | None = None,
+) -> None:
+    """Append this verify handler's pass/fail verdict to ``context``.
+
+    RESWARM3 (verified flag + honest pack): before this, every ``handle_verify_*``
+    handler printed its checks/failures to the console but signalled NOTHING to
+    the runner — so a module whose on-ledger verification FAILED still recorded
+    as a green "completed" module and the proof pack claimed a verification that
+    never passed. This helper is the single, uniform channel every verify
+    handler now uses to report its REAL verdict. The runner
+    (``run_module``) inspects ``context["verifications"]`` after each step,
+    flips that step's ``on_step_complete`` success to False on any failure, and
+    marks the module ``verified=False`` in state so the pack is honest.
+
+    Entry shape (kept minimal — no secrets, JSON-serializable): each append is
+    ``{"action": action, "passed": bool, "failures": list}``. ``passed`` is the
+    handler's real verdict (``len(failures) == 0`` for assertion handlers). The
+    two comparison-only handlers (verify_reserve_change / verify_position_delta)
+    have no pass/fail concept — they teach OBSERVATION, not assertion — so they
+    record ``passed=True`` (informational) and never fabricate a failure.
+    """
+    context.setdefault("verifications", []).append(
+        {
+            "action": action,
+            "passed": bool(passed),
+            "failures": list(failures or []),
+        }
+    )
+
+
 async def handle_verify_tx(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -303,6 +337,9 @@ async def handle_verify_tx(
         console.print(f"  [green]\u2713[/] {check}")
     for fail in result.failures:
         console.print(f"  [red]\u2717[/] {fail}")
+    _record_verification(
+        context, "verify_tx", len(result.failures) == 0, result.failures
+    )
     return context
 
 
@@ -583,6 +620,10 @@ async def handle_verify_trust_line(
             console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_trust_line_verify"] = result
+    _record_verification(
+        context, "verify_trust_line",
+        result.found and len(result.failures) == 0, result.failures,
+    )
     return context
 
 
@@ -661,6 +702,11 @@ async def handle_verify_trust_line_removed(
             console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_trust_line_verify"] = result
+    # Passing verdict: the trust line is GONE (not found) with no failures.
+    _record_verification(
+        context, "verify_trust_line_removed",
+        (not result.found) and len(result.failures) == 0, result.failures,
+    )
     return context
 
 
@@ -778,6 +824,9 @@ async def handle_verify_freeze(
         console.print(f"  [red]✗[/] {fail}")
 
     context["last_freeze_verify"] = result
+    _record_verification(
+        context, "verify_freeze", len(result.failures) == 0, result.failures
+    )
     return context
 
 
@@ -818,6 +867,10 @@ async def handle_open_channel(
     try:
         settle_delay = int(args.get("settle_delay", "86400"))
     except ValueError:
+        # PB-003: a non-numeric settle_delay silently fell back before —
+        # surface a one-line note (matching the check_inventory precedent) so a
+        # malformed module arg is visible rather than swallowed.
+        console.print("  [yellow]Invalid settle_delay, using default (86400).[/]")
         settle_delay = 86400
     # BC-005: a bare `except ValueError` lets a negative settle_delay through to
     # the tx builder (SettleDelay is an unsigned field on-ledger). Floor at 0.
@@ -957,6 +1010,12 @@ async def handle_verify_claim_signature(
     else:
         console.print("  [red]✗[/] Claim signature did NOT verify.")
     context["last_claim_verify"] = ok
+    # PB-006-adjacent: this handler stores a bool verdict — wire it in so a
+    # failed off-ledger claim check flags the module unverified.
+    _record_verification(
+        context, "verify_claim_signature", bool(ok),
+        [] if ok else ["Claim signature did not verify."],
+    )
     return context
 
 
@@ -1017,6 +1076,9 @@ async def handle_verify_channel(
     for fail in result.failures:
         console.print(f"  [red]✗[/] {fail}")
     context["last_channel_verify"] = result
+    _record_verification(
+        context, "verify_channel", result.passed, result.failures
+    )
     return context
 
 
@@ -1111,6 +1173,10 @@ async def handle_verify_offer_present(
             console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_offer_verify"] = result
+    _record_verification(
+        context, "verify_offer_present",
+        result.found and len(result.failures) == 0, result.failures,
+    )
     return context
 
 
@@ -1187,6 +1253,9 @@ async def handle_verify_offer_absent(
             console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_offer_verify"] = result
+    _record_verification(
+        context, "verify_offer_absent", result.passed, result.failures
+    )
     return context
 
 
@@ -1269,6 +1338,11 @@ async def handle_verify_reserve_change(
     console.print(f"  [yellow]{result.explanation}[/]")
 
     context["last_reserve_comparison"] = result
+    # INFORMATIONAL: this is a COMPARISON handler — it teaches observation of a
+    # reserve delta, it does not assert a pass/fail condition. Record passed=True
+    # (never fabricate a failure verdict here) so it neither flips the module
+    # unverified nor claims a verification it didn't run.
+    _record_verification(context, "verify_reserve_change", True, [])
     return context
 
 
@@ -1507,6 +1581,9 @@ async def handle_verify_lp_received(
 
     context["lp_balance_before_withdraw"] = result.lp_balance
     context["last_amm_verify"] = result
+    _record_verification(
+        context, "verify_lp_received", len(result.failures) == 0, result.failures
+    )
     return context
 
 
@@ -1598,6 +1675,9 @@ async def handle_verify_withdrawal(
         console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_amm_verify"] = result
+    _record_verification(
+        context, "verify_withdrawal", len(result.failures) == 0, result.failures
+    )
     return context
 
 
@@ -1783,6 +1863,7 @@ async def handle_verify_module_offers(
         return context
 
     all_found = True
+    failures: list[str] = []
     for seq in seqs:
         result = await verify_offer_present(
             transport, holder_address, seq
@@ -1794,11 +1875,15 @@ async def handle_verify_module_offers(
             all_found = False
             for fail in result.failures:
                 console.print(f"  [red]\u2717[/] {fail}")
+                failures.append(fail)
 
     if all_found:
         console.print(
             f"  [green]All {len(seqs)} strategy offers verified[/]"
         )
+    # PB-006: this handler computed all_found but stored NOTHING \u2014 a missing
+    # strategy offer left the module falsely verified. Wire the real verdict in.
+    _record_verification(context, "verify_module_offers", all_found, failures)
     return context
 
 
@@ -1860,6 +1945,10 @@ async def handle_verify_module_offers_absent(
         console.print(
             f"  [yellow]{remaining} offer(s) still open[/]"
         )
+    _record_verification(
+        context, "verify_module_offers_absent", remaining == 0,
+        [] if remaining == 0 else [f"{remaining} offer(s) still open"],
+    )
     return context
 
 
@@ -1908,6 +1997,10 @@ async def handle_verify_position_delta(
     console.print(f"  [yellow]{result.explanation}[/]")
 
     context["last_position_comparison"] = result
+    # INFORMATIONAL: like verify_reserve_change, this COMPARISON handler teaches
+    # observation of a position delta rather than asserting pass/fail. Record
+    # passed=True (never fabricate a failure verdict for a comparison).
+    _record_verification(context, "verify_position_delta", True, [])
     return context
 
 
@@ -2146,10 +2239,13 @@ async def handle_mint_nft(
     try:
         taxon = int(args.get("taxon", "0"))
     except ValueError:
+        # PB-003: surface the non-numeric fallback (matches check_inventory).
+        console.print("  [yellow]Invalid taxon, using default (0).[/]")
         taxon = 0
     try:
         transfer_fee = int(args.get("transfer_fee", "0"))
     except ValueError:
+        console.print("  [yellow]Invalid transfer_fee, using default (0).[/]")
         transfer_fee = 0
     # BC-005: transfer_fee is the NFT royalty in units of 1/1000 of a percent;
     # the protocol caps it at 50000 (= 50%). A bare `except ValueError` only
@@ -2227,6 +2323,10 @@ async def handle_verify_nft(
     if result.found and result.passed:
         console.print("  [green]NFT ownership verified on-ledger.[/]")
     context["last_nft_verify"] = result
+    _record_verification(
+        context, "verify_nft",
+        result.found and result.passed, result.failures,
+    )
     return context
 
 
@@ -2284,6 +2384,9 @@ async def handle_verify_nft_burned(
     if result.passed:
         console.print("  [green]NFT lifecycle complete — asset destroyed, reserve freed.[/]")
     context["last_nft_burned_verify"] = result
+    _record_verification(
+        context, "verify_nft_burned", result.passed, result.failures
+    )
     return context
 
 
@@ -2340,6 +2443,8 @@ async def handle_create_escrow(
     try:
         delay = int(args.get("finish_seconds", "120"))
     except ValueError:
+        # PB-003: surface the non-numeric fallback (matches check_inventory).
+        console.print("  [yellow]Invalid finish_seconds, using default (120).[/]")
         delay = 120
     # BC-005: a bare `except ValueError` lets a valid-but-nonsensical negative
     # delay (e.g. -100) through, producing a FinishAfter in the PAST — the
@@ -2398,6 +2503,10 @@ async def handle_verify_escrow(
     if result.found and result.passed:
         console.print("  [green]Escrow verified on-ledger.[/]")
     context["last_escrow_verify"] = result
+    _record_verification(
+        context, "verify_escrow",
+        result.found and result.passed, result.failures,
+    )
     return context
 
 
@@ -2488,6 +2597,9 @@ async def handle_verify_escrow_finished(
     if result.passed:
         console.print("  [green]Escrow lifecycle complete — reserve freed.[/]")
     context["last_escrow_finished_verify"] = result
+    _record_verification(
+        context, "verify_escrow_finished", result.passed, result.failures
+    )
     return context
 
 
@@ -2533,6 +2645,10 @@ async def handle_verify_did(
     if result.found and result.passed:
         console.print("  [green]DID verified on-ledger.[/]")
     context["last_did_verify"] = result
+    _record_verification(
+        context, "verify_did",
+        result.found and result.passed, result.failures,
+    )
     return context
 
 
@@ -2574,6 +2690,9 @@ async def handle_verify_did_deleted(
     if result.passed:
         console.print("  [green]Identity hygiene complete — DID removed.[/]")
     context["last_did_deleted_verify"] = result
+    _record_verification(
+        context, "verify_did_deleted", result.passed, result.failures
+    )
     return context
 
 
@@ -2586,10 +2705,13 @@ async def handle_create_mpt_issuance(
     try:
         asset_scale = int(args.get("asset_scale", "0"))
     except ValueError:
+        # PB-003: surface the non-numeric fallback (matches check_inventory).
+        console.print("  [yellow]Invalid asset_scale, using default (0).[/]")
         asset_scale = 0
     try:
         transfer_fee = int(args.get("transfer_fee", "0"))
     except ValueError:
+        console.print("  [yellow]Invalid transfer_fee, using default (0).[/]")
         transfer_fee = 0
     transferable = str(args.get("transferable", "true")).lower() != "false"
     if "wallet_seed" not in context:
@@ -2690,6 +2812,9 @@ async def handle_verify_mpt_balance(
     for fail in result.failures:
         console.print(f"  [red]✗[/] {fail}")
     context["last_mpt_balance_verify"] = result
+    _record_verification(
+        context, "verify_mpt_balance", len(result.failures) == 0, result.failures
+    )
     return context
 
 
@@ -2709,6 +2834,10 @@ async def handle_verify_mpt_issuance(
     if result.found and result.passed:
         console.print("  [green]MPT issuance verified on-ledger.[/]")
     context["last_mpt_verify"] = result
+    _record_verification(
+        context, "verify_mpt_issuance",
+        result.found and result.passed, result.failures,
+    )
     return context
 
 
@@ -2834,6 +2963,9 @@ async def handle_verify_clawback(
     if result.passed:
         console.print("  [green]Issuer recall verified — exact-amount debit confirmed.[/]")
     context["last_clawback_verify"] = result
+    _record_verification(
+        context, "verify_clawback", result.passed, result.failures
+    )
     return context
 
 
@@ -3034,6 +3166,11 @@ async def handle_verify_nft_offer(
     else:
         console.print("  [yellow]No open sell offers for this NFT.[/]")
     context["last_nft_offers"] = offers
+    # INFORMATIONAL: this handler READS the NFT's open offers back for
+    # observation — it prints a note when none exist rather than asserting a
+    # failure. Record passed=True (never fabricate a failure verdict); the
+    # trade's real pass/fail assertion lives in verify_nft_trade.
+    _record_verification(context, "verify_nft_offer", True, [])
     return context
 
 
@@ -3167,6 +3304,9 @@ async def handle_verify_nft_trade(
     if result.passed:
         console.print("  [green]NFT trade verified on-ledger.[/]")
     context["last_nft_trade_verify"] = result
+    _record_verification(
+        context, "verify_nft_trade", result.passed, result.failures
+    )
     return context
 
 
@@ -3260,6 +3400,9 @@ async def handle_verify_nft_modified(
     if result.passed:
         console.print("  [green]Dynamic NFT verified — item evolved on-ledger.[/]")
     context["last_nft_modified_verify"] = result
+    _record_verification(
+        context, "verify_nft_modified", result.passed, result.failures
+    )
     return context
 
 

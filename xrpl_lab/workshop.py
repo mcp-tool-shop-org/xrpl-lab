@@ -125,9 +125,14 @@ def get_learner_status(state: LabState | None = None) -> LearnerStatus:
     if next_mod:
         missing_prereqs = [r for r in next_mod.requires if r not in completed_ids]
         if missing_prereqs:
+            # Name the concrete next command, like the wallet/dry-run blockers:
+            # start with the FIRST missing prerequisite so the learner has a
+            # copy-pasteable "do this next" instead of having to guess the id
+            # or the run syntax.
             blockers.append(
                 f"'{next_id}' builds on {', '.join(missing_prereqs)} — finish "
-                f"{'that' if len(missing_prereqs) == 1 else 'those'} first"
+                f"{'that' if len(missing_prereqs) == 1 else 'those'} first: "
+                f"xrpl-lab run {missing_prereqs[0]}"
             )
         if next_mod.mode == "dry-run":
             blockers.append(

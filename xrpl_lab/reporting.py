@@ -125,6 +125,12 @@ def generate_proof_pack(state: LabState) -> dict:
                     cm.completed_at, tz=UTC
                 ).isoformat(),
                 "txids": cm.txids,
+                # RESWARM3: surface the module's on-ledger verification verdict
+                # end-to-end. Defaults True (back-compat) so an old state /
+                # a no-verify module reads verified. A module whose verify step
+                # FAILED on-ledger carries verified=False — the pack is honest
+                # rather than claiming a completion it never verified.
+                "verified": cm.verified,
                 "kb_source": mod.kb_source if mod else "",
                 "explorer_urls": [
                     _explorer_url(txid, tx_net.get(txid, state.network))
@@ -158,6 +164,14 @@ def generate_proof_pack(state: LabState) -> dict:
         cm.module_id == CAPSTONE_MODULE_ID for cm in state.completed_modules
     )
 
+    # RESWARM3 honest pack: True iff EVERY completed module is verified. An
+    # empty completed list is vacuously all-verified (True) — there is nothing
+    # unverified. Derived purely from the completed-module records (no new
+    # persistence) and folded into the SHA-256 below like every other top-level
+    # key, so a learner cannot edit a False back to True without breaking the
+    # pack's own integrity hash.
+    all_verified = all(cm.verified for cm in state.completed_modules)
+
     pack = {
         "xrpl_lab_proof_pack": True,
         "version": __version__,
@@ -167,6 +181,7 @@ def generate_proof_pack(state: LabState) -> dict:
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "completed_modules": modules,
         "capstone": capstone,
+        "all_verified": all_verified,
         "transactions": transactions,
         "receipt_table": receipt_table,
         "total_transactions": len(state.tx_index),
@@ -292,11 +307,19 @@ def verify_proof_pack(pack: dict) -> tuple[bool, str]:
         return False, "Not a valid JSON object"
 
     if not pack.get("xrpl_lab_proof_pack"):
-        return False, "Missing xrpl_lab_proof_pack marker"
+        # PC-004: append an actionable clause — the most common cause is
+        # pasting a certificate (different marker) or a partial file.
+        return False, (
+            "Missing xrpl_lab_proof_pack marker — you may have pasted a "
+            "certificate (use cert-verify) or a partial file."
+        )
 
     stored_hash = pack.get("sha256")
     if not stored_hash:
-        return False, "No SHA-256 hash found in proof pack"
+        return False, (
+            "No SHA-256 hash found in proof pack — the file may be truncated "
+            "or partial; regenerate with `xrpl-lab proof-pack`."
+        )
 
     # Recompute: hash of the pack content without the hash field
     check = {k: v for k, v in pack.items() if k != "sha256"}
@@ -304,7 +327,13 @@ def verify_proof_pack(pack: dict) -> tuple[bool, str]:
     computed = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     if computed != stored_hash:
-        return False, f"Hash mismatch: expected {stored_hash[:16]}…, got {computed[:16]}…"
+        # PC-004: a hash mismatch almost always means the file was edited after
+        # generation — point at the fix, don't just report the delta.
+        return False, (
+            f"Hash mismatch: expected {stored_hash[:16]}…, got {computed[:16]}… "
+            "— the file was edited after generation; regenerate with "
+            "`xrpl-lab proof-pack`."
+        )
 
     return True, "Integrity verified"
 
@@ -318,18 +347,30 @@ def verify_certificate(cert: dict) -> tuple[bool, str]:
         return False, "Not a valid JSON object"
 
     if not cert.get("xrpl_lab_certificate"):
-        return False, "Missing xrpl_lab_certificate marker"
+        # PC-004: actionable clause — a proof pack has a different marker.
+        return False, (
+            "Missing xrpl_lab_certificate marker — you may have pasted a proof "
+            "pack (use proof verify) or a partial file."
+        )
 
     stored_hash = cert.get("sha256")
     if not stored_hash:
-        return False, "No SHA-256 hash found in certificate"
+        return False, (
+            "No SHA-256 hash found in certificate — the file may be truncated "
+            "or partial; regenerate with `xrpl-lab certificate`."
+        )
 
     check = {k: v for k, v in cert.items() if k != "sha256"}
     content = json.dumps(check, sort_keys=True, separators=(",", ":"))
     computed = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     if computed != stored_hash:
-        return False, f"Hash mismatch: expected {stored_hash[:16]}…, got {computed[:16]}…"
+        # PC-004: point at regeneration rather than only reporting the delta.
+        return False, (
+            f"Hash mismatch: expected {stored_hash[:16]}…, got {computed[:16]}… "
+            "— the file was edited after generation; regenerate with "
+            "`xrpl-lab certificate`."
+        )
 
     return True, "Integrity verified"
 

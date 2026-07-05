@@ -113,17 +113,38 @@ async def verify_channel(
     checks.append(f"Deposited: {_drops_to_xrp(ch.amount)} XRP")
     checks.append(f"Claimed so far: {_drops_to_xrp(ch.balance)} XRP")
 
-    def _want(xrp: str) -> str:
-        return str(int(Decimal(xrp) * Decimal("1000000")))
+    def _want(xrp: str) -> str | None:
+        # PT-003: guard the XRP->drops conversion like ``_drops_to_xrp`` above.
+        # A non-numeric expect_amount_xrp previously raised an uncaught
+        # InvalidOperation instead of surfacing a clean verification failure.
+        # Return None on a parse failure so the caller records a failure line.
+        try:
+            return str(int(Decimal(xrp) * Decimal("1000000")))
+        except Exception:
+            return None
 
-    if expect_amount_xrp is not None and ch.amount != _want(expect_amount_xrp):
-        failures.append(
-            f"Deposit mismatch: expected {expect_amount_xrp} XRP, "
-            f"got {_drops_to_xrp(ch.amount)} XRP"
-        )
-    if expect_balance_xrp is not None and ch.balance != _want(expect_balance_xrp):
-        failures.append(
-            f"Claimed mismatch: expected {expect_balance_xrp} XRP, "
-            f"got {_drops_to_xrp(ch.balance)} XRP"
-        )
+    if expect_amount_xrp is not None:
+        want = _want(expect_amount_xrp)
+        if want is None:
+            failures.append(
+                f"Deposit check skipped: could not parse expected amount "
+                f"{expect_amount_xrp!r} as XRP"
+            )
+        elif ch.amount != want:
+            failures.append(
+                f"Deposit mismatch: expected {expect_amount_xrp} XRP, "
+                f"got {_drops_to_xrp(ch.amount)} XRP"
+            )
+    if expect_balance_xrp is not None:
+        want = _want(expect_balance_xrp)
+        if want is None:
+            failures.append(
+                f"Claimed check skipped: could not parse expected balance "
+                f"{expect_balance_xrp!r} as XRP"
+            )
+        elif ch.balance != want:
+            failures.append(
+                f"Claimed mismatch: expected {expect_balance_xrp} XRP, "
+                f"got {_drops_to_xrp(ch.balance)} XRP"
+            )
     return ChannelVerifyResult(ch, checks, failures)

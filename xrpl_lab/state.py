@@ -50,12 +50,22 @@ def _ensure_dir_mode(path: Path, mode: int) -> None:
 
 
 class CompletedModule(BaseModel):
-    """Record of a completed module."""
+    """Record of a completed module.
+
+    ``verified`` (RESWARM3): True iff every on-ledger verification the module
+    ran passed. Defaults True for back-compat — an OLD state.json (or a module
+    with no verify steps) loads as verified. A module whose verify step FAILED
+    on-ledger records ``verified=False`` so the proof pack is honest: the run
+    still "completed" (it did not crash), but the artifact does not claim a
+    verification that never passed. See the runner's ``all_verified`` tracking
+    and reporting.generate_proof_pack's top-level ``all_verified`` fold.
+    """
 
     module_id: str
     completed_at: float
     txids: list[str] = Field(default_factory=list)
     report_path: str | None = None
+    verified: bool = True
 
 
 class TxRecord(BaseModel):
@@ -94,6 +104,7 @@ class LabState(BaseModel):
         module_id: str,
         txids: list[str] | None = None,
         report_path: str | None = None,
+        verified: bool = True,
     ) -> None:
         if self.is_module_completed(module_id):
             return
@@ -103,6 +114,7 @@ class LabState(BaseModel):
                 completed_at=time.time(),
                 txids=txids or [],
                 report_path=report_path,
+                verified=verified,
             )
         )
         self.updated_at = time.time()
@@ -170,6 +182,37 @@ def state_path() -> Path:
     return get_home_dir() / "state.json"
 
 
+def _migrate(data: dict[str, Any]) -> dict[str, Any]:
+    """Upgrade a raw state dict to the current schema BEFORE ``model_validate``.
+
+    PB-004 (RESWARM3): this establishes the migration seam. Today it is
+    largely an identity function — the ``verified`` field added to
+    ``CompletedModule`` is *additive*, so Pydantic's field default already
+    fills it for an older state.json that lacks it, and no active rewrite is
+    required. The seam exists so that ANY future field/shape change upgrades
+    an older state.json IN PLACE here, instead of failing ``model_validate``
+    and tripping ``load_state``'s corrupt-recovery path — which would back up
+    the file and start the learner from a FRESH state, silently discarding
+    their whole module history.
+
+    Keyed on ``data.get("version")`` so version-specific migrations can be
+    added as ``if`` branches without disturbing the identity path. Never
+    mutates the caller's dict (works on the value it is handed; callers pass a
+    dict they own). Unknown/absent versions fall through unchanged — the
+    additive-default rule keeps them loadable.
+    """
+    if not isinstance(data, dict):
+        # Defensive: a non-dict payload isn't migratable — hand it back so the
+        # downstream model_validate raises the precise, honest error.
+        return data
+    # version = data.get("version")  # reserved for future keyed migrations.
+    # No structural rewrite needed for the current (v2.2.0) additive change:
+    # CompletedModule.verified defaults True, so a pre-verified-field entry
+    # validates and fills verified=True automatically. Future non-additive
+    # migrations branch here on version.
+    return data
+
+
 def load_state_from_path(path: Path) -> LabState:
     """Load state from an explicit path (read-only).
 
@@ -191,7 +234,7 @@ def load_state_from_path(path: Path) -> LabState:
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in {path}: {e}") from e
     try:
-        return LabState.model_validate(data)
+        return LabState.model_validate(_migrate(data))
     except ValidationError as e:
         raise ValueError(f"Schema mismatch in {path}: {e}") from e
 
@@ -212,7 +255,13 @@ def load_state() -> LabState:
                     "Some fields may differ.",
                     file=sys.stderr,
                 )
-            return LabState.model_validate(data)
+            # PB-004: run the migration seam BEFORE model_validate so an older
+            # state.json upgrades in place rather than tripping the
+            # corrupt-recovery path below (which would reset the learner's
+            # history). The current change is additive (verified defaults
+            # True), so this is an identity step today — the seam is what
+            # makes future non-additive changes safe.
+            return LabState.model_validate(_migrate(data))
         except (json.JSONDecodeError, ValueError, ValidationError, OSError) as exc:
             # Unreadable / corrupted state — recover to a fresh LabState so a
             # single bad (or locked-down) state.json never crashes the CLI.

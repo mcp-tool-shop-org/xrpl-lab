@@ -99,10 +99,11 @@ def test_verify_tx_exits_zero_on_passed_verdict(monkeypatch):
 # ── SIMULATED signal on proof/cert verify surfaces ─────────────────────────
 
 
-def _write_pack(tmp_path, network, marker="xrpl_lab_proof_pack"):
+def _write_pack(tmp_path, network, marker="xrpl_lab_proof_pack", all_verified=True):
     pack = {
         marker: True, "version": "2.2.0", "network": network, "address": "rTEST",
         "completed_modules": [], "total_transactions": 0, "sha256": "deadbeef",
+        "all_verified": all_verified,
     }
     p = tmp_path / "pack.json"
     p.write_text(json.dumps(pack), encoding="utf-8")
@@ -139,6 +140,45 @@ def test_proof_verify_banner_absent_for_testnet(tmp_path):
     p = _write_pack(tmp_path, "testnet")
     res = CliRunner().invoke(cli.main, ["proof", "verify", str(p)])
     assert "SIMULATED" not in res.output
+
+
+# ── UNVERIFIED signal (honest-pack: a module failed on-ledger verification) ──
+
+
+def test_proof_verify_json_flags_unverified(tmp_path):
+    from xrpl_lab import cli
+
+    p = _write_pack(tmp_path, "testnet", all_verified=False)
+    res = CliRunner().invoke(cli.main, ["proof", "verify", str(p), "--json"])
+    assert json.loads(res.output)["all_verified"] is False
+
+
+def test_proof_verify_banner_shows_unverified(tmp_path):
+    from xrpl_lab import cli
+
+    p = _write_pack(tmp_path, "testnet", all_verified=False)
+    res = CliRunner().invoke(cli.main, ["proof", "verify", str(p)])
+    assert "UNVERIFIED" in res.output
+
+
+def test_proof_verify_no_unverified_banner_when_all_verified(tmp_path):
+    from xrpl_lab import cli
+
+    p = _write_pack(tmp_path, "testnet", all_verified=True)
+    res = CliRunner().invoke(cli.main, ["proof", "verify", str(p)])
+    assert "UNVERIFIED" not in res.output
+
+
+def test_api_verify_flags_unverified_pack():
+    pack = {
+        "xrpl_lab_proof_pack": True, "version": "2.2.0", "network": "testnet",
+        "address": "rTEST", "completed_modules": [], "total_transactions": 0,
+        "sha256": "deadbeef", "all_verified": False,
+    }
+    with TestClient(create_app()) as client:
+        resp = client.post("/api/verify", json=pack)
+    assert resp.status_code == 200
+    assert resp.json()["all_verified"] is False
 
 
 # ── cohort-status TABLE path-leak ──────────────────────────────────────────

@@ -568,6 +568,7 @@ async def verify_artifact(request: Request) -> VerifyResponse:
         address=str(body.get("address", "") or ""),
         network=str(body.get("network", "") or ""),
         simulated=str(body.get("network", "") or "").lower() in ("dry-run", "dry_run", "mixed"),
+        all_verified=bool(body.get("all_verified", True)),
     )
 
 
@@ -579,15 +580,32 @@ async def get_doctor() -> DoctorResponse:
     """Run diagnostic checks and return results."""
     report = await run_doctor()
 
-    # Map checks to canonical shape
+    # Map checks to canonical shape. Three tiers (matching DoctorCheck's
+    # "pass"|"warn"|"fail" contract and the frontend's amber "!" tier):
+    #
+    #   * severity == "warn"  -> status="warn"  (informational, amber)
+    #     Fires for curriculum drift, a safe-but-present env override, and the
+    #     last-error breadcrumb — whether the underlying Check "passed" or not.
+    #     Before this the "warn" tier was dead code and these rendered as red
+    #     ✗ under an "environment is broken" banner (over-alarming).
+    #   * not passed          -> status="fail"  (hard failure, red ✗)
+    #   * passed              -> status="pass"  (green ✓)
+    #
+    # ``overall`` is "error" if ANY hard fail is present (a real failure always
+    # dominates a warn), else "warning" if any warn surfaced, else "healthy".
     checks: list[DoctorCheck] = []
-    has_failure = False
+    has_hard_failure = False
+    has_warning = False
     for c in report.checks:
-        if c.passed:
-            status = "pass"
-        else:
+        severity = getattr(c, "severity", "fail")
+        if severity == "warn":
+            status = "warn"
+            has_warning = True
+        elif not c.passed:
             status = "fail"
-            has_failure = True
+            has_hard_failure = True
+        else:
+            status = "pass"
 
         message = c.detail
         if c.hint:
@@ -599,13 +617,13 @@ async def get_doctor() -> DoctorResponse:
             message=message,
         ))
 
-    # Determine overall status
-    if has_failure:
+    # A hard fail dominates: warns never mask a genuine failure.
+    if has_hard_failure:
         overall = "error"
-    elif report.all_passed:
-        overall = "healthy"
-    else:
+    elif has_warning:
         overall = "warning"
+    else:
+        overall = "healthy"
 
     return DoctorResponse(
         overall=overall,
