@@ -147,16 +147,16 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       // SIMULATED banner — a dry-run/mixed artifact proves the file is intact,
       // NOT that anything is on the ledger. Loud parity with the CLI + audit pack.
       const simBanner = r.simulated
-        ? `<div class="row" style="gap:10px;align-items:flex-start;margin-top:14px;padding:12px 14px;border:1px solid var(--warn, #b8860b);border-radius:8px;background:rgba(184,134,11,0.10)">
-        <strong style="color:var(--warn, #b8860b)">⚠ SIMULATED</strong>
+        ? `<div class="row" style="gap:10px;align-items:flex-start;margin-top:14px;padding:12px 14px;border:1px solid var(--warn-edge);border-radius:8px;background:var(--warn-fill)">
+        <strong style="color:var(--warn-bright)">⚠ SIMULATED</strong>
         <div class="muted" style="font-size:13px">This artifact was generated in dry-run mode. Its transactions are not on any ledger — a passing integrity check proves the file is intact, not that anything happened on the XRPL.</div>
       </div>`
         : '';
 
       // UNVERIFIED banner — a completed module failed its on-ledger verification.
       const unverifiedBanner = (r.all_verified === false)
-        ? `<div class="row" style="gap:10px;align-items:flex-start;margin-top:14px;padding:12px 14px;border:1px solid var(--warn, #b8860b);border-radius:8px;background:rgba(184,134,11,0.10)">
-        <strong style="color:var(--warn, #b8860b)">⚠ UNVERIFIED</strong>
+        ? `<div class="row" style="gap:10px;align-items:flex-start;margin-top:14px;padding:12px 14px;border:1px solid var(--warn-edge);border-radius:8px;background:var(--warn-fill)">
+        <strong style="color:var(--warn-bright)">⚠ UNVERIFIED</strong>
         <div class="muted" style="font-size:13px">One or more completed modules failed their on-ledger verification. Integrity still passes (the file is intact), but not every lesson was proven — re-run the affected module(s) for a fully-verified pack.</div>
       </div>`
         : '';

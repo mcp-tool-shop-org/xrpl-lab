@@ -23,7 +23,9 @@ xrpl-lab start --dry-run
 
 # Launch the web dashboard
 xrpl-lab serve
-# Then open http://localhost:4321/xrpl-lab/app/
+# Then open the URL it prints — http://localhost:8321/xrpl-lab/app/
+# (serve hosts the built dashboard + API together on :8321; the separate
+#  Astro dev server on :4321 is only for working on the dashboard itself)
 ```
 
 ## What's in the handbook

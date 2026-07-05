@@ -65,7 +65,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       // exact fix command.
       const blockers = s.blockers || [];
       const nextStep = (s.is_blocked && blockers.length)
-        ? `<div class="grid section"><div class="card" style="border-color:var(--warn,#b8860b)">
+        ? `<div class="grid section"><div class="card" style="border-color:var(--warn-edge)">
             <p class="eyebrow">${II(icons.alert)} Next step</p>
             <div class="checks">${blockers.map((b: any) => `<div class="check">${healthIcon('warn')}<div><div class="check__msg">${esc(b)}</div></div></div>`).join('')}</div>
           </div></div>`
