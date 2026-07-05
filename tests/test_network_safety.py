@@ -120,6 +120,14 @@ _MAINNET_REFUSAL_CALLS = {
     "submit_issued_payment": (
         lambda t: t.submit_issued_payment("sEdSEED", "rDEST", "USD", "rISSUER", "5")
     ),
+    # FC-003 partial-payment exploit: tfPartialPayment issued Payment. Signs a
+    # real tx, so the testnet-only invariant applies — MUST call _network_guard()
+    # before Wallet.from_seed like every other signing method.
+    "submit_partial_payment": (
+        lambda t: t.submit_partial_payment(
+            "sEdSEED", "rDEST", "USD", "rISSUER", "5", "1", "5"
+        )
+    ),
     "submit_offer_create": (
         lambda t: t.submit_offer_create("sEdSEED", "USD", "5", "rISSUER", "XRP", "10", "")
     ),
@@ -186,6 +194,52 @@ _MAINNET_REFUSAL_CALLS = {
     ),
     "submit_nft_modify": (
         lambda t: t.submit_nft_modify("sEdSEED", "00080000ABC", "ipfs://x")
+    ),
+    # ── FC-001 token escrow (XLS-85) signing methods ──
+    # AccountSet asfAllowTrustLineLocking (issuer opt-in) and the token
+    # EscrowCreate (issued Amount) both sign a real tx, so the testnet-only
+    # invariant applies — each MUST call _network_guard() before Wallet.from_seed.
+    "submit_allow_trustline_locking": (
+        lambda t: t.submit_allow_trustline_locking("sEdSEED", "rISSUER")
+    ),
+    "submit_token_escrow_create": (
+        lambda t: t.submit_token_escrow_create(
+            "sEdSEED", "GLD", "rISSUER", "50", "rDEST", 999999999
+        )
+    ),
+    # ── FC-002 Credentials (XLS-70) signing methods ──
+    # CredentialCreate/Accept/Delete each sign a real tx (issuer attests, subject
+    # accepts moving the reserve, either party deletes to revoke), so the
+    # testnet-only invariant applies — each MUST call _network_guard() before
+    # Wallet.from_seed like every other signing method.
+    "submit_credential_create": (
+        lambda t: t.submit_credential_create("sEdSEED", "rSUBJECT", "6F7665723231")
+    ),
+    "submit_credential_accept": (
+        lambda t: t.submit_credential_accept("sEdSEED", "rISSUER", "6F7665723231")
+    ),
+    "submit_credential_delete": (
+        lambda t: t.submit_credential_delete(
+            "sEdSEED", "rISSUER", "rSUBJECT", "6F7665723231"
+        )
+    ),
+    # ── FC-004 Permissioned Domains & Gated DEX (XLS-80 / XLS-81) ──
+    # PermissionedDomainSet/Delete and the permissioned OfferCreate (DomainID)
+    # each sign a real tx (owner stands up / rotates / tears down a gated domain;
+    # a credentialed account places a scoped offer), so the testnet-only
+    # invariant applies — each MUST call _network_guard() before Wallet.from_seed.
+    "submit_permissioned_domain_set": (
+        lambda t: t.submit_permissioned_domain_set(
+            "sEdSEED", [("rISSUER", "6F7665723231")]
+        )
+    ),
+    "submit_permissioned_domain_delete": (
+        lambda t: t.submit_permissioned_domain_delete("sEdSEED", "A" * 64)
+    ),
+    "submit_permissioned_offer_create": (
+        lambda t: t.submit_permissioned_offer_create(
+            "sEdSEED", "LAB", "50", "rISSUER", "XRP", "10", "", "A" * 64
+        )
     ),
 }
 

@@ -15,7 +15,29 @@ async def create_escrow(
     finish_after: int,
     cancel_after: int | None = None,
 ) -> SubmitResult:
-    """Create a time-based XRP escrow (EscrowCreate)."""
+    """Create a time-based XRP escrow (EscrowCreate).
+
+    XRPL requires ``CancelAfter`` to be strictly AFTER ``FinishAfter`` when both
+    are present. Submitting an invalid ordering yields an opaque tec/tem from
+    rippled, so we catch it locally first and return a structured local error
+    (mirrors the ``result_code="local_error"`` shape the transport layer uses
+    for pre-submission failures) that names the ordering rule.
+    """
+    if (
+        cancel_after is not None
+        and finish_after is not None
+        and cancel_after <= finish_after
+    ):
+        return SubmitResult(
+            success=False,
+            result_code="local_error",
+            error=(
+                f"CancelAfter ({cancel_after}) must be strictly after "
+                f"FinishAfter ({finish_after}). XRPL rejects an escrow whose "
+                "cancel time is at or before its finish time — set CancelAfter "
+                "to a later ripple-time than FinishAfter."
+            ),
+        )
     return await transport.submit_escrow_create(
         wallet_seed, amount, destination, finish_after, cancel_after
     )
@@ -73,9 +95,25 @@ async def verify_escrow(
         failures.append("No escrows found for this account")
         return EscrowVerifyResult(False, None, checks, failures)
 
-    match = escrows[-1]
+    # When a destination is expected, only an escrow actually TO that
+    # destination is a real match. If none exists, do NOT fall back to an
+    # arbitrary escrow (escrows[-1]) and report a "mismatch" against it — that
+    # blames an unrelated escrow. Report the clearer "no escrow to destination"
+    # so the caller knows the destination was simply absent among the owned
+    # escrows, not that some specific escrow had the wrong destination.
     if expected_destination:
-        match = next((e for e in escrows if e.destination == expected_destination), match)
+        target = next(
+            (e for e in escrows if e.destination == expected_destination), None
+        )
+        if target is None:
+            failures.append(
+                f"No escrow found to destination {expected_destination} "
+                f"among {len(escrows)} owned escrow(s)"
+            )
+            return EscrowVerifyResult(True, None, checks, failures)
+        match = target
+    else:
+        match = escrows[-1]
 
     checks.append(f"Escrow found: {match.amount} drops -> {match.destination[:16]}...")
     if match.finish_after:
@@ -83,8 +121,6 @@ async def verify_escrow(
     if match.cancel_after:
         checks.append(f"CancelAfter (ripple time): {match.cancel_after}")
 
-    if expected_destination and match.destination != expected_destination:
-        failures.append(f"Destination mismatch: expected {expected_destination}")
     return EscrowVerifyResult(True, match, checks, failures)
 
 

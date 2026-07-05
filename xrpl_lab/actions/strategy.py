@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
+from ..reserves import BASE_RESERVE_DROPS, OWNER_RESERVE_DROPS
 from ..transport.base import AccountSnapshot, OfferInfo, Transport, TrustLineInfo
 
 # ── Memo convention ──────────────────────────────────────────────────
@@ -16,17 +17,14 @@ MEMO_PREFIX = "XRPLLAB|STRAT|"
 
 # ── XRPL reserve amounts (drops) ─────────────────────────────────────
 #
-# These are XRPL network-governed amendment values, NOT compile-time
-# constants of the protocol: validators can (and historically have)
-# lowered the base + owner reserve via amendment, and they differ
-# between mainnet and testnet. We hardcode the common testnet defaults
-# here so the lab's spendable estimate is roughly right, but a single
-# edit fixes every call site if the network reserve drifts. Not wired to
-# NetworkInfo yet — that transport struct carries no reserve fields, so
-# there is nothing live to read; this is a deliberate placeholder, not a
-# duplicated magic number.
-_BASE_RESERVE_DROPS = 10_000_000  # 10 XRP — account base reserve
-_OWNER_RESERVE_DROPS = 2_000_000  # 2 XRP per owned object (offer, trust line, ...)
+# Single-sourced in xrpl_lab/reserves.py so the strategy estimate and the
+# doctor's prose can never drift apart (they did: both carried the pre-2024
+# 10/2 XRP figures long after the 2024-12-02 reduction to 1/0.2). These are
+# network-governed amendment values — the honest long-term fix is to read
+# reserve_base_xrp / reserve_inc_xrp from server_state at runtime (Stage B
+# TODO); the transport NetworkInfo struct carries no reserve fields yet.
+_BASE_RESERVE_DROPS = BASE_RESERVE_DROPS  # 1 XRP — account base reserve
+_OWNER_RESERVE_DROPS = OWNER_RESERVE_DROPS  # 0.2 XRP per owned object (offer, trust line, ...)
 
 
 def strategy_memo(module: str, action: str, run_id: str = "") -> str:

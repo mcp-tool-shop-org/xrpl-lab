@@ -361,6 +361,8 @@ class TestApiContractSnapshots:
             "has_proof_pack",
             "has_certificate",
             "report_count",
+            # FT-002: learner-level on-ledger verification verdict.
+            "all_verified",
             "network",
             "version",
         }

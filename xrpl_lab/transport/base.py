@@ -52,6 +52,8 @@ class SubmitResult:
     nft_offer_index: str = ""  # NFTokenOffer ledger index, set on NFTokenCreateOffer
     mpt_issuance_id: str = ""  # MPTokenIssuanceID, set on a successful MPTokenIssuanceCreate
     channel_id: str = ""  # PayChannel id, set on a successful PaymentChannelCreate
+    domain_id: str = ""  # DomainID (Hash256), set on a successful PermissionedDomainSet (create)
+    offer_sequence: int | None = None  # placing tx Sequence, set on a permissioned OfferCreate
 
 
 @dataclass
@@ -81,6 +83,18 @@ class TxInfo:
     validated: bool = False
     raw: dict | None = None
     fetch_error: str | None = None
+    # FC-003 (delivered_amount / partial-payment exploit): the ACTUAL amount
+    # delivered, a METADATA field on a VALIDATED transaction — distinct from the
+    # ``amount`` field above (the tx's Amount / API-v2 DeliverMax, which is only
+    # the requested CAP). When tfPartialPayment is set, delivery is REDUCED and
+    # ``delivered_amount`` is what really moved; ``amount`` still shows the full
+    # requested cap. Crediting a user from ``amount`` instead of
+    # ``delivered_amount`` IS the #1 XRPL integration bug. For XRP this is a
+    # drops string; for tokens it is a ``value/currency/issuer`` display string.
+    # Legacy pre-2014 partial payments can carry the literal string
+    # "unavailable". Empty string means the field was absent (a non-partial tx
+    # where delivered == Amount, or a transport that did not populate it).
+    delivered_amount: str = ""
 
 
 @dataclass
@@ -156,6 +170,46 @@ class DIDInfo:
     uri: str = ""  # decoded UTF-8 if possible, else hex
     data: str = ""
     did_document: str = ""
+
+
+@dataclass
+class CredentialInfo:
+    """A Credential ledger object (XLS-70) — an issuer's attestation about a subject.
+
+    A credential is owned (reserve-wise) by the issuer while PROVISIONAL and by
+    the subject once ACCEPTED. ``accepted`` reflects the ``lsfAccepted`` flag:
+    the subject must run CredentialAccept for the credential to become valid.
+    ``credential_type`` is the raw hex tag (opaque; issuer + verifier agree on
+    the plaintext out-of-band). ``uri`` is decoded UTF-8 if possible, else hex,
+    and is IMMUTABLE after create.
+    """
+
+    subject: str
+    issuer: str
+    credential_type: str  # hex tag as stored on-ledger
+    accepted: bool = False
+    uri: str = ""
+    expiration: int | None = None
+
+
+@dataclass
+class PermissionedDomainInfo:
+    """A PermissionedDomain ledger object (XLS-80) — a credential-gated domain.
+
+    A domain gates access to a permissioned book: an account may place a
+    permissioned offer (or fund a gated treasury) in the domain only if it
+    holds a VALID credential the domain lists in ``accepted_credentials``.
+    ``domain_id`` is the Hash256 the ledger derives from (Owner, Sequence) at
+    create time — distinct per (owner, sequence), NOT idempotent, so it must be
+    tracked off-ledger after creation. ``accepted_credentials`` is the full
+    accepted set as ``(issuer, credential_type_hex)`` pairs; the list is
+    REPLACED wholesale on every PermissionedDomainSet (never patched), so a
+    'modify' that forgets to re-list an entry silently revokes it.
+    """
+
+    domain_id: str
+    owner: str
+    accepted_credentials: list[tuple[str, str]]  # [(issuer, credential_type_hex), ...]
 
 
 @dataclass
@@ -292,6 +346,32 @@ class Transport(ABC):
         memo: str = "",
     ) -> SubmitResult:
         """Submit a payment of issued currency (not XRP)."""
+
+    @abstractmethod
+    async def submit_partial_payment(
+        self,
+        issuer_seed: str,
+        destination: str,
+        currency: str,
+        issuer: str,
+        amount: str,
+        deliver_min: str,
+        send_max: str,
+        memo: str = "",
+    ) -> SubmitResult:
+        """Submit an issued-currency Payment with the tfPartialPayment flag.
+
+        FC-003 — the partial-payment exploit. ``tfPartialPayment`` (0x00020000)
+        tells the ledger to REDUCE delivery instead of failing the whole tx: the
+        constraint is ``DeliverMin <= delivered <= amount`` (Amount is the cap /
+        DeliverMax) and total source spent ``<= SendMax``. The tx can then return
+        ``tesSUCCESS`` while delivering FAR LESS than ``amount`` claims — a naive
+        backend that credits ``amount`` loses money.
+
+        XRP-to-XRP partial payments are FORBIDDEN (``temBAD_SEND_XRP_PARTIAL``),
+        so this method is issued-currency only. Both transports set the flag and
+        surface the reduced ``delivered_amount`` on the resulting validated tx.
+        """
 
     @abstractmethod
     async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
@@ -536,6 +616,51 @@ class Transport(ABC):
         """Create a time-based XRP Escrow (EscrowCreate)."""
 
     @abstractmethod
+    async def submit_allow_trustline_locking(
+        self,
+        issuer_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Enable asfAllowTrustLineLocking on the issuer (AccountSet — XLS-85).
+
+        This is the per-asset opt-in that makes an issuer's IOU escrowable. It
+        MUST be set on the ISSUER account before any holder can create a token
+        escrow of that currency; a token EscrowCreate against an issuer that
+        never set it fails ``tecNO_PERMISSION``.
+
+        ``issuer_address`` is the issuer's real classic address. The testnet
+        transport ignores it (it derives the address from the seed); the dry-run
+        transport uses it to key per-issuer flag state, because every dry-run
+        seed collapses to one synthetic address and could not otherwise tell an
+        opted-in issuer apart from one that never opted in.
+        """
+
+    @abstractmethod
+    async def submit_token_escrow_create(
+        self,
+        source_seed: str,
+        currency: str,
+        issuer: str,
+        value: str,
+        destination: str,
+        cancel_after: int,
+        finish_after: int | None = None,
+        source_address: str = "",
+    ) -> SubmitResult:
+        """Create a token (IOU) escrow — EscrowCreate with an issued Amount (XLS-85).
+
+        Locks ``value`` of ``currency``/``issuer`` from the source account to
+        ``destination``. The network enforces three preconditions this method
+        surfaces as tec/tem-shaped results: the token issuer must have opted in
+        (``asfAllowTrustLineLocking``, else ``tecNO_PERMISSION``); the token's
+        issuer cannot be the escrow source (else ``tecNO_PERMISSION``); and a
+        ``CancelAfter`` is mandatory. ``source_address`` is the source's real
+        classic address, used by the dry-run transport to resolve the source's
+        trust line and check the issuer-as-source rule (the testnet path derives
+        the source from the seed and ignores it).
+        """
+
+    @abstractmethod
     async def submit_escrow_finish(
         self,
         wallet_seed: str,
@@ -584,6 +709,145 @@ class Transport(ABC):
     @abstractmethod
     async def get_did(self, address: str) -> DIDInfo | None:
         """Get the account's DID object, or None."""
+
+    @abstractmethod
+    async def submit_credential_create(
+        self,
+        issuer_seed: str,
+        subject: str,
+        credential_type: str,
+        uri: str = "",
+        expiration: int | None = None,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Issuer attests a credential about *subject* (CredentialCreate, XLS-70).
+
+        Mints a PROVISIONAL credential the subject must later accept. ``subject``
+        is the account being attested and MUST be funded (else ``tecNO_TARGET``).
+        ``credential_type`` is a hex tag (1-64 bytes). ``uri`` (optional, 1-256
+        bytes, hex-encoded here) points at an off-chain verifiable credential and
+        is IMMUTABLE once set. A duplicate (subject, issuer, type) fails
+        ``tecDUPLICATE``. ``issuer_address`` is a dry-run keying aid — the testnet
+        transport derives the issuer from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_credential_accept(
+        self,
+        subject_seed: str,
+        issuer: str,
+        credential_type: str,
+        subject_address: str = "",
+    ) -> SubmitResult:
+        """Subject accepts a provisional credential (CredentialAccept, XLS-70).
+
+        ONLY the subject account can accept. Acceptance clears the provisional
+        state (sets ``lsfAccepted``) and transfers the owner reserve from the
+        issuer to the subject. ``subject_address`` is a dry-run keying aid;
+        the testnet transport derives the subject from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_credential_delete(
+        self,
+        wallet_seed: str,
+        issuer: str,
+        subject: str,
+        credential_type: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Delete a credential, reclaiming its reserve (CredentialDelete, XLS-70).
+
+        Either the issuer or the subject may delete it (revocation). ``wallet_seed``
+        signs; ``issuer`` / ``subject`` / ``credential_type`` identify the object.
+        ``wallet_address`` is a dry-run keying aid, ignored by the testnet path.
+        """
+
+    @abstractmethod
+    async def get_credential(
+        self,
+        subject: str,
+        issuer: str,
+        credential_type: str,
+    ) -> CredentialInfo | None:
+        """Read the (subject, issuer, credential_type) Credential object, or None.
+
+        ``credential_type`` is the hex tag. Returns the object whether provisional
+        or accepted; the caller inspects ``CredentialInfo.accepted`` for validity.
+        """
+
+    @abstractmethod
+    async def submit_permissioned_domain_set(
+        self,
+        owner_seed: str,
+        accepted_credentials: list[tuple[str, str]],
+        domain_id: str = "",
+        owner_address: str = "",
+    ) -> SubmitResult:
+        """Create or modify a Permissioned Domain (PermissionedDomainSet, XLS-80).
+
+        ``accepted_credentials`` is the FULL intended accepted set — a list of
+        1-10 ``(issuer, credential_type_hex)`` pairs, no duplicates. It COMPLETELY
+        REPLACES the domain's prior list (partial updates are not supported), so a
+        modify that drops an entry silently revokes access for everyone holding
+        that credential. Omit ``domain_id`` to CREATE a new domain (the ledger
+        derives a fresh Hash256 from Owner + Sequence; the created id is returned
+        on ``SubmitResult.domain_id``); pass ``domain_id`` to MODIFY that existing
+        domain (owner-only — a non-owner modify fails an ownership error). No
+        transaction-specific flags. ``owner_address`` is a dry-run keying aid; the
+        testnet transport derives the owner from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_permissioned_domain_delete(
+        self,
+        owner_seed: str,
+        domain_id: str,
+        owner_address: str = "",
+    ) -> SubmitResult:
+        """Delete a Permissioned Domain (PermissionedDomainDelete, XLS-80).
+
+        The named compensator for ``submit_permissioned_domain_set`` (create):
+        it frees the owner-reserve slot the domain consumed. A domain blocks its
+        owner's account deletion until it is deleted. Only the owner may delete.
+        ``owner_address`` is a dry-run keying aid, ignored by the testnet path.
+        """
+
+    @abstractmethod
+    async def submit_permissioned_offer_create(
+        self,
+        wallet_seed: str,
+        taker_pays_currency: str,
+        taker_pays_value: str,
+        taker_pays_issuer: str,
+        taker_gets_currency: str,
+        taker_gets_value: str,
+        taker_gets_issuer: str,
+        domain_id: str,
+        hybrid: bool = False,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Place a permissioned DEX offer scoped to a domain (OfferCreate + DomainID, XLS-81).
+
+        Setting ``domain_id`` scopes the offer to a permissioned domain: the
+        placing account MUST hold a valid credential the domain accepts, or the
+        offer fails. A plain permissioned offer (``hybrid=False``) matches ONLY the
+        domain's permissioned book; a hybrid offer (``hybrid=True`` → the
+        ``tfHybrid`` flag) matches BOTH the domain book AND the open DEX.
+
+        NOTE the rail distinction this method makes concrete: eligibility is proven
+        by ``DomainID`` (holding an accepted credential), NOT by ``CredentialIDs``
+        (the deposit-authorization rail) — putting CredentialIDs on an OfferCreate
+        does nothing for permissioned trading. ``wallet_address`` is a dry-run
+        keying aid, ignored by the testnet path. On success the placing tx's
+        Sequence is returned on ``SubmitResult.offer_sequence``.
+        """
+
+    @abstractmethod
+    async def get_permissioned_domains(
+        self, owner: str
+    ) -> list[PermissionedDomainInfo]:
+        """List Permissioned Domains owned by an account (account_objects PermissionedDomain)."""
 
     @abstractmethod
     async def submit_mpt_issuance_create(

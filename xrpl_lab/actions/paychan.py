@@ -61,9 +61,19 @@ async def redeem_claim(
     transport: Transport, wallet_seed: str, channel_id: str, balance_xrp: str,
     signature: str = "", public_key: str = "", close: bool = False,
 ) -> SubmitResult:
-    """Redeem a signed claim on-ledger (the receiver settles the cumulative balance)."""
+    """Redeem a signed claim on-ledger (the receiver settles the cumulative balance).
+
+    When a NON-source account submits the claim carrying a ``Signature``,
+    rippled REQUIRES the ``Amount`` field, and Amount must equal the value the
+    signature was computed over — otherwise the tx is ``temMALFORMED``. The
+    receiver here is a distinct wallet, so we pass ``amount_xrp=balance_xrp``:
+    both are the cumulative claim value and are equal. (A source-only close with
+    no signature omits Amount, which the empty ``balance_xrp``/``amount_xrp``
+    handles.)
+    """
     return await transport.submit_payment_channel_claim(
         wallet_seed, channel_id, balance_xrp=balance_xrp,
+        amount_xrp=balance_xrp,
         signature=signature, public_key=public_key, close=close,
     )
 
@@ -103,17 +113,38 @@ async def verify_channel(
     checks.append(f"Deposited: {_drops_to_xrp(ch.amount)} XRP")
     checks.append(f"Claimed so far: {_drops_to_xrp(ch.balance)} XRP")
 
-    def _want(xrp: str) -> str:
-        return str(int(Decimal(xrp) * Decimal("1000000")))
+    def _want(xrp: str) -> str | None:
+        # PT-003: guard the XRP->drops conversion like ``_drops_to_xrp`` above.
+        # A non-numeric expect_amount_xrp previously raised an uncaught
+        # InvalidOperation instead of surfacing a clean verification failure.
+        # Return None on a parse failure so the caller records a failure line.
+        try:
+            return str(int(Decimal(xrp) * Decimal("1000000")))
+        except Exception:
+            return None
 
-    if expect_amount_xrp is not None and ch.amount != _want(expect_amount_xrp):
-        failures.append(
-            f"Deposit mismatch: expected {expect_amount_xrp} XRP, "
-            f"got {_drops_to_xrp(ch.amount)} XRP"
-        )
-    if expect_balance_xrp is not None and ch.balance != _want(expect_balance_xrp):
-        failures.append(
-            f"Claimed mismatch: expected {expect_balance_xrp} XRP, "
-            f"got {_drops_to_xrp(ch.balance)} XRP"
-        )
+    if expect_amount_xrp is not None:
+        want = _want(expect_amount_xrp)
+        if want is None:
+            failures.append(
+                f"Deposit check skipped: could not parse expected amount "
+                f"{expect_amount_xrp!r} as XRP"
+            )
+        elif ch.amount != want:
+            failures.append(
+                f"Deposit mismatch: expected {expect_amount_xrp} XRP, "
+                f"got {_drops_to_xrp(ch.amount)} XRP"
+            )
+    if expect_balance_xrp is not None:
+        want = _want(expect_balance_xrp)
+        if want is None:
+            failures.append(
+                f"Claimed check skipped: could not parse expected balance "
+                f"{expect_balance_xrp!r} as XRP"
+            )
+        elif ch.balance != want:
+            failures.append(
+                f"Claimed mismatch: expected {expect_balance_xrp} XRP, "
+                f"got {_drops_to_xrp(ch.balance)} XRP"
+            )
     return ChannelVerifyResult(ch, checks, failures)

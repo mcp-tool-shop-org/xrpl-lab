@@ -36,8 +36,17 @@ _PROOF_TOPLEVEL_KEYS = {
     "generated_at", "completed_modules", "capstone", "transactions",
     "receipt_table", "total_transactions", "successful_transactions",
     "failed_transactions", "sha256",
+    # RESWARM3 (verified flag + honest pack): top-level honesty flag — True iff
+    # every completed module's on-ledger verification passed. Non-secret
+    # (derived from the completed-module records), folded into the SHA-256.
+    "all_verified",
 }
-_PROOF_MODULE_KEYS = {"module_id", "completed_at", "txids", "kb_source", "explorer_urls"}
+_PROOF_MODULE_KEYS = {
+    "module_id", "completed_at", "txids", "kb_source", "explorer_urls",
+    # RESWARM3: per-module verification verdict (non-secret bool). Defaults
+    # True for back-compat.
+    "verified",
+}
 _PROOF_TX_KEYS = {"txid", "module_id", "success", "timestamp", "network", "explorer_url"}
 _PROOF_RECEIPT_KEYS = {"txid", "txid_full", "module", "status", "network", "timestamp"}
 _CERT_TOPLEVEL_KEYS = {

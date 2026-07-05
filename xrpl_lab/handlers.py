@@ -8,6 +8,7 @@ uniform signature::
 
 from __future__ import annotations
 
+import logging
 import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -21,6 +22,12 @@ from .actions.amm import (
     ensure_amm_pair,
     verify_lp_received,
     verify_withdrawal,
+)
+from .actions.credentials import (
+    accept_credential,
+    create_credential,
+    delete_credential,
+    verify_credential,
 )
 from .actions.dex import (
     cancel_offer,
@@ -56,6 +63,10 @@ from .actions.nft import (
     verify_nft_modified,
     verify_nft_owned_by,
 )
+from .actions.partial_payment import (
+    send_partial_payment,
+    verify_delivered_amount,
+)
 from .actions.paychan import (
     check_claim,
     fund_channel,
@@ -63,6 +74,13 @@ from .actions.paychan import (
     redeem_claim,
     sign_claim,
     verify_channel,
+)
+from .actions.permissioned_domains import (
+    create_permissioned_offer,
+    delete_permissioned_domain,
+    set_permissioned_domain,
+    verify_domain,
+    verify_permissioned_offer,
 )
 from .actions.reserves import (
     _drops_to_xrp,
@@ -79,6 +97,12 @@ from .actions.strategy import (
     strategy_memo,
     write_last_run,
 )
+from .actions.token_escrow import (
+    create_token_escrow,
+    set_allow_trustline_locking,
+    verify_token_moved,
+)
+from .actions.token_escrow import finish_escrow as finish_token_escrow
 from .actions.trust_line import (
     clawback_tokens,
     enable_clawback,
@@ -98,6 +122,8 @@ from .registry import ActionDef, PayloadField, register
 from .runtime import _SecretValue, ensure_funded, ensure_wallet
 from .state import LabState, ensure_workspace, save_state
 from .transport.base import Transport
+
+logger = logging.getLogger(__name__)
 
 
 def _require(
@@ -284,6 +310,40 @@ async def handle_submit_payment_fail(
 # ---------------------------------------------------------------------------
 
 
+def _record_verification(
+    context: dict,
+    action: str,
+    passed: bool,
+    failures: list | None = None,
+) -> None:
+    """Append this verify handler's pass/fail verdict to ``context``.
+
+    RESWARM3 (verified flag + honest pack): before this, every ``handle_verify_*``
+    handler printed its checks/failures to the console but signalled NOTHING to
+    the runner — so a module whose on-ledger verification FAILED still recorded
+    as a green "completed" module and the proof pack claimed a verification that
+    never passed. This helper is the single, uniform channel every verify
+    handler now uses to report its REAL verdict. The runner
+    (``run_module``) inspects ``context["verifications"]`` after each step,
+    flips that step's ``on_step_complete`` success to False on any failure, and
+    marks the module ``verified=False`` in state so the pack is honest.
+
+    Entry shape (kept minimal — no secrets, JSON-serializable): each append is
+    ``{"action": action, "passed": bool, "failures": list}``. ``passed`` is the
+    handler's real verdict (``len(failures) == 0`` for assertion handlers). The
+    two comparison-only handlers (verify_reserve_change / verify_position_delta)
+    have no pass/fail concept — they teach OBSERVATION, not assertion — so they
+    record ``passed=True`` (informational) and never fabricate a failure.
+    """
+    context.setdefault("verifications", []).append(
+        {
+            "action": action,
+            "passed": bool(passed),
+            "failures": list(failures or []),
+        }
+    )
+
+
 async def handle_verify_tx(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -291,6 +351,13 @@ async def handle_verify_tx(
     txid = context.get("txids", [""])[-1] if context.get("txids") else ""
     if not txid:
         console.print("  [red]No transaction to verify yet.[/]")
+        # FT-001: a verify step that could not run (no txid to check because a
+        # prior step never produced one) is an honest FAILED verification, not an
+        # invisible skip — otherwise the module stays vacuously verified=True.
+        _record_verification(
+            context, "verify_tx", passed=False,
+            failures=["txid missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_tx(transport, txid)
@@ -300,6 +367,9 @@ async def handle_verify_tx(
         console.print(f"  [green]\u2713[/] {check}")
     for fail in result.failures:
         console.print(f"  [red]\u2717[/] {fail}")
+    _record_verification(
+        context, "verify_tx", len(result.failures) == 0, result.failures
+    )
     return context
 
 
@@ -564,6 +634,12 @@ async def handle_verify_trust_line(
 
     if not holder_address:
         console.print("  [red]No wallet address found.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run. Record it
+        # as a FAILED verification so the module is honestly unverified.
+        _record_verification(
+            context, "verify_trust_line", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_trust_line(
@@ -580,6 +656,10 @@ async def handle_verify_trust_line(
             console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_trust_line_verify"] = result
+    _record_verification(
+        context, "verify_trust_line",
+        result.found and len(result.failures) == 0, result.failures,
+    )
     return context
 
 
@@ -644,6 +724,11 @@ async def handle_verify_trust_line_removed(
 
     if not holder_address:
         console.print("  [red]No wallet address found.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_trust_line_removed", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_trust_line_removed(
@@ -658,6 +743,11 @@ async def handle_verify_trust_line_removed(
             console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_trust_line_verify"] = result
+    # Passing verdict: the trust line is GONE (not found) with no failures.
+    _record_verification(
+        context, "verify_trust_line_removed",
+        (not result.found) and len(result.failures) == 0, result.failures,
+    )
     return context
 
 
@@ -775,6 +865,9 @@ async def handle_verify_freeze(
         console.print(f"  [red]✗[/] {fail}")
 
     context["last_freeze_verify"] = result
+    _record_verification(
+        context, "verify_freeze", len(result.failures) == 0, result.failures
+    )
     return context
 
 
@@ -815,7 +908,19 @@ async def handle_open_channel(
     try:
         settle_delay = int(args.get("settle_delay", "86400"))
     except ValueError:
+        # PB-003: a non-numeric settle_delay silently fell back before —
+        # surface a one-line note (matching the check_inventory precedent) so a
+        # malformed module arg is visible rather than swallowed.
+        console.print("  [yellow]Invalid settle_delay, using default (86400).[/]")
         settle_delay = 86400
+    # BC-005: a bare `except ValueError` lets a negative settle_delay through to
+    # the tx builder (SettleDelay is an unsigned field on-ledger). Floor at 0.
+    if settle_delay < 0:
+        console.print(
+            f"  [yellow]settle_delay {settle_delay} is invalid "
+            f"(must be >= 0); using 0.[/]"
+        )
+        settle_delay = 0
     receiver = context.get("receiver_address", "")
     if "wallet_seed" not in context or not receiver:
         console.print("  [red]Missing sender wallet or receiver. Run previous steps first.[/]")
@@ -834,9 +939,29 @@ async def handle_open_channel(
         context["channel_id"] = result.channel_id
         # Capture the channel's signing key (the sender's) so the receiver can
         # verify off-ledger claims against it later.
-        chans = await transport.get_account_channels(state.wallet_address or "")
-        match = next((c for c in chans if c.channel_id == result.channel_id), None)
-        context["channel_public_key"] = match.public_key if match else ""
+        #
+        # BC-001: this read-back is a network round-trip. If it raises (a
+        # transient RPC error), the channel is ALREADY open on-ledger and its
+        # XRP is locked — losing the txid here would leave a real, funded
+        # channel with no recorded transaction. The public key is only used to
+        # verify off-ledger claims and the downstream verify tolerates an empty
+        # value, so on failure we record an empty key and continue straight to
+        # record_tx. The successful on-ledger action must ALWAYS be recorded.
+        try:
+            chans = await transport.get_account_channels(state.wallet_address or "")
+            match = next((c for c in chans if c.channel_id == result.channel_id), None)
+            context["channel_public_key"] = match.public_key if match else ""
+        except Exception as exc:
+            logger.warning(
+                "channel public-key read-back failed for channel %s: %s",
+                result.channel_id, type(exc).__name__,
+            )
+            console.print(
+                "  [yellow]Note: could not read back the channel's signing key "
+                "(transient). The channel is open and recorded; off-ledger claim "
+                "verification may need the key re-fetched later.[/]"
+            )
+            context["channel_public_key"] = ""
         state.record_tx(
             txid=result.txid, module_id=context.get("module_id", ""),
             network=state.network, success=True, explorer_url=result.explorer_url,
@@ -915,6 +1040,15 @@ async def handle_verify_claim_signature(
     pubkey = context.get("channel_public_key", "")
     if not channel_id or not sig:
         console.print("  [red]No signed claim to verify. Sign a claim first.[/]")
+        # FT-001: no channel/signature → the off-ledger claim check could not
+        # run because a prior step never produced them. Record FAILED so the
+        # module is honestly unverified rather than vacuously green.
+        _record_verification(
+            context, "verify_claim_signature", passed=False,
+            failures=[
+                "channel_id/claim signature missing — the step that produces them did not run"
+            ],
+        )
         return context
 
     ok = await check_claim(transport, channel_id, amount, pubkey, sig)
@@ -926,6 +1060,12 @@ async def handle_verify_claim_signature(
     else:
         console.print("  [red]✗[/] Claim signature did NOT verify.")
     context["last_claim_verify"] = ok
+    # PB-006-adjacent: this handler stores a bool verdict — wire it in so a
+    # failed off-ledger claim check flags the module unverified.
+    _record_verification(
+        context, "verify_claim_signature", bool(ok),
+        [] if ok else ["Claim signature did not verify."],
+    )
     return context
 
 
@@ -986,6 +1126,9 @@ async def handle_verify_channel(
     for fail in result.failures:
         console.print(f"  [red]✗[/] {fail}")
     context["last_channel_verify"] = result
+    _record_verification(
+        context, "verify_channel", result.passed, result.failures
+    )
     return context
 
 
@@ -1066,6 +1209,11 @@ async def handle_verify_offer_present(
             "  [red]No offer sequence in context. "
             "Create an offer first.[/]"
         )
+        # FT-001: no offer sequence → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_offer_present", passed=False,
+            failures=["offer sequence missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_offer_present(
@@ -1080,6 +1228,10 @@ async def handle_verify_offer_present(
             console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_offer_verify"] = result
+    _record_verification(
+        context, "verify_offer_present",
+        result.found and len(result.failures) == 0, result.failures,
+    )
     return context
 
 
@@ -1142,6 +1294,11 @@ async def handle_verify_offer_absent(
             "  [red]No offer sequence in context. "
             "Create an offer first.[/]"
         )
+        # FT-001: no offer sequence → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_offer_absent", passed=False,
+            failures=["offer sequence missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_offer_absent(
@@ -1156,6 +1313,9 @@ async def handle_verify_offer_absent(
             console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_offer_verify"] = result
+    _record_verification(
+        context, "verify_offer_absent", result.passed, result.failures
+    )
     return context
 
 
@@ -1202,11 +1362,26 @@ async def handle_verify_reserve_change(
     after_snap = context.get(after_key)
 
     if not before_snap or not after_snap:
-        console.print(
-            "  [red]Missing snapshots. Run snapshot steps "
-            "first.[/]"
+        # BC-004: a missing (or mislabeled) snapshot must FAIL the step, not
+        # silently `return context`. Silently passing lets a mislabeled
+        # snapshot slip a verify step through without verifying anything — the
+        # proof pack would then imply a lesson that was never checked. Surface
+        # a structured failure via the existing LabException pipeline.
+        raise LabException(
+            LabError(
+                code="STATE_MISSING_SNAPSHOT",
+                message=(
+                    f"Cannot verify reserve change: missing snapshot "
+                    f"'{args.get('before', 'before')}' and/or "
+                    f"'{args.get('after', 'after')}'."
+                ),
+                hint=(
+                    "Run the snapshot_reserves steps that capture the "
+                    "'before' and 'after' states before this verify step, and "
+                    "check the before/after labels match those snapshots."
+                ),
+            )
         )
-        return context
 
     result = compare_snapshots(
         before_snap, after_snap,
@@ -1223,6 +1398,11 @@ async def handle_verify_reserve_change(
     console.print(f"  [yellow]{result.explanation}[/]")
 
     context["last_reserve_comparison"] = result
+    # INFORMATIONAL: this is a COMPARISON handler — it teaches observation of a
+    # reserve delta, it does not assert a pass/fail condition. Record passed=True
+    # (never fabricate a failure verdict here) so it neither flips the module
+    # unverified nor claims a verification it didn't run.
+    _record_verification(context, "verify_reserve_change", True, [])
     return context
 
 
@@ -1448,6 +1628,11 @@ async def handle_verify_lp_received(
 
     if not amm_info:
         console.print("  [red]No AMM info in context. Run AMM steps first.[/]")
+        # FT-001: no AMM pool → this on-ledger LP assertion could not run.
+        _record_verification(
+            context, "verify_lp_received", passed=False,
+            failures=["amm_info missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_lp_received(
@@ -1461,6 +1646,9 @@ async def handle_verify_lp_received(
 
     context["lp_balance_before_withdraw"] = result.lp_balance
     context["last_amm_verify"] = result
+    _record_verification(
+        context, "verify_lp_received", len(result.failures) == 0, result.failures
+    )
     return context
 
 
@@ -1539,6 +1727,11 @@ async def handle_verify_withdrawal(
 
     if not amm_info:
         console.print("  [red]No AMM info in context. Run AMM steps first.[/]")
+        # FT-001: no AMM pool → this on-ledger withdrawal assertion could not run.
+        _record_verification(
+            context, "verify_withdrawal", passed=False,
+            failures=["amm_info missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_withdrawal(
@@ -1552,6 +1745,9 @@ async def handle_verify_withdrawal(
         console.print(f"  [red]\u2717[/] {fail}")
 
     context["last_amm_verify"] = result
+    _record_verification(
+        context, "verify_withdrawal", len(result.failures) == 0, result.failures
+    )
     return context
 
 
@@ -1734,9 +1930,16 @@ async def handle_verify_module_offers(
 
     if not seqs:
         console.print("  [red]No strategy offers to verify.[/]")
+        # FT-001: no strategy offers recorded → this on-ledger assertion could
+        # not run because the create-offers step never produced any.
+        _record_verification(
+            context, "verify_module_offers", passed=False,
+            failures=["strategy offer sequences missing — the step that produces them did not run"],
+        )
         return context
 
     all_found = True
+    failures: list[str] = []
     for seq in seqs:
         result = await verify_offer_present(
             transport, holder_address, seq
@@ -1748,11 +1951,15 @@ async def handle_verify_module_offers(
             all_found = False
             for fail in result.failures:
                 console.print(f"  [red]\u2717[/] {fail}")
+                failures.append(fail)
 
     if all_found:
         console.print(
             f"  [green]All {len(seqs)} strategy offers verified[/]"
         )
+    # PB-006: this handler computed all_found but stored NOTHING \u2014 a missing
+    # strategy offer left the module falsely verified. Wire the real verdict in.
+    _record_verification(context, "verify_module_offers", all_found, failures)
     return context
 
 
@@ -1814,6 +2021,10 @@ async def handle_verify_module_offers_absent(
         console.print(
             f"  [yellow]{remaining} offer(s) still open[/]"
         )
+    _record_verification(
+        context, "verify_module_offers_absent", remaining == 0,
+        [] if remaining == 0 else [f"{remaining} offer(s) still open"],
+    )
     return context
 
 
@@ -1829,11 +2040,23 @@ async def handle_verify_position_delta(
     after_snap = context.get(after_key)
 
     if not before_snap or not after_snap:
-        console.print(
-            "  [red]Missing position snapshots. "
-            "Run snapshot_position steps first.[/]"
+        # BC-004: same contract as verify_reserve_change — a missing or
+        # mislabeled position snapshot must fail the step, never silently pass.
+        raise LabException(
+            LabError(
+                code="STATE_MISSING_SNAPSHOT",
+                message=(
+                    f"Cannot verify position delta: missing position snapshot "
+                    f"'{args.get('before', 'before')}' and/or "
+                    f"'{args.get('after', 'after')}'."
+                ),
+                hint=(
+                    "Run the snapshot_position steps that capture the 'before' "
+                    "and 'after' states before this verify step, and check the "
+                    "before/after labels match those snapshots."
+                ),
+            )
         )
-        return context
 
     result = compare_positions(
         before_snap, after_snap,
@@ -1850,6 +2073,10 @@ async def handle_verify_position_delta(
     console.print(f"  [yellow]{result.explanation}[/]")
 
     context["last_position_comparison"] = result
+    # INFORMATIONAL: like verify_reserve_change, this COMPARISON handler teaches
+    # observation of a position delta rather than asserting pass/fail. Record
+    # passed=True (never fabricate a failure verdict for a comparison).
+    _record_verification(context, "verify_position_delta", True, [])
     return context
 
 
@@ -2088,11 +2315,26 @@ async def handle_mint_nft(
     try:
         taxon = int(args.get("taxon", "0"))
     except ValueError:
+        # PB-003: surface the non-numeric fallback (matches check_inventory).
+        console.print("  [yellow]Invalid taxon, using default (0).[/]")
         taxon = 0
     try:
         transfer_fee = int(args.get("transfer_fee", "0"))
     except ValueError:
+        console.print("  [yellow]Invalid transfer_fee, using default (0).[/]")
         transfer_fee = 0
+    # BC-005: transfer_fee is the NFT royalty in units of 1/1000 of a percent;
+    # the protocol caps it at 50000 (= 50%). A bare `except ValueError` only
+    # catches NON-numeric input, so a valid-but-out-of-range int (e.g. 999999)
+    # would flow to the builder and fail on-ledger with an opaque error. Clamp
+    # into range with a warning so the lesson still runs.
+    if transfer_fee < 0 or transfer_fee > 50000:
+        clamped = max(0, min(transfer_fee, 50000))
+        console.print(
+            f"  [yellow]transfer_fee {transfer_fee} is out of range "
+            f"(0–50000 = 0–50%); clamping to {clamped}.[/]"
+        )
+        transfer_fee = clamped
     transferable = str(args.get("transferable", "true")).lower() != "false"
     mutable = str(args.get("mutable", "false")).lower() in ("true", "1", "yes")
 
@@ -2146,6 +2388,11 @@ async def handle_verify_nft(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_nft", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
 
     expected = context.get("nft_id")
@@ -2157,6 +2404,10 @@ async def handle_verify_nft(
     if result.found and result.passed:
         console.print("  [green]NFT ownership verified on-ledger.[/]")
     context["last_nft_verify"] = result
+    _record_verification(
+        context, "verify_nft",
+        result.found and result.passed, result.failures,
+    )
     return context
 
 
@@ -2204,6 +2455,11 @@ async def handle_verify_nft_burned(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_nft_burned", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     nft_id = context.get("burned_nft_id") or context.get("nft_id")
     result = await verify_nft_burned(transport, address, nftoken_id=nft_id)
@@ -2214,6 +2470,9 @@ async def handle_verify_nft_burned(
     if result.passed:
         console.print("  [green]NFT lifecycle complete — asset destroyed, reserve freed.[/]")
     context["last_nft_burned_verify"] = result
+    _record_verification(
+        context, "verify_nft_burned", result.passed, result.failures
+    )
     return context
 
 
@@ -2270,7 +2529,19 @@ async def handle_create_escrow(
     try:
         delay = int(args.get("finish_seconds", "120"))
     except ValueError:
+        # PB-003: surface the non-numeric fallback (matches check_inventory).
+        console.print("  [yellow]Invalid finish_seconds, using default (120).[/]")
         delay = 120
+    # BC-005: a bare `except ValueError` lets a valid-but-nonsensical negative
+    # delay (e.g. -100) through, producing a FinishAfter in the PAST — the
+    # escrow would be finishable immediately (or the tx rejected), silently
+    # breaking the time-lock lesson. Require at least 1 second in the future.
+    if delay < 1:
+        console.print(
+            f"  [yellow]finish_seconds {delay} is invalid "
+            f"(must be >= 1); using 1.[/]"
+        )
+        delay = 1
     finish_after = int(time.time()) - _RIPPLE_EPOCH + delay
     cancel_after = finish_after + 86400
     console.print(f"  Creating time-based escrow: [cyan]{amount}[/] XRP, finishable in ~{delay}s")
@@ -2309,6 +2580,11 @@ async def handle_verify_escrow(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_escrow", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_escrow(transport, address)
     for c in result.checks:
@@ -2318,6 +2594,10 @@ async def handle_verify_escrow(
     if result.found and result.passed:
         console.print("  [green]Escrow verified on-ledger.[/]")
     context["last_escrow_verify"] = result
+    _record_verification(
+        context, "verify_escrow",
+        result.found and result.passed, result.failures,
+    )
     return context
 
 
@@ -2398,6 +2678,11 @@ async def handle_verify_escrow_finished(
     address = context.get("escrow_owner") or state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet/escrow owner → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_escrow_finished", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     seq = context.get("escrow_sequence")
     result = await verify_escrow_finished(transport, address, offer_sequence=seq)
@@ -2408,6 +2693,325 @@ async def handle_verify_escrow_finished(
     if result.passed:
         console.print("  [green]Escrow lifecycle complete — reserve freed.[/]")
     context["last_escrow_finished_verify"] = result
+    _record_verification(
+        context, "verify_escrow_finished", result.passed, result.failures
+    )
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Token escrow actions (FC-001 — XLS-85, payments track)
+# ---------------------------------------------------------------------------
+
+
+async def handle_set_allow_trustline_locking(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Issuer opts in per-asset (AccountSet asfAllowTrustLineLocking, XLS-85)."""
+    _raw_issuer = context.get("issuer_seed", "")
+    issuer_seed = _raw_issuer.get() if isinstance(_raw_issuer, _SecretValue) else _raw_issuer
+    if not issuer_seed:
+        console.print("  [red]No issuer wallet in context. Run the issuer step first.[/]")
+        return context
+    issuer_address = context.get("issuer_address", "")
+    console.print(
+        "  Issuer opting in to token escrow "
+        "([cyan]asfAllowTrustLineLocking[/]) — required before this IOU can be escrowed..."
+    )
+    result = await set_allow_trustline_locking(transport, issuer_seed, issuer_address)
+    if result.success:
+        console.print("  [green]Allow Trust Line Locking enabled on the issuer.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["allow_trustline_locking"] = True
+    else:
+        console.print(f"  [red]Opt-in failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_token_recipient(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund a third-party recipient wallet and set its trust line.
+
+    The recipient must trust the issuer for the currency BEFORE the escrowed
+    token can land on their line at finish.
+    """
+    args = step.action_args
+    currency = args.get("currency", "GLD")
+    limit = args.get("limit", "1000")
+    issuer_address = context.get("issuer_address", "")
+    if not issuer_address:
+        console.print("  [red]No issuer in context. Run the issuer step first.[/]")
+        return context
+
+    console.print("  Creating the recipient (third-party) wallet...")
+    recipient = create_wallet()
+    context["recipient_seed"] = _SecretValue(recipient.seed)
+    context["recipient_address"] = recipient.address
+    console.print(f"  Recipient wallet: [cyan]{recipient.address}[/]")
+
+    fund = await transport.fund_from_faucet(recipient.address)
+    if fund.success:
+        console.print(f"  Recipient funded! Balance: [green]{fund.balance} XRP[/]")
+    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    else:
+        console.print(f"  [yellow]Recipient funding: {fund.message}[/]")
+
+    console.print(f"  Recipient trusting the issuer for [cyan]{currency}[/]...")
+    ts = await set_trust_line(
+        transport, recipient.seed, issuer_address, currency, limit
+    )
+    if ts.success:
+        console.print("  [green]Recipient trust line set.[/]")
+    else:
+        console.print(f"  [yellow]Recipient trust line: {ts.error}[/]")
+    return context
+
+
+async def handle_snapshot_recipient_balance(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Capture the recipient's issued balance (the before-value for the checkpoint)."""
+    args = step.action_args
+    currency = args.get("currency", "GLD")
+    label = args.get("label", "before")
+    recipient = context.get("recipient_address", "")
+    issuer_address = context.get("issuer_address", "")
+    if not recipient:
+        console.print("  [red]No recipient wallet. Run the recipient step first.[/]")
+        return context
+    lines = await transport.get_trust_lines(recipient)
+    bal = "0"
+    for tl in lines:
+        if tl.currency == currency and (not issuer_address or tl.peer == issuer_address):
+            bal = tl.balance
+            break
+    context[f"recipient_balance_{label}"] = bal
+    if label == "before":
+        context["token_balance_before"] = bal
+    console.print(f"  Recipient {currency} balance ({label}): [cyan]{bal}[/]")
+    return context
+
+
+async def handle_create_token_escrow(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Holder escrows N of an issued token to the recipient (XLS-85 EscrowCreate)."""
+    args = step.action_args
+    currency = args.get("currency", "GLD")
+    value = args.get("amount", "50")
+    issuer_address = context.get("issuer_address", "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    holder_seed = context["wallet_seed"].get()
+    holder_address = state.wallet_address or ""
+    recipient = context.get("recipient_address") or args.get("destination") or ""
+    if not issuer_address or not recipient:
+        console.print(
+            "  [red]Missing issuer or recipient. Run the issuer and recipient "
+            "steps first.[/]"
+        )
+        return context
+
+    # CancelAfter is MANDATORY for a token escrow (XLS-85). Default a day out.
+    try:
+        cancel_seconds = int(args.get("cancel_seconds", "86400"))
+    except ValueError:
+        console.print("  [yellow]Invalid cancel_seconds, using default (86400).[/]")
+        cancel_seconds = 86400
+    if cancel_seconds < 1:
+        cancel_seconds = 1
+    cancel_after = int(time.time()) - _RIPPLE_EPOCH + cancel_seconds
+
+    console.print(
+        f"  Holder escrowing [cyan]{value} {currency}[/] to the recipient "
+        f"(mandatory CancelAfter ~{cancel_seconds}s out)..."
+    )
+    result = await create_token_escrow(
+        transport, holder_seed, currency, issuer_address, value, recipient,
+        cancel_after=cancel_after, finish_after=None, source_address=holder_address,
+    )
+    if result.success:
+        console.print("  [green]Token escrow created — IOU locked on-ledger![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["token_escrow_currency"] = currency
+        context["token_escrow_issuer"] = issuer_address
+        context["token_escrow_amount"] = value
+        context["token_escrow_recipient"] = recipient
+        owner = holder_address
+        escrows = await transport.get_escrows(owner)
+        if escrows:
+            seq = escrows[-1].sequence
+            context["token_escrow_owner"] = owner
+            context["token_escrow_cancel_after"] = cancel_after
+            if seq:
+                context["token_escrow_sequence"] = seq
+                console.print(f"  Escrow create-sequence: [cyan]{seq}[/]")
+    else:
+        console.print(f"  [red]Token escrow failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_token_escrow_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attempt a token escrow WITHOUT the issuer opt-in — expects tecNO_PERMISSION.
+
+    Submit-and-learn: this is the failure a learner hits if the issuer never set
+    asfAllowTrustLineLocking. It routes the tec code through explain_result_code
+    so the failure teaches the opt-in rule inline.
+    """
+    args = step.action_args
+    currency = args.get("currency", "NOP")
+    value = args.get("amount", "50")
+    # A second, DELIBERATELY-not-opted-in issuer keyed by a separate address so
+    # the main issuer's opt-in doesn't accidentally satisfy this one.
+    issuer_address = context.get("noopt_issuer_address") or context.get("issuer_address", "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    holder_seed = context["wallet_seed"].get()
+    holder_address = state.wallet_address or ""
+    recipient = context.get("recipient_address") or holder_address
+
+    try:
+        cancel_seconds = int(args.get("cancel_seconds", "86400"))
+    except ValueError:
+        cancel_seconds = 86400
+    cancel_after = int(time.time()) - _RIPPLE_EPOCH + max(1, cancel_seconds)
+
+    console.print(
+        f"  [yellow]Attempting to escrow {value} {currency} with NO issuer "
+        f"opt-in (expecting tecNO_PERMISSION)...[/]"
+    )
+    result = await create_token_escrow(
+        transport, holder_seed, currency, issuer_address, value, recipient,
+        cancel_after=cancel_after, finish_after=None, source_address=holder_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the issuer may already be opted in "
+            "on this transport.[/]"
+        )
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context.setdefault("txids", []).append(result.txid)
+        state.record_tx(
+            txid=result.txid or "failed", module_id=context.get("module_id", ""),
+            network=state.network, success=True, explorer_url=result.explorer_url,
+        )
+    else:
+        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    save_state(state)
+    return context
+
+
+async def handle_finish_token_escrow(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Recipient finishes the token escrow, releasing the IOU (EscrowFinish)."""
+    owner = context.get("token_escrow_owner") or state.wallet_address or ""
+    seq = context.get("token_escrow_sequence")
+    if not owner or seq is None:
+        console.print(
+            "  [red]No token escrow to finish — run the create-token-escrow "
+            "step first so its create-sequence is captured.[/]"
+        )
+        return context
+    # The recipient submits the finish (either party may finish a time-based
+    # escrow; the funds always go to the destination). Fall back to the holder's
+    # wallet if a dedicated recipient seed wasn't created.
+    _raw = context.get("recipient_seed", "")
+    finisher_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    if not finisher_seed and "wallet_seed" in context:
+        finisher_seed = context["wallet_seed"].get()
+    if not finisher_seed:
+        console.print("  [red]No wallet to submit EscrowFinish.[/]")
+        return context
+
+    console.print(
+        f"  Recipient finishing the token escrow "
+        f"(owner {owner[:12]}..., OfferSequence {seq})..."
+    )
+    result = await finish_token_escrow(transport, finisher_seed, owner, seq)
+    if result.success:
+        console.print("  [green]Token escrow finished — IOU released to the recipient![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]EscrowFinish failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_token_moved(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Checkpoint: the escrowed IOU reached the recipient's trust line."""
+    recipient = context.get("token_escrow_recipient") or context.get("recipient_address", "")
+    currency = context.get("token_escrow_currency", "GLD")
+    issuer = context.get("token_escrow_issuer") or context.get("issuer_address", "")
+    before = context.get("token_balance_before", "0")
+    expected = context.get("token_escrow_amount")
+
+    if not recipient or not issuer:
+        console.print(
+            "  [red]No recipient/issuer in context — the token-escrow steps did "
+            "not run.[/]"
+        )
+        # Honest-pack contract: a verify that COULD NOT run is a FAILED
+        # verification, not a silent skip (else the module stays vacuously
+        # verified=True). Record on this missing-prerequisite path too.
+        _record_verification(
+            context, "verify_token_moved", passed=False,
+            failures=[
+                "recipient/issuer missing — the token-escrow steps that produce "
+                "them did not run"
+            ],
+        )
+        return context
+
+    result = await verify_token_moved(
+        transport, recipient, currency, issuer,
+        before=before, expected_increase=expected,
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    if result.passed:
+        console.print("  [green]Token moved — the escrowed IOU is now the recipient's.[/]")
+    context["last_token_moved_verify"] = result
+    _record_verification(
+        context, "verify_token_moved", result.passed, result.failures
+    )
     return context
 
 
@@ -2444,6 +3048,11 @@ async def handle_verify_did(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_did", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_did(transport, address, expected_uri=context.get("did_uri"))
     for c in result.checks:
@@ -2453,6 +3062,10 @@ async def handle_verify_did(
     if result.found and result.passed:
         console.print("  [green]DID verified on-ledger.[/]")
     context["last_did_verify"] = result
+    _record_verification(
+        context, "verify_did",
+        result.found and result.passed, result.failures,
+    )
     return context
 
 
@@ -2485,6 +3098,11 @@ async def handle_verify_did_deleted(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_did_deleted", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_did_deleted(transport, address)
     for c in result.checks:
@@ -2494,6 +3112,691 @@ async def handle_verify_did_deleted(
     if result.passed:
         console.print("  [green]Identity hygiene complete — DID removed.[/]")
     context["last_did_deleted_verify"] = result
+    _record_verification(
+        context, "verify_did_deleted", result.passed, result.failures
+    )
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Credential actions (FC-002 — identity track, XLS-70)
+# ---------------------------------------------------------------------------
+
+
+async def handle_create_subject_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund the SUBJECT wallet the learner's account will attest.
+
+    Two-party credentials need a second account: the learner's wallet is the
+    ISSUER, this one is the SUBJECT. The subject is funded so a CredentialCreate
+    against it does NOT hit tecNO_TARGET (the unfunded-subject error is taught
+    on a separate, intentionally-unfunded address below).
+    """
+    console.print("  Creating the subject (player) wallet...")
+    subject = create_wallet()
+    context["subject_seed"] = _SecretValue(subject.seed)
+    context["subject_address"] = subject.address
+    console.print(f"  Subject wallet: [cyan]{subject.address}[/]")
+    console.print("  Funding the subject from the faucet (so it's a real target)...")
+    result = await transport.fund_from_faucet(subject.address)
+    if result.success:
+        console.print(f"  Subject funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
+    else:
+        console.print(f"  [yellow]Subject funding: {result.message}[/]")
+    return context
+
+
+async def handle_create_credential_unfunded(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attest a credential against an UNFUNDED subject — teaches tecNO_TARGET.
+
+    A CredentialCreate whose Subject is not a funded account on-ledger fails
+    ``tecNO_TARGET``: you cannot attest an account that doesn't exist yet.
+    """
+    args = step.action_args
+    credential_type = args.get("credential_type", "over21")
+    # A syntactically-valid but unfunded classic address (never faucet-funded).
+    unfunded = args.get("subject", "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe")
+    if "wallet_seed" not in context:
+        console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
+        return context
+    issuer_seed = context["wallet_seed"].get()
+    issuer_address = state.wallet_address or ""
+    console.print(
+        f"  [yellow]Attempting to attest '{credential_type}' against an "
+        f"UNFUNDED subject (expecting tecNO_TARGET)...[/]"
+    )
+    result = await create_credential(
+        transport, issuer_seed, unfunded, credential_type,
+        issuer_address=issuer_address,
+    )
+    if result.success:
+        # Unexpected success (e.g. a transport that doesn't model the unfunded
+        # case): record the real tx so the pack stays honest, per CORE-A-004.
+        console.print(
+            "  [yellow]Unexpected success — the subject was fundable on this "
+            "transport. Recording the tx.[/]"
+        )
+    else:
+        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Issuer attests a credential about the funded subject (CredentialCreate)."""
+    args = step.action_args
+    credential_type = args.get("credential_type", "over21")
+    uri = args.get("uri", "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
+        return context
+    subject_address = context.get("subject_address", "")
+    if not subject_address:
+        console.print("  [red]No subject wallet. Run the subject-wallet step first.[/]")
+        return context
+    issuer_seed = context["wallet_seed"].get()
+    issuer_address = state.wallet_address or ""
+    console.print(
+        f"  Attesting credential type [cyan]{credential_type}[/] about "
+        f"subject [cyan]{subject_address[:12]}...[/] (PROVISIONAL until accepted)"
+    )
+    result = await create_credential(
+        transport, issuer_seed, subject_address, credential_type, uri=uri,
+        issuer_address=issuer_address,
+    )
+    if result.success:
+        console.print("  [green]Credential created — provisional, awaiting subject accept.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["credential_type"] = credential_type
+        context["credential_issuer"] = issuer_address
+        context["credential_subject"] = subject_address
+    else:
+        console.print(f"  [red]CredentialCreate failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_credential_duplicate(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Re-attest the SAME (subject, issuer, type) — teaches tecDUPLICATE.
+
+    (subject, issuer, CredentialType) is unique per issuer: a second identical
+    credential fails ``tecDUPLICATE``.
+    """
+    args = step.action_args
+    credential_type = args.get("credential_type", context.get("credential_type", "over21"))
+    if "wallet_seed" not in context:
+        console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
+        return context
+    subject_address = context.get("subject_address", "")
+    if not subject_address:
+        console.print("  [red]No subject wallet. Run the subject-wallet step first.[/]")
+        return context
+    issuer_seed = context["wallet_seed"].get()
+    issuer_address = state.wallet_address or ""
+    console.print(
+        "  [yellow]Re-attesting the SAME credential (expecting tecDUPLICATE)...[/]"
+    )
+    result = await create_credential(
+        transport, issuer_seed, subject_address, credential_type,
+        issuer_address=issuer_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — no live duplicate existed on this "
+            "transport. Recording the tx.[/]"
+        )
+    else:
+        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_accept_credential_wrong_party(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The ISSUER tries to accept — teaches that ONLY the subject can accept.
+
+    CredentialAccept must be signed by the subject. When the issuer (or any
+    non-subject) tries, there is no matching provisional credential under their
+    own address and the ledger rejects it (tecNO_ENTRY / temMALFORMED).
+    """
+    credential_type = context.get("credential_type", "over21")
+    issuer_address = context.get("credential_issuer", state.wallet_address or "")
+    if "wallet_seed" not in context:
+        console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
+        return context
+    issuer_seed = context["wallet_seed"].get()
+    console.print(
+        "  [yellow]Issuer attempting to accept its own credential "
+        "(expecting rejection — only the subject may accept)...[/]"
+    )
+    # The issuer signs an accept naming ITSELF as the acting account — there is
+    # no provisional credential keyed under the issuer-as-subject, so it fails.
+    result = await accept_credential(
+        transport, issuer_seed, issuer_address, credential_type,
+        subject_address=issuer_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the transport did not enforce "
+            "subject-only accept. Recording the tx.[/]"
+        )
+    else:
+        console.print(f"  [green]Expected rejection:[/] {result.result_code}")
+        console.print(
+            "  [dim]Only the subject account named in the credential can accept "
+            "it — this is the 'you hold your own passport' rule.[/]"
+        )
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_accept_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Subject accepts the credential — makes it valid, reserve moves to subject."""
+    credential_type = context.get("credential_type", "over21")
+    issuer_address = context.get("credential_issuer", state.wallet_address or "")
+    subject_address = context.get("subject_address", "")
+    _raw = context.get("subject_seed", "")
+    subject_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    if not subject_seed or not subject_address:
+        console.print("  [red]No subject wallet. Run the subject-wallet step first.[/]")
+        return context
+    console.print(
+        "  Subject accepting the credential — clears provisional state, "
+        "reserve moves from issuer to subject..."
+    )
+    result = await accept_credential(
+        transport, subject_seed, issuer_address, credential_type,
+        subject_address=subject_address,
+    )
+    if result.success:
+        console.print("  [green]Credential accepted — now VALID on-ledger![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]CredentialAccept failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Verify the subject holds a VALID (accepted) credential from the issuer."""
+    credential_type = context.get("credential_type", "over21")
+    issuer_address = context.get("credential_issuer", state.wallet_address or "")
+    subject_address = context.get("subject_address", "")
+    if not subject_address or not issuer_address:
+        console.print("  [red]No credential in context. Run the create/accept steps first.[/]")
+        # FT-001: prerequisites missing → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_credential", passed=False,
+            failures=[
+                "subject/issuer missing — the steps that produce them did not run"
+            ],
+        )
+        return context
+    result = await verify_credential(
+        transport, subject_address, issuer_address, credential_type
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    if result.passed:
+        console.print("  [green]Credential is VALID — the gate would pass this player.[/]")
+    context["last_credential_verify"] = result
+    _record_verification(
+        context, "verify_credential", result.passed, result.failures
+    )
+    return context
+
+
+async def handle_delete_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Subject deletes the credential, reclaiming its reserve (CredentialDelete)."""
+    credential_type = context.get("credential_type", "over21")
+    issuer_address = context.get("credential_issuer", state.wallet_address or "")
+    subject_address = context.get("subject_address", "")
+    _raw = context.get("subject_seed", "")
+    subject_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    if not subject_seed or not subject_address:
+        console.print("  [red]No subject wallet. Run the subject-wallet step first.[/]")
+        return context
+    console.print("  Subject deleting the credential — reclaiming the owner reserve...")
+    result = await delete_credential(
+        transport, subject_seed, issuer_address, subject_address, credential_type,
+        wallet_address=subject_address,
+    )
+    if result.success:
+        console.print("  [green]Credential deleted — reserve freed (revocation path).[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]CredentialDelete failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Permissioned Domains & Gated DEX actions (FC-004 — XLS-80 / XLS-81)
+# ---------------------------------------------------------------------------
+#
+# Composes with credentials (FC-002): the learner's wallet is the ISSUER and
+# the domain OWNER; the funded SUBJECT holds the accepted credential and is the
+# eligible trader; a second uncredentialed wallet demonstrates the eligibility
+# gate. The credential must be CREATED and ACCEPTED (reuse the FC-002 steps in
+# the module) before the domain lists it.
+
+
+async def handle_create_permissioned_domain(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Owner creates a Permissioned Domain listing the accepted credential.
+
+    Omits DomainID → CREATE. AcceptedCredentials lists the {issuer,
+    credential_type} the FC-002 steps issued. The derived DomainID is tracked
+    in context (off-ledger) — it is NOT idempotently recreatable.
+    """
+    if "wallet_seed" not in context:
+        console.print("  [red]No owner wallet in context. Run the wallet step first.[/]")
+        return context
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    credential_type = context.get("credential_type", "over21")
+    # The domain accepts the SAME {issuer, type} the credential module issued.
+    issuer_address = context.get("credential_issuer", owner_address)
+    console.print(
+        f"  Creating a Permissioned Domain accepting credential "
+        f"[cyan]{credential_type}[/] from issuer [cyan]{issuer_address[:12]}...[/]"
+    )
+    result = await set_permissioned_domain(
+        transport, owner_seed,
+        [(issuer_address, credential_type)],
+        owner_address=owner_address,
+    )
+    if result.success:
+        console.print("  [green]Permissioned Domain created![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        console.print(f"  DomainID: [cyan]{result.domain_id}[/]")
+        console.print(
+            "  [dim]Track this DomainID off-ledger — each (owner, sequence) yields "
+            "a DISTINCT id; re-running create makes a NEW domain.[/]"
+        )
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["domain_id"] = result.domain_id
+        context["domain_issuer"] = issuer_address
+        context["domain_credential_type"] = credential_type
+    else:
+        console.print(f"  [red]PermissionedDomainSet failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_permissioned_offer(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The CREDENTIALED account places a permissioned offer (DomainID) — succeeds.
+
+    The subject holds the accepted credential the domain lists, so the offer,
+    scoped to the DomainID, is eligible and rests on the permissioned book.
+    ``hybrid`` (optional) sets tfHybrid so it also matches the open DEX.
+    """
+    args = step.action_args
+    pays_currency = args.get("pays_currency", "LAB")
+    pays_value = args.get("pays_value", "50")
+    gets_currency = args.get("gets_currency", "XRP")
+    gets_value = args.get("gets_value", "10")
+    hybrid = _parse_bool_arg(args.get("hybrid", "false")) or False
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    _raw = context.get("subject_seed", "")
+    subject_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    subject_address = context.get("subject_address", "")
+    if not subject_seed or not subject_address:
+        console.print("  [red]No credentialed (subject) wallet. Run the FC-002 steps first.[/]")
+        return context
+    issuer_address = context.get("domain_issuer", context.get("credential_issuer", ""))
+    pays_issuer = "" if pays_currency == "XRP" else issuer_address
+    gets_issuer = "" if gets_currency == "XRP" else issuer_address
+    console.print(
+        f"  Credentialed account placing a permissioned offer "
+        f"({'hybrid' if hybrid else 'plain'}) scoped to the DomainID..."
+    )
+    result = await create_permissioned_offer(
+        transport, subject_seed,
+        pays_currency, pays_value, pays_issuer,
+        gets_currency, gets_value, gets_issuer,
+        domain_id=domain_id, hybrid=hybrid,
+        wallet_address=subject_address,
+    )
+    if result.success:
+        console.print("  [green]Permissioned offer placed — the credential admits it![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        console.print(f"  Offer sequence: [cyan]{result.offer_sequence}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["permissioned_offer_seq"] = result.offer_sequence
+    else:
+        console.print(f"  [red]Permissioned offer failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_uncredentialed_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund a second wallet that holds NO accepted credential.
+
+    Used to demonstrate the eligibility gate: this account's permissioned offer
+    will be REJECTED because it holds no credential the domain accepts.
+    """
+    console.print("  Creating an un-credentialed (outsider) wallet...")
+    outsider = create_wallet()
+    context["outsider_seed"] = _SecretValue(outsider.seed)
+    context["outsider_address"] = outsider.address
+    console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
+    console.print("  Funding it from the faucet (so it's a real account)...")
+    result = await transport.fund_from_faucet(outsider.address)
+    if result.success:
+        console.print(f"  Outsider funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
+    else:
+        console.print(f"  [yellow]Outsider funding: {result.message}[/]")
+    return context
+
+
+async def handle_create_permissioned_offer_uncredentialed(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The UN-credentialed account places a permissioned offer — FAILS.
+
+    It holds no credential the domain accepts, so the offer scoped to the
+    DomainID is rejected before it can rest. This is the eligibility gate.
+    """
+    args = step.action_args
+    pays_currency = args.get("pays_currency", "LAB")
+    pays_value = args.get("pays_value", "50")
+    gets_currency = args.get("gets_currency", "XRP")
+    gets_value = args.get("gets_value", "10")
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    _raw = context.get("outsider_seed", "")
+    outsider_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    outsider_address = context.get("outsider_address", "")
+    if not outsider_seed or not outsider_address:
+        console.print("  [red]No outsider wallet. Run the outsider-wallet step first.[/]")
+        return context
+    issuer_address = context.get("domain_issuer", context.get("credential_issuer", ""))
+    pays_issuer = "" if pays_currency == "XRP" else issuer_address
+    gets_issuer = "" if gets_currency == "XRP" else issuer_address
+    console.print(
+        "  [yellow]Un-credentialed account attempting a permissioned offer "
+        "(expecting rejection — it holds no accepted credential)...[/]"
+    )
+    result = await create_permissioned_offer(
+        transport, outsider_seed,
+        pays_currency, pays_value, pays_issuer,
+        gets_currency, gets_value, gets_issuer,
+        domain_id=domain_id, hybrid=False,
+        wallet_address=outsider_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the transport did not enforce the "
+            "eligibility gate. Recording the tx.[/]"
+        )
+        context["uncredentialed_offer_seq"] = result.offer_sequence
+    else:
+        console.print(f"  [green]Expected rejection:[/] {result.result_code}")
+        console.print(
+            "  [dim]Eligibility to trade in a domain is proven by holding an "
+            "accepted credential via DomainID — NOT by CredentialIDs (the "
+            "deposit-auth rail). This account holds neither.[/]"
+        )
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_modify_domain_drop_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Modify the domain with an EMPTY-of-the-old-entry accepted set (full replace).
+
+    Teaches the full-replace revocation gotcha: AcceptedCredentials is replaced
+    wholesale. Re-listing a DIFFERENT credential (and dropping the original)
+    silently revokes access for everyone holding the dropped type — invalidating
+    their open permissioned offers. Here we swap the accepted set to a decoy
+    {issuer, type} so the previously-eligible subject is now excluded.
+    """
+    if "wallet_seed" not in context:
+        console.print("  [red]No owner wallet in context. Run the wallet step first.[/]")
+        return context
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    issuer_address = context.get("domain_issuer", owner_address)
+    decoy_type = step.action_args.get("replacement_type", "region-XX")
+    console.print(
+        "  [yellow]Modifying the domain — replacing the accepted set with a "
+        "DECOY credential (dropping the original)...[/]"
+    )
+    console.print(
+        "  [dim]AcceptedCredentials is a FULL REPLACE — the original type is "
+        "silently revoked, stranding its holders' permissioned offers.[/]"
+    )
+    result = await set_permissioned_domain(
+        transport, owner_seed,
+        [(issuer_address, decoy_type)],
+        domain_id=domain_id,
+        owner_address=owner_address,
+    )
+    if result.success:
+        console.print("  [green]Domain modified — accepted set fully replaced.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]PermissionedDomainSet (modify) failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_modify_domain_nonowner(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """A NON-owner tries to modify the domain — rejected (owner-only).
+
+    Only the original owner may modify a domain. The un-credentialed outsider
+    wallet (created above) attempts the modify and is rejected.
+    """
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    _raw = context.get("outsider_seed", "")
+    outsider_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    outsider_address = context.get("outsider_address", "")
+    if not outsider_seed or not outsider_address:
+        console.print("  [red]No outsider wallet. Run the outsider-wallet step first.[/]")
+        return context
+    issuer_address = context.get("domain_issuer", "")
+    console.print(
+        "  [yellow]Non-owner attempting to modify the domain "
+        "(expecting rejection — owner-only)...[/]"
+    )
+    result = await set_permissioned_domain(
+        transport, outsider_seed,
+        [(issuer_address, "hijack")],
+        domain_id=domain_id,
+        owner_address=outsider_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the transport did not enforce "
+            "owner-only modify. Recording the tx.[/]"
+        )
+    else:
+        console.print(f"  [green]Expected rejection:[/] {result.result_code}")
+        console.print(
+            "  [dim]Domain-owner key custody matters — only the owner may "
+            "rotate a domain's policy.[/]"
+        )
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_delete_permissioned_domain(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Owner deletes the domain, freeing its reserve (PermissionedDomainDelete).
+
+    The named compensator: frees the owner-reserve slot. A domain blocks
+    owner-account deletion until it is removed.
+    """
+    if "wallet_seed" not in context:
+        console.print("  [red]No owner wallet in context. Run the wallet step first.[/]")
+        return context
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    domain_id = context.get("domain_id", "")
+    if not domain_id:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        return context
+    console.print("  Owner deleting the domain — reclaiming the owner reserve (compensator)...")
+    result = await delete_permissioned_domain(
+        transport, owner_seed, domain_id, owner_address=owner_address
+    )
+    if result.success:
+        console.print("  [green]Domain deleted — reserve freed.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context.pop("domain_id", None)
+    else:
+        console.print(f"  [red]PermissionedDomainDelete failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_domain(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Verify the domain exists and (optionally) accepts the expected credential."""
+    owner_address = state.wallet_address or ""
+    domain_id = context.get("domain_id", "")
+    expect_issuer = context.get("domain_issuer", "")
+    expect_type = context.get("domain_credential_type", "")
+    if not domain_id or not owner_address:
+        console.print("  [red]No domain in context. Create the domain first.[/]")
+        # FT-001: prerequisites missing → the on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_domain", passed=False,
+            failures=["domain_id/owner missing — the step that produces it did not run"],
+        )
+        return context
+    result = await verify_domain(
+        transport, owner_address, domain_id,
+        expect_issuer=expect_issuer, expect_credential_type=expect_type,
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    context["last_domain_verify"] = result
+    _record_verification(
+        context, "verify_domain", result.passed, result.failures
+    )
+    return context
+
+
+async def handle_verify_permissioned_offer(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Verify the credentialed account's permissioned offer is resting on-ledger."""
+    subject_address = context.get("subject_address", "")
+    offer_seq = context.get("permissioned_offer_seq")
+    if not subject_address or offer_seq is None:
+        console.print("  [red]No permissioned offer in context. Place it first.[/]")
+        # FT-001: prerequisites missing → the on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_permissioned_offer", passed=False,
+            failures=[
+                "subject/offer sequence missing — the step that produces them did not run"
+            ],
+        )
+        return context
+    result = await verify_permissioned_offer(
+        transport, subject_address, offer_seq, expect_placed=True
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    context["last_permissioned_offer_verify"] = result
+    _record_verification(
+        context, "verify_permissioned_offer", result.passed, result.failures
+    )
     return context
 
 
@@ -2506,10 +3809,13 @@ async def handle_create_mpt_issuance(
     try:
         asset_scale = int(args.get("asset_scale", "0"))
     except ValueError:
+        # PB-003: surface the non-numeric fallback (matches check_inventory).
+        console.print("  [yellow]Invalid asset_scale, using default (0).[/]")
         asset_scale = 0
     try:
         transfer_fee = int(args.get("transfer_fee", "0"))
     except ValueError:
+        console.print("  [yellow]Invalid transfer_fee, using default (0).[/]")
         transfer_fee = 0
     transferable = str(args.get("transferable", "true")).lower() != "false"
     if "wallet_seed" not in context:
@@ -2603,6 +3909,11 @@ async def handle_verify_mpt_balance(
     holder = state.wallet_address or ""
     if not issuance_id or not holder:
         console.print("  [red]Missing issuance id or holder. Run previous steps first.[/]")
+        # FT-001: no issuance/holder → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_mpt_balance", passed=False,
+            failures=["MPT issuance id/holder missing — the step that produces them did not run"],
+        )
         return context
     result = await verify_mpt_balance(transport, holder, issuance_id, expected=expected)
     for check in result.checks:
@@ -2610,6 +3921,119 @@ async def handle_verify_mpt_balance(
     for fail in result.failures:
         console.print(f"  [red]✗[/] {fail}")
     context["last_mpt_balance_verify"] = result
+    _record_verification(
+        context, "verify_mpt_balance", len(result.failures) == 0, result.failures
+    )
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Partial-payment exploit / delivered_amount (FC-003 — payments track)
+# ---------------------------------------------------------------------------
+
+
+async def handle_send_partial_payment(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Issuer sends an issued-currency Payment WITH tfPartialPayment that
+    UNDER-delivers — the setup for the delivered_amount lesson (FC-003)."""
+    args = step.action_args
+    currency = args.get("currency", "LAB")
+    amount = args.get("amount", "100")          # Amount field / DeliverMax — the CAP
+    deliver_min = args.get("deliver_min", "10")  # what actually gets delivered
+    send_max = args.get("send_max", "10")        # caps source spend (forces the reduction)
+    _raw = context.get("issuer_seed", "")
+    issuer_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    issuer_address = context.get("issuer_address", "")
+    holder = state.wallet_address or ""
+
+    if not issuer_seed or not issuer_address or not holder:
+        console.print(
+            "  [red]Missing issuer wallet or holder. Run the trust-line / issuer "
+            "steps first.[/]"
+        )
+        return context
+
+    console.print(
+        f"  Issuer sending [cyan]{amount} {currency}[/] with "
+        f"[yellow]tfPartialPayment[/] (SendMax {send_max}, DeliverMin "
+        f"{deliver_min})..."
+    )
+    console.print(
+        "  [dim]The Amount field will claim the full amount; the flag lets the "
+        "ledger deliver LESS and still return tesSUCCESS.[/]"
+    )
+    result = await send_partial_payment(
+        transport, issuer_seed, holder, currency, issuer_address,
+        amount, deliver_min, send_max, memo="XRPLLAB|PARTIAL",
+    )
+    if result.success:
+        console.print("  [green]Partial payment submitted — tesSUCCESS.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        console.print(
+            "  [yellow]But how much actually arrived? Read delivered_amount to "
+            "find out — never the Amount field.[/]"
+        )
+        context["partial_payment_txid"] = result.txid
+        context["partial_payment_amount"] = amount
+        context["partial_payment_delivered"] = deliver_min
+    else:
+        console.print(f"  [red]Partial payment failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_delivered_amount(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Read delivered_amount off the validated tx and contrast it with the
+    Amount field — proving the partial-payment exploit (FC-003)."""
+    txid = context.get("partial_payment_txid", "")
+    expected = context.get("partial_payment_delivered")
+    if not txid:
+        console.print(
+            "  [red]No partial-payment tx to inspect. Run the partial-payment "
+            "step first.[/]"
+        )
+        # FT-001: the step that produces the txid never ran → honest FAILED
+        # verification, not an invisible skip.
+        _record_verification(
+            context, "verify_delivered_amount", passed=False,
+            failures=[
+                "partial_payment_txid missing — the step that produces it did not run"
+            ],
+        )
+        return context
+
+    result = await verify_delivered_amount(transport, txid, expected_delivered=expected)
+    for check in result.checks:
+        console.print(f"  [green]✓[/] {check}")
+    for fail in result.failures:
+        console.print(f"  [red]✗[/] {fail}")
+
+    if result.exploit_demonstrated:
+        console.print()
+        console.print(
+            "  [bold yellow]THE EXPLOIT:[/] the tx said tesSUCCESS and its "
+            f"Amount field claimed [cyan]{result.amount_field}[/], but only "
+            f"[cyan]{result.delivered_amount}[/] was actually delivered. A "
+            "backend crediting the Amount field would hand out money it never "
+            "received."
+        )
+        console.print(
+            "  [dim]Lesson (RECEIVING): always read delivered_amount, never "
+            "DeliverMax, and only after tesSUCCESS + validated:true.[/]"
+        )
+
+    context["last_delivered_amount_verify"] = result
+    _record_verification(
+        context, "verify_delivered_amount", result.passed, result.failures
+    )
     return context
 
 
@@ -2620,6 +4044,11 @@ async def handle_verify_mpt_issuance(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_mpt_issuance", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_mpt_issuance(transport, address, expected_maximum=context.get("mpt_max"))
     for c in result.checks:
@@ -2629,6 +4058,10 @@ async def handle_verify_mpt_issuance(
     if result.found and result.passed:
         console.print("  [green]MPT issuance verified on-ledger.[/]")
     context["last_mpt_verify"] = result
+    _record_verification(
+        context, "verify_mpt_issuance",
+        result.found and result.passed, result.failures,
+    )
     return context
 
 
@@ -2743,6 +4176,11 @@ async def handle_verify_clawback(
     issuer_address = context.get("issuer_address", "")
     if not holder_address:
         console.print("  [red]No wallet address found.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_clawback", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_clawback(
         transport, holder_address, currency, issuer_address, before, clawed
@@ -2754,6 +4192,9 @@ async def handle_verify_clawback(
     if result.passed:
         console.print("  [green]Issuer recall verified — exact-amount debit confirmed.[/]")
     context["last_clawback_verify"] = result
+    _record_verification(
+        context, "verify_clawback", result.passed, result.failures
+    )
     return context
 
 
@@ -2954,6 +4395,11 @@ async def handle_verify_nft_offer(
     else:
         console.print("  [yellow]No open sell offers for this NFT.[/]")
     context["last_nft_offers"] = offers
+    # INFORMATIONAL: this handler READS the NFT's open offers back for
+    # observation — it prints a note when none exist rather than asserting a
+    # failure. Record passed=True (never fabricate a failure verdict); the
+    # trade's real pass/fail assertion lives in verify_nft_trade.
+    _record_verification(context, "verify_nft_offer", True, [])
     return context
 
 
@@ -3000,10 +4446,9 @@ async def handle_accept_nft_offer(
         if result.explorer_url:
             console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
         context["nft_buyer_address"] = buyer_addr
-        context["nft_seller_address"] = (
-            issuer_addr if context.get("nft_offer_seller_role") == "buyer"
-            else context.get("buyer_address", "")
-        )
+        # BC-006: the former `context["nft_seller_address"] = ...` write was
+        # dead — handle_verify_nft_trade verifies ownership against
+        # `nft_prev_owner` (set below), never `nft_seller_address`. Removed.
         # Re-read the issuer balance to surface the royalty delta (resale only).
         issuer_after = await transport.get_balance(issuer_addr)
         context["nft_issuer_balance_before"] = issuer_before
@@ -3057,6 +4502,12 @@ async def handle_verify_nft_trade(
     prev_owner = context.get("nft_prev_owner", "")
     if not nft_id or not buyer_addr:
         console.print("  [red]No completed trade in context.[/]")
+        # FT-001: no completed trade → this on-ledger ownership assertion could
+        # not run because the mint/accept steps never produced it.
+        _record_verification(
+            context, "verify_nft_trade", passed=False,
+            failures=["nft_id/buyer address missing — the step that produces them did not run"],
+        )
         return context
 
     result = await verify_nft_owned_by(
@@ -3088,6 +4539,9 @@ async def handle_verify_nft_trade(
     if result.passed:
         console.print("  [green]NFT trade verified on-ledger.[/]")
     context["last_nft_trade_verify"] = result
+    _record_verification(
+        context, "verify_nft_trade", result.passed, result.failures
+    )
     return context
 
 
@@ -3172,6 +4626,14 @@ async def handle_verify_nft_modified(
     expected = context.get("nft_modified_uri", "")
     if not address or not nft_id or not expected:
         console.print("  [red]No modified NFT in context. Run the modify step first.[/]")
+        # FT-001: no modified NFT in context → this on-ledger assertion could
+        # not run because the mint/modify steps never produced it.
+        _record_verification(
+            context, "verify_nft_modified", passed=False,
+            failures=[
+                "modified NFT (address/nft_id/uri) missing — the step that produces it did not run"
+            ],
+        )
         return context
     result = await verify_nft_modified(transport, address, nft_id, expected)
     for c in result.checks:
@@ -3181,6 +4643,9 @@ async def handle_verify_nft_modified(
     if result.passed:
         console.print("  [green]Dynamic NFT verified — item evolved on-ledger.[/]")
     context["last_nft_modified_verify"] = result
+    _record_verification(
+        context, "verify_nft_modified", result.passed, result.failures
+    )
     return context
 
 
@@ -3300,6 +4765,66 @@ def _register_all() -> None:
             handler=handle_verify_escrow_finished,
             description="Verify an escrow was finished/cancelled (object gone, reserve freed)",
         ),
+        # ── FC-001: token escrow (XLS-85) — payments track ──
+        ActionDef(
+            name="set_allow_trustline_locking",
+            handler=handle_set_allow_trustline_locking,
+            description="Issuer opts in to token escrow (AccountSet asfAllowTrustLineLocking)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="create_token_recipient",
+            handler=handle_create_token_recipient,
+            description="Create + fund a third-party recipient and set its trust line",
+            payload_fields=[
+                PayloadField(name="currency", default="GLD"),
+                PayloadField(name="limit", default="1000"),
+            ],
+        ),
+        ActionDef(
+            name="snapshot_recipient_balance",
+            handler=handle_snapshot_recipient_balance,
+            description="Snapshot the recipient's issued balance (before/after the escrow)",
+            payload_fields=[
+                PayloadField(name="currency", default="GLD"),
+                PayloadField(name="label", default="before"),
+            ],
+        ),
+        ActionDef(
+            name="create_token_escrow",
+            handler=handle_create_token_escrow,
+            description="Holder escrows an issued token (IOU) to a recipient (XLS-85)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="GLD"),
+                PayloadField(name="amount", default="50", description="IOU amount to escrow"),
+                PayloadField(name="destination", description="Recipient (defaults to context)"),
+                PayloadField(name="cancel_seconds", type="int", default="86400",
+                             description="Seconds until CancelAfter (mandatory for token escrow)"),
+            ],
+        ),
+        ActionDef(
+            name="create_token_escrow_expect_fail",
+            handler=handle_create_token_escrow_expect_fail,
+            description="Attempt a token escrow without issuer opt-in (expects tecNO_PERMISSION)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="NOP"),
+                PayloadField(name="amount", default="50"),
+                PayloadField(name="cancel_seconds", type="int", default="86400"),
+            ],
+        ),
+        ActionDef(
+            name="finish_token_escrow",
+            handler=handle_finish_token_escrow,
+            description="Recipient finishes the token escrow, releasing the IOU (EscrowFinish)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_token_moved",
+            handler=handle_verify_token_moved,
+            description="Verify the escrowed IOU reached the recipient's trust line",
+        ),
         ActionDef(
             name="set_did",
             handler=handle_set_did,
@@ -3325,6 +4850,139 @@ def _register_all() -> None:
             name="verify_did_deleted",
             handler=handle_verify_did_deleted,
             description="Verify the account's DID was deleted (gone, reserve freed)",
+        ),
+        # ── Credentials (FC-002, XLS-70) ──
+        ActionDef(
+            name="create_subject_wallet",
+            handler=handle_create_subject_wallet,
+            description="Create + fund the subject (player) wallet to be attested",
+        ),
+        ActionDef(
+            name="create_credential_unfunded",
+            handler=handle_create_credential_unfunded,
+            description="Attest a credential against an unfunded subject (teaches tecNO_TARGET)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="credential_type", default="over21",
+                             description="Credential tag (hex-encoded automatically)"),
+                PayloadField(name="subject",
+                             description="Unfunded subject address to attest against"),
+            ],
+        ),
+        ActionDef(
+            name="create_credential",
+            handler=handle_create_credential,
+            description="Issuer attests a credential about the subject (CredentialCreate)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="credential_type", default="over21",
+                             description="Credential tag (e.g. kyc, over21; hex-encoded)"),
+                PayloadField(name="uri",
+                             description="Optional URI to an off-chain VC (immutable)"),
+            ],
+        ),
+        ActionDef(
+            name="create_credential_duplicate",
+            handler=handle_create_credential_duplicate,
+            description="Re-attest the same credential (teaches tecDUPLICATE)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="credential_type", default="over21",
+                             description="Credential tag (must match the first)"),
+            ],
+        ),
+        ActionDef(
+            name="accept_credential_wrong_party",
+            handler=handle_accept_credential_wrong_party,
+            description="Issuer tries to accept (teaches only-the-subject-can-accept)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="accept_credential",
+            handler=handle_accept_credential,
+            description="Subject accepts the credential — makes it valid, reserve moves",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_credential",
+            handler=handle_verify_credential,
+            description="Verify the subject holds a VALID (accepted) credential on-ledger",
+        ),
+        ActionDef(
+            name="delete_credential",
+            handler=handle_delete_credential,
+            description="Delete the credential, reclaiming reserve (CredentialDelete / revoke)",
+            wallet_required=True,
+        ),
+        # ── Permissioned Domains & Gated DEX (FC-004, XLS-80 / XLS-81) ──
+        ActionDef(
+            name="create_permissioned_domain",
+            handler=handle_create_permissioned_domain,
+            description="Owner creates a Permissioned Domain accepting the credential (XLS-80)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="create_permissioned_offer",
+            handler=handle_create_permissioned_offer,
+            description="Credentialed account places a permissioned offer (DomainID) — succeeds",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="pays_currency", default="LAB"),
+                PayloadField(name="pays_value", default="50"),
+                PayloadField(name="gets_currency", default="XRP"),
+                PayloadField(name="gets_value", default="10"),
+                PayloadField(name="hybrid", type="bool", default="false",
+                             description="tfHybrid — also match the open DEX"),
+            ],
+        ),
+        ActionDef(
+            name="create_uncredentialed_wallet",
+            handler=handle_create_uncredentialed_wallet,
+            description="Create + fund an outsider wallet that holds no accepted credential",
+        ),
+        ActionDef(
+            name="create_permissioned_offer_uncredentialed",
+            handler=handle_create_permissioned_offer_uncredentialed,
+            description="Un-credentialed account's permissioned offer is rejected (gate)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="pays_currency", default="LAB"),
+                PayloadField(name="pays_value", default="50"),
+                PayloadField(name="gets_currency", default="XRP"),
+                PayloadField(name="gets_value", default="10"),
+            ],
+        ),
+        ActionDef(
+            name="modify_domain_drop_credential",
+            handler=handle_modify_domain_drop_credential,
+            description="Full-replace modify that drops the credential (teaches silent revocation)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="replacement_type", default="region-XX",
+                             description="Decoy credential type that replaces the accepted set"),
+            ],
+        ),
+        ActionDef(
+            name="modify_domain_nonowner",
+            handler=handle_modify_domain_nonowner,
+            description="Non-owner tries to modify the domain (teaches owner-only)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="delete_permissioned_domain",
+            handler=handle_delete_permissioned_domain,
+            description="Owner deletes the domain, freeing reserve (compensator, XLS-80)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_domain",
+            handler=handle_verify_domain,
+            description="Verify the Permissioned Domain exists and accepts the credential",
+        ),
+        ActionDef(
+            name="verify_permissioned_offer",
+            handler=handle_verify_permissioned_offer,
+            description="Verify the credentialed account's permissioned offer is resting",
         ),
         ActionDef(
             name="create_mpt_issuance",
@@ -3776,6 +5434,34 @@ def _register_all() -> None:
                 PayloadField(name="expect_amount", description="Expected deposited XRP"),
                 PayloadField(name="expect_balance", description="Expected claimed XRP"),
             ],
+        ),
+        # ── partial-payment exploit / delivered_amount (payments track) ──
+        ActionDef(
+            name="send_partial_payment",
+            handler=handle_send_partial_payment,
+            description=(
+                "Issuer sends an issued-currency Payment WITH tfPartialPayment "
+                "that under-delivers (sets up the delivered_amount exploit)"
+            ),
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="LAB",
+                             description="Issued currency to send"),
+                PayloadField(name="amount", default="100",
+                             description="Amount field / DeliverMax — the requested CAP"),
+                PayloadField(name="deliver_min", default="10",
+                             description="DeliverMin — the floor actually delivered"),
+                PayloadField(name="send_max", default="10",
+                             description="SendMax — caps source spend, forcing the reduction"),
+            ],
+        ),
+        ActionDef(
+            name="verify_delivered_amount",
+            handler=handle_verify_delivered_amount,
+            description=(
+                "Read delivered_amount off the validated tx and contrast it with "
+                "the Amount field — proves the partial-payment exploit"
+            ),
         ),
         # ── v2.0.0 game-economy control: NFT marketplace (nfts track) ──
         ActionDef(

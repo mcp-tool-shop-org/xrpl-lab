@@ -240,6 +240,15 @@ async def run_module(
 
     report_sections: list[tuple[str, str]] = []
 
+    # RESWARM3 (verified flag + honest pack): track whether EVERY on-ledger
+    # verification this run performed passed. Starts True (a module with no
+    # verify steps is vacuously verified — back-compat) and is flipped False by
+    # the first failing verification. Recorded onto the CompletedModule at the
+    # end so the proof pack is honest. A failed verification does NOT raise —
+    # the lesson continues; it only downgrades this flag + the failing step's
+    # dashboard success signal.
+    all_verified = True
+
     for i, step in enumerate(module.steps):
         # Render step text
         console.print(Markdown(step.text))
@@ -252,13 +261,33 @@ async def run_module(
                 if inspect.isawaitable(_r):
                     await _r
             console.print(f"[dim]  → {step.action}...[/]")
-            # F-BACKEND-B-004: snapshot context BEFORE the handler runs
-            # so we can roll back partial mutations if the handler
-            # raises mid-step. Without this, a handler that appends a
-            # txid then raises would leak that txid into the saved
-            # state — the txid corresponds to a transaction the real
-            # ledger never accepted.
+            # F-BACKEND-B-004 (comment corrected — BC-002): snapshot the
+            # in-memory context BEFORE the handler runs so we can roll back
+            # partial context mutations (e.g. a half-appended context["txids"])
+            # if the handler raises mid-step, keeping the context the NEXT step
+            # sees clean.
+            #
+            # IMPORTANT — this does NOT roll back state-level durability. If a
+            # handler calls state.record_tx(...) and only THEN raises, that
+            # TxRecord is intentionally left in state.tx_index and re-saved by
+            # the except block below. This is deliberate: the ledger is the
+            # source of truth, and record_tx is called only AFTER a submit that
+            # actually landed on-ledger. An orphan record (a recorded tx whose
+            # later same-step work failed) is tolerated — far safer than the
+            # inverse of losing a record for XRP that is really committed
+            # on-chain. The snapshot's job is context hygiene, not tx durability.
             _context_snapshot = _snapshot_context(context)
+            # BC-003: remember how many txids existed BEFORE this step so the
+            # on_tx callback fires only for txids this step actually added,
+            # each with THIS step's result_code — not for every historical
+            # txid on every step (O(steps*txids) + stale result codes).
+            _prev_txid_count = len(context.get("txids", []))
+            # RESWARM3: remember how many verification records existed BEFORE
+            # this step so we inspect ONLY the entries THIS step appended (a
+            # handler calls _record_verification into context["verifications"]).
+            # Mirrors the BC-003 _prev_txid_count slice pattern so a later step
+            # can't be blamed for an earlier step's verdict.
+            _prev_verif_count = len(context.get("verifications", []))
             try:
                 context = await _execute_action(
                     step, state, transport,
@@ -267,9 +296,12 @@ async def run_module(
                     console=console,
                 )
             except Exception as exc:
-                # F-BACKEND-B-004: restore pre-step context. The state
-                # object's atomic-write fix (wave 1) handles durability;
-                # this handles step-level atomicity at the context layer.
+                # F-BACKEND-B-004 (BC-002): restore pre-step in-memory context
+                # so the next step / resume sees a clean context. State-level
+                # durability is intentionally NOT rolled back here — see the
+                # snapshot comment above; the atomic-write fix (wave 1) only
+                # guarantees the save itself is torn-write-safe, it does not
+                # (and must not) discard TxRecords for real on-ledger txs.
                 context = _context_snapshot
                 if on_step_complete is not None:
                     _r = on_step_complete(step.action, False)
@@ -336,16 +368,36 @@ async def run_module(
                     )
                 return False
 
-            # Fire tx callback for any new transactions from this step
+            # Fire tx callback for any new transactions from this step.
+            # BC-003: iterate only the txids added by THIS step
+            # (context["txids"][_prev_txid_count:]), mirroring the
+            # current_txids[-N:] slicing the report path uses. The previous
+            # code iterated ALL txids every step and stamped the current
+            # step's result_code onto every historical txid.
             if on_tx is not None:
-                for txid in context.get("txids", []):
-                    last_submit = context.get("last_submit")
-                    result_code = ""
-                    if last_submit and hasattr(last_submit, "result_code"):
-                        result_code = last_submit.result_code or ""
+                last_submit = context.get("last_submit")
+                result_code = ""
+                if last_submit and hasattr(last_submit, "result_code"):
+                    result_code = last_submit.result_code or ""
+                for txid in context.get("txids", [])[_prev_txid_count:]:
                     _r = on_tx(txid, result_code)
                     if inspect.isawaitable(_r):
                         await _r
+
+            # RESWARM3: consume THIS step's verification verdicts. A handler
+            # already printed its checks/failures (kept); here we (a) do NOT
+            # raise — the lesson continues; (b) fold a failed verification into
+            # the module-level all_verified flag; and (c) flip this step's
+            # dashboard success to False (PB-001) so api/runner_ws.py forwards
+            # the real state instead of always-green for a pure verify step
+            # (whose last_submit.success only reflects the last SUBMIT, never a
+            # verify). Only the entries appended by THIS step are inspected.
+            step_verifications = context.get("verifications", [])[_prev_verif_count:]
+            step_verify_failed = any(
+                not v.get("passed", True) for v in step_verifications
+            )
+            if step_verify_failed:
+                all_verified = False
 
             # Fire step_complete callback
             if on_step_complete is not None:
@@ -353,6 +405,11 @@ async def run_module(
                 last_submit = context.get("last_submit")
                 if last_submit and hasattr(last_submit, "success"):
                     success = bool(last_submit.success)
+                # A failed verification in this step makes the step unsuccessful
+                # even when the (possibly earlier) submit succeeded — the
+                # on-ledger check is the step's real verdict for the dashboard.
+                if step_verify_failed:
+                    success = False
                 _r = on_step_complete(step.action, success)
                 if inspect.isawaitable(_r):
                     await _r
@@ -419,6 +476,10 @@ async def run_module(
         module_id=module.id,
         txids=context["txids"],
         report_path=str(report_path),
+        # RESWARM3: honest completion — records verified=False when any
+        # on-ledger verification this run failed, so the proof pack's
+        # per-module `verified` + top-level `all_verified` tell the truth.
+        verified=all_verified,
     )
     # B-BACKEND-005: guard the completion save like the recovery save. The
     # module already ran and its report is on disk, so a save failure here

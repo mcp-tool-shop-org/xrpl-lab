@@ -7,14 +7,20 @@ Each test anchors one finding so the fix cannot silently regress:
   bundle.
 - A-ACTIONS-001: verify_escrow_finished must NOT report an escrow "gone" when a
   still-present escrow has an unresolved (0) create-sequence.
-- A-TRANSPORT-001 / A-ACTIONS-002: dry-run must reject the same inputs testnet
-  rejects (>6dp XRP amounts; issued payments over the trust-line limit), so a
-  dry-run "pass" never masks a real-network failure.
+- A-TRANSPORT-001 / A-ACTIONS-002: dry-run must accept/reject the same inputs
+  testnet does, so a dry-run "pass" never masks a real-network failure. Note
+  (re-swarm v3 / TR-002): xrpl-py's xrp_to_drops ROUNDS amounts finer than a
+  drop (>6dp) to the nearest drop and accepts them — it rejects only sub-drop
+  (<1 drop), negative, and over-max (>100e9 XRP) amounts. An earlier revision
+  of these tests wrongly asserted testnet rejects >6dp; corrected here to match
+  the real network. Issued payments over the trust-line limit are still rejected.
 """
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from xrpl.utils import xrp_to_drops
 
 from xrpl_lab.actions.escrow import verify_escrow_finished
 from xrpl_lab.doctor import _check_state, _check_workspace, _redact_path
@@ -105,10 +111,34 @@ async def test_verify_escrow_finished_gone_when_no_escrows():
 
 @pytest.mark.asyncio
 async def test_dry_run_rejects_subdrop_xrp_amount():
+    # A GENUINE sub-drop amount (< 1 drop = 0.000001 XRP) is rejected, exactly
+    # as testnet's xrp_to_drops raises "too small". (>6dp is NOT sub-drop — it
+    # rounds; see test_dry_run_rounds_over_6dp_xrp_amount below.)
     t = DryRunTransport()
-    r = await t.submit_payment("sFAKE", "rDEST", "1.5555555")  # 7 decimal places
+    r = await t.submit_payment("sFAKE", "rDEST", "0.0000001")  # 1e-7 XRP, sub-drop
     assert r.success is False
     assert r.result_code == "temBAD_AMOUNT"
+
+
+@pytest.mark.asyncio
+async def test_dry_run_rounds_over_6dp_xrp_amount():
+    # TR-002: the real network ROUNDS an amount finer than a drop to the nearest
+    # drop (ROUND_HALF_EVEN) and ACCEPTS it — the dry-run must match, not reject.
+    # 1.5555555 XRP = 1555555.5 drops -> rounds to 1555556 (HALF_EVEN, to even).
+    # The old test wrongly asserted this exact amount was REJECTED with
+    # temBAD_AMOUNT on the false belief that xrp_to_drops rejects >6dp; it rounds.
+    t = DryRunTransport()
+    dest = "rDEST"
+    before = t._balances.get(dest, 0)
+
+    r = await t.submit_payment("sFAKE", dest, "1.5555555")
+
+    assert r.success is True
+    assert r.result_code == "tesSUCCESS"
+    # It didn't just "pass" — it settled the ROUNDED drop count the network would.
+    settled = t._balances.get(dest, 0) - before
+    assert settled == 1555556
+    assert settled == int(xrp_to_drops(Decimal("1.5555555")))
 
 
 @pytest.mark.asyncio

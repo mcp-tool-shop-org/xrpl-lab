@@ -34,9 +34,10 @@ without taking it. On the XRPL that lever is **Freeze**, and it comes in two tie
 
 Both are core, mainnet-live features and both are **reversible** — you set the flag, and
 you clear it. (There is a third tier, *Deep Freeze* / XLS-77d, that blocks a holder from
-even returning the token to the issuer. It is not yet enabled on XRPL mainnet, so this
-module deliberately does not teach it as live — Individual and Global are the two you can
-rely on today.)
+even *returning* a frozen token to the issuer — a stricter control for sanctions and
+compliance. The DeepFreeze amendment went live on XRPL mainnet on **2025-05-05**, so it is
+real today; this module focuses on Individual and Global freeze as the two foundational
+levers, and notes Deep Freeze as the compliance-grade escalation above them.)
 
 Everything here runs on the testnet — free, disposable, and safe to repeat.
 
@@ -140,6 +141,9 @@ Key concepts to remember:
 - **`asfNoFreeze` is a one-way promise**: an issuer can permanently *relinquish* its freeze
   power with the NoFreeze flag — a credibility signal to holders that their balances can
   never be paused. (We don't set it here; it can't be undone.)
-- **Deep Freeze (XLS-77d) is not mainnet-live** — don't design a live economy around it yet.
+- **Deep Freeze (XLS-77d) is mainnet-live** (DeepFreeze amendment, since 2025-05-05) — the
+  compliance-grade tier above Individual/Global that also blocks the holder→issuer return path.
+  Learn the two reversible levers here first; reach for Deep Freeze when sanctions/compliance
+  demand a full lock.
 
 Run `xrpl-lab proof-pack` when you're ready to export your work.

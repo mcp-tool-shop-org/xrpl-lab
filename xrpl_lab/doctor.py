@@ -48,12 +48,25 @@ def _redact_path(p: Path | str) -> str:
 
 @dataclass
 class Check:
-    """Single diagnostic check result."""
+    """Single diagnostic check result.
+
+    ``severity`` distinguishes a HARD failure (the environment is broken and
+    the learner is stuck — red ✗) from an informational WARN (something worth
+    surfacing in amber, but not "broken": curriculum drift, a safe-but-present
+    env override, an informational last-error breadcrumb). It defaults to
+    ``"fail"`` so every existing check keeps failing loudly; only the
+    explicitly informational checks opt into ``"warn"``. The API layer
+    (``api/routes.py::get_doctor``) maps ``severity`` onto the
+    ``"pass"|"warn"|"fail"`` status the frontend renders — before this field
+    the "warn" tier was dead code and informational checks rendered as red
+    failures under an "environment is broken" banner.
+    """
 
     name: str
     passed: bool
     detail: str = ""
     hint: str = ""
+    severity: str = "fail"  # "fail" (hard, red ✗) | "warn" (informational, amber !)
 
 
 @dataclass
@@ -265,8 +278,20 @@ def _check_env_overrides() -> Check:
             "Refusing non-testnet endpoint — XRPL Lab is testnet-only and will "
             "not sign or submit against it. Unset the override to use the "
             "default testnet, or use --dry-run for offline practice.",
+            severity="fail",  # a non-testnet override is a real-funds risk — hard fail
         )
-    return Check("Env overrides", True, detail)
+    # Safe-but-present: the learner overrode an endpoint but stayed on a safe
+    # (testnet/devnet/local) network. Not broken — but worth surfacing in amber
+    # so it's clear a non-default endpoint is active. Passes (all_passed stays
+    # true) yet renders as a WARN, not a silent green pass.
+    return Check(
+        "Env overrides",
+        True,
+        detail,
+        "A non-default (but safe) endpoint override is active. Unset "
+        "XRPL_LAB_RPC_URL / XRPL_LAB_FAUCET_URL to return to the defaults.",
+        severity="warn",
+    )
 
 
 def _check_last_error() -> Check:
@@ -277,12 +302,17 @@ def _check_last_error() -> Check:
         return Check("Last error", True, "No failed transactions")
 
     last = failed[-1]
+    # Informational, not a failure — but a prior failed tx is worth surfacing
+    # in amber (warn) so a facilitator sees "there was a failure here, run
+    # verify" rather than a green all-clear. ``passed`` stays True so it never
+    # trips the hard-fail / all_passed path.
     return Check(
         "Last error",
         True,  # Informational, not a failure
         f"Last failure in '{last.module_id}': "
         f"tx {last.txid[:24]}{'...' if len(last.txid) > 24 else ''}",
         f"Run: xrpl-lab verify --tx {last.txid} for details",
+        severity="warn",
     )
 
 
@@ -407,11 +437,17 @@ def _check_last_module_state() -> Check:
 
     if drift_modules:
         parts.append(f"drift: {'; '.join(drift_modules)}")
+        # Curriculum drift is INFORMATIONAL, not a broken environment: a
+        # completed module whose prereqs aren't marked complete usually means
+        # an out-of-order run or a catalog change, not a stuck learner. Surface
+        # it in amber (warn), not as a red ✗ under an "environment broken"
+        # banner.
         return Check(
             "Last module state",
             False,
             " | ".join(parts),
             "Run: xrpl-lab curriculum validate",
+            severity="warn",
         )
 
     parts.append("drift: none")
@@ -529,7 +565,7 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
             "doesn't exist yet or has never been funded."
         ),
         "action": (
-            "Verify the address. If it's new, send at least 10 XRP first "
+            "Verify the address. If it's new, send at least 1 XRP first "
             "(XRPL's base reserve) to activate it on the ledger."
         ),
     },
@@ -537,12 +573,12 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
         "category": "claimed",
         "meaning": (
             "Destination exists but doesn't hold enough XRP. XRPL requires "
-            "every account to lock up a base reserve (10 XRP) — this is a "
+            "every account to lock up a base reserve (1 XRP) — this is a "
             "minimum balance, not a fee. Additional reserves apply per owned "
             "object (trust line, offer)."
         ),
         "action": (
-            "Send enough XRP so the account has 10 XRP available "
+            "Send enough XRP so the account has 1 XRP available "
             "(excluding any locked in trust lines or offers)."
         ),
     },

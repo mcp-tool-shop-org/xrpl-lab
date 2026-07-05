@@ -75,14 +75,16 @@ class CurriculumGraph:
         return visited
 
     def is_reachable(self, module_id: str) -> bool:
-        """True if all transitive prerequisites exist in the graph."""
-        try:
-            for req in self.all_prerequisites(module_id):
-                if req not in self.modules:
-                    return False
-        except RecursionError:
-            return False
-        return True
+        """True if all transitive prerequisites exist in the graph.
+
+        BC-007: ``all_prerequisites`` is an iterative stack-walk with a visited
+        set — it cannot recurse, so the former recursion-depth guard around it
+        was dead code and has been removed.
+        """
+        return all(
+            req in self.modules
+            for req in self.all_prerequisites(module_id)
+        )
 
     def roots(self) -> list[str]:
         """Modules with no prerequisites (entry points)."""
@@ -137,16 +139,12 @@ class CurriculumGraph:
             mod = self.modules[mid]
             return (track_rank.get(mod.track, 99), mod.order, mid)
 
-        # Kahn's algorithm with priority
+        # Kahn's algorithm with priority — compute in-degrees from the
+        # `requires` edges (a module's in-degree is its count of prerequisites
+        # that exist in the graph). PB-007: the previous explicit no-op loop
+        # that was immediately overwritten by this correct computation has been
+        # removed; behavior is unchanged.
         in_degree: dict[str, int] = {mid: 0 for mid in self.modules}
-        for mod in self.modules.values():
-            for req in mod.requires:
-                if req in in_degree:
-                    in_degree[req]  # just ensure it exists
-                    in_degree[mod.id] = in_degree.get(mod.id, 0)  # no-op
-
-        # Actually compute in-degrees from requires (reversed edges)
-        in_degree = {mid: 0 for mid in self.modules}
         for mod in self.modules.values():
             for req in mod.requires:
                 if req in self.modules:

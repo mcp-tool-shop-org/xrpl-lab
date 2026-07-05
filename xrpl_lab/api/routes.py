@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import UTC, datetime
 from typing import Any
@@ -57,6 +58,52 @@ def _active_network(request: Request) -> str:
 router = APIRouter(prefix="/api")
 
 
+# -- resource caps ---------------------------------------------------------
+#
+# Defensive bounds for the browser-reachable, network-driving endpoints. These
+# are deliberately far larger than any real artifact/curriculum so a legitimate
+# facilitator never trips them, yet finite so a hostile or accidental request
+# (a curl loop on `serve --host 0.0.0.0`, a pasted multi-megabyte blob) cannot
+# fan out into unbounded outbound XRPL RPC work or read the whole reports dir
+# into one response. CORS is browser-only and does not stop curl (AW-001/AW-003).
+
+# /api/verify — reject a pasted request body larger than this. A real proof pack
+# or certificate is a few KB; 512 KiB is generous headroom for a large mixed
+# pack while still cheap to reject before parsing.
+_MAX_VERIFY_BODY_BYTES = 512 * 1024
+
+# /api/verify?live=true — cap the number of live-verifiable tx claims. Each
+# real-network claim drives ONE sequential outbound RPC, so an uncapped pasted
+# pack is an amplification vector. 500 is far larger than any real curriculum
+# (dozens of modules → dozens of txids) yet bounds the outbound loop.
+_MAX_LIVE_CLAIMS = 500
+
+# /api/artifacts/reports — this endpoint inlines report content. Cap the number
+# of reports inlined per call and the per-report bytes so a workspace with many
+# large reports cannot read an unbounded payload into a single response.
+_MAX_REPORTS_INLINE = 200
+_MAX_REPORT_CONTENT_BYTES = 256 * 1024
+
+
+def _coerce_live(value: Any) -> bool:
+    """Coerce a ``live`` flag from EITHER the query param OR the body key the
+    same way (AW-005).
+
+    Accepts the truthy string tokens the query param has always accepted
+    (``1/true/yes/on``, case-insensitively) as well as a literal ``True``.
+    Everything else — including a JSON ``false``/``"false"``, the empty string,
+    ``None``, and any non-bool/non-str — is False. Previously the body path
+    required a literal JSON ``true`` while the query path accepted the tokens,
+    so a pasted ``"live": "true"`` string was silently treated as False; routing
+    both through this helper makes the two symmetric.
+    """
+    if value is True:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return False
+
+
 # -- /api/modules ----------------------------------------------------------
 
 
@@ -68,6 +115,10 @@ def list_modules() -> list[ModuleSummary]:
     all_mods = load_all_modules()
     state = load_state()
     completed_ids = {cm.module_id for cm in state.completed_modules}
+    # FT-002: map module_id → its recorded on-ledger verified flag so each
+    # completed module's ModuleSummary can carry the truth. A module NOT in this
+    # map is not completed, so its verified flag is irrelevant and defaults True.
+    verified_by_id = {cm.module_id: cm.verified for cm in state.completed_modules}
 
     graph = build_graph(all_mods)
     ordered = graph.canonical_order()
@@ -90,6 +141,7 @@ def list_modules() -> list[ModuleSummary]:
                 checks=mod.checks,
                 completed=mod.id in completed_ids,
                 is_next=mod.id == next_id,
+                verified=verified_by_id.get(mod.id, True),
             )
         )
     return result
@@ -205,6 +257,10 @@ def get_status(request: Request) -> StatusResponse:
         has_proof_pack=ls.has_proof_pack,
         has_certificate=ls.has_certificate,
         report_count=ls.report_count,
+        # FT-002: mirror the workshop's learner-level verification verdict so the
+        # dashboard can flag a completed-but-unverified learner instead of showing
+        # an all-green status that proof-verify would contradict.
+        all_verified=ls.all_verified,
         network=_active_network(request),
         version=__version__,
     )
@@ -235,21 +291,45 @@ def get_certificate() -> dict[str, Any]:
 
 @router.get("/artifacts/reports")
 def list_reports() -> list[ReportSummary]:
-    """Return a list of available module reports with title, generated timestamp, and content."""
+    """Return available module reports with title, generated timestamp, and content.
+
+    The dashboard's Artifacts page renders each report's ``content`` inline (a
+    ``<pre>`` block) AND wires its Download button to the same string, so the
+    content field must stay populated — a summary-only shape would break the
+    client. To keep the endpoint bounded (AW-004) rather than reading the whole
+    reports directory into one unbounded response, the number of reports inlined
+    per call is capped (``_MAX_REPORTS_INLINE``) and any single report larger
+    than ``_MAX_REPORT_CONTENT_BYTES`` is truncated with an explicit marker;
+    the full content of a truncated report is still fetchable lazily via
+    GET /api/artifacts/reports/{module_id}.
+    """
     ws = get_workspace_dir()
     reports_dir = ws / "reports"
     if not reports_dir.is_dir():
         return []
 
     result: list[ReportSummary] = []
-    for p in sorted(reports_dir.glob("*.md")):
+    for p in sorted(reports_dir.glob("*.md"))[:_MAX_REPORTS_INLINE]:
         # Title from filename (strip .md, replace underscores with spaces, title-case)
         title = p.stem.replace("_", " ").replace("-", " ").title()
         # Generated timestamp from file mtime
         mtime = os.path.getmtime(p)
         generated = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
-        # Read content
-        content = p.read_text(encoding="utf-8")
+        # Read content, bounded — a pathologically large report is truncated so
+        # a single response can't inline unbounded bytes. Read one cap's worth
+        # plus a probe byte to detect (without loading the rest) whether we
+        # truncated, then append an honest marker pointing at the lazy endpoint.
+        raw = p.read_text(encoding="utf-8")
+        if len(raw.encode("utf-8")) > _MAX_REPORT_CONTENT_BYTES:
+            content = (
+                raw.encode("utf-8")[:_MAX_REPORT_CONTENT_BYTES].decode(
+                    "utf-8", errors="ignore"
+                )
+                + f"\n\n[truncated — fetch the full report via "
+                f"GET /api/artifacts/reports/{p.stem}]"
+            )
+        else:
+            content = raw
         result.append(ReportSummary(
             title=title,
             generated=generated,
@@ -363,9 +443,26 @@ async def verify_artifact(request: Request) -> VerifyResponse:
     is ground truth, and the live check is only attempted when the hash passed
     (an edited artifact is untrustworthy regardless of its txids).
     """
+    # Body-size cap (AW-001) — reject an oversized pasted body BEFORE parsing it.
+    # A real pack/certificate is a few KB; a multi-hundred-KB body is either an
+    # accident or an attempt to burn CPU on JSON parsing. Read the raw bytes once
+    # (request.json() would re-read the same buffer) and gate on length. The
+    # Content-Length header is advisory only; the actual body length is
+    # authoritative, so we check the bytes we received rather than trusting it.
+    raw = await request.body()
+    if len(raw) > _MAX_VERIFY_BODY_BYTES:
+        raise HTTPException(status_code=400, detail={
+            "code": "BODY_TOO_LARGE",
+            "message": (
+                f"Request body is too large ({len(raw)} bytes); the limit is "
+                f"{_MAX_VERIFY_BODY_BYTES} bytes."
+            ),
+            "hint": "A real proof pack or certificate is a few KB. Paste only the artifact JSON.",
+        })
+
     # The body is untrusted — a parse failure is a clean 400, never a 500.
     try:
-        body = await request.json()
+        body = json.loads(raw) if raw else None
     except Exception as exc:  # malformed / empty / non-JSON
         raise HTTPException(status_code=400, detail={
             "code": "INVALID_BODY",
@@ -381,12 +478,14 @@ async def verify_artifact(request: Request) -> VerifyResponse:
         })
 
     # ``live`` from query (?live=true) takes precedence; fall back to a body key.
-    # Both are coerced defensively — the body value can be anything.
+    # BOTH paths run through the SAME coercion helper (AW-005) so a pasted
+    # ``"live": "true"`` string is honoured exactly like the ?live=true param.
     live_param = request.query_params.get("live")
-    if live_param is not None:
-        live = live_param.lower() in ("1", "true", "yes", "on")
-    else:
-        live = bool(body.get("live") is True)
+    live = (
+        _coerce_live(live_param)
+        if live_param is not None
+        else _coerce_live(body.get("live"))
+    )
 
     # Detect the artifact kind from its marker. A body carrying neither marker is
     # not something we know how to verify → structured 400 (not a silent pass).
@@ -403,6 +502,31 @@ async def verify_artifact(request: Request) -> VerifyResponse:
         })
 
     artifact_kind = "proof_pack" if is_pack else "certificate"
+
+    # Live-claim cap (AW-001) — ONLY the live path drives outbound RPC, and it
+    # loops SEQUENTIALLY over every claimed txid. Count the claims the SAME way
+    # reporting does (its own extractor) and reject an oversized pasted pack
+    # BEFORE any network work. Guarded on ``live`` so offline hash verification
+    # of a large-but-legitimate pack is never blocked (AW-003: outbound work is
+    # gated to the live path AND bounded here). Certificates carry no per-tx
+    # claims, so this only meaningfully bounds proof packs.
+    if live and is_pack:
+        from ..reporting import _iter_pack_tx_claims
+
+        claim_count = len(_iter_pack_tx_claims(body))
+        if claim_count > _MAX_LIVE_CLAIMS:
+            raise HTTPException(status_code=400, detail={
+                "code": "TOO_MANY_CLAIMS",
+                "message": (
+                    f"Proof pack claims {claim_count} transactions; live "
+                    f"verification is capped at {_MAX_LIVE_CLAIMS} to bound "
+                    "outbound ledger requests."
+                ),
+                "hint": (
+                    "This is far larger than any real curriculum. Verify offline "
+                    "(omit ?live=true) or split the pack."
+                ),
+            })
 
     # Offline hash layer — ALWAYS runs (tamper-evidence). Reuses the EXACT same
     # functions the CLI calls; no reimplementation here.
@@ -452,6 +576,8 @@ async def verify_artifact(request: Request) -> VerifyResponse:
         version=str(body.get("version", "") or ""),
         address=str(body.get("address", "") or ""),
         network=str(body.get("network", "") or ""),
+        simulated=str(body.get("network", "") or "").lower() in ("dry-run", "dry_run", "mixed"),
+        all_verified=bool(body.get("all_verified", True)),
     )
 
 
@@ -463,15 +589,32 @@ async def get_doctor() -> DoctorResponse:
     """Run diagnostic checks and return results."""
     report = await run_doctor()
 
-    # Map checks to canonical shape
+    # Map checks to canonical shape. Three tiers (matching DoctorCheck's
+    # "pass"|"warn"|"fail" contract and the frontend's amber "!" tier):
+    #
+    #   * severity == "warn"  -> status="warn"  (informational, amber)
+    #     Fires for curriculum drift, a safe-but-present env override, and the
+    #     last-error breadcrumb — whether the underlying Check "passed" or not.
+    #     Before this the "warn" tier was dead code and these rendered as red
+    #     ✗ under an "environment is broken" banner (over-alarming).
+    #   * not passed          -> status="fail"  (hard failure, red ✗)
+    #   * passed              -> status="pass"  (green ✓)
+    #
+    # ``overall`` is "error" if ANY hard fail is present (a real failure always
+    # dominates a warn), else "warning" if any warn surfaced, else "healthy".
     checks: list[DoctorCheck] = []
-    has_failure = False
+    has_hard_failure = False
+    has_warning = False
     for c in report.checks:
-        if c.passed:
-            status = "pass"
-        else:
+        severity = getattr(c, "severity", "fail")
+        if severity == "warn":
+            status = "warn"
+            has_warning = True
+        elif not c.passed:
             status = "fail"
-            has_failure = True
+            has_hard_failure = True
+        else:
+            status = "pass"
 
         message = c.detail
         if c.hint:
@@ -483,13 +626,13 @@ async def get_doctor() -> DoctorResponse:
             message=message,
         ))
 
-    # Determine overall status
-    if has_failure:
+    # A hard fail dominates: warns never mask a genuine failure.
+    if has_hard_failure:
         overall = "error"
-    elif report.all_passed:
-        overall = "healthy"
-    else:
+    elif has_warning:
         overall = "warning"
+    else:
+        overall = "healthy"
 
     return DoctorResponse(
         overall=overall,

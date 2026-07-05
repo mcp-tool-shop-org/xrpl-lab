@@ -207,6 +207,10 @@ class TestSupportBundle:
             "track_progress", "last_activity", "last_module",
             "total_transactions", "failed_transactions", "has_proof_pack",
             "has_certificate", "report_count",
+            # FT-002: on-ledger verification surfacing. Both are public,
+            # non-secret module-verification status (module ids + a bool) —
+            # reviewed and allowlisted here per this gate's purpose.
+            "all_verified", "unverified_modules",
         }
         assert set(d) == allowed
 

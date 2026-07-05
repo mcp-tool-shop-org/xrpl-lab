@@ -44,6 +44,7 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
       mode?: string;
       completed?: boolean;
       is_next?: boolean;
+      verified?: boolean;
     }
 
     let allModules: Module[] = [];
@@ -59,7 +60,12 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
     // F-FE-D-006: every tile carries a completion marker in the same slot —
     // healthIcon('pass') for completed, a hollow dot for not-started — so the
     // grid never has a blank slot and both states are labelled for SR users.
-    function completionMark(done: boolean) {
+    function completionMark(done: boolean, verified: boolean) {
+      if (done && !verified) {
+        // FT-002 — completed but its on-ledger verification failed. Amber warn
+        // glyph + label so it never reads as a clean "done" (honest pack).
+        return `<span role="img" aria-label="Completed but unverified">${healthIcon('warn')}</span>`;
+      }
       return done
         ? healthIcon('pass')
         : `<span class="statdot" role="img" aria-label="Not yet completed" style="width:14px;height:14px;background:none;border:1.5px solid var(--line-strong);border-radius:50%"></span>`;
@@ -91,7 +97,7 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
         <a class="qa" href="/xrpl-lab/app/modules/${esc(m.id)}/" data-level="${esc(m.level)}"${next}>
           <div class="row row--between" style="gap:12px;align-items:flex-start">
             <span class="qa__t">${esc(m.title)}</span>
-            ${completionMark(!!m.completed)}
+            ${completionMark(!!m.completed, m.verified !== false)}
           </div>
           <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:6px">
             <span class="chip">${esc(m.level)}</span>

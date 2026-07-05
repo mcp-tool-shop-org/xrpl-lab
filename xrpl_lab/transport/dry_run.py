@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import time
-from decimal import ROUND_HALF_UP, Decimal, getcontext
+from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal, getcontext
 
 from .base import (
     AccountSnapshot,
     AmmInfo,
     ChannelInfo,
+    CredentialInfo,
     DIDInfo,
     EscrowInfo,
     FreezeStatus,
@@ -19,6 +20,7 @@ from .base import (
     NFTInfo,
     NFTOfferInfo,
     OfferInfo,
+    PermissionedDomainInfo,
     SubmitResult,
     Transport,
     TrustLineInfo,
@@ -53,6 +55,104 @@ def _address_from_seed(wallet_seed: str) -> str:
     because no real key derivation is possible without a valid XRPL seed.
     """
     return _DRY_RUN_WALLET_ADDRESS
+
+
+# ── XRP amount validation — TRUE parity with xrpl.utils.xrp_to_drops ──────
+#
+# TR-001/TR-002/TR-003: the dry-run must convert XRP→drops IDENTICALLY to the
+# real network so a dry-run "pass" never masks a testnet failure (and a
+# dry-run "reject" never masks a testnet success). This reimplements
+# ``xrp_to_drops`` in pure stdlib (dry_run.py intentionally has no xrpl-py
+# import — it is the OFFLINE transport):
+#
+#   * ROUND an amount finer than 6dp to the nearest drop, ROUND_HALF_EVEN
+#     (banker's rounding) — 10.1234567 XRP → 10123457 drops, matching the
+#     network. The OLD code rejected >6dp with a comment falsely claiming
+#     "xrp_to_drops rejects >6dp"; xrp_to_drops ROUNDS, it does not reject.
+#   * REJECT a negative amount or a rounded result below 1 drop ("too small").
+#   * REJECT an amount above 100_000_000_000 XRP ("too large").
+#
+# Verified byte-for-byte against xrpl-py 4.5.0's xrp_to_drops over a
+# 100k-value random sweep (see tests/test_reswarm3_transport.py rationale).
+
+_MAX_XRP = Decimal("100000000000")  # 1e11 — xrpl-py's MAX_XRP ceiling
+_ONE_DROP_XRP = Decimal("0.000001")  # 1 drop = 1e-6 XRP
+
+
+class DryRunAmountError(ValueError):
+    """A dry-run XRP amount that the real network would reject.
+
+    Carries the ``temBAD_AMOUNT`` shape testnet surfaces so callers can turn
+    it straight into a failing ``SubmitResult`` without re-deriving the code.
+    """
+
+    result_code = "temBAD_AMOUNT"
+
+
+def _validate_xrp_amount(amount: str) -> int:
+    """Convert an XRP *amount* to integer drops, mirroring ``xrp_to_drops``.
+
+    Rounds >6dp to the nearest drop (ROUND_HALF_EVEN); raises
+    :class:`DryRunAmountError` for negative / sub-drop ("too small") and
+    over-ceiling ("too large") amounts — the exact set the network rejects.
+    """
+    try:
+        xrp = Decimal(str(amount))
+    except Exception as exc:  # noqa: BLE001 — normalize any Decimal parse error
+        raise DryRunAmountError(f"Invalid amount: {amount}") from exc
+    if not xrp.is_finite():
+        raise DryRunAmountError(f"Invalid amount: {amount}")
+    # "too large" is checked against the raw XRP value (pre-round), matching
+    # xrp_to_drops which validates the magnitude before converting to drops.
+    if xrp > _MAX_XRP:
+        raise DryRunAmountError(f"XRP amount {amount} is too large.")
+    drops = int(
+        (xrp / _ONE_DROP_XRP).quantize(Decimal(1), rounding=ROUND_HALF_EVEN)
+    )
+    if drops < 1:
+        # Covers negatives and any amount that rounds below a single drop.
+        raise DryRunAmountError(f"XRP amount {amount} is too small.")
+    return drops
+
+
+def _validate_issued_amount(amount: str) -> Decimal:
+    """Guard a non-XRP amount (issued currency / LP tokens) for AMM math.
+
+    ``_validate_xrp_amount``'s drop rounding / range ceiling is XRP-specific and
+    does not apply to issued-currency or LP-token legs, but the AMM math still
+    must not receive a NEGATIVE or NON-NUMERIC value: a negative product crashes
+    ``sqrt()`` with an uncaught ``InvalidOperation``, and a negative deposit on
+    an existing pool would silently shrink it (PT-001 / PT-002). Reject both with
+    the ``temBAD_AMOUNT`` shape testnet surfaces so callers turn it straight into
+    a failing ``SubmitResult``.
+    """
+    try:
+        value = Decimal(str(amount))
+    except Exception as exc:  # noqa: BLE001 — normalize any Decimal parse error
+        raise DryRunAmountError(f"Invalid amount: {amount}") from exc
+    if not value.is_finite():
+        raise DryRunAmountError(f"Invalid amount: {amount}")
+    if value < 0:
+        raise DryRunAmountError(f"Amount {amount} is negative.")
+    return value
+
+
+def _validate_amm_leg(currency: str, value: str) -> None:
+    """Reject a NEGATIVE or NON-NUMERIC AMM asset leg with ``temBAD_AMOUNT``.
+
+    The AMM path deliberately supports ZERO (a zero-liquidity pool) and SUB-DROP
+    positive amounts (handled downstream by the ``tecAMM_INVALID_TOKENS``
+    "would mint 0 LP" check), so this does NOT apply ``_validate_xrp_amount``'s
+    min-1-drop floor — that would reject those legitimate cases before the
+    AMM-specific logic runs. The only universally-invalid AMM inputs are
+    negative (physically impossible: crashes ``sqrt()`` on create / silently
+    shrinks the pool on deposit — PT-001 / PT-002) and non-numeric (crashes with
+    ConversionSyntax). ``currency`` is accepted for call-site symmetry with the
+    XRP/issued distinction but the guard is identical for both kinds.
+
+    Raises :class:`DryRunAmountError` (``temBAD_AMOUNT``) on a bad amount.
+    """
+    _validate_issued_amount(value)
 
 
 class _PerAddressStore(dict):
@@ -124,6 +224,17 @@ class DryRunTransport(Transport):
         # (issuer, currency, holder) line; global freeze keys an issuer.
         self._frozen_lines: set[tuple[str, str, str]] = set()
         self._global_frozen: set[str] = set()
+        # Token-escrow opt-in state (FC-001, XLS-85). An issuer address in this
+        # set has enabled asfAllowTrustLineLocking, so its IOU can be escrowed.
+        # A token EscrowCreate against an issuer NOT in this set fails
+        # tecNO_PERMISSION, matching the network's engine result for the
+        # missing-opt-in case. Locked IOU amounts (currency/issuer/value + the
+        # source that owes them) ride on the EscrowInfo via a parallel dict so
+        # the release can credit the recipient's trust line on finish.
+        self._locking_enabled: set[str] = set()
+        # (owner, sequence) -> (currency, issuer, value, source_address) for the
+        # token that a given escrow locked, so finish/cancel can move the IOU.
+        self._token_escrow_amounts: dict[tuple[str, int], tuple[str, str, str, str]] = {}
         # MPT holder state (FT-CURRIC-004): authorizations + per-holder balances,
         # both keyed (holder, issuance_id).
         self._mpt_auths: set[tuple[str, str]] = set()
@@ -134,6 +245,21 @@ class DryRunTransport(Transport):
         self._escrows: _PerAddressStore = _PerAddressStore()
         self._mpts: _PerAddressStore = _PerAddressStore()
         self._dids: dict[str, DIDInfo] = {}  # one DID per account
+        # Credential state (FC-002, XLS-70). Every dry-run seed collapses to one
+        # synthetic address, so a credential MUST be keyed by the EXPLICIT
+        # subject + issuer + type passed as arguments (exactly like clawback /
+        # freeze key on issuer_address) — otherwise issuer and subject would be
+        # indistinguishable and the two-party accept model could not be modeled.
+        # Key: (subject, issuer, credential_type_hex) -> CredentialInfo. The
+        # reserve is charged to the issuer while provisional and moves to the
+        # subject on accept, mirrored via _inc_owner / _dec_owner.
+        self._credentials: dict[tuple[str, str, str], CredentialInfo] = {}
+        # Permissioned Domains (FC-004, XLS-80), keyed by synthetic DomainID.
+        # Each unique (owner, sequence) yields a DISTINCT DomainID — modeled by
+        # a monotonic counter folded into a synthetic hash, so re-running create
+        # produces a NEW id (never idempotently the old one).
+        self._domains: dict[str, PermissionedDomainInfo] = {}
+        self._domain_seq: int = 0
         # Deterministic clock for EscrowFinish/EscrowCancel time-gating.
         # XRPL gates EscrowFinish on FinishAfter and EscrowCancel on
         # CancelAfter, both in ripple-epoch seconds. Wall-clock would make
@@ -219,37 +345,22 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: insufficient funds",
             )
 
-        try:
-            numeric_amount = Decimal(amount)
-        except Exception:
-            return SubmitResult(
-                success=False,
-                txid="",
-                result_code="temBAD_AMOUNT",
-                fee="0",
-                error=f"[dry-run] Invalid amount: {amount}",
-            )
-
         sender = _address_from_seed(wallet_seed)
 
-        # Parity with testnet: xrpl-py's xrp_to_drops rejects an XRP amount
-        # finer than 6 decimal places (1 drop = 0.000001 XRP). The dry-run
-        # previously truncated via int(amount * 1e6), so a >6dp amount "passed"
-        # here but fails on the real network — a dry-run pass that masks a
-        # testnet failure. Reject it the same way (normalize() so trailing
-        # zeros like "1.50000000" stay valid, matching xrp_to_drops).
-        if numeric_amount.normalize().as_tuple().exponent < -6:
+        # TRUE parity with testnet: xrpl-py's xrp_to_drops ROUNDS a >6dp amount
+        # to the nearest drop (ROUND_HALF_EVEN) and REJECTS negative / sub-drop
+        # ("too small") and > 100_000_000_000 XRP ("too large"). The shared
+        # helper mirrors that exactly, so a dry-run result matches the network.
+        try:
+            drops = _validate_xrp_amount(amount)
+        except DryRunAmountError as exc:
             return SubmitResult(
                 success=False,
                 txid="",
-                result_code="temBAD_AMOUNT",
+                result_code=exc.result_code,
                 fee="0",
-                error=(
-                    f"[dry-run] XRP amount finer than 6 decimal places "
-                    f"(1 drop = 0.000001 XRP): {amount}"
-                ),
+                error=f"[dry-run] {exc}",
             )
-        drops = int(numeric_amount * Decimal("1000000"))
 
         # F-BRIDGE-B-DRY-NEG-BAL: pre-validate sender balance before debiting.
         # Previously the debit ran unconditionally, allowing a funded sender's
@@ -462,6 +573,112 @@ class DryRunTransport(Transport):
             explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
+    async def submit_partial_payment(
+        self,
+        issuer_seed: str,
+        destination: str,
+        currency: str,
+        issuer: str,
+        amount: str,
+        deliver_min: str,
+        send_max: str,
+        memo: str = "",
+    ) -> SubmitResult:
+        """Simulate an issued-currency Payment with tfPartialPayment (FC-003).
+
+        THE LESSON: this returns ``tesSUCCESS`` but delivers LESS than ``amount``
+        (it delivers ``deliver_min`` — the reduced floor), and exposes the real
+        figure via ``delivered_amount`` on the ``fetch_tx`` read-back. A naive
+        backend crediting the ``Amount`` field over-credits by
+        ``amount - deliver_min``. XRP-to-XRP partial payments are FORBIDDEN
+        on-ledger (``temBAD_SEND_XRP_PARTIAL``); this transport rejects them the
+        same way so the dry-run stays in parity with testnet.
+        """
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecPATH_DRY", fee="12",
+                error="[dry-run] Simulated failure: partial payment",
+            )
+
+        # Parity: the ledger refuses XRP→XRP partial payments outright.
+        if currency == "XRP":
+            return SubmitResult(
+                success=False, result_code="temBAD_SEND_XRP_PARTIAL", fee="12",
+                error=(
+                    "[dry-run] XRP-to-XRP partial payments are forbidden "
+                    "(temBAD_SEND_XRP_PARTIAL) — demonstrate with an issued "
+                    "currency instead."
+                ),
+            )
+
+        # The DESTINATION holds the trust line (same resolution as
+        # submit_issued_payment). No line → tecPATH_DRY, matching testnet.
+        matching_tl = None
+        for tl in self._live_lines_for(destination):
+            if tl.currency == currency and tl.peer == issuer:
+                matching_tl = tl
+                break
+        if matching_tl is None:
+            return SubmitResult(
+                success=False, result_code="tecPATH_DRY", fee="12",
+                error=(
+                    "[dry-run] No trust line for "
+                    f"{currency}/{issuer[:12]}... — recipient must set a trust "
+                    "line first"
+                ),
+            )
+
+        try:
+            requested = Decimal(str(amount))       # the Amount field (DeliverMax cap)
+            delivered = Decimal(str(deliver_min))  # what actually moves (reduced)
+        except Exception:
+            return SubmitResult(
+                success=False, txid="", result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid amount: {amount}/{deliver_min}",
+            )
+
+        # Credit the DELIVERED amount (the reduced figure) to the holder's line —
+        # NOT the requested Amount. This is what makes the exploit demonstrable:
+        # the on-ledger balance moves by delivered_amount, while the tx's Amount
+        # field still claims the full ``requested``.
+        try:
+            prev = Decimal(matching_tl.balance)
+        except Exception:
+            prev = Decimal("0")
+        new_balance = prev + delivered
+        matching_tl.balance = (
+            str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
+        )
+
+        txid = self._next_txid()
+
+        def _fmt(value: Decimal) -> str:
+            v = str(int(value)) if value == int(value) else str(value)
+            return f"{v}/{currency}/{issuer}"
+
+        # Record a per-txid fixture so fetch_tx returns BOTH the claimed Amount
+        # (the cap) AND the honest delivered_amount metadata. This is the crux:
+        # the lesson reads delivered_amount off this validated tx.
+        self._tx_fixtures[txid] = TxInfo(
+            txid=txid,
+            tx_type="Payment",
+            account=_address_from_seed(issuer_seed),
+            destination=destination,
+            amount=_fmt(requested),            # Amount / DeliverMax — the CAP
+            fee="12",
+            result_code="tesSUCCESS",
+            ledger_index=99999999,
+            memos=[memo] if memo else ["XRPLLAB|PARTIAL"],
+            validated=True,
+            delivered_amount=_fmt(delivered),  # what ACTUALLY moved
+        )
+
+        return SubmitResult(
+            success=True, txid=txid, result_code="tesSUCCESS", fee="12",
+            ledger_index=99999999, explorer_url="",
+        )
+
     def _live_lines_for(self, address: str) -> list[TrustLineInfo]:
         """Return the LIVE trust-line list backing *address* (mutations persist).
 
@@ -512,6 +729,19 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] Simulated failure: unfunded offer",
             )
+
+        # Parity with testnet: an XRP offer leg goes through xrp_to_drops there,
+        # so reject the same bad XRP amounts (negative / sub-drop / too-large)
+        # the network rejects. Issued-currency legs are validated by the ledger,
+        # not xrp_to_drops, so they are left as-is.
+        try:
+            if taker_pays_currency == "XRP":
+                _validate_xrp_amount(taker_pays_value)
+            if taker_gets_currency == "XRP":
+                _validate_xrp_amount(taker_gets_value)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
 
         txid = self._next_txid()
         seq = self._offer_seq
@@ -711,6 +941,17 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: AMM creation failed",
             )
 
+        # PT-001: validate BOTH legs before any Decimal math. A negative product
+        # crashes ``(a * b).sqrt()`` with an uncaught InvalidOperation (opaque
+        # "Step failed: InvalidOperation"); a non-numeric leg crashes with
+        # ConversionSyntax. Surface a teachable temBAD_AMOUNT instead.
+        try:
+            _validate_amm_leg(asset_a_currency, asset_a_value)
+            _validate_amm_leg(asset_b_currency, asset_b_value)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
+
         key = self._amm_pair_key(
             asset_a_currency, asset_a_issuer,
             asset_b_currency, asset_b_issuer,
@@ -807,6 +1048,20 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] No AMM found for this asset pair",
             )
+
+        # PT-001 / PT-002 (load-bearing): validate BOTH legs BEFORE the ratio
+        # math and BEFORE any pool mutation. A NEGATIVE deposit on an existing
+        # pool previously SILENTLY SUCCEEDED — it shrank the pool and credited
+        # negative LP (deposit -5 on 100/100 -> tesSUCCESS, pool 95/95, LP 95),
+        # teaching a physically-impossible outcome. A non-numeric leg crashed
+        # the Decimal() below with ConversionSyntax. Reject both here with a
+        # teachable temBAD_AMOUNT, leaving the pool untouched.
+        try:
+            _validate_amm_leg(asset_a_currency, asset_a_value)
+            _validate_amm_leg(asset_b_currency, asset_b_value)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
 
         txid = self._next_txid()
 
@@ -918,6 +1173,19 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] No AMM found for this asset pair",
             )
+
+        # PT-001: guard the LP-token leg BEFORE the bare Decimal() below. A
+        # non-numeric lp_token_value crashed with ConversionSyntax (opaque
+        # "Step failed: InvalidOperation"); a negative one is an invalid burn.
+        # lp_token_value is an LP-token amount (not XRP), so the XRP rounding /
+        # range rules don't apply — use the issued-amount guard. An empty value
+        # means "burn all" and is left to the current_lp fallback below.
+        if lp_token_value:
+            try:
+                _validate_issued_amount(lp_token_value)
+            except DryRunAmountError as exc:
+                return SubmitResult(success=False, result_code=exc.result_code,
+                                    fee="12", error=f"[dry-run] {exc}")
 
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
         withdrawer_address = _address_from_seed(wallet_seed)
@@ -1150,6 +1418,15 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecNO_PERMISSION", fee="12",
                 error="[dry-run] Simulated failure: NFTokenCreateOffer",
             )
+
+        # Parity with testnet: an XRP-priced NFT offer routes the price through
+        # xrp_to_drops there, so reject the same bad XRP amounts the network does.
+        if currency == "XRP":
+            try:
+                _validate_xrp_amount(amount)
+            except DryRunAmountError as exc:
+                return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                    error=f"[dry-run] {exc}")
 
         # A sell offer requires the seller to actually own the NFT.
         if sell:
@@ -1562,6 +1839,13 @@ class DryRunTransport(Transport):
             self._fail_next = False
             return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
                                 error="[dry-run] Simulated failure: escrow create")
+        # Parity with testnet: reject the same bad XRP amounts (negative /
+        # sub-drop / too-large) the network rejects before locking any funds.
+        try:
+            _validate_xrp_amount(amount)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
         owner = _address_from_seed(wallet_seed)
         txid = self._next_txid()
         seq = 1000 + self._counter
@@ -1578,6 +1862,173 @@ class DryRunTransport(Transport):
         # submit response). Keep SubmitResult shape identical to testnet.
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="")
+
+    # ── Token escrow (XLS-85 / FC-001) ───────────────────────────────
+
+    async def submit_allow_trustline_locking(
+        self,
+        issuer_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecOWNERS", fee="12",
+                error="[dry-run] Simulated failure: AccountSet allow-trustline-locking",
+            )
+        # Key by the issuer's REAL address when supplied — every dry-run seed
+        # collapses to one synthetic address, so without the real address we
+        # could not tell an opted-in issuer apart from one that never opted in
+        # (the failure-case module needs exactly that distinction).
+        issuer = issuer_address or _address_from_seed(issuer_seed)
+        self._locking_enabled.add(issuer)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    def _find_iou_line(
+        self, address: str, currency: str, issuer: str
+    ) -> TrustLineInfo | None:
+        """Locate *address*'s live trust line for currency/issuer, or None."""
+        for tl in self._live_lines_for(address):
+            if tl.currency == currency and tl.peer == issuer:
+                return tl
+        return None
+
+    async def submit_token_escrow_create(
+        self,
+        source_seed: str,
+        currency: str,
+        issuer: str,
+        value: str,
+        destination: str,
+        cancel_after: int,
+        finish_after: int | None = None,
+        source_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Simulated failure: token escrow create",
+            )
+        source = source_address or _address_from_seed(source_seed)
+
+        # Rule 1 (XLS-85): the token's ISSUER cannot be the escrow SOURCE — an
+        # issuer escrowing its own token as sender fails tecNO_PERMISSION.
+        if source == issuer:
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    "[dry-run] The token's issuer cannot be the escrow source. "
+                    "An issuer escrowing its OWN token as sender fails "
+                    "tecNO_PERMISSION — the issuer opts in and issues to a "
+                    "holder; the HOLDER escrows the token to a third party."
+                ),
+            )
+
+        # Rule 2 (XLS-85): the issuer must have opted in via
+        # asfAllowTrustLineLocking, else EscrowCreate fails tecNO_PERMISSION.
+        # Accept either the real-address key or the collapsed seed-address key
+        # (unit tests that opt in via seed without a real addr).
+        if (
+            issuer not in self._locking_enabled
+            and _address_from_seed(issuer) not in self._locking_enabled
+        ):
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    f"[dry-run] Token escrow refused — the issuer of {currency} "
+                    "never enabled asfAllowTrustLineLocking (AccountSet). XLS-85 "
+                    "requires the issuer to opt in per-asset before anyone can "
+                    "escrow that IOU; without it, EscrowCreate fails "
+                    "tecNO_PERMISSION."
+                ),
+            )
+
+        # Rule 3 (XLS-85): CancelAfter is mandatory for a token escrow. The
+        # action layer already rejects a missing CancelAfter locally; enforce it
+        # here too so a direct transport caller can't skip it.
+        if cancel_after is None:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    "[dry-run] Token escrow requires a CancelAfter — unlike XRP, "
+                    "there is no open-ended token escrow (XLS-85)."
+                ),
+            )
+
+        # Lock the source's IOU: debit their trust-line balance now, credit the
+        # recipient on finish (or refund the source on cancel). The source must
+        # actually hold the token.
+        line = self._find_iou_line(source, currency, issuer)
+        if line is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_LINE", fee="12",
+                error=(
+                    f"[dry-run] The source holds no {currency} trust line from "
+                    f"{issuer[:12]}... — nothing to escrow."
+                ),
+            )
+        try:
+            have = Decimal(line.balance)
+            lock = Decimal(value)
+        except Exception:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=f"[dry-run] Invalid token amount: {value}",
+            )
+        if lock <= 0 or lock > have:
+            return SubmitResult(
+                success=False, result_code="tecUNFUNDED", fee="12",
+                error=(
+                    f"[dry-run] Cannot escrow {value} {currency} — the source "
+                    f"holds only {line.balance}."
+                ),
+            )
+        new_balance = have - lock
+        line.balance = (
+            str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
+        )
+
+        txid = self._next_txid()
+        seq = 1000 + self._counter
+        # EscrowInfo.amount carries a display string for the token (parity with
+        # the testnet get_escrows, which formats a dict Amount as value/CUR/iss).
+        display = f"{value}/{currency}/{issuer[:12]}"
+        self._escrows.setdefault(source, []).append(
+            EscrowInfo(
+                sequence=seq, amount=display, destination=destination,
+                finish_after=finish_after, cancel_after=cancel_after,
+            )
+        )
+        # Remember the real token so finish/cancel can move the IOU.
+        self._token_escrow_amounts[(source, seq)] = (currency, issuer, value, source)
+        self._inc_owner(source)
+        return SubmitResult(
+            success=True, txid=txid, result_code="tesSUCCESS", fee="12",
+            ledger_index=99999999, explorer_url="",
+        )
+
+    def _credit_iou(self, address: str, currency: str, issuer: str, value: str) -> None:
+        """Credit *value* of currency/issuer to *address*'s trust line (create if absent)."""
+        line = self._find_iou_line(address, currency, issuer)
+        if line is None:
+            # No line yet — create one so the released token has somewhere to
+            # land (mirrors a recipient who set a trust line before finishing).
+            line = TrustLineInfo(
+                account=address, peer=issuer, currency=currency,
+                balance="0", limit="0",
+            )
+            self._trust_lines.setdefault(address, []).append(line)
+        try:
+            new_balance = Decimal(line.balance) + Decimal(value)
+        except Exception:
+            return
+        line.balance = (
+            str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
+        )
 
     async def get_escrows(self, address: str) -> list[EscrowInfo]:
         return self._resolve(self._escrows, address)
@@ -1628,12 +2079,24 @@ class DryRunTransport(Transport):
                                 error=("[dry-run] EscrowFinish before FinishAfter — the "
                                        "release time has not elapsed yet."))
         txid = self._next_txid()
+        # Token escrow (XLS-85): release the locked IOU to the destination's
+        # trust line, not XRP. Look up the token this escrow locked; if present
+        # this is a token escrow and we credit the recipient's issued balance.
+        token = self._token_escrow_amounts.pop((owner, offer_sequence), None)
+        if token is not None:
+            currency, issuer, value, _src = token
+            if target.destination:
+                self._credit_iou(target.destination, currency, issuer, value)
+            self._remove_escrow(owner, target)
+            return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
+                                fee="12", ledger_index=99999999, explorer_url="")
         # Release the locked XRP to the destination, then remove the object.
         # target.amount is the XRP value the create handler passed (e.g. "10").
         # Credit the destination so the lifecycle test can observe the release.
+        # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
         try:
-            drops = int(Decimal(target.amount) * Decimal("1000000"))
-        except Exception:
+            drops = _validate_xrp_amount(target.amount)
+        except DryRunAmountError:
             drops = 0
         if target.destination:
             self._balances[target.destination] = (
@@ -1665,10 +2128,20 @@ class DryRunTransport(Transport):
                                 error=("[dry-run] EscrowCancel before CancelAfter — the "
                                        "cancel time has not elapsed yet."))
         txid = self._next_txid()
+        # Token escrow (XLS-85): cancel refunds the locked IOU to the SOURCE
+        # (the owner who locked it), not XRP.
+        token = self._token_escrow_amounts.pop((owner, offer_sequence), None)
+        if token is not None:
+            currency, issuer, value, _src = token
+            self._credit_iou(owner, currency, issuer, value)
+            self._remove_escrow(owner, target)
+            return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
+                                fee="12", ledger_index=99999999, explorer_url="")
         # Cancel returns the locked XRP to the OWNER (reclaim path), then removes.
+        # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
         try:
-            drops = int(Decimal(target.amount) * Decimal("1000000"))
-        except Exception:
+            drops = _validate_xrp_amount(target.amount)
+        except DryRunAmountError:
             drops = 0
         self._balances[owner] = self._balances.get(owner, 0) + drops
         self._remove_escrow(owner, target)
@@ -1716,6 +2189,321 @@ class DryRunTransport(Transport):
         if len(self._dids) == 1:
             return next(iter(self._dids.values()))
         return None
+
+    # ── Credential methods (FC-002, XLS-70) ──────────────────────────────
+    #
+    # Two-party model, modeled offline: create -> provisional; accept (subject
+    # only) -> valid + reserve moves issuer->subject. Keyed by the EXPLICIT
+    # (subject, issuer, type_hex) so the two parties are distinguishable despite
+    # every dry-run seed collapsing to one address.
+
+    async def submit_credential_create(
+        self,
+        issuer_seed: str,
+        subject: str,
+        credential_type: str,
+        uri: str = "",
+        expiration: int | None = None,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="temMALFORMED", fee="12",
+                                error="[dry-run] Simulated failure: credential create")
+        issuer = issuer_address or _address_from_seed(issuer_seed)
+        # tecNO_TARGET — the subject must be a FUNDED account on-ledger.
+        if subject not in self._funded_addresses:
+            return SubmitResult(
+                success=False, result_code="tecNO_TARGET", fee="12",
+                error="[dry-run] Subject is not a funded account (tecNO_TARGET) — "
+                      "fund the subject before attesting a credential.",
+            )
+        key = (subject, issuer, credential_type)
+        # tecDUPLICATE — (subject, issuer, type) is unique per issuer.
+        if key in self._credentials:
+            return SubmitResult(
+                success=False, result_code="tecDUPLICATE", fee="12",
+                error="[dry-run] A credential with this (subject, issuer, type) "
+                      "already exists (tecDUPLICATE).",
+            )
+        self._credentials[key] = CredentialInfo(
+            subject=subject, issuer=issuer, credential_type=credential_type,
+            accepted=False, uri=uri, expiration=expiration,
+        )
+        # Provisional: the ISSUER holds the owner reserve until accept.
+        self._inc_owner(issuer)
+        return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                            fee="12", ledger_index=99999999, explorer_url="")
+
+    async def submit_credential_accept(
+        self,
+        subject_seed: str,
+        issuer: str,
+        credential_type: str,
+        subject_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
+                                error="[dry-run] Simulated failure: credential accept")
+        subject = subject_address or _address_from_seed(subject_seed)
+        key = (subject, issuer, credential_type)
+        cred = self._credentials.get(key)
+        # tecNO_ENTRY — nothing to accept for this (subject, issuer, type). This
+        # is ALSO the path a NON-subject hits: only the subject's address keys a
+        # matching provisional credential, so an issuer/other accepting finds
+        # none under their own address and is rejected (subject-only accept).
+        if cred is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No provisional credential to accept for this "
+                      "(subject, issuer, type). Only the SUBJECT can accept, and "
+                      "the issuer must have created it first (tecNO_ENTRY).",
+            )
+        if cred.accepted:
+            # Already valid — accepting again is a no-op-ish duplicate.
+            return SubmitResult(
+                success=False, result_code="tecDUPLICATE", fee="12",
+                error="[dry-run] Credential already accepted (tecDUPLICATE).",
+            )
+        cred.accepted = True
+        # The owner reserve moves from the issuer to the subject on accept.
+        self._dec_owner(issuer)
+        self._inc_owner(subject)
+        return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                            fee="12", ledger_index=99999999, explorer_url="")
+
+    async def submit_credential_delete(
+        self,
+        wallet_seed: str,
+        issuer: str,
+        subject: str,
+        credential_type: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
+                                error="[dry-run] Simulated failure: credential delete")
+        key = (subject, issuer, credential_type)
+        cred = self._credentials.pop(key, None)
+        if cred is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such credential to delete (tecNO_ENTRY).",
+            )
+        # Reclaim the reserve from whoever currently holds it: the subject once
+        # accepted, otherwise the issuer.
+        holder = subject if cred.accepted else issuer
+        self._dec_owner(holder)
+        return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                            fee="12", ledger_index=99999999, explorer_url="")
+
+    async def get_credential(
+        self,
+        subject: str,
+        issuer: str,
+        credential_type: str,
+    ) -> CredentialInfo | None:
+        return self._credentials.get((subject, issuer, credential_type))
+
+    # ── Permissioned Domains & Gated DEX (FC-004, XLS-80 / XLS-81) ────────
+    #
+    # Domains gate a permissioned book by credential. Modeled offline:
+    #   * create (no domain_id) -> a NEW synthetic DomainID per call (distinct
+    #     per (owner, sequence), never idempotent); consumes an owner-reserve.
+    #   * modify (domain_id) -> owner-only; AcceptedCredentials is REPLACED
+    #     wholesale (full-replace revocation gotcha lives here).
+    #   * permissioned OfferCreate -> the placer MUST currently hold an ACCEPTED
+    #     credential the domain lists, else the offer FAILS (never rests).
+    #   * delete -> owner-only; frees the reserve (named compensator).
+
+    def _next_domain_id(self, owner: str) -> str:
+        """Derive a fresh, distinct DomainID from (owner, monotonic sequence)."""
+        self._domain_seq += 1
+        raw = f"{owner}-domain-{self._domain_seq}"
+        return hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
+
+    def _holds_accepted_credential(
+        self, holder: str, accepted: list[tuple[str, str]]
+    ) -> bool:
+        """True if *holder* holds a VALID (accepted) credential the domain lists.
+
+        Membership is OR over the accepted set: one matching accepted credential
+        is enough. A provisional (not-yet-accepted) credential does NOT count —
+        eligibility requires a valid credential, matching the ledger's rule.
+        """
+        for issuer, ctype_hex in accepted:
+            cred = self._credentials.get((holder, issuer, ctype_hex))
+            if cred is not None and cred.accepted:
+                return True
+        return False
+
+    async def submit_permissioned_domain_set(
+        self,
+        owner_seed: str,
+        accepted_credentials: list[tuple[str, str]],
+        domain_id: str = "",
+        owner_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="temDISABLED", fee="12",
+                                error="[dry-run] Simulated failure: PermissionedDomains "
+                                      "amendment inactive (temDISABLED)")
+        owner = owner_address or _address_from_seed(owner_seed)
+        # AcceptedCredentials must be 1-10 entries, no duplicates (malformed).
+        if not accepted_credentials or len(accepted_credentials) > 10:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error="[dry-run] AcceptedCredentials must list 1-10 credentials "
+                      "(temMALFORMED).",
+            )
+        if len(set(accepted_credentials)) != len(accepted_credentials):
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error="[dry-run] AcceptedCredentials must not contain duplicates "
+                      "(temMALFORMED).",
+            )
+
+        if not domain_id:
+            # CREATE: a NEW distinct DomainID; owner pays a new reserve slot.
+            new_id = self._next_domain_id(owner)
+            self._domains[new_id] = PermissionedDomainInfo(
+                domain_id=new_id, owner=owner,
+                accepted_credentials=list(accepted_credentials),
+            )
+            self._inc_owner(owner)
+            return SubmitResult(success=True, txid=self._next_txid(),
+                                result_code="tesSUCCESS", fee="12",
+                                ledger_index=99999999, explorer_url="",
+                                domain_id=new_id)
+
+        # MODIFY: owner-only; full-replace of AcceptedCredentials.
+        domain = self._domains.get(domain_id)
+        if domain is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such domain to modify (tecNO_ENTRY).",
+            )
+        if domain.owner != owner:
+            # Ownership error — only the original owner may modify.
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Only the domain owner may modify it "
+                      "(tecNO_PERMISSION).",
+            )
+        # The accepted list is REPLACED wholesale — not patched. Dropping an
+        # entry here silently revokes access for everyone holding it.
+        domain.accepted_credentials = list(accepted_credentials)
+        return SubmitResult(success=True, txid=self._next_txid(),
+                            result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="",
+                            domain_id=domain_id)
+
+    async def submit_permissioned_domain_delete(
+        self,
+        owner_seed: str,
+        domain_id: str,
+        owner_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
+                                error="[dry-run] Simulated failure: domain delete")
+        owner = owner_address or _address_from_seed(owner_seed)
+        domain = self._domains.get(domain_id)
+        if domain is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such domain to delete (tecNO_ENTRY).",
+            )
+        if domain.owner != owner:
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] Only the domain owner may delete it "
+                      "(tecNO_PERMISSION).",
+            )
+        del self._domains[domain_id]
+        # Compensator: frees the owner-reserve slot the domain consumed.
+        self._dec_owner(owner)
+        return SubmitResult(success=True, txid=self._next_txid(),
+                            result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="")
+
+    async def submit_permissioned_offer_create(
+        self,
+        wallet_seed: str,
+        taker_pays_currency: str,
+        taker_pays_value: str,
+        taker_pays_issuer: str,
+        taker_gets_currency: str,
+        taker_gets_value: str,
+        taker_gets_issuer: str,
+        domain_id: str,
+        hybrid: bool = False,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecUNFUNDED_OFFER", fee="12",
+                                error="[dry-run] Simulated failure: unfunded offer")
+        # Parity with the plain OfferCreate XRP-amount validation.
+        try:
+            if taker_pays_currency == "XRP":
+                _validate_xrp_amount(taker_pays_value)
+            if taker_gets_currency == "XRP":
+                _validate_xrp_amount(taker_gets_value)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
+
+        placer = wallet_address or _address_from_seed(wallet_seed)
+        domain = self._domains.get(domain_id)
+        if domain is None:
+            # No such domain to scope the offer to.
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such Permissioned Domain (tecNO_ENTRY).",
+            )
+        # ELIGIBILITY GATE — the placer must currently hold a VALID credential the
+        # domain accepts, or the permissioned offer fails (never rests). This is
+        # the whole point of the DomainID rail.
+        if not self._holds_accepted_credential(
+            placer, domain.accepted_credentials
+        ):
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error="[dry-run] The placing account holds no credential accepted "
+                      "by this domain — permissioned offer rejected "
+                      "(tecNO_PERMISSION). Eligibility is proven by DomainID + a "
+                      "held accepted credential, NOT by CredentialIDs.",
+            )
+
+        # Eligible: the offer rests on the (per-address) book like a normal offer.
+        seq = self._offer_seq
+        self._offer_seq += 1
+        if taker_pays_currency == "XRP":
+            pays_str = taker_pays_value
+        else:
+            pays_str = f"{taker_pays_value}/{taker_pays_currency}/{taker_pays_issuer[:12]}"
+        if taker_gets_currency == "XRP":
+            gets_str = taker_gets_value
+        else:
+            gets_str = f"{taker_gets_value}/{taker_gets_currency}/{taker_gets_issuer[:12]}"
+        self._offers.setdefault(placer, []).append(
+            OfferInfo(sequence=seq, taker_pays=pays_str, taker_gets=gets_str)
+        )
+        self._inc_owner(placer)
+        return SubmitResult(success=True, txid=self._next_txid(),
+                            result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="",
+                            offer_sequence=seq)
+
+    async def get_permissioned_domains(
+        self, owner: str
+    ) -> list[PermissionedDomainInfo]:
+        return [d for d in self._domains.values() if d.owner == owner]
 
     async def submit_mpt_issuance_create(
         self,
@@ -1827,12 +2615,13 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecUNFUNDED", fee="12",
                 error="[dry-run] Simulated failure: PaymentChannelCreate",
             )
+        # Parity with testnet: round >6dp, reject negative/sub-drop/too-large.
         try:
-            drops = int(Decimal(amount_xrp) * Decimal("1000000"))
-        except Exception:
+            drops = _validate_xrp_amount(amount_xrp)
+        except DryRunAmountError as exc:
             return SubmitResult(
-                success=False, result_code="temBAD_AMOUNT", fee="12",
-                error=f"[dry-run] Invalid channel amount: {amount_xrp}",
+                success=False, result_code=exc.result_code, fee="12",
+                error=f"[dry-run] Invalid channel amount: {exc}",
             )
         source = _address_from_seed(wallet_seed)
         cid = hashlib.sha256(
@@ -1859,12 +2648,13 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecNO_ENTRY", fee="12",
                 error="[dry-run] No such channel to fund.",
             )
+        # Parity with testnet: round >6dp, reject negative/sub-drop/too-large.
         try:
-            ch["amount"] += int(Decimal(amount_xrp) * Decimal("1000000"))
-        except Exception:
+            ch["amount"] += _validate_xrp_amount(amount_xrp)
+        except DryRunAmountError as exc:
             return SubmitResult(
-                success=False, result_code="temBAD_AMOUNT", fee="12",
-                error=f"[dry-run] Invalid fund amount: {amount_xrp}",
+                success=False, result_code=exc.result_code, fee="12",
+                error=f"[dry-run] Invalid fund amount: {exc}",
             )
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
@@ -1874,13 +2664,19 @@ class DryRunTransport(Transport):
     async def authorize_payment_channel_claim(
         self, wallet_seed: str, channel_id: str, amount_xrp: str
     ) -> str:
-        drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        # TR-003: round (HALF_EVEN via the shared helper), don't truncate — so
+        # the off-ledger claim signature matches what settlement would compute.
+        drops = _validate_xrp_amount(amount_xrp)
         return self._dry_claim_sig(channel_id, drops)
 
     async def verify_payment_channel_claim(
         self, channel_id: str, amount_xrp: str, public_key: str, signature: str
     ) -> bool:
-        drops = int(Decimal(amount_xrp) * Decimal("1000000"))
+        # TR-003: round (HALF_EVEN) to match authorize_payment_channel_claim.
+        try:
+            drops = _validate_xrp_amount(amount_xrp)
+        except DryRunAmountError:
+            return False
         return signature == self._dry_claim_sig(channel_id, drops)
 
     async def submit_payment_channel_claim(
@@ -1894,13 +2690,29 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecNO_ENTRY", fee="12",
                 error="[dry-run] No such channel to claim.",
             )
+        # AC-001 support: a claim that carries an off-ledger authorization
+        # (signature and/or public_key) MUST also name the amount it authorizes.
+        # On-ledger, PaymentChannelClaim requires the Amount field alongside a
+        # Signature; a signed claim missing its amount is malformed. Reject it
+        # here so the actions-side bug (redeem_claim omitting Amount) is caught
+        # in dry-run instead of silently settling on balance alone.
+        if (signature or public_key) and not amount_xrp:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    "[dry-run] Signed channel claim is missing its Amount — a "
+                    "PaymentChannelClaim carrying a Signature must include the "
+                    "amount the claim authorizes."
+                ),
+            )
         if balance_xrp:
+            # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
             try:
-                new_claimed = int(Decimal(balance_xrp) * Decimal("1000000"))
-            except Exception:
+                new_claimed = _validate_xrp_amount(balance_xrp)
+            except DryRunAmountError as exc:
                 return SubmitResult(
-                    success=False, result_code="temBAD_AMOUNT", fee="12",
-                    error=f"[dry-run] Invalid claim balance: {balance_xrp}",
+                    success=False, result_code=exc.result_code, fee="12",
+                    error=f"[dry-run] Invalid claim balance: {exc}",
                 )
             if new_claimed > ch["amount"]:
                 return SubmitResult(

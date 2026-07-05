@@ -132,7 +132,14 @@ async def verify_lp_received(
     else:
         failures.append("No LP tokens received")
 
-    if min_expected > 0 and balance_f < min_expected:
+    # Coerce the float threshold to Decimal at the boundary before comparing
+    # against the Decimal balance (mirrors the Decimal-first pattern in
+    # strategy.check_inventory). Comparing a Decimal against a raw float is
+    # imprecise — float 0.1 is slightly larger than exact 0.1, so an
+    # exactly-met threshold would spuriously read as "below minimum". Going
+    # through str() makes the comparison exact-to-exact.
+    min_d = Decimal(str(min_expected))
+    if min_d > 0 and balance_f < min_d:
         failures.append(
             f"LP balance {lp_balance} below expected minimum {min_expected}"
         )

@@ -27,6 +27,9 @@ from xrpl.models import (
     AccountSetAsfFlag,
     AccountTx,
     Clawback,
+    CredentialAccept,
+    CredentialCreate,
+    CredentialDelete,
     DIDDelete,
     DIDSet,
     EscrowCancel,
@@ -47,16 +50,23 @@ from xrpl.models import (
     NFTSellOffers,
     OfferCancel,
     OfferCreate,
+    OfferCreateFlag,
     Payment,
     PaymentChannelClaim,
     PaymentChannelClaimFlag,
     PaymentChannelCreate,
     PaymentChannelFund,
+    PaymentFlag,
+    PermissionedDomainDelete,
+    PermissionedDomainSet,
     TrustSet,
     TrustSetFlag,
     Tx,
 )
 from xrpl.models.amounts import MPTAmount
+from xrpl.models.transactions.permissioned_domain_set import (
+    Credential as PDCredential,
+)
 from xrpl.utils import drops_to_xrp, get_nftoken_id, hex_to_str, str_to_hex, xrp_to_drops
 from xrpl.wallet import Wallet
 
@@ -64,6 +74,7 @@ from .base import (
     AccountSnapshot,
     AmmInfo,
     ChannelInfo,
+    CredentialInfo,
     DIDInfo,
     EscrowInfo,
     FreezeStatus,
@@ -73,6 +84,7 @@ from .base import (
     NFTInfo,
     NFTOfferInfo,
     OfferInfo,
+    PermissionedDomainInfo,
     SubmitResult,
     Transport,
     TrustLineInfo,
@@ -112,6 +124,21 @@ def _extract_channel_id(meta: dict) -> str:
         created = node.get("CreatedNode", {})
         if created.get("LedgerEntryType") == "PayChannel":
             return created.get("LedgerIndex", "")
+    return ""
+
+
+def _extract_domain_id(meta: dict) -> str:
+    """Pull the new DomainID out of a PermissionedDomainSet (create) meta.
+
+    The created PermissionedDomain object's ledger index IS the DomainID (the
+    Hash256 derived from Owner + Sequence). Best-effort walk of AffectedNodes;
+    the dry-run transport sets the id directly, so the offline-tested path is
+    exact."""
+    for node in meta.get("AffectedNodes", []):
+        created = node.get("CreatedNode", {})
+        if created.get("LedgerEntryType") == "PermissionedDomain":
+            fields = created.get("NewFields", {})
+            return fields.get("DomainID") or created.get("LedgerIndex", "")
     return ""
 
 
@@ -611,17 +638,36 @@ class XRPLTestnetTransport(Transport):
                 error=f"Invalid amount: {amount!r} — expected a numeric value like '10' or '1.5'",
             )
 
+        # TR-004: build the wallet + tx model ONCE outside the retry loop.
+        # Previously the Payment (and its wallet) were reconstructed on every
+        # attempt, so a non-timeout failure after broadcast could re-enter the
+        # loop and build a DISTINCT transaction — a double-broadcast risk.
+        # Building once means every attempt resubmits the same logical tx.
+        #
+        # Idempotency contract (residual — see report): submit_and_wait still
+        # autofills internally, so it picks a fresh Sequence per call. TRUE
+        # sequence-level idempotency needs autofill_and_sign ONCE followed by
+        # submit_and_wait(signed_tx, autofill=False); that refactor is deferred
+        # because it moves the network seam and would require re-mocking the
+        # retry tests (test_transport.py, sibling-owned). The change here closes
+        # the object-rebuild half of the defect without disturbing that seam.
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            payment = Payment(
+                account=wallet.address,
+                destination=destination,
+                amount=xrp_to_drops(amount_f),  # xrp_to_drops accepts Decimal
+                memos=_memo_field(memo) or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
             try:
-                wallet = Wallet.from_seed(wallet_seed)
-                payment = Payment(
-                    account=wallet.address,
-                    destination=destination,
-                    amount=xrp_to_drops(amount_f),  # xrp_to_drops accepts Decimal
-                    memos=_memo_field(memo) or None,
-                )
                 async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(payment, client, wallet),
@@ -677,6 +723,17 @@ class XRPLTestnetTransport(Transport):
                 if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
+                    # PT-004 (observability breadcrumb): this is a NON-TIMEOUT
+                    # failure — distinct from the benign timeout retry above. If
+                    # the first submission actually landed on-ledger before the
+                    # error surfaced, the resubmit here is a possible DUPLICATE
+                    # tx (the documented idempotency residual — submit_and_wait
+                    # autofills a fresh Sequence per call). Log a warning so a
+                    # facilitator can spot a double-submit in the logs.
+                    logger.warning(
+                        "resubmitting after post-broadcast failure — "
+                        "possible duplicate if the first landed"
+                    )
                     logger.info(
                         "Retry %d/%d after %ds",
                         attempt + 1, MAX_RETRIES, RETRY_DELAY,
@@ -869,6 +926,56 @@ class XRPLTestnetTransport(Transport):
             result_code="local_error",
             error=last_error,
         )
+
+    async def submit_partial_payment(
+        self,
+        issuer_seed: str,
+        destination: str,
+        currency: str,
+        issuer: str,
+        amount: str,
+        deliver_min: str,
+        send_max: str,
+        memo: str = "",
+    ) -> SubmitResult:
+        """Submit an issued-currency Payment with tfPartialPayment (FC-003).
+
+        Builds a ``Payment`` carrying ``flags=PaymentFlag.TF_PARTIAL_PAYMENT``
+        (0x00020000), ``Amount`` as the DeliverMax cap, ``DeliverMin`` as the
+        accepted floor, and ``SendMax`` capping source spend. The ledger may
+        REDUCE delivery below ``Amount`` and still return ``tesSUCCESS`` — the
+        real figure lands in the validated tx's ``delivered_amount`` metadata,
+        which ``fetch_tx`` surfaces. XRP-to-XRP is forbidden on-ledger
+        (``temBAD_SEND_XRP_PARTIAL``); this path is issued-currency only.
+        """
+        # Testnet-only invariant: refuse to sign against mainnet/unknown BEFORE
+        # Wallet.from_seed (mirrors every other signing method — see
+        # tests/test_network_safety.py::_MAINNET_REFUSAL_CALLS).
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            tx = Payment(
+                account=wallet.address,
+                destination=destination,
+                amount=IssuedCurrencyAmount(
+                    currency=currency, issuer=issuer, value=amount,
+                ),
+                deliver_min=IssuedCurrencyAmount(
+                    currency=currency, issuer=issuer, value=deliver_min,
+                ),
+                send_max=IssuedCurrencyAmount(
+                    currency=currency, issuer=issuer, value=send_max,
+                ),
+                flags=PaymentFlag.TF_PARTIAL_PAYMENT,
+                memos=_memo_field(memo) or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "Payment(partial)")
 
     async def get_trust_lines(self, address: str) -> list[TrustLineInfo]:
         try:
@@ -1554,6 +1661,67 @@ class XRPLTestnetTransport(Transport):
             )
         return await self._submit_tx(tx, wallet, "EscrowCreate")
 
+    async def submit_allow_trustline_locking(
+        self,
+        issuer_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        # XLS-85 per-asset opt-in: AccountSet asfAllowTrustLineLocking on the
+        # issuer, without which any token escrow of this issuer's IOU fails
+        # tecNO_PERMISSION. ``issuer_address`` is a dry-run aid; the testnet path
+        # derives the account from the seed and ignores it. Signs a real tx, so
+        # the testnet-only invariant applies — guard BEFORE Wallet.from_seed.
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            tx = AccountSet(
+                account=wallet.address,
+                set_flag=AccountSetAsfFlag.ASF_ALLOW_TRUSTLINE_LOCKING,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AccountSet(AllowTrustLineLocking)")
+
+    async def submit_token_escrow_create(
+        self,
+        source_seed: str,
+        currency: str,
+        issuer: str,
+        value: str,
+        destination: str,
+        cancel_after: int,
+        finish_after: int | None = None,
+        source_address: str = "",
+    ) -> SubmitResult:
+        # XLS-85 token escrow: EscrowCreate whose Amount is an
+        # IssuedCurrencyAmount (IOU) rather than XRP drops. CancelAfter is
+        # mandatory on-ledger; the issuer opt-in and issuer-as-source rules are
+        # enforced by rippled (returning tecNO_PERMISSION). ``source_address`` is
+        # a dry-run aid; the testnet path derives the source from the seed.
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(source_seed)
+            tx = EscrowCreate(
+                account=wallet.address,
+                amount=IssuedCurrencyAmount(
+                    currency=currency, issuer=issuer, value=value
+                ),
+                destination=destination,
+                cancel_after=cancel_after,
+                finish_after=finish_after,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "EscrowCreate(token)")
+
     async def _escrow_create_sequences(self, address: str) -> dict[str, int]:
         """Map ``PreviousTxnID`` → EscrowCreate sequence for *address* (TRANSPORT-A-003).
 
@@ -1730,6 +1898,290 @@ class XRPLTestnetTransport(Transport):
             )
         return await self._submit_tx(tx, wallet, "DIDDelete")
 
+    # ── Credential methods (FC-002, XLS-70) ──────────────────────────────
+    #
+    # ``credential_type`` arrives already hex-encoded (the action layer encodes
+    # the plaintext tag). Each signing method calls _network_guard() BEFORE
+    # Wallet.from_seed so a mainnet override never signs — same invariant as
+    # every other write method (pinned by test_network_safety).
+
+    async def submit_credential_create(
+        self,
+        issuer_seed: str,
+        subject: str,
+        credential_type: str,
+        uri: str = "",
+        expiration: int | None = None,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(issuer_seed)
+            tx = CredentialCreate(
+                account=wallet.address,
+                subject=subject,
+                credential_type=credential_type,
+                uri=str_to_hex(uri) if uri else None,
+                expiration=expiration,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CredentialCreate")
+
+    async def submit_credential_accept(
+        self,
+        subject_seed: str,
+        issuer: str,
+        credential_type: str,
+        subject_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(subject_seed)
+            tx = CredentialAccept(
+                account=wallet.address,
+                issuer=issuer,
+                credential_type=credential_type,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CredentialAccept")
+
+    async def submit_credential_delete(
+        self,
+        wallet_seed: str,
+        issuer: str,
+        subject: str,
+        credential_type: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = CredentialDelete(
+                account=wallet.address,
+                issuer=issuer,
+                subject=subject,
+                credential_type=credential_type,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CredentialDelete")
+
+    async def get_credential(
+        self,
+        subject: str,
+        issuer: str,
+        credential_type: str,
+    ) -> CredentialInfo | None:
+        # Credential objects live in the SUBJECT's account_objects once accepted
+        # AND in the issuer's while provisional; the subject is named on the
+        # object either way, so read the subject's objects and match on issuer +
+        # type. (A provisional credential the subject hasn't accepted is owned by
+        # the issuer's directory, so also fall back to the issuer's objects.)
+        want_type = (credential_type or "").upper()
+        for owner in (subject, issuer):
+            try:
+                objs = await self._account_objects(owner)
+            except Exception:
+                logger.warning("get_credential failed for %s", owner, exc_info=True)
+                continue
+            for o in objs:
+                if o.get("LedgerEntryType") != "Credential":
+                    continue
+                if o.get("Subject", "") != subject:
+                    continue
+                if o.get("Issuer", "") != issuer:
+                    continue
+                if (o.get("CredentialType", "") or "").upper() != want_type:
+                    continue
+                # lsfAccepted = 0x00010000 — set once the subject accepts.
+                flags = int(o.get("Flags", 0) or 0)
+                accepted = bool(flags & 0x00010000)
+
+                def _dec(h):
+                    try:
+                        return hex_to_str(h) if h else ""
+                    except Exception:
+                        return h or ""
+
+                return CredentialInfo(
+                    subject=subject,
+                    issuer=issuer,
+                    credential_type=o.get("CredentialType", ""),
+                    accepted=accepted,
+                    uri=_dec(o.get("URI", "")),
+                    expiration=o.get("Expiration"),
+                )
+        return None
+
+    # ── Permissioned Domains & Gated DEX (FC-004, XLS-80 / XLS-81) ────────
+    #
+    # xrpl-py 4.5.0 has native models: PermissionedDomainSet /
+    # PermissionedDomainDelete, an OfferCreate ``domain_id`` field, and
+    # OfferCreateFlag.TF_HYBRID. AcceptedCredentials wrap each {Issuer,
+    # CredentialType} in a Credential model. Each signing method calls
+    # _network_guard() BEFORE Wallet.from_seed — same invariant every other
+    # write method holds, pinned by test_network_safety.
+
+    async def submit_permissioned_domain_set(
+        self,
+        owner_seed: str,
+        accepted_credentials: list[tuple[str, str]],
+        domain_id: str = "",
+        owner_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(owner_seed)
+            creds = [
+                PDCredential(issuer=iss, credential_type=ctype)
+                for iss, ctype in accepted_credentials
+            ]
+            tx = PermissionedDomainSet(
+                account=wallet.address,
+                accepted_credentials=creds,
+                # Omit DomainID to create; include it to modify (owner-only).
+                domain_id=domain_id or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        # On a CREATE, surface the derived DomainID; on a MODIFY, echo the
+        # supplied one (no created node to read).
+        if domain_id:
+            def _extract(meta: dict, _did=domain_id) -> dict:
+                return {"domain_id": _did}
+        else:
+            def _extract(meta: dict) -> dict:
+                return {"domain_id": _extract_domain_id(meta)}
+        return await self._submit_tx(tx, wallet, "PermissionedDomainSet", extract=_extract)
+
+    async def submit_permissioned_domain_delete(
+        self,
+        owner_seed: str,
+        domain_id: str,
+        owner_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(owner_seed)
+            tx = PermissionedDomainDelete(
+                account=wallet.address,
+                domain_id=domain_id,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "PermissionedDomainDelete")
+
+    async def submit_permissioned_offer_create(
+        self,
+        wallet_seed: str,
+        taker_pays_currency: str,
+        taker_pays_value: str,
+        taker_pays_issuer: str,
+        taker_gets_currency: str,
+        taker_gets_value: str,
+        taker_gets_issuer: str,
+        domain_id: str,
+        hybrid: bool = False,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        guard = self._network_guard()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            offer = OfferCreate(
+                account=wallet.address,
+                taker_pays=self._amount_obj(
+                    taker_pays_currency, taker_pays_value, taker_pays_issuer
+                ),
+                taker_gets=self._amount_obj(
+                    taker_gets_currency, taker_gets_value, taker_gets_issuer
+                ),
+                domain_id=domain_id,
+                # tfHybrid also matches the open DEX; plain permissioned matches
+                # only the domain book. CredentialIDs are NOT used — eligibility
+                # rides on the DomainID (a held accepted credential), a DIFFERENT
+                # rail from the deposit-authorization CredentialIDs.
+                flags=OfferCreateFlag.TF_HYBRID if hybrid else 0,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+
+        def _extract(meta: dict) -> dict:
+            return {}
+
+        result = await self._submit_tx(
+            offer, wallet, "PermissionedOfferCreate", extract=_extract
+        )
+        # Surface the placing tx's Sequence (the value OfferCancel would consume)
+        # by reading it back — the signed model autofilled it, so re-derive from
+        # the account's resting offers on success. Best-effort; a failure leaves
+        # offer_sequence None.
+        if result.success and result.offer_sequence is None:
+            try:
+                offers = await self.get_account_offers(wallet.address)
+                if offers:
+                    result.offer_sequence = offers[-1].sequence
+            except Exception:
+                logger.warning(
+                    "permissioned offer sequence read-back failed", exc_info=True
+                )
+        return result
+
+    async def get_permissioned_domains(
+        self, owner: str
+    ) -> list[PermissionedDomainInfo]:
+        try:
+            objs = await self._account_objects(owner)
+        except Exception:
+            logger.warning(
+                "get_permissioned_domains failed for %s", owner, exc_info=True
+            )
+            return []
+        domains: list[PermissionedDomainInfo] = []
+        for o in objs:
+            if o.get("LedgerEntryType") != "PermissionedDomain":
+                continue
+            accepted: list[tuple[str, str]] = []
+            for entry in o.get("AcceptedCredentials", []):
+                cred = entry.get("Credential", entry)
+                iss = cred.get("Issuer", "")
+                ctype = (cred.get("CredentialType", "") or "").upper()
+                if iss:
+                    accepted.append((iss, ctype))
+            domains.append(
+                PermissionedDomainInfo(
+                    domain_id=o.get("index", "") or o.get("DomainID", ""),
+                    owner=owner,
+                    accepted_credentials=accepted,
+                )
+            )
+        return domains
+
     async def submit_mpt_issuance_create(
         self,
         wallet_seed: str,
@@ -1815,7 +2267,7 @@ class XRPLTestnetTransport(Transport):
                 continue
             oid = o.get("MPTokenIssuanceID") or o.get("mpt_issuance_id", "")
             if oid == issuance_id:
-                return str(o.get("MPTAmount", o.get("MPTAmount", "0")) or "0")
+                return str(o.get("MPTAmount", "0") or "0")
         return "0"
 
     async def get_mpt_issuances(self, address: str) -> list[MPTIssuanceInfo]:
@@ -1877,20 +2329,29 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
+        # TR-004: build the wallet + tx model ONCE outside the retry loop so a
+        # retry resubmits the same logical tx rather than a freshly-built one.
+        # (Same idempotency residual as submit_payment — see its comment.)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            offer = OfferCreate(
+                account=wallet.address,
+                taker_pays=self._amount_obj(
+                    taker_pays_currency, taker_pays_value, taker_pays_issuer
+                ),
+                taker_gets=self._amount_obj(
+                    taker_gets_currency, taker_gets_value, taker_gets_issuer
+                ),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
             try:
-                wallet = Wallet.from_seed(wallet_seed)
-                offer = OfferCreate(
-                    account=wallet.address,
-                    taker_pays=self._amount_obj(
-                        taker_pays_currency, taker_pays_value, taker_pays_issuer
-                    ),
-                    taker_gets=self._amount_obj(
-                        taker_gets_currency, taker_gets_value, taker_gets_issuer
-                    ),
-                )
                 async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(offer, client, wallet),
@@ -1942,6 +2403,15 @@ class XRPLTestnetTransport(Transport):
                 if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
+                    # PT-004 (observability breadcrumb): NON-TIMEOUT failure —
+                    # if the first submission landed on-ledger before the error
+                    # surfaced, this resubmit is a possible DUPLICATE tx (the
+                    # documented idempotency residual). Log a warning so a
+                    # facilitator can spot a double-submit in the logs.
+                    logger.warning(
+                        "resubmitting after post-broadcast failure — "
+                        "possible duplicate if the first landed"
+                    )
                     logger.info(
                         "Retry %d/%d after %ds",
                         attempt + 1, MAX_RETRIES, RETRY_DELAY,
@@ -1964,15 +2434,24 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
+        # TR-004: build the wallet + tx model ONCE outside the retry loop so a
+        # retry resubmits the same logical tx rather than a freshly-built one.
+        # (Same idempotency residual as submit_payment — see its comment.)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            cancel = OfferCancel(
+                account=wallet.address,
+                offer_sequence=offer_sequence,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+
         last_error = ""
 
         for attempt in range(MAX_RETRIES + 1):
             try:
-                wallet = Wallet.from_seed(wallet_seed)
-                cancel = OfferCancel(
-                    account=wallet.address,
-                    offer_sequence=offer_sequence,
-                )
                 async with _rpc_client(self._rpc_url) as client:
                     response = await asyncio.wait_for(
                         submit_and_wait(cancel, client, wallet),
@@ -2024,6 +2503,15 @@ class XRPLTestnetTransport(Transport):
                 if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
+                    # PT-004 (observability breadcrumb): NON-TIMEOUT failure —
+                    # if the first submission landed on-ledger before the error
+                    # surfaced, this resubmit is a possible DUPLICATE tx (the
+                    # documented idempotency residual). Log a warning so a
+                    # facilitator can spot a double-submit in the logs.
+                    logger.warning(
+                        "resubmitting after post-broadcast failure — "
+                        "possible duplicate if the first landed"
+                    )
                     logger.info(
                         "Retry %d/%d after %ds",
                         attempt + 1, MAX_RETRIES, RETRY_DELAY,
@@ -2099,18 +2587,42 @@ class XRPLTestnetTransport(Transport):
             meta = result.get("meta", {})
             memos_raw = result.get("Memos", [])
 
+            # FC-003: delivered_amount is a METADATA field (meta.delivered_amount)
+            # on a validated tx — the ACTUAL amount delivered, distinct from the
+            # Amount field (the requested cap). For XRP it's a drops string; for
+            # tokens it's a {currency, issuer, value} object. Legacy pre-2014
+            # partial payments can carry the literal string "unavailable". Route
+            # it through _format_amount so the token-object case renders as
+            # "value/currency/issuer" (matching the Amount display below).
+            delivered_raw = meta.get("delivered_amount")
+            if delivered_raw is None:
+                delivered_str = ""
+            elif delivered_raw == "unavailable":
+                delivered_str = "unavailable"
+            else:
+                delivered_str = self._format_amount(delivered_raw)
+
             return TxInfo(
                 txid=txid,
                 tx_type=result.get("TransactionType", ""),
                 account=result.get("Account", ""),
                 destination=result.get("Destination", ""),
-                amount=str(result.get("Amount", "0")),
+                amount=self._format_amount(result.get("Amount", "0")),
                 fee=result.get("Fee", "0"),
                 result_code=meta.get("TransactionResult", ""),
-                ledger_index=_int_or_none(result.get("ledger_index")),
+                # TR-005: match the submit paths' fallback chain. A validated tx
+                # response may carry ledger_index only under inLedger or in meta;
+                # reading the top-level field alone left a validated tx showing a
+                # null ledger_index, weakening the artifact.
+                ledger_index=_int_or_none(
+                    result.get("ledger_index")
+                    or result.get("inLedger")
+                    or (result.get("meta") or {}).get("ledger_index")
+                ),
                 memos=_decode_memos(memos_raw),
                 validated=result.get("validated", False),
                 raw=result,
+                delivered_amount=delivered_str,
             )
         except TimeoutError:
             # TXBCD-002: a READ-BACK failure is NOT a tx failure. Populate the

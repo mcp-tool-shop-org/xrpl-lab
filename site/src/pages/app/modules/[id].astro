@@ -53,7 +53,7 @@ const { id } = Astro.params;
           <div class="empty__t">Can't load this module</div><div>${msg}</div></div></div>`;
     }
 
-    function detailHTML(mod: any, prereqsHTML: string) {
+    function detailHTML(mod: any, prereqsHTML: string, hasUnmetPrereq = false) {
       const prereqList = mod.prerequisites || [];
       const artifacts = mod.artifacts || [];
 
@@ -103,26 +103,29 @@ const { id } = Astro.params;
         <a class="btn btn--primary" href="/xrpl-lab/app/run/${esc(mod.id)}/?dry_run=false">${icons.play} Run Module</a>
         <a class="btn" href="/xrpl-lab/app/run/${esc(mod.id)}/?dry_run=true">Run in Dry Mode</a>
         ${mod.completed ? `<span class="row" style="gap:6px;margin-left:auto;color:var(--accent-bright);font-size:13.5px;font-weight:600">${healthIcon('pass')} Module completed</span>` : ''}
-      </div>`;
+      </div>
+      ${hasUnmetPrereq ? `<div class="row section" style="gap:8px;align-items:flex-start;color:var(--warn-bright);font-size:13px">${healthIcon('warn')}<span>Heads up: a prerequisite isn't complete yet — this module may fail partway. Finish the prerequisites above first, or run it in Dry Mode to practice the flow.</span></div>` : ''}`;
     }
 
     // Build the prerequisites card by cross-fetching /api/modules to resolve
     // each prereq's title + completion. Returns '' when there are none, or a
     // best-effort card (skipping the detail section) if the cross-fetch fails.
-    async function prereqsCard(mod: any): Promise<string> {
+    async function prereqsCard(mod: any): Promise<{ html: string; hasUnmet: boolean }> {
       const prereqList = mod.prerequisites || [];
-      if (!prereqList.length) return '';
+      if (!prereqList.length) return { html: '', hasUnmet: false };
       let moduleMap: Map<string, any>;
       try {
         const allModules = await (await fetchWithTimeout(`${API_BASE}/api/modules`)).json();
         moduleMap = new Map(allModules.map((m: any) => [m.id, m]));
       } catch {
         // skip prerequisites detail on error
-        return '';
+        return { html: '', hasUnmet: false };
       }
+      let hasUnmet = false;
       const rows = prereqList.map((pid: string) => {
         const pm = moduleMap.get(pid) as any;
         const completed = pm?.completed;
+        if (!completed) hasUnmet = true;
         const title = pm?.title || pid;
         const status = completed
           ? `<span style="margin-left:auto;font-size:12px;color:var(--accent-bright);font-weight:600">Completed</span>`
@@ -133,7 +136,7 @@ const { id } = Astro.params;
             ${status}
           </div></div>`;
       }).join('');
-      return `<div class="card section"><p class="eyebrow">Prerequisites</p><div class="checks">${rows}</div></div>`;
+      return { html: `<div class="card section"><p class="eyebrow">Prerequisites</p><div class="checks">${rows}</div></div>`, hasUnmet };
     }
 
     async function hydrate() {
@@ -161,8 +164,8 @@ const { id } = Astro.params;
         return;
       }
 
-      const prereqsHTML = await prereqsCard(mod);
-      root.innerHTML = detailHTML(mod, prereqsHTML);
+      const prereqs = await prereqsCard(mod);
+      root.innerHTML = detailHTML(mod, prereqs.html, prereqs.hasUnmet);
     }
 
     hydrate();

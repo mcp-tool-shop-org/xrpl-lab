@@ -45,6 +45,7 @@ const facilitator = [
   <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <div class="app" id="app" data-nav-open="false">
     <div class="scrim" id="scrim"></div>
 
@@ -70,7 +71,7 @@ const facilitator = [
       </nav>
       <div class="sidebar__foot">
         <span class="netpill" id="netpill">
-          <span class="statdot statdot--ok" id="netpill-dot"></span> <span id="netpill-text">Connecting…</span>
+          <span class="statdot statdot--warn" id="netpill-dot"></span> <span id="netpill-text">Connecting…</span>
         </span>
         <div style="display:flex;gap:14px;flex-wrap:wrap;">
           <a href={`${base}/`} class="sidebar__ver" style="color:var(--text-2)">Home</a>
@@ -82,7 +83,7 @@ const facilitator = [
 
     <!-- ============ MAIN ============ -->
     <div class="stack" style="min-width:0">
-      <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-controls="sidebar">
+      <button class="nav-toggle" id="navToggle" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
         <Fragment set:html={ic.menu} /><span>Menu</span>
       </button>
       <main class="main" id="main">
@@ -101,12 +102,31 @@ const facilitator = [
 
     const API_BASE = 'http://localhost:8321';
 
-    // Mobile nav drawer
+    // Mobile nav drawer — with a11y: aria-expanded state, focus into the drawer
+    // on open, Escape-to-close returning focus to the toggle (parity with the
+    // branded modal's focus handling, which the drawer previously lacked).
     const app = document.getElementById('app');
-    document.getElementById('navToggle')?.addEventListener('click', () => {
-      app?.setAttribute('data-nav-open', app.getAttribute('data-nav-open') === 'true' ? 'false' : 'true');
+    const navToggle = document.getElementById('navToggle');
+    const sidebar = document.getElementById('sidebar');
+
+    function setNav(open: boolean) {
+      app?.setAttribute('data-nav-open', open ? 'true' : 'false');
+      navToggle?.setAttribute('aria-expanded', open ? 'true' : 'false');
+      navToggle?.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+      if (open) {
+        (sidebar?.querySelector('.navlink') as HTMLElement | null)?.focus();
+      } else {
+        navToggle?.focus();
+      }
+    }
+
+    navToggle?.addEventListener('click', () => {
+      setNav(app?.getAttribute('data-nav-open') !== 'true');
     });
-    document.getElementById('scrim')?.addEventListener('click', () => app?.setAttribute('data-nav-open', 'false'));
+    document.getElementById('scrim')?.addEventListener('click', () => setNav(false));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && app?.getAttribute('data-nav-open') === 'true') setNav(false);
+    });
 
     // Live connection pill + footer version from /api/status
     (async () => {

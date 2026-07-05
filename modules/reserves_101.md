@@ -27,7 +27,7 @@ The short answer: it's not gone. It's locked.
 The XRPL has two types of reserves:
 
 - **Base reserve**: the minimum XRP every account must hold to exist on the
-  ledger (currently 1 XRP on mainnet testnet values may differ).
+  ledger (currently 1 XRP on mainnet; testnet values may differ).
 - **Owner reserve**: additional XRP locked per "owned object" — each trust
   line, open offer, escrow, or other ledger entry you create.
 

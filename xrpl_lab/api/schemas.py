@@ -44,6 +44,13 @@ class StatusResponse(BaseModel):
     has_proof_pack: bool = False
     has_certificate: bool = False
     report_count: int = 0
+    # False when a completed module failed its on-ledger verification (FT-002).
+    # True iff every completed module recorded a passing on-ledger verification —
+    # mirrors the workshop's LearnerStatus.all_verified and the sealed proof
+    # pack's top-level all_verified. Defaults True for back-compat: a learner with
+    # no completed modules (or an old state.json) is vacuously all-verified, and
+    # a client reading an older server never sees a spurious "unverified" flag.
+    all_verified: bool = True
     # The dashboard renders these directly. Before they were returned the
     # Network card showed a permanent "Unknown" and the footer "v-.-.-".
     # network is the ACTIVE network ("dry-run" | "testnet" | "devnet" |
@@ -80,6 +87,13 @@ class ModuleSummary(BaseModel):
     checks: list[str] = Field(default_factory=list)
     completed: bool
     is_next: bool = False
+    # On-ledger verification status of a COMPLETED module (FT-002). For a
+    # completed module this mirrors state.CompletedModule.verified — False when
+    # its verify step failed on-ledger. For a NOT-completed module the flag is
+    # irrelevant and defaults True (there is nothing to have failed). Defaults
+    # True so an older client / pre-FT-002 server never renders a spurious
+    # "unverified" badge on a module that simply predates the field.
+    verified: bool = True
 
 
 class ModuleDetail(BaseModel):
@@ -180,6 +194,16 @@ class VerifyResponse(BaseModel):
     version: str = ""
     address: str = ""
     network: str = ""
+    # True when the artifact was generated in --dry-run mode (network dry-run or
+    # mixed): a passing hash proves the file is intact, NOT that anything is on
+    # the ledger. The client must show a SIMULATED warning (parity with the CLI
+    # proof-verify/cert-verify and the audit-pack banner).
+    simulated: bool = False
+    # False when a completed module failed its on-ledger verification (the sealed
+    # pack's all_verified). Integrity can still pass while not every lesson was
+    # proven — the client shows an UNVERIFIED warning. Defaults True for packs
+    # generated before the verified-flag change.
+    all_verified: bool = True
 
 
 # -- /api/run --------------------------------------------------------------
