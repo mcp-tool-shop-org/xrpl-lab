@@ -108,6 +108,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
             <div style="flex:1">
               <div class="progress" data-pct="${pct}"><i></i></div>
               <p class="muted" style="margin:9px 0 0;font-size:13.5px">${s.modules_completed} of ${s.modules_total} modules complete · ${pct}% of the workbook</p>
+              ${s.all_verified === false ? `<p style="margin:8px 0 0;font-size:13px;color:var(--warn-bright)">${II(icons.alert)} Some completed modules are unverified — their on-ledger check didn't pass. Re-run them for a fully-proven pack.</p>` : ''}
             </div>
           </div>
         </div>

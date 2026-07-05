@@ -328,6 +328,13 @@ async def handle_verify_tx(
     txid = context.get("txids", [""])[-1] if context.get("txids") else ""
     if not txid:
         console.print("  [red]No transaction to verify yet.[/]")
+        # FT-001: a verify step that could not run (no txid to check because a
+        # prior step never produced one) is an honest FAILED verification, not an
+        # invisible skip — otherwise the module stays vacuously verified=True.
+        _record_verification(
+            context, "verify_tx", passed=False,
+            failures=["txid missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_tx(transport, txid)
@@ -604,6 +611,12 @@ async def handle_verify_trust_line(
 
     if not holder_address:
         console.print("  [red]No wallet address found.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run. Record it
+        # as a FAILED verification so the module is honestly unverified.
+        _record_verification(
+            context, "verify_trust_line", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_trust_line(
@@ -688,6 +701,11 @@ async def handle_verify_trust_line_removed(
 
     if not holder_address:
         console.print("  [red]No wallet address found.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_trust_line_removed", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_trust_line_removed(
@@ -999,6 +1017,15 @@ async def handle_verify_claim_signature(
     pubkey = context.get("channel_public_key", "")
     if not channel_id or not sig:
         console.print("  [red]No signed claim to verify. Sign a claim first.[/]")
+        # FT-001: no channel/signature → the off-ledger claim check could not
+        # run because a prior step never produced them. Record FAILED so the
+        # module is honestly unverified rather than vacuously green.
+        _record_verification(
+            context, "verify_claim_signature", passed=False,
+            failures=[
+                "channel_id/claim signature missing — the step that produces them did not run"
+            ],
+        )
         return context
 
     ok = await check_claim(transport, channel_id, amount, pubkey, sig)
@@ -1159,6 +1186,11 @@ async def handle_verify_offer_present(
             "  [red]No offer sequence in context. "
             "Create an offer first.[/]"
         )
+        # FT-001: no offer sequence → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_offer_present", passed=False,
+            failures=["offer sequence missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_offer_present(
@@ -1238,6 +1270,11 @@ async def handle_verify_offer_absent(
         console.print(
             "  [red]No offer sequence in context. "
             "Create an offer first.[/]"
+        )
+        # FT-001: no offer sequence → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_offer_absent", passed=False,
+            failures=["offer sequence missing — the step that produces it did not run"],
         )
         return context
 
@@ -1568,6 +1605,11 @@ async def handle_verify_lp_received(
 
     if not amm_info:
         console.print("  [red]No AMM info in context. Run AMM steps first.[/]")
+        # FT-001: no AMM pool → this on-ledger LP assertion could not run.
+        _record_verification(
+            context, "verify_lp_received", passed=False,
+            failures=["amm_info missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_lp_received(
@@ -1662,6 +1704,11 @@ async def handle_verify_withdrawal(
 
     if not amm_info:
         console.print("  [red]No AMM info in context. Run AMM steps first.[/]")
+        # FT-001: no AMM pool → this on-ledger withdrawal assertion could not run.
+        _record_verification(
+            context, "verify_withdrawal", passed=False,
+            failures=["amm_info missing — the step that produces it did not run"],
+        )
         return context
 
     result = await verify_withdrawal(
@@ -1860,6 +1907,12 @@ async def handle_verify_module_offers(
 
     if not seqs:
         console.print("  [red]No strategy offers to verify.[/]")
+        # FT-001: no strategy offers recorded → this on-ledger assertion could
+        # not run because the create-offers step never produced any.
+        _record_verification(
+            context, "verify_module_offers", passed=False,
+            failures=["strategy offer sequences missing — the step that produces them did not run"],
+        )
         return context
 
     all_found = True
@@ -2312,6 +2365,11 @@ async def handle_verify_nft(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_nft", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
 
     expected = context.get("nft_id")
@@ -2374,6 +2432,11 @@ async def handle_verify_nft_burned(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_nft_burned", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     nft_id = context.get("burned_nft_id") or context.get("nft_id")
     result = await verify_nft_burned(transport, address, nftoken_id=nft_id)
@@ -2494,6 +2557,11 @@ async def handle_verify_escrow(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_escrow", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_escrow(transport, address)
     for c in result.checks:
@@ -2587,6 +2655,11 @@ async def handle_verify_escrow_finished(
     address = context.get("escrow_owner") or state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet/escrow owner → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_escrow_finished", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     seq = context.get("escrow_sequence")
     result = await verify_escrow_finished(transport, address, offer_sequence=seq)
@@ -2636,6 +2709,11 @@ async def handle_verify_did(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_did", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_did(transport, address, expected_uri=context.get("did_uri"))
     for c in result.checks:
@@ -2681,6 +2759,11 @@ async def handle_verify_did_deleted(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_did_deleted", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_did_deleted(transport, address)
     for c in result.checks:
@@ -2805,6 +2888,11 @@ async def handle_verify_mpt_balance(
     holder = state.wallet_address or ""
     if not issuance_id or not holder:
         console.print("  [red]Missing issuance id or holder. Run previous steps first.[/]")
+        # FT-001: no issuance/holder → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_mpt_balance", passed=False,
+            failures=["MPT issuance id/holder missing — the step that produces them did not run"],
+        )
         return context
     result = await verify_mpt_balance(transport, holder, issuance_id, expected=expected)
     for check in result.checks:
@@ -2825,6 +2913,11 @@ async def handle_verify_mpt_issuance(
     address = state.wallet_address or ""
     if not address:
         console.print("  [red]No wallet address. Run the wallet step first.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_mpt_issuance", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_mpt_issuance(transport, address, expected_maximum=context.get("mpt_max"))
     for c in result.checks:
@@ -2952,6 +3045,11 @@ async def handle_verify_clawback(
     issuer_address = context.get("issuer_address", "")
     if not holder_address:
         console.print("  [red]No wallet address found.[/]")
+        # FT-001: no wallet → this on-ledger assertion could not run.
+        _record_verification(
+            context, "verify_clawback", passed=False,
+            failures=["wallet address missing — the step that produces it did not run"],
+        )
         return context
     result = await verify_clawback(
         transport, holder_address, currency, issuer_address, before, clawed
@@ -3273,6 +3371,12 @@ async def handle_verify_nft_trade(
     prev_owner = context.get("nft_prev_owner", "")
     if not nft_id or not buyer_addr:
         console.print("  [red]No completed trade in context.[/]")
+        # FT-001: no completed trade → this on-ledger ownership assertion could
+        # not run because the mint/accept steps never produced it.
+        _record_verification(
+            context, "verify_nft_trade", passed=False,
+            failures=["nft_id/buyer address missing — the step that produces them did not run"],
+        )
         return context
 
     result = await verify_nft_owned_by(
@@ -3391,6 +3495,14 @@ async def handle_verify_nft_modified(
     expected = context.get("nft_modified_uri", "")
     if not address or not nft_id or not expected:
         console.print("  [red]No modified NFT in context. Run the modify step first.[/]")
+        # FT-001: no modified NFT in context → this on-ledger assertion could
+        # not run because the mint/modify steps never produced it.
+        _record_verification(
+            context, "verify_nft_modified", passed=False,
+            failures=[
+                "modified NFT (address/nft_id/uri) missing — the step that produces it did not run"
+            ],
+        )
         return context
     result = await verify_nft_modified(transport, address, nft_id, expected)
     for c in result.checks:

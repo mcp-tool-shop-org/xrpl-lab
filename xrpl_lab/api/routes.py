@@ -115,6 +115,10 @@ def list_modules() -> list[ModuleSummary]:
     all_mods = load_all_modules()
     state = load_state()
     completed_ids = {cm.module_id for cm in state.completed_modules}
+    # FT-002: map module_id → its recorded on-ledger verified flag so each
+    # completed module's ModuleSummary can carry the truth. A module NOT in this
+    # map is not completed, so its verified flag is irrelevant and defaults True.
+    verified_by_id = {cm.module_id: cm.verified for cm in state.completed_modules}
 
     graph = build_graph(all_mods)
     ordered = graph.canonical_order()
@@ -137,6 +141,7 @@ def list_modules() -> list[ModuleSummary]:
                 checks=mod.checks,
                 completed=mod.id in completed_ids,
                 is_next=mod.id == next_id,
+                verified=verified_by_id.get(mod.id, True),
             )
         )
     return result
@@ -252,6 +257,10 @@ def get_status(request: Request) -> StatusResponse:
         has_proof_pack=ls.has_proof_pack,
         has_certificate=ls.has_certificate,
         report_count=ls.report_count,
+        # FT-002: mirror the workshop's learner-level verification verdict so the
+        # dashboard can flag a completed-but-unverified learner instead of showing
+        # an all-green status that proof-verify would contradict.
+        all_verified=ls.all_verified,
         network=_active_network(request),
         version=__version__,
     )

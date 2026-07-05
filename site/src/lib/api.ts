@@ -54,6 +54,11 @@ export interface ModuleSummary {
   checks: string[];
   completed: boolean;
   is_next: boolean;
+  // FT-002 — on-ledger verification status of a COMPLETED module. False when the
+  // module's verify step failed on-ledger; True (default) for a proven or a
+  // not-completed module. Lets the dashboard flag a completed-but-unverified
+  // module instead of an all-green "done" that proof-verify would contradict.
+  verified: boolean;
 }
 
 // FRONTEND-A-002: standalone (does NOT extend ModuleSummary). The backend
@@ -103,6 +108,10 @@ export interface Status {
   has_proof_pack: boolean;
   has_certificate: boolean;
   report_count: number;
+  // FT-002 — True iff every completed module passed its on-ledger verification.
+  // False when a completed module's verify step failed; the dashboard shows an
+  // "unverified" indicator so an all-green status can't mask a failed proof.
+  all_verified: boolean;
   // Active network ("dry-run" | "testnet" | "devnet" | "local" | "mainnet" |
   // "unknown") and tool version — rendered by the Network card and the footer.
   network: string;

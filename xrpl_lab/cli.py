@@ -257,6 +257,10 @@ def list_modules():
     ordered = graph.canonical_order()
     completed = {m.module_id for m in state.completed_modules}
     next_id = graph.next_module(completed)
+    # FT-002: per-module on-ledger verified flag, so a completed-but-unverified
+    # module is distinguished from a proven "✓ done" instead of both rendering
+    # identically green. Absent id → not completed → irrelevant (default True).
+    verified_by_id = {m.module_id: m.verified for m in state.completed_modules}
 
     # F-BACKEND-D-001: expand=True so Title (ratio=2) actually consumes
     # the leftover horizontal budget instead of auto-shrinking; merge
@@ -283,7 +287,17 @@ def list_modules():
         mod = modules[mid]
         done = state.is_module_completed(mid)
         is_next = mid == next_id
-        if done:
+        # FT-002: a completed module whose on-ledger verification did NOT pass
+        # gets a distinct amber ⚠ (not the green ✓) plus a "(unverified)" title
+        # suffix, so it is honestly separated from a proven completion. The
+        # narrow icon column can't hold text; the suffix carries the word-label
+        # for the color-blind path (glyph + word, never hue alone).
+        title_cell = mod.title
+        if done and not verified_by_id.get(mid, True):
+            icon = "⚠"
+            style = "yellow"
+            title_cell = f"{mod.title} [yellow](unverified)[/]"
+        elif done:
             icon = "✓"
             style = "green"
         elif is_next:
@@ -298,7 +312,7 @@ def list_modules():
         table.add_row(
             icon,
             track_id_cell,
-            mod.title,
+            title_cell,
             mod.level,
             mod.time,
             mod.mode,
@@ -449,6 +463,25 @@ def status(json_output: bool):
         console.print(
             f"Transactions: {ls.total_transactions} "
             f"({ok} ok, {ls.failed_transactions} failed)"
+        )
+
+    # On-ledger verification (FT-002): a module can "complete" (the run didn't
+    # crash) while its on-ledger verification FAILED — the proof pack records
+    # verified=False for it and folds all_verified. Without this line the learner
+    # sees all-green "✓ done" everywhere and only discovers the failed proof at
+    # `proof verify`. Surface it here with the same icon + color + TEXT-label
+    # pattern the blockers/tracks/doctor lines use (glyph + word, never hue
+    # alone), so a color-blind facilitator reads "UNVERIFIED" outright.
+    if not ls.all_verified:
+        n = len(ls.unverified_modules)
+        console.print()
+        console.print(
+            f"  [yellow]⚠ {n} module(s) completed but UNVERIFIED[/] — "
+            "their on-ledger verification did not pass; re-run to prove "
+            "on-ledger."
+        )
+        console.print(
+            f"    [dim]Unverified: {', '.join(ls.unverified_modules)}[/]"
         )
 
     # Artifacts
@@ -920,6 +953,10 @@ def tracks():
     from .workshop import get_track_summaries
 
     summaries = get_track_summaries()
+    # FT-002: per-module on-ledger verified flag so a completed-but-unverified
+    # module in the per-track listing is distinguished from a proven "✓ done".
+    # Absent id → not completed → irrelevant (default True).
+    verified_by_id = {m.module_id: m.verified for m in load_state().completed_modules}
 
     console.print()
     console.print(Panel("[bold]Tracks[/]", border_style="blue"))
@@ -953,7 +990,15 @@ def tracks():
 
         if ts.completed_modules:
             for mid in ts.completed_modules:
-                console.print(f"      [green]✓ done[/]  {mid}")
+                # FT-002: amber ⚠ + "(unverified)" word-label for a completed
+                # module whose on-ledger verification did not pass; proven ones
+                # keep the green ✓ done. Glyph + word, never hue alone.
+                if not verified_by_id.get(mid, True):
+                    console.print(
+                        f"      [yellow]⚠ done (unverified)[/]  {mid}"
+                    )
+                else:
+                    console.print(f"      [green]✓ done[/]  {mid}")
         if ts.remaining_modules:
             for mid in ts.remaining_modules:
                 console.print(f"      [dim]◌ todo[/]  {mid}")

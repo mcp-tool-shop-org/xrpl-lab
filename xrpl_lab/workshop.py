@@ -71,6 +71,17 @@ class LearnerStatus:
     has_certificate: bool
     report_count: int
 
+    # On-ledger verification truth (FT-002). ``all_verified`` is True iff every
+    # completed module recorded a passing on-ledger verification — mirrors the
+    # sealed proof pack's top-level ``all_verified``. ``unverified_modules`` lists
+    # the completed-but-unverified module ids so the CLI/dashboard can name them.
+    # A completed module whose verify step FAILED loads with verified=False (see
+    # state.CompletedModule); a module with no verify steps / an old state.json
+    # loads verified=True, so an all-passing or history-less learner is
+    # vacuously all_verified.
+    all_verified: bool
+    unverified_modules: list[str]
+
     def to_dict(self) -> dict:
         """Serialize to plain dict for JSON output."""
         return {
@@ -103,6 +114,8 @@ class LearnerStatus:
             "has_proof_pack": self.has_proof_pack,
             "has_certificate": self.has_certificate,
             "report_count": self.report_count,
+            "all_verified": self.all_verified,
+            "unverified_modules": self.unverified_modules,
         }
 
 
@@ -171,6 +184,16 @@ def get_learner_status(state: LabState | None = None) -> LearnerStatus:
 
     failed = [tx for tx in state.tx_index if not tx.success]
 
+    # ── On-ledger verification (FT-002) ───────────────────────────
+    # Project each completed module's ``verified`` flag up to the learner
+    # level. ``unverified_modules`` names the completed-but-unverified ids
+    # (preserving completion order); ``all_verified`` is True iff none are
+    # unverified — vacuously True for a learner with no completed modules.
+    unverified_modules = [
+        m.module_id for m in state.completed_modules if not m.verified
+    ]
+    all_verified = not unverified_modules
+
     # ── Artifacts ─────────────────────────────────────────────────
     ws = get_workspace_dir()
     has_proof_pack = (ws / "proofs" / "xrpl_lab_proof_pack.json").exists()
@@ -198,6 +221,8 @@ def get_learner_status(state: LabState | None = None) -> LearnerStatus:
         has_proof_pack=has_proof_pack,
         has_certificate=has_certificate,
         report_count=report_count,
+        all_verified=all_verified,
+        unverified_modules=unverified_modules,
     )
 
 
