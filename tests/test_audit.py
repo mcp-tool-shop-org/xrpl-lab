@@ -308,11 +308,35 @@ class TestAuditVerdict:
 class TestRunAudit:
     @pytest.mark.asyncio
     async def test_basic_audit(self):
+        """CORRECTED (F-64106db7): audit txids the session actually PRODUCED.
+
+        The old test audited fabricated txids ("TX1"/"TX2") and relied on the
+        dry-run transport inventing a validated tesSUCCESS for ANY unknown
+        txid — exactly the behavior that made the 'verify before trusting'
+        lesson unrepresentable offline. Unknown txids now audit as not_found;
+        real session txids still pass.
+        """
         transport = DryRunTransport()
-        report = await run_audit(transport, ["TX1", "TX2"])
+        from xrpl_lab.transport.dry_run import _DRY_RUN_WALLET_ADDRESS
+
+        await transport.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
+        r1 = await transport.submit_payment("sSENDER", "rDEST", "1")
+        r2 = await transport.submit_payment("sSENDER", "rDEST", "2")
+        report = await run_audit(transport, [r1.txid, r2.txid])
         assert report.total == 2
-        assert report.passed == 2  # dry-run default txs pass
+        assert report.passed == 2  # the session's own txs pass
         assert report.failed == 0
+
+    @pytest.mark.asyncio
+    async def test_unknown_txid_audits_as_not_found(self):
+        """F-64106db7: a fake/mistyped txid must FAIL the audit offline, the
+        way txnNotFound fails it on the live ledger."""
+        transport = DryRunTransport()
+        report = await run_audit(transport, ["TX1"])
+        assert report.total == 1
+        assert report.passed == 0
+        assert report.not_found == 1
+        assert report.verdicts[0].status == "not_found"
 
     @pytest.mark.asyncio
     async def test_audit_with_fixtures(self):
@@ -360,13 +384,17 @@ class TestRunAudit:
 class TestReportGeneration:
     @pytest.mark.asyncio
     async def test_md_report(self, tmp_path):
+        # CORRECTED (F-64106db7): audit a txid the session produced — unknown
+        # txids no longer fabricate a PASS.
         transport = DryRunTransport()
-        report = await run_audit(transport, ["TX1"])
+        sent = await transport.submit_payment("sSENDER", "rDEST", "1")
+        report = await run_audit(transport, [sent.txid])
         path = tmp_path / "report.md"
         write_audit_report_md(report, path)
         content = path.read_text(encoding="utf-8")
         assert "Audit Report" in content
-        assert "TX1" in content
+        # The MD table truncates long txids — match the visible prefix.
+        assert sent.txid[:16] in content
         assert "PASS" in content
 
     @pytest.mark.asyncio
@@ -381,8 +409,10 @@ class TestReportGeneration:
 
     @pytest.mark.asyncio
     async def test_audit_pack(self, tmp_path):
+        # CORRECTED (F-64106db7): audit a txid the session produced.
         transport = DryRunTransport()
-        report = await run_audit(transport, ["TX1"])
+        sent = await transport.submit_payment("sSENDER", "rDEST", "1")
+        report = await run_audit(transport, [sent.txid])
         path = tmp_path / "pack.json"
         write_audit_pack(report, path)
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -511,6 +541,17 @@ class TestAuditPackTamperDetection:
 # ── CLI smoke test ───────────────────────────────────────────────────
 
 
+def _dry_run_txid(counter: int) -> str:
+    """The deterministic txid a dry-run session's Nth transaction produces.
+
+    F-0feb8f21 made dry-run txids reproducible (sha256 of prefix+counter), so
+    a CLI audit in a FRESH process can recognize a PRIOR dry-run session's
+    receipts — these tests audit exactly such txids. Garbage txids (the old
+    "AAAA"/"TX1" placeholders) now honestly audit as not_found (F-64106db7).
+    """
+    return hashlib.sha256(f"DRYRUN-{counter}".encode()).hexdigest().upper()[:64]
+
+
 class TestAuditCLI:
     def test_audit_command(self, tmp_path, monkeypatch):
         monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws")
@@ -518,9 +559,12 @@ class TestAuditCLI:
 
         from xrpl_lab.cli import main
 
-        # Write txids file
+        # Write txids file — genuine cross-session dry-run txids (CORRECTED,
+        # F-64106db7: fabricated ids like "AAAA" no longer fake a PASS).
         txids_file = tmp_path / "txids.txt"
-        txids_file.write_text("AAAA\nBBBB\n", encoding="utf-8")
+        txids_file.write_text(
+            f"{_dry_run_txid(1)}\n{_dry_run_txid(2)}\n", encoding="utf-8"
+        )
 
         runner = CliRunner()
         result = runner.invoke(main, [
@@ -531,6 +575,22 @@ class TestAuditCLI:
         assert "Checked" in result.output
         assert "Pass" in result.output
 
+    def test_audit_command_garbage_txid_fails(self, tmp_path, monkeypatch):
+        """F-64106db7: a mistyped/forged txid must FAIL the dry-run audit."""
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws")
+        from click.testing import CliRunner
+
+        from xrpl_lab.cli import main
+
+        txids_file = tmp_path / "txids.txt"
+        txids_file.write_text("AAAA\n", encoding="utf-8")
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "audit", "--txids", str(txids_file), "--dry-run", "--no-pack",
+        ])
+        assert result.exit_code != 0
+
     def test_audit_with_expectations(self, tmp_path, monkeypatch):
         monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws")
         from click.testing import CliRunner
@@ -538,7 +598,7 @@ class TestAuditCLI:
         from xrpl_lab.cli import main
 
         txids_file = tmp_path / "txids.txt"
-        txids_file.write_text("TX1\n", encoding="utf-8")
+        txids_file.write_text(f"{_dry_run_txid(1)}\n", encoding="utf-8")
 
         expect_file = tmp_path / "expect.json"
         expect_file.write_text(json.dumps({

@@ -257,11 +257,18 @@ class TestFetchErrorNotTxFailure:
 
     @pytest.mark.asyncio
     async def test_normal_dry_run_fetch_still_verifies_success(self):
-        """Regression: a normal (no fetch_error) tx still verifies as before."""
+        """Regression: a normal (no fetch_error) tx still verifies as before.
+
+        CORRECTED (F-64106db7): verify a txid the session actually PRODUCED —
+        the dry-run no longer fabricates a validated tesSUCCESS for arbitrary
+        strings like "ANYTXID" (a fake/mistyped txid now honestly reads as
+        not-found, matching the live ledger's txnNotFound).
+        """
         from xrpl_lab.actions.verify import verify_tx
 
         transport = DryRunTransport()
-        result = await verify_tx(transport, "ANYTXID", expected_success=True)
+        sent = await transport.submit_payment("sSENDER", "rDEST", "1")
+        result = await verify_tx(transport, sent.txid, expected_success=True)
         assert result.passed is True
         assert result.tx_info.fetch_error is None
         assert any("tesSUCCESS" in c for c in result.checks)

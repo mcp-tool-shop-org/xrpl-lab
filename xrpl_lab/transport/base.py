@@ -54,6 +54,14 @@ class SubmitResult:
     channel_id: str = ""  # PayChannel id, set on a successful PaymentChannelCreate
     domain_id: str = ""  # DomainID (Hash256), set on a successful PermissionedDomainSet (create)
     offer_sequence: int | None = None  # placing tx Sequence, set on a permissioned OfferCreate
+    # The submitted transaction's Sequence (the value OfferCancel /
+    # EscrowFinish / EscrowCancel consume). The testnet transport reads it
+    # from the validated submit response (API v2: ``tx_json.Sequence``); the
+    # dry-run transport sets the synthetic create-sequence on the methods
+    # whose sequence is consumed downstream (offer/escrow creates). ``None``
+    # means the transport could not resolve it — callers keep their existing
+    # read-back fallbacks.
+    sequence: int | None = None
 
 
 @dataclass

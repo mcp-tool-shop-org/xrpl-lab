@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import time
 from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal, getcontext
 
 from .base import (
@@ -115,6 +114,23 @@ def _validate_xrp_amount(amount: str) -> int:
     return drops
 
 
+def _validate_positive_issued_amount(amount: str) -> Decimal:
+    """Guard an issued/MPT PAYMENT amount: must be a finite value > 0.
+
+    F-c0be844f (transport-008): four issued-value paths accepted NEGATIVE
+    amounts with tesSUCCESS, silently corrupting sim state (a negative issued
+    payment DEBITED the holder; a negative clawback MINTED tokens) where the
+    real network returns ``temBAD_AMOUNT``. Zero is also rejected — a Payment
+    of 0 issued value is ``temBAD_AMOUNT`` on-network. Distinct from
+    :func:`_validate_issued_amount`, which deliberately allows zero for the
+    AMM legs (a zero-liquidity pool used to be representable there).
+    """
+    value = _validate_issued_amount(amount)
+    if value == 0:
+        raise DryRunAmountError(f"Amount {amount} must be positive.")
+    return value
+
+
 def _validate_issued_amount(amount: str) -> Decimal:
     """Guard a non-XRP amount (issued currency / LP tokens) for AMM math.
 
@@ -153,6 +169,27 @@ def _validate_amm_leg(currency: str, value: str) -> None:
     Raises :class:`DryRunAmountError` (``temBAD_AMOUNT``) on a bad amount.
     """
     _validate_issued_amount(value)
+
+
+def _drops_to_xrp_str(drops: int) -> str:
+    """Render integer drops as a fixed-6dp XRP string (e.g. ``"1000.000000"``).
+
+    F-1188db18: pure-stdlib replacement for the lazy ``xrpl.utils.drops_to_xrp``
+    import — dry_run.py is the OFFLINE transport and intentionally has no
+    xrpl-py dependency (see the module design note above). Matches
+    ``str(drops_to_xrp(...))``'s fixed-6dp output byte-for-byte.
+    """
+    return str((Decimal(drops) / Decimal(1_000_000)).quantize(Decimal("0.000001")))
+
+
+# Dry-run fee/reserve model (F-ebadec19). Every SubmitResult already reports a
+# 12-drop fee; the payment sim now DEBITS it so offline balances track testnet
+# instead of drifting 12 drops high per tx. The reserve floor uses the same
+# constants the reserves module teaches for current testnet: 1 XRP base
+# reserve + 0.2 XRP per owned object.
+_DRY_FEE_DROPS = 12
+_BASE_RESERVE_DROPS = 1_000_000  # 1 XRP
+_OWNER_RESERVE_DROPS = 200_000  # 0.2 XRP per owned object
 
 
 class _PerAddressStore(dict):
@@ -235,6 +272,21 @@ class DryRunTransport(Transport):
         # (owner, sequence) -> (currency, issuer, value, source_address) for the
         # token that a given escrow locked, so finish/cancel can move the IOU.
         self._token_escrow_amounts: dict[tuple[str, int], tuple[str, str, str, str]] = {}
+        # F-64106db7: every txid this instance has issued. fetch_tx returns the
+        # legacy deterministic fake ONLY for txids we actually minted (or
+        # explicit fixtures); an unknown/mistyped txid returns the not-found
+        # shape (empty result_code, validated=False) that reporting.py/audit.py
+        # already model — matching the network's txnNotFound.
+        self._issued_txids: set[str] = set()
+        # F-cbc476b3: dry-clock value at the moment each escrow was CREATED,
+        # keyed (owner, sequence). Used by submit_escrow_finish to enforce the
+        # network's expiry rule (past CancelAfter → only EscrowCancel can act)
+        # for escrows that were created INSIDE their valid window. Escrows
+        # created with the clock ALREADY past CancelAfter could never exist
+        # on-network (EscrowCreate would fail temBAD_EXPIRATION) — they are
+        # legacy compressed-time demo escrows and keep the old
+        # immediately-finishable behavior.
+        self._escrow_created_at: dict[tuple[str, int], int] = {}
         # MPT holder state (FT-CURRIC-004): authorizations + per-holder balances,
         # both keyed (holder, issuance_id).
         self._mpt_auths: set[tuple[str, str]] = set()
@@ -273,11 +325,41 @@ class DryRunTransport(Transport):
         # exercise the not-yet-finishable / not-yet-cancellable error paths.
         self._dry_clock: int = 4_000_000_000  # ~ripple-epoch year 2126
 
+    # F-64106db7 + F-0feb8f21: because txids are now fully deterministic
+    # (sha256 of prefix+counter), a FRESH transport can recognize a txid that
+    # any dry-run session legitimately generated — which lets a cross-process
+    # audit (`xrpl-lab audit --dry-run` over a prior session's receipts) keep
+    # verifying REAL dry-run receipts while garbage/mistyped txids honestly
+    # come back not-found. Bounded to the first N counters (an offline session
+    # producing more than N txs is implausible); computed once per process.
+    _RECOGNIZABLE_TXID_BOUND = 5000
+    _recognizable_txids: set[str] | None = None
+
+    @classmethod
+    def _is_dry_run_txid(cls, txid: str) -> bool:
+        if cls._recognizable_txids is None:
+            cls._recognizable_txids = {
+                hashlib.sha256(
+                    f"{_FAKE_TXID_PREFIX}-{i}".encode()
+                ).hexdigest().upper()[:64]
+                for i in range(1, cls._RECOGNIZABLE_TXID_BOUND + 1)
+            }
+        return txid in cls._recognizable_txids
+
     def _next_txid(self) -> str:
-        """Generate a unique deterministic transaction ID (per-instance counter)."""
+        """Generate a unique DETERMINISTIC transaction ID (per-instance counter).
+
+        F-0feb8f21: the hash input is prefix + counter ONLY. The old
+        ``time.time()`` component made two identical sessions produce different
+        txids, breaking the module's "deterministic outputs" contract and
+        cross-run diffing of receipts/artifacts; the counter alone already
+        guarantees per-instance uniqueness.
+        """
         self._counter += 1
-        raw = f"{_FAKE_TXID_PREFIX}-{self._counter}-{time.time()}"
-        return hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
+        raw = f"{_FAKE_TXID_PREFIX}-{self._counter}"
+        txid = hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
+        self._issued_txids.add(txid)
+        return txid
 
     # ── Owner-count bookkeeping (TRANSPORT-A-002) ────────────────────────
     #
@@ -320,11 +402,14 @@ class DryRunTransport(Transport):
 
     async def fund_from_faucet(self, address: str) -> FundResult:
         self._funded_addresses.add(address)
-        self._balances[address] = 1_000_000_000  # 1000 XRP in drops
+        # F-3d812d44: the real faucet ADDS to an existing account. The old
+        # ``= 1_000_000_000`` overwrite silently destroyed any balance the
+        # account had accumulated when a learner re-ran a fund step mid-module.
+        self._balances[address] = self._balances.get(address, 0) + 1_000_000_000
         return FundResult(
             success=True,
             address=address,
-            balance="1000.000000",
+            balance=_drops_to_xrp_str(self._balances[address]),
             message="[dry-run] Funded with 1000 XRP",
         )
 
@@ -368,27 +453,41 @@ class DryRunTransport(Transport):
         # to "0" and masked the violation. We now match testnet behavior and
         # return tecUNFUNDED_PAYMENT.
         #
+        # F-ebadec19 extends the guard with the RESERVE FLOOR the reserves
+        # module teaches: a payment that would take the sender below
+        # base_reserve + owner_count * increment (plus the fee) fails
+        # tecUNFUNDED_PAYMENT on the network — the old sim let a learner spend
+        # to exactly 0, a dry-run pass masking a guaranteed testnet failure.
+        # The 12-drop fee is also DEBITED on success so balances track testnet.
+        #
         # Scope guard: only enforce when the sender has a tracked balance
         # (i.e., was funded or previously transacted). Unfunded senders have
         # never been balance-checked in this transport — leaving that path
         # alone preserves existing test fixtures that submit_payment without
         # first calling fund_from_faucet.
+        fee_drops = _DRY_FEE_DROPS
         if sender in self._balances:
             current_balance = self._balances[sender]
-            if drops > current_balance:
+            reserve = (
+                _BASE_RESERVE_DROPS
+                + self._owner_counts.get(sender, 0) * _OWNER_RESERVE_DROPS
+            )
+            if drops + fee_drops > current_balance - reserve:
                 return SubmitResult(
                     success=False,
                     txid="",
                     result_code="tecUNFUNDED_PAYMENT",
                     fee="12",
                     error=(
-                        f"[dry-run] insufficient XRP balance: "
-                        f"have {current_balance}, need {drops}"
+                        f"[dry-run] insufficient XRP balance: have "
+                        f"{current_balance} drops, need {drops} + {fee_drops} fee "
+                        f"while keeping the {reserve}-drop reserve "
+                        f"(base reserve + owner reserve — see the reserves module)"
                     ),
                 )
 
         txid = self._next_txid()
-        self._balances[sender] = self._balances.get(sender, 0) - drops
+        self._balances[sender] = self._balances.get(sender, 0) - drops - fee_drops
         self._balances[destination] = self._balances.get(destination, 0) + drops
         return SubmitResult(
             success=True,
@@ -477,6 +576,43 @@ class DryRunTransport(Transport):
             explorer_url="",  # dry-run tx is simulated — no public explorer
         )
 
+    def _check_frozen(
+        self,
+        currency: str,
+        issuer: str,
+        destination: str,
+        wallet_seed: str,
+    ) -> SubmitResult | None:
+        """Return a failing SubmitResult when a freeze blocks this issued payment.
+
+        F-a4147d39. Blocks when the issuer has Global Freeze set, or when the
+        (issuer, currency) line of the DESTINATION or the SENDER is individually
+        frozen — except direct payments TO the issuer, which the network always
+        allows so holders can return frozen funds. Returns None when unfrozen.
+        """
+        if destination == issuer:
+            return None  # direct-to-issuer payments bypass freezes on-network
+        sender = _address_from_seed(wallet_seed)
+        globally_frozen = issuer in self._global_frozen
+        line_frozen = (
+            (issuer, currency, destination) in self._frozen_lines
+            or (issuer, currency, sender) in self._frozen_lines
+        )
+        if not globally_frozen and not line_frozen:
+            return None
+        kind = "Global Freeze" if globally_frozen else "an Individual Freeze"
+        return SubmitResult(
+            success=False,
+            result_code="tecPATH_DRY",
+            fee="12",
+            error=(
+                f"[dry-run] Payment blocked by {kind}: the issuer froze this "
+                f"{currency} line, so it cannot send or receive third-party "
+                "payments (tecPATH_DRY). Only direct payments with the issuer "
+                "are allowed while frozen."
+            ),
+        )
+
     async def submit_issued_payment(
         self,
         wallet_seed: str,
@@ -493,6 +629,22 @@ class DryRunTransport(Transport):
                 result_code="tecPATH_DRY",
                 fee="12",
                 error="[dry-run] Simulated failure: no trust line",
+            )
+
+        # F-c0be844f (transport-008): validate the amount BEFORE any state read
+        # or mutation. A negative issued payment previously returned tesSUCCESS
+        # and DEBITED the holder's balance; the network rejects negative (and
+        # zero) issued Payment amounts with temBAD_AMOUNT in preflight, before
+        # any path/trust-line evaluation.
+        try:
+            numeric_amount = _validate_positive_issued_amount(amount)
+        except DryRunAmountError as exc:
+            return SubmitResult(
+                success=False,
+                txid="",
+                result_code=exc.result_code,
+                fee="0",
+                error=f"[dry-run] {exc}",
             )
 
         # Realistic validation: the DESTINATION holds the trust line, so credit
@@ -522,20 +674,22 @@ class DryRunTransport(Transport):
                 ),
             )
 
+        # F-a4147d39: ENFORCE the freeze state the transport already tracks.
+        # On the network an individually frozen line cannot move except in
+        # direct payments with the ISSUER, and Global Freeze halts ALL
+        # third-party transfers of the issuer's tokens (the payment fails
+        # tecPATH_DRY — no usable path through the frozen line). The old sim
+        # recorded freezes but let payments through, teaching the exact
+        # wrong-model the freeze module exists to prevent. Direct payments to
+        # the issuer stay allowed (the on-network escape hatch).
+        frozen_result = self._check_frozen(currency, issuer, destination, wallet_seed)
+        if frozen_result is not None:
+            return frozen_result
+
         try:
             numeric_balance = Decimal(matching_tl.balance)
         except Exception:
             numeric_balance = Decimal("0")
-        try:
-            numeric_amount = Decimal(amount)
-        except Exception:
-            return SubmitResult(
-                success=False,
-                txid="",
-                result_code="temBAD_AMOUNT",
-                fee="0",
-                error=f"[dry-run] Invalid amount: {amount}",
-            )
 
         new_balance = numeric_balance + numeric_amount
         # Parity with testnet: an issued payment that pushes the holder above
@@ -612,6 +766,30 @@ class DryRunTransport(Transport):
                 ),
             )
 
+        # F-c0be844f / F-03f27a6c (transport-008): preflight the amounts before
+        # any state read. Negative/zero Amount, DeliverMin, or SendMax is
+        # temBAD_AMOUNT on-network, and a DeliverMin GREATER than Amount is a
+        # contradiction the network also rejects with temBAD_AMOUNT — the old
+        # sim then "delivered" deliver_min, i.e. MORE than the claimed cap, an
+        # impossible on-ledger state in the recorded fixture.
+        try:
+            requested = _validate_positive_issued_amount(amount)  # Amount (DeliverMax cap)
+            delivered = _validate_positive_issued_amount(deliver_min)  # what actually moves
+            _validate_positive_issued_amount(send_max)
+        except DryRunAmountError as exc:
+            return SubmitResult(
+                success=False, txid="", result_code=exc.result_code, fee="12",
+                error=f"[dry-run] {exc}",
+            )
+        if delivered > requested:
+            return SubmitResult(
+                success=False, txid="", result_code="temBAD_AMOUNT", fee="12",
+                error=(
+                    f"[dry-run] DeliverMin {deliver_min} exceeds Amount {amount} — "
+                    "the floor cannot be above the cap (temBAD_AMOUNT)."
+                ),
+            )
+
         # The DESTINATION holds the trust line (same resolution as
         # submit_issued_payment). No line → tecPATH_DRY, matching testnet.
         matching_tl = None
@@ -629,14 +807,11 @@ class DryRunTransport(Transport):
                 ),
             )
 
-        try:
-            requested = Decimal(str(amount))       # the Amount field (DeliverMax cap)
-            delivered = Decimal(str(deliver_min))  # what actually moves (reduced)
-        except Exception:
-            return SubmitResult(
-                success=False, txid="", result_code="temBAD_AMOUNT", fee="12",
-                error=f"[dry-run] Invalid amount: {amount}/{deliver_min}",
-            )
+        # F-a4147d39: freezes block partial payments exactly like plain issued
+        # payments (tfPartialPayment is not a freeze bypass).
+        frozen_result = self._check_frozen(currency, issuer, destination, issuer_seed)
+        if frozen_result is not None:
+            return frozen_result
 
         # Credit the DELIVERED amount (the reduced figure) to the holder's line —
         # NOT the requested Amount. This is what makes the exploit demonstrable:
@@ -647,6 +822,22 @@ class DryRunTransport(Transport):
         except Exception:
             prev = Decimal("0")
         new_balance = prev + delivered
+
+        # F-03f27a6c: apply the SAME trust-line limit rule submit_issued_payment
+        # enforces — a partial payment cannot push the holder past their limit
+        # where a plain issued payment could not (tecPATH_DRY on-network).
+        try:
+            tl_limit = Decimal(matching_tl.limit)
+        except Exception:
+            tl_limit = Decimal("0")
+        if tl_limit > 0 and new_balance > tl_limit:
+            return SubmitResult(
+                success=False, txid="", result_code="tecPATH_DRY", fee="12",
+                error=(
+                    f"[dry-run] partial payment exceeds trust-line limit: "
+                    f"new balance {new_balance} > limit {tl_limit}"
+                ),
+            )
         matching_tl.balance = (
             str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
         )
@@ -779,6 +970,7 @@ class DryRunTransport(Transport):
             fee="12",
             ledger_index=99999999,
             explorer_url="",  # dry-run tx is simulated — no public explorer
+            sequence=seq,  # the placing tx's Sequence (OfferCancel consumes it)
         )
 
     async def submit_offer_cancel(
@@ -859,26 +1051,39 @@ class DryRunTransport(Transport):
         # Check fixtures first (for audit testing)
         if txid in self._tx_fixtures:
             return self._tx_fixtures[txid]
-        return TxInfo(
-            txid=txid,
-            tx_type="Payment",
-            account=_FAKE_ADDRESS,
-            destination="rFAKEDESTINATION123456789AB",
-            amount="10000000",
-            fee="12",
-            result_code="tesSUCCESS",
-            ledger_index=99999999,
-            memos=["XRPLLAB|dry-run"],
-            validated=True,
-        )
+        # F-64106db7: only txids a dry-run session legitimately generated fetch
+        # as the legacy deterministic fake — this instance's issued set, plus
+        # the deterministic cross-session set (_is_dry_run_txid) so auditing a
+        # PRIOR dry-run session's receipts still works. Anything else (a
+        # fake/mistyped/forged txid) returns the not-found shape (empty
+        # result_code, validated=False) — the same branch the live path models
+        # for txnNotFound — so the workbook's core "verify before trusting"
+        # lesson can represent a bogus txid offline instead of happily
+        # validating garbage.
+        if txid in self._issued_txids or self._is_dry_run_txid(txid):
+            return TxInfo(
+                txid=txid,
+                tx_type="Payment",
+                account=_FAKE_ADDRESS,
+                destination="rFAKEDESTINATION123456789AB",
+                amount="10000000",
+                fee="12",
+                result_code="tesSUCCESS",
+                ledger_index=99999999,
+                memos=["XRPLLAB|dry-run"],
+                validated=True,
+            )
+        return TxInfo(txid=txid, validated=False)
 
     async def get_balance(self, address: str) -> str:
         if address in self._balances:
             drops = self._balances[address]
             if drops <= 0:
                 return "0"
-            from xrpl.utils import drops_to_xrp as _drops_to_xrp
-            return str(_drops_to_xrp(str(drops)))
+            # F-1188db18: stdlib Decimal conversion — dry_run.py is the OFFLINE
+            # transport and must stay xrpl-py-free even on its most common
+            # read (see the module design note at the top of the file).
+            return _drops_to_xrp_str(drops)
         # Backward compat: address funded via direct _funded_addresses manipulation
         return "1000.000000" if address in self._funded_addresses else "0"
 
@@ -951,6 +1156,31 @@ class DryRunTransport(Transport):
         except DryRunAmountError as exc:
             return SubmitResult(success=False, result_code=exc.result_code, fee="12",
                                 error=f"[dry-run] {exc}")
+
+        # F-3bdd6cfa (1): AMMCreate with a ZERO-value leg is temBAD_AMOUNT on
+        # the network. The old sim built a 0-LP zombie pool that then
+        # permanently blocked re-creation via the tecDUPLICATE check below —
+        # and since the testnet transport stubs AMM, this sim IS the lesson.
+        if Decimal(asset_a_value) == 0 or Decimal(asset_b_value) == 0:
+            return SubmitResult(
+                success=False, result_code="temBAD_AMOUNT", fee="12",
+                error=(
+                    "[dry-run] AMMCreate requires a positive amount on BOTH "
+                    "legs — a zero-value leg is temBAD_AMOUNT on the network."
+                ),
+            )
+
+        # F-3bdd6cfa (3): TradingFee is capped at 1000 (1%) in 0.001% units;
+        # out-of-range values are temBAD_FEE on the network.
+        if not (0 <= trading_fee <= 1000):
+            return SubmitResult(
+                success=False, result_code="temBAD_FEE", fee="12",
+                error=(
+                    f"[dry-run] trading_fee {trading_fee} out of range — the "
+                    "network caps TradingFee at 1000 (= 1%, in 0.001% units); "
+                    "temBAD_FEE."
+                ),
+            )
 
         key = self._amm_pair_key(
             asset_a_currency, asset_a_issuer,
@@ -1240,7 +1470,8 @@ class DryRunTransport(Transport):
         pool["pool_b"] = str(
             (Decimal(pool["pool_b"]) * keep).quantize(_six, rounding=ROUND_HALF_UP),
         )
-        pool["lp_supply"] = str((total_lp - burn_lp).quantize(_six, rounding=ROUND_HALF_UP))
+        remaining_lp = (total_lp - burn_lp).quantize(_six, rounding=ROUND_HALF_UP)
+        pool["lp_supply"] = str(remaining_lp)
 
         # Debit LP tokens from withdrawer
         new_lp = (current_lp - burn_lp).quantize(_six, rounding=ROUND_HALF_UP)
@@ -1248,6 +1479,14 @@ class DryRunTransport(Transport):
             balances.pop(lp_key, None)
         else:
             balances[lp_key] = str(new_lp)
+
+        # F-3bdd6cfa (2): when the LAST LP withdraws, the network DELETES the
+        # AMM object — amm_info reports none and AMMCreate for the pair
+        # succeeds again. The old sim left a zombie 0/0 pool that reported a
+        # dead AmmInfo and permanently blocked re-creation via tecDUPLICATE.
+        if remaining_lp <= 0:
+            self._amm_pools.pop(key, None)
+            self._dec_owner(withdrawer_address)
 
         return SubmitResult(
             success=True,
@@ -1572,6 +1811,29 @@ class DryRunTransport(Transport):
             _q = Decimal("0.000001")
             royalty = royalty.quantize(_q, rounding=ROUND_HALF_UP)
 
+        # F-233393c2: the acceptor must FUND the price. The old sim debited the
+        # buyer unconditionally — an unfunded buyer "bought" a 500 XRP NFT and
+        # its raw tracked balance went to -500,000,000 drops (masked by
+        # get_balance clamping the display to "0"). The network fails the
+        # settlement with tecINSUFFICIENT_FUNDS. Same scope guard as
+        # submit_payment: enforced when the payer has a tracked balance,
+        # BEFORE the NFT or any balance moves.
+        if offer.get("currency", "XRP") == "XRP":
+            required_drops = int(price * Decimal("1000000"))
+            if (
+                price_payer in self._balances
+                and required_drops > self._balances[price_payer]
+            ):
+                return SubmitResult(
+                    success=False, result_code="tecINSUFFICIENT_FUNDS", fee="12",
+                    error=(
+                        f"[dry-run] Cannot settle the NFT trade — the buyer "
+                        f"holds {self._balances[price_payer]} drops but the "
+                        f"offer price is {required_drops} drops "
+                        "(tecINSUFFICIENT_FUNDS)."
+                    ),
+                )
+
         # Move the NFT to the new owner's bucket.
         bucket.remove(nft)
         # Decrement the previous holder's owner-count, increment the new one.
@@ -1685,6 +1947,18 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: Clawback",
             )
 
+        # F-c0be844f (transport-008): a NEGATIVE clawback previously passed the
+        # ``claw <= have`` clamp and MINTED tokens to the holder (claw -500 on
+        # a 100 balance -> 560). The network preflights Clawback's Amount and
+        # rejects non-positive values with temBAD_AMOUNT before any state read.
+        try:
+            claw = _validate_positive_issued_amount(amount)
+        except DryRunAmountError as exc:
+            return SubmitResult(
+                success=False, result_code=exc.result_code, fee="12",
+                error=f"[dry-run] Invalid clawback amount: {exc}",
+            )
+
         # Find the HOLDER's trust line for this currency. When the issuer's real
         # address is known we match on it; otherwise (collapsed-seed unit tests)
         # we match by currency alone and treat the line's peer as the issuer.
@@ -1727,12 +2001,8 @@ class DryRunTransport(Transport):
 
         try:
             have = Decimal(matching_tl.balance)
-            claw = Decimal(amount)
         except Exception:
-            return SubmitResult(
-                success=False, result_code="temBAD_AMOUNT", fee="12",
-                error=f"[dry-run] Invalid clawback amount: {amount}",
-            )
+            have = Decimal("0")
         # XRPL clamps a clawback to the holder's balance (you can't claw more
         # than they hold). Debit exactly min(amount, balance).
         clawed = claw if claw <= have else have
@@ -1842,26 +2112,46 @@ class DryRunTransport(Transport):
         # Parity with testnet: reject the same bad XRP amounts (negative /
         # sub-drop / too-large) the network rejects before locking any funds.
         try:
-            _validate_xrp_amount(amount)
+            drops = _validate_xrp_amount(amount)
         except DryRunAmountError as exc:
             return SubmitResult(success=False, result_code=exc.result_code, fee="12",
                                 error=f"[dry-run] {exc}")
         owner = _address_from_seed(wallet_seed)
+        # F-7ec2c90d (XRP conservation): the escrowed value leaves the source's
+        # SPENDABLE balance the moment EscrowCreate validates — exactly the
+        # locking model the module teaches. The old sim never debited it, so a
+        # create+cancel round trip MINTED the escrow amount out of thin air.
+        # Same scope guard as submit_payment: reject only when the source has
+        # a tracked balance that cannot cover the lock (tecUNFUNDED on-network).
+        if owner in self._balances and drops > self._balances[owner]:
+            return SubmitResult(
+                success=False, result_code="tecUNFUNDED", fee="12",
+                error=(
+                    f"[dry-run] Cannot escrow {amount} XRP — the source holds "
+                    f"only {self._balances[owner]} drops (tecUNFUNDED)."
+                ),
+            )
         txid = self._next_txid()
         seq = 1000 + self._counter
+        # Debit only TRACKED balances (same scope as submit_payment's guard):
+        # untracked legacy-fixture sources have never been balance-modeled,
+        # and debiting them would fabricate a phantom negative balance.
+        if owner in self._balances:
+            self._balances[owner] -= drops
         self._escrows.setdefault(owner, []).append(
             EscrowInfo(sequence=seq, amount=amount, destination=destination,
                        finish_after=finish_after, cancel_after=cancel_after)
         )
+        # F-cbc476b3: remember WHEN (sim time) this escrow was created so the
+        # finish path can enforce the network's past-CancelAfter expiry rule
+        # for escrows created inside their valid window.
+        self._escrow_created_at[(owner, seq)] = self._dry_clock
         self._inc_owner(owner)
-        # Mirror testnet: return the create sequence as the SubmitResult.fee?
-        # No — fee is a string of drops. Expose the create-sequence via
-        # result_code? No. The contract is that get_escrows() carries it in
-        # EscrowInfo.sequence; callers read it from there (parity with testnet,
-        # where the sequence is derived from the Escrow's create tx, not the
-        # submit response). Keep SubmitResult shape identical to testnet.
+        # The create-sequence rides on BOTH get_escrows() (EscrowInfo.sequence,
+        # parity with testnet's account_tx join) AND SubmitResult.sequence, so
+        # handlers can capture it directly from the submit response.
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
-                            ledger_index=99999999, explorer_url="")
+                            ledger_index=99999999, explorer_url="", sequence=seq)
 
     # ── Token escrow (XLS-85 / FC-001) ───────────────────────────────
 
@@ -1915,8 +2205,38 @@ class DryRunTransport(Transport):
             )
         source = source_address or _address_from_seed(source_seed)
 
-        # Rule 1 (XLS-85): the token's ISSUER cannot be the escrow SOURCE — an
-        # issuer escrowing its own token as sender fails tecNO_PERMISSION.
+        # tem preflight gates run FIRST — on the network a malformed tx is
+        # rejected in preflight BEFORE any tec-class engine check.
+
+        # Rule 1 (XLS-85, tem): CancelAfter is mandatory for a token escrow.
+        # The action layer already rejects a missing CancelAfter locally;
+        # enforce it here too so a direct transport caller can't skip it.
+        if cancel_after is None:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    "[dry-run] Token escrow requires a CancelAfter — unlike XRP, "
+                    "there is no open-ended token escrow (XLS-85)."
+                ),
+            )
+
+        # Rule 2 (fix1571, tem): an EscrowCreate with NEITHER FinishAfter NOR
+        # Condition is temMALFORMED on the network — nothing could ever release
+        # it. The transport-level token escrow carries no Condition field, so a
+        # missing FinishAfter is the whole gate (parity with the action-layer
+        # fix that now always supplies one).
+        if finish_after is None:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    "[dry-run] EscrowCreate requires a FinishAfter (or a "
+                    "crypto-condition) — an escrow with neither can never be "
+                    "finished (temMALFORMED)."
+                ),
+            )
+
+        # Rule 3 (XLS-85, tec): the token's ISSUER cannot be the escrow SOURCE —
+        # an issuer escrowing its own token as sender fails tecNO_PERMISSION.
         if source == issuer:
             return SubmitResult(
                 success=False, result_code="tecNO_PERMISSION", fee="12",
@@ -1928,14 +2248,16 @@ class DryRunTransport(Transport):
                 ),
             )
 
-        # Rule 2 (XLS-85): the issuer must have opted in via
+        # Rule 4 (XLS-85, tec): the issuer must have opted in via
         # asfAllowTrustLineLocking, else EscrowCreate fails tecNO_PERMISSION.
-        # Accept either the real-address key or the collapsed seed-address key
-        # (unit tests that opt in via seed without a real addr).
-        if (
-            issuer not in self._locking_enabled
-            and _address_from_seed(issuer) not in self._locking_enabled
-        ):
+        # F-8b39e89b: the issuer is identified by ADDRESS here, so the check is
+        # strictly by address. The old fallback passed the ADDRESS to the
+        # seed-collapsing helper, which returns the one synthetic wallet for
+        # ANY input — so once any issuer opted in seed-only, EVERY issuer was
+        # treated as opted-in, defeating the failure-case distinction this
+        # keying scheme exists to preserve. Callers that opt in must pass
+        # ``issuer_address`` (the action layer already does).
+        if issuer not in self._locking_enabled:
             return SubmitResult(
                 success=False, result_code="tecNO_PERMISSION", fee="12",
                 error=(
@@ -1944,18 +2266,6 @@ class DryRunTransport(Transport):
                     "requires the issuer to opt in per-asset before anyone can "
                     "escrow that IOU; without it, EscrowCreate fails "
                     "tecNO_PERMISSION."
-                ),
-            )
-
-        # Rule 3 (XLS-85): CancelAfter is mandatory for a token escrow. The
-        # action layer already rejects a missing CancelAfter locally; enforce it
-        # here too so a direct transport caller can't skip it.
-        if cancel_after is None:
-            return SubmitResult(
-                success=False, result_code="temMALFORMED", fee="12",
-                error=(
-                    "[dry-run] Token escrow requires a CancelAfter — unlike XRP, "
-                    "there is no open-ended token escrow (XLS-85)."
                 ),
             )
 
@@ -2005,10 +2315,12 @@ class DryRunTransport(Transport):
         )
         # Remember the real token so finish/cancel can move the IOU.
         self._token_escrow_amounts[(source, seq)] = (currency, issuer, value, source)
+        # F-cbc476b3: record sim-time-at-create for the finish expiry gate.
+        self._escrow_created_at[(source, seq)] = self._dry_clock
         self._inc_owner(source)
         return SubmitResult(
             success=True, txid=txid, result_code="tesSUCCESS", fee="12",
-            ledger_index=99999999, explorer_url="",
+            ledger_index=99999999, explorer_url="", sequence=seq,
         )
 
     def _credit_iou(self, address: str, currency: str, issuer: str, value: str) -> None:
@@ -2049,6 +2361,8 @@ class DryRunTransport(Transport):
             if escrow in bucket:
                 bucket.remove(escrow)
                 break
+        # Drop the create-time clock record (F-cbc476b3) with the object.
+        self._escrow_created_at.pop((owner, escrow.sequence), None)
         # Owner-reserve is tracked under the derived dry-run address (every
         # seed collapses to it), matching where submit_escrow_create incremented.
         self._dec_owner(owner)
@@ -2073,6 +2387,27 @@ class DryRunTransport(Transport):
                                 error=("[dry-run] No escrow found for owner+sequence "
                                        f"{offer_sequence} — wrong OfferSequence, or it "
                                        "was already finished/cancelled."))
+        # F-cbc476b3 — expiry gate: once CancelAfter has passed, the escrow is
+        # EXPIRED on the network — EscrowFinish fails tecNO_PERMISSION and only
+        # EscrowCancel can act on it. The old sim only checked FinishAfter, so
+        # the finish window never closed. Scope: enforced for escrows that were
+        # created INSIDE their valid window (sim-clock-at-create < CancelAfter).
+        # An escrow created with the clock ALREADY past its CancelAfter could
+        # never exist on-network (the create would fail temBAD_EXPIRATION) —
+        # those are compressed-time demo escrows (the module handlers derive
+        # times from wall clock while the default sim clock is far-future) and
+        # keep the legacy immediately-finishable behavior.
+        if target.cancel_after is not None and self._dry_clock >= target.cancel_after:
+            created_at = self._escrow_created_at.get((owner, offer_sequence))
+            if created_at is None or created_at < target.cancel_after:
+                return SubmitResult(
+                    success=False, result_code="tecNO_PERMISSION", fee="12",
+                    error=(
+                        "[dry-run] escrow expired — CancelAfter has passed, so "
+                        "the finish window is CLOSED; only EscrowCancel can act "
+                        "on this escrow now (tecNO_PERMISSION)."
+                    ),
+                )
         # Time gate: EscrowFinish can only succeed at/after FinishAfter.
         if target.finish_after is not None and self._dry_clock < target.finish_after:
             return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
@@ -2211,6 +2546,19 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="temMALFORMED", fee="12",
                                 error="[dry-run] Simulated failure: credential create")
         issuer = issuer_address or _address_from_seed(issuer_seed)
+        # F-2e2975aa: an expiration that is ALREADY in the past is rejected at
+        # create on the network (temBAD_EXPIRATION) — an attestation that was
+        # never valid cannot be minted. Compared against the deterministic sim
+        # clock, the same clock the eligibility gate reads.
+        if expiration is not None and expiration <= self._dry_clock:
+            return SubmitResult(
+                success=False, result_code="temBAD_EXPIRATION", fee="12",
+                error=(
+                    "[dry-run] Credential expiration is already in the past "
+                    "(temBAD_EXPIRATION) — set an expiration after the current "
+                    "sim clock (set_dry_clock) or omit it."
+                ),
+            )
         # tecNO_TARGET — the subject must be a FUNDED account on-ledger.
         if subject not in self._funded_addresses:
             return SubmitResult(
@@ -2327,15 +2675,23 @@ class DryRunTransport(Transport):
     def _holds_accepted_credential(
         self, holder: str, accepted: list[tuple[str, str]]
     ) -> bool:
-        """True if *holder* holds a VALID (accepted) credential the domain lists.
+        """True if *holder* holds a VALID (accepted, unexpired) credential the domain lists.
 
         Membership is OR over the accepted set: one matching accepted credential
         is enough. A provisional (not-yet-accepted) credential does NOT count —
         eligibility requires a valid credential, matching the ledger's rule.
+        F-2e2975aa: an EXPIRED credential does not count either — on the network
+        an expired credential is invalid (and deletable by anyone), so the gated
+        offer fails tecNO_PERMISSION. Expiry is read from the deterministic sim
+        clock (set_dry_clock).
         """
         for issuer, ctype_hex in accepted:
             cred = self._credentials.get((holder, issuer, ctype_hex))
-            if cred is not None and cred.accepted:
+            if (
+                cred is not None
+                and cred.accepted
+                and (cred.expiration is None or self._dry_clock < cred.expiration)
+            ):
                 return True
         return False
 
@@ -2498,7 +2854,7 @@ class DryRunTransport(Transport):
         return SubmitResult(success=True, txid=self._next_txid(),
                             result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="",
-                            offer_sequence=seq)
+                            offer_sequence=seq, sequence=seq)
 
     async def get_permissioned_domains(
         self, owner: str
@@ -2565,6 +2921,18 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecPATH_DRY", fee="12",
                 error="[dry-run] Simulated failure: MPT payment",
             )
+        # F-c0be844f (transport-008): validate the amount BEFORE the auth check
+        # or any balance mutation — a negative MPT payment previously returned
+        # tesSUCCESS and DEBITED the holder (50 -> 20 on amount='-30'). The
+        # network preflights the Amount and rejects non-positive values with
+        # temBAD_AMOUNT before tec-class checks.
+        try:
+            amt = _validate_positive_issued_amount(amount)
+        except DryRunAmountError as exc:
+            return SubmitResult(
+                success=False, result_code=exc.result_code, fee="12",
+                error=f"[dry-run] Invalid MPT amount: {exc}",
+            )
         key = (destination, issuance_id)
         # The holder must have authorized the issuance first (the MPT opt-in
         # gate — the lesson's load-bearing concept).
@@ -2575,13 +2943,6 @@ class DryRunTransport(Transport):
                     "[dry-run] The destination has not authorized this MPT "
                     "issuance (MPTokenAuthorize) — it cannot receive the token yet."
                 ),
-            )
-        try:
-            amt = Decimal(amount)
-        except Exception:
-            return SubmitResult(
-                success=False, result_code="temBAD_AMOUNT", fee="12",
-                error=f"[dry-run] Invalid MPT amount: {amount}",
             )
         self._mpt_balances[key] = Decimal(str(self._mpt_balances.get(key, 0))) + amt
         return SubmitResult(
@@ -2624,9 +2985,26 @@ class DryRunTransport(Transport):
                 error=f"[dry-run] Invalid channel amount: {exc}",
             )
         source = _address_from_seed(wallet_seed)
+        # F-7ec2c90d (XRP conservation): the deposit leaves the source's
+        # spendable balance the moment PaymentChannelCreate validates. The old
+        # sim never debited it, so channel claims MINTED XRP to the destination
+        # from thin air. Same scope guard as submit_payment (tracked balances
+        # only); the network fails an underfunded create with tecUNFUNDED.
+        if source in self._balances and drops > self._balances[source]:
+            return SubmitResult(
+                success=False, result_code="tecUNFUNDED", fee="12",
+                error=(
+                    f"[dry-run] Cannot open a {amount_xrp} XRP channel — the "
+                    f"source holds only {self._balances[source]} drops "
+                    "(tecUNFUNDED)."
+                ),
+            )
         cid = hashlib.sha256(
             f"{source}-chan-{self._counter}".encode()
         ).hexdigest().upper()
+        # Debit only TRACKED balances (same scope as submit_payment's guard).
+        if source in self._balances:
+            self._balances[source] -= drops
         self._channels[cid] = {
             "amount": drops, "claimed": 0, "source": source,
             "destination": destination, "settle_delay": settle_delay,
@@ -2650,12 +3028,33 @@ class DryRunTransport(Transport):
             )
         # Parity with testnet: round >6dp, reject negative/sub-drop/too-large.
         try:
-            ch["amount"] += _validate_xrp_amount(amount_xrp)
+            add_drops = _validate_xrp_amount(amount_xrp)
         except DryRunAmountError as exc:
             return SubmitResult(
                 success=False, result_code=exc.result_code, fee="12",
                 error=f"[dry-run] Invalid fund amount: {exc}",
             )
+        # F-7ec2c90d (XRP conservation): a top-up moves value from the source's
+        # spendable balance into the channel, exactly like create.
+        source = ch.get("source", "")
+        if source in self._balances and add_drops > self._balances[source]:
+            return SubmitResult(
+                success=False, result_code="tecUNFUNDED", fee="12",
+                error=(
+                    f"[dry-run] Cannot fund the channel with {amount_xrp} XRP — "
+                    f"the source holds only {self._balances[source]} drops "
+                    "(tecUNFUNDED)."
+                ),
+            )
+        ch["amount"] += add_drops
+        # Debit only TRACKED balances (same scope as submit_payment's guard).
+        if source in self._balances:
+            self._balances[source] -= add_drops
+        # F-95640306: honor the optional expiration instead of silently
+        # dropping it (PaymentChannelFund can set/advance the mutable
+        # expiration on the network).
+        if expiration is not None:
+            ch["expiration"] = expiration
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2705,6 +3104,30 @@ class DryRunTransport(Transport):
                     "amount the claim authorizes."
                 ),
             )
+        # F-95640306: a supplied signature must actually VERIFY against the
+        # amount it claims to authorize — the network rejects an invalid
+        # signature with temBAD_SIGNATURE. The old sim settled ANY garbage
+        # signature string, teaching that claim signatures are decorative.
+        # Recompute with the same _dry_claim_sig scheme
+        # authorize/verify_payment_channel_claim use.
+        auth_drops: int | None = None
+        if signature and amount_xrp:
+            try:
+                auth_drops = _validate_xrp_amount(amount_xrp)
+            except DryRunAmountError as exc:
+                return SubmitResult(
+                    success=False, result_code=exc.result_code, fee="12",
+                    error=f"[dry-run] Invalid claim amount: {exc}",
+                )
+            if signature != self._dry_claim_sig(channel_id, auth_drops):
+                return SubmitResult(
+                    success=False, result_code="temBAD_SIGNATURE", fee="12",
+                    error=(
+                        "[dry-run] Channel claim signature does not verify for "
+                        "this channel+amount (temBAD_SIGNATURE) — settle only "
+                        "claims whose signature you have verified."
+                    ),
+                )
         if balance_xrp:
             # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
             try:
@@ -2713,6 +3136,17 @@ class DryRunTransport(Transport):
                 return SubmitResult(
                     success=False, result_code=exc.result_code, fee="12",
                     error=f"[dry-run] Invalid claim balance: {exc}",
+                )
+            # F-95640306: the settled Balance cannot exceed the amount the
+            # signature authorizes (temBAD_AMOUNT on-network).
+            if auth_drops is not None and new_claimed > auth_drops:
+                return SubmitResult(
+                    success=False, result_code="temBAD_AMOUNT", fee="12",
+                    error=(
+                        "[dry-run] Claimed balance exceeds the signed amount — "
+                        "the signature authorizes less than the Balance asks to "
+                        "settle (temBAD_AMOUNT)."
+                    ),
                 )
             if new_claimed > ch["amount"]:
                 return SubmitResult(
@@ -2727,8 +3161,33 @@ class DryRunTransport(Transport):
                 )
                 ch["claimed"] = new_claimed
         if close:
-            ch["closed"] = True
-            self._dec_owner(ch["source"])
+            # F-95640306: model the network's close semantics. A source close
+            # with UNCLAIMED funds outstanding does not close instantly — it
+            # schedules expiration = now + settle_delay (the dispute window in
+            # which the destination can still redeem). The channel closes for
+            # real once that window has passed (or immediately when nothing is
+            # outstanding / no settle_delay), and the unclaimed remainder is
+            # REFUNDED to the source — conservation, not evaporation
+            # (F-7ec2c90d). Every dry-run seed collapses to the source wallet,
+            # so a close request is modeled as a source close.
+            remaining = ch["amount"] - ch["claimed"]
+            scheduled_exp = ch.get("expiration")
+            settle_delay = int(ch.get("settle_delay", 0) or 0)
+            due = scheduled_exp is not None and self._dry_clock >= scheduled_exp
+            if remaining > 0 and settle_delay > 0 and not due:
+                ch["expiration"] = (
+                    scheduled_exp
+                    if scheduled_exp is not None
+                    else self._dry_clock + settle_delay
+                )
+            else:
+                # Refund the unclaimed remainder — tracked sources only (the
+                # deposit was only debited from tracked balances; refunding an
+                # untracked source would mint).
+                if remaining > 0 and ch["source"] in self._balances:
+                    self._balances[ch["source"]] += remaining
+                ch["closed"] = True
+                self._dec_owner(ch["source"])
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2756,6 +3215,7 @@ class DryRunTransport(Transport):
                 destination=ch["destination"],
                 settle_delay=ch["settle_delay"],
                 public_key=ch["public_key"],
+                expiration=ch.get("expiration"),
                 cancel_after=ch.get("cancel_after"),
             ))
         return out

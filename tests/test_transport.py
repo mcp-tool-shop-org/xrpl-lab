@@ -201,14 +201,17 @@ class TestTestnetSubmitRetry:
         return XRPLTestnetTransport()
 
     @pytest.mark.asyncio
-    async def test_submit_payment_retries_after_timeout_then_succeeds(
+    async def test_submit_payment_timeout_never_resubmits(
         self, testnet, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """First submit_and_wait raises TimeoutError, second succeeds.
+        """F-0cbd05ef — a client timeout must NOT trigger a resubmit.
 
-        Asserts the retry actually fired (2 calls) and the final result is
-        the success from the second attempt — locking in that a transient
-        testnet timeout is recovered, not surfaced to the learner.
+        CORRECTED CONTRACT: this test previously asserted the OLD (buggy)
+        behavior — a retry after TimeoutError. That retry was the most
+        probable double-submit path: at 60s the first broadcast is frequently
+        still inside its LastLedgerSequence window, and a resubmit autofills a
+        FRESH Sequence, so BOTH payments could validate. The transport now
+        returns a verify-first local_error after exactly ONE attempt.
         """
         from xrpl_lab.transport import xrpl_testnet as xt
 
@@ -228,49 +231,23 @@ class TestTestnetSubmitRetry:
             amount="10",
         )
 
-        assert calls["n"] == 2, "expected exactly one retry after the timeout"
-        assert result.success is True
-        assert result.result_code == "tesSUCCESS"
-        assert result.txid == "TXRETRY"
-
-    @pytest.mark.asyncio
-    async def test_submit_payment_retries_exhausted_returns_local_error(
-        self, testnet, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Every attempt times out → all MAX_RETRIES+1 attempts run, and the
-        final result is a structured local_error (not a raised exception)."""
-        from xrpl_lab.transport import xrpl_testnet as xt
-        from xrpl_lab.transport.xrpl_testnet import MAX_RETRIES
-
-        calls = {"n": 0}
-
-        async def _always_timeout(tx, client, wallet):
-            calls["n"] += 1
-            raise TimeoutError("perpetual timeout")
-
-        monkeypatch.setattr(xt, "submit_and_wait", _always_timeout)
-
-        result = await testnet.submit_payment(
-            wallet_seed=_VALID_TESTNET_SEED,
-            destination="rDEST",
-            amount="10",
-        )
-
-        assert calls["n"] == MAX_RETRIES + 1, (
-            f"expected {MAX_RETRIES + 1} attempts (initial + retries), "
-            f"got {calls['n']}"
+        assert calls["n"] == 1, (
+            "a timeout must NOT be retried — the first tx may still validate "
+            "and a resubmit could duplicate the payment"
         )
         assert result.success is False
         assert result.result_code == "local_error"
         assert "timed out" in result.error.lower()
+        assert "duplicate" in result.error.lower()
 
     @pytest.mark.asyncio
-    async def test_submit_trust_set_retries_after_timeout_then_succeeds(
+    async def test_submit_trust_set_timeout_never_resubmits(
         self, testnet, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """B-TESTS-001 (second submit_* path) — TrustSet timeout-then-success.
+        """F-0cbd05ef (second submit_* path) — TrustSet timeout, no resubmit.
 
-        Covers a non-payment write path so the shared retry-loop contract
+        CORRECTED CONTRACT (was timeout-then-success via retry): covers a
+        non-payment write path so the shared no-resubmit-on-timeout contract
         is pinned on more than one method.
         """
         from xrpl_lab.transport import xrpl_testnet as xt
@@ -292,10 +269,10 @@ class TestTestnetSubmitRetry:
             limit="1000",
         )
 
-        assert calls["n"] == 2
-        assert result.success is True
-        assert result.result_code == "tesSUCCESS"
-        assert result.txid == "TXTRUST"
+        assert calls["n"] == 1
+        assert result.success is False
+        assert result.result_code == "local_error"
+        assert "timed out" in result.error.lower()
 
     @pytest.mark.asyncio
     async def test_submit_payment_malformed_tx_does_not_retry(
@@ -374,7 +351,14 @@ class TestTestnetExplorerUrl:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """local/unknown endpoints get an empty explorer URL — a broken
-        link to a public explorer is worse than no link."""
+        link to a public explorer is worse than no link.
+
+        F-4cf20cef: a 'local' endpoint now requires chain-identity proof (or
+        the explicit XRPL_LAB_ALLOW_LOCAL opt-in) before any signed write.
+        This test is about the explorer URL, not chain safety, so it opts in
+        — which also pins that the documented escape hatch works.
+        """
+        monkeypatch.setenv("XRPL_LAB_ALLOW_LOCAL", "1")
         url = await self._submit_and_get_url(
             monkeypatch, "http://localhost:5005"
         )

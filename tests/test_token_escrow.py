@@ -111,7 +111,7 @@ class TestCancelAfterMandatory:
         await set_allow_trustline_locking(t, "sISSUER", ISSUER)
         r = await create_token_escrow(
             t, "sHOLDER", CUR, ISSUER, "50", RECIPIENT,
-            cancel_after=None, source_address=HOLDER,
+            cancel_after=None, finish_after=FINISH, source_address=HOLDER,
         )
         assert r.success is False
         assert "CancelAfter" in r.error
