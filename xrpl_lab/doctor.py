@@ -164,8 +164,12 @@ def _check_workspace() -> Check:
 
 async def _check_rpc() -> Check:
     """Check if XRPL RPC endpoint is reachable."""
+    from .reporting import sanitize_endpoint
     from .transport.xrpl_testnet import XRPLTestnetTransport
 
+    # RA-002 sibling: doctor details flow into the shareable feedback bundle and
+    # the /api/doctor surface, so strip any credential embedded in a
+    # user-configured RPC URL before it enters a check detail.
     transport = XRPLTestnetTransport()
     try:
         # Match RPC_TIMEOUT from xrpl_testnet transport
@@ -176,12 +180,12 @@ async def _check_rpc() -> Check:
             return Check(
                 "RPC endpoint",
                 True,
-                f"Connected to {info.rpc_url} (ledger {info.ledger_index})",
+                f"Connected to {sanitize_endpoint(info.rpc_url)} (ledger {info.ledger_index})",
             )
         return Check(
             "RPC endpoint",
             False,
-            f"Not connected: {info.rpc_url}",
+            f"Not connected: {sanitize_endpoint(info.rpc_url)}",
             "Check your internet connection or set XRPL_LAB_RPC_URL",
         )
     except TimeoutError:
@@ -189,7 +193,7 @@ async def _check_rpc() -> Check:
         return Check(
             "RPC endpoint",
             False,
-            f"Timeout connecting to {rpc_url}",
+            f"Timeout connecting to {sanitize_endpoint(rpc_url)}",
             "The testnet RPC may be down. Try again later or set XRPL_LAB_RPC_URL",
         )
     except Exception as exc:
@@ -212,6 +216,8 @@ async def _check_faucet() -> Check:
     """Check if testnet faucet is reachable."""
     import httpx
 
+    from .reporting import sanitize_endpoint
+
     faucet_url = os.environ.get(
         "XRPL_LAB_FAUCET_URL", "https://faucet.altnet.rippletest.net/accounts"
     )
@@ -219,13 +225,17 @@ async def _check_faucet() -> Check:
         async with httpx.AsyncClient(timeout=15) as http:
             # HEAD or GET to check reachability (don't actually fund)
             resp = await http.get(faucet_url.replace("/accounts", ""))
-            # Any response means it's reachable
-            return Check("Faucet", True, f"Reachable: {faucet_url} (HTTP {resp.status_code})")
+            # Any response means it's reachable — sanitize (RA-002 sibling): the
+            # detail reaches the shareable bundle, so strip any credential.
+            return Check(
+                "Faucet", True,
+                f"Reachable: {sanitize_endpoint(faucet_url)} (HTTP {resp.status_code})",
+            )
     except httpx.TimeoutException:
         return Check(
             "Faucet",
             False,
-            f"Timeout: {faucet_url}",
+            f"Timeout: {sanitize_endpoint(faucet_url)}",
             "The faucet may be down. Try again later or set XRPL_LAB_FAUCET_URL",
         )
     except Exception as exc:
@@ -249,6 +259,7 @@ def _check_env_overrides() -> Check:
     so the doctor surfaces it as a FAILING check (not a passing
     informational note) — matching the transport's write-path refusal.
     """
+    from .reporting import sanitize_endpoint
     from .transport.xrpl_testnet import (
         SAFE_NETWORKS,
         classify_network,
@@ -256,13 +267,16 @@ def _check_env_overrides() -> Check:
         get_rpc_url,
     )
 
+    # RA-002 sibling: this detail reaches the shareable feedback bundle, so
+    # report the sanitized endpoint (scheme://host[:port]) — enough to diagnose
+    # the override without echoing an embedded basic-auth/token credential.
     rpc = os.environ.get("XRPL_LAB_RPC_URL")
     faucet = os.environ.get("XRPL_LAB_FAUCET_URL")
     overrides = []
     if rpc:
-        overrides.append(f"RPC: {rpc}")
+        overrides.append(f"RPC: {sanitize_endpoint(rpc)}")
     if faucet:
-        overrides.append(f"Faucet: {faucet}")
+        overrides.append(f"Faucet: {sanitize_endpoint(faucet)}")
 
     if not overrides:
         return Check("Env overrides", True, "None (using defaults)")

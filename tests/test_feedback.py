@@ -43,6 +43,32 @@ def test_feedback_network_reflects_override(tmp_path, monkeypatch):
     assert "- Network: testnet" not in md
 
 
+def test_feedback_strips_rpc_credentials(tmp_path, monkeypatch):
+    # RA-002 sibling: the support bundle is shareable, so a credentialed
+    # RPC/faucet URL (basic-auth userinfo or a path/query API token) must be
+    # stripped to scheme://host[:port] before it lands in the markdown.
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_home_dir", lambda: tmp_path)
+    monkeypatch.setattr("xrpl_lab.doctor.get_workspace_dir", lambda: tmp_path / "ws")
+    monkeypatch.setattr("xrpl_lab.feedback.get_workspace_dir", lambda: tmp_path / "ws")
+    monkeypatch.setenv(
+        "XRPL_LAB_RPC_URL", "https://user:hunter2@rpc.example.com:51234/?api_key=abc"
+    )
+    monkeypatch.setenv(
+        "XRPL_LAB_FAUCET_URL", "https://tok3n@faucet.example.com/accounts?key=zzz"
+    )
+
+    md = generate_feedback()
+    # The credential material must not appear anywhere in the bundle.
+    assert "hunter2" not in md
+    assert "api_key=abc" not in md
+    assert "tok3n" not in md
+    assert "key=zzz" not in md
+    # The diagnostic host survives.
+    assert "rpc.example.com" in md
+    assert "faucet.example.com" in md
+
+
 def test_feedback_with_proof_pack(tmp_path, monkeypatch):
     import json
 

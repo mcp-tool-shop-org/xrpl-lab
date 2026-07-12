@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 from . import __version__
 from .doctor import run_doctor
+from .reporting import sanitize_endpoint
 from .state import get_workspace_dir, load_state
 from .transport.xrpl_testnet import classify_network, get_faucet_url, get_rpc_url
 
@@ -50,9 +51,12 @@ def generate_feedback() -> str:
     # sending the maintainer down the wrong path).
     lines.append("### Environment")
     lines.append("")
+    # RA-002 sibling: the support bundle is a shareable artifact, so strip any
+    # credential embedded in a user-configured RPC/faucet URL (basic-auth
+    # userinfo, path/query API tokens) before it lands in the markdown.
     lines.append(f"- Network: {classify_network(get_rpc_url())}")
-    lines.append(f"- RPC: `{get_rpc_url()}`")
-    lines.append(f"- Faucet: `{get_faucet_url()}`")
+    lines.append(f"- RPC: `{sanitize_endpoint(get_rpc_url())}`")
+    lines.append(f"- Faucet: `{sanitize_endpoint(get_faucet_url())}`")
     if state.wallet_address:
         lines.append(f"- Wallet: `{state.wallet_address}`")
     lines.append("")
