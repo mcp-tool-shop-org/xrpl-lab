@@ -12,9 +12,9 @@
   <a href="https://mcp-tool-shop-org.github.io/xrpl-lab/"><img src="https://img.shields.io/badge/Landing_Page-live-blue" alt="Landing Page"></a>
 </p>
 
-Manuale di formazione XRPL: impara facendo, dimostra con i risultati.
+Manuale di formazione XRPL: imparare facendo e dimostrare attraverso esempi concreti.
 
-Ogni modulo insegna una competenza XRPL e produce un risultato verificabile: un ID di transazione, una ricevuta firmata o un rapporto diagnostico. Nessun account, niente di superfluo, niente cloud: solo competenze e ricevute.
+Ogni modulo insegna una specifica competenza relativa a XRPL e produce un risultato verificabile: un codice identificativo di transazione, una ricevuta firmata o un rapporto diagnostico. Niente conti utente, niente elementi superflui, niente cloud – solo competenze concrete e ricevute.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/xrpl-lab/main/docs/images/dashboard-hero.png" width="800" alt="XRPL Lab dashboard showing completed modules with quick actions and status panels">
@@ -32,15 +32,15 @@ Oppure con pip:
 pip install xrpl-lab
 ```
 
-Richiede Python 3.11 o superiore.
+Richiede Python versione 3.11 o successiva.
 
-## Guida rapida
+## Guida rapida all’avvio
 
 ```bash
 xrpl-lab start
 ```
 
-Il programma di avvio guidato ti guida attraverso la configurazione del portafoglio, il finanziamento e il primo modulo.
+La guida interattiva vi accompagnerà passo dopo passo nella configurazione del portafoglio digitale, nel finanziamento e nell’utilizzo del primo modulo.
 
 ### Modalità offline
 
@@ -48,74 +48,77 @@ Il programma di avvio guidato ti guida attraverso la configurazione del portafog
 xrpl-lab start --dry-run
 ```
 
-Non è richiesta alcuna connessione di rete. Transazioni simulate per imparare il flusso di lavoro.
+Non è necessaria una connessione di rete. Sono disponibili transazioni simulate per apprendere il flusso di lavoro.
 
 ## Moduli
 
-<!-- BEGIN curriculum:auto readme-intro -->
-<!-- generato da scripts/gen_docs.py — non modificare manualmente; esegui il generatore -->
-28 moduli suddivisi in dieci percorsi: Fondamenti, NFT, Token, Pagamenti, Identità, DEX, Riserve, Audit, AMM e Progetto finale.
-I prerequisiti sono specifici: la CLI e il linter li fanno rispettare.
+<!-- INIZIO curriculum:auto readme-intro -->
+<!-- generato tramite scripts/gen_docs.py – non modificare manualmente; eseguire lo script di generazione -->
+32 moduli suddivisi in dieci aree tematiche: Fondamenti, NFT, Token, Pagamenti, Identità, DEX, Riserve, Audit, AMM e Progetto finale.
+I requisiti preliminari sono chiaramente definiti e vengono applicati tramite la CLI e il linter.
 
-La colonna `#` corrisponde all'ordine mostrato da `xrpl-lab list` (ordine canonico dei percorsi).
-<!-- END curriculum:auto readme-intro -->
+La colonna `#` corrisponde all’ordine visualizzato dal comando `xrpl-lab list` (l’ordine canonico delle tracce).
 
-<!-- BEGIN curriculum:auto readme-table -->
-<!-- generato da scripts/gen_docs.py — non modificare manualmente; esegui il generatore -->
-| # | Modulo | Percorso | Modalità | Prerequisiti | Produce |
+<!-- INIZIO del curriculum: tabella automatica readme -->
+<!-- generato tramite lo script scripts/gen_docs.py – non modificare manualmente; eseguire lo script di generazione -->
+| # | Modulo | Traccia | Modalità | Requisiti preliminari | Produce |
 |---|--------|-------|------|---------------|----------|
-| 1 | Alfabetizzazione sulle ricevute | fondamenti | testnet | — | txid, rapporto |
-| 2 | Alfabetizzazione sui fallimenti | fondamenti | testnet | Alfabetizzazione sulle ricevute | txid, rapporto |
-| 3 | Trust Lines 101: valute emesse come relazioni | fondamenti | testnet | — | txid, rapporto |
-| 4 | Debug delle Trust Lines | fondamenti | testnet | Trust Lines 101: valute emesse come relazioni | txid, rapporto |
-| 5 | NFT Minting 101: il tuo primo asset di gioco | nfts | testnet | — | txid, rapporto |
-| 6 | NFT Marketplace 101: scambio di asset con royalty applicate | nfts | testnet | — | txid, rapporto |
-| 7 | Dynamic NFTs 101: un oggetto di gioco che aumenta di livello | nfts | testnet | — | txid, rapporto |
-| 8 | MPT Issuance 101: una valuta di gioco in una singola transazione | tokens | testnet | — | txid, rapporto |
-| 9 | MPT Distribution 101: distribuzione della valuta ai giocatori | tokens | testnet | MPT Issuance 101: una valuta di gioco in una singola transazione | txid, rapporto |
-| 10 | Token Freeze 101: il pulsante di pausa dell'emittente | tokens | testnet | — | txid, rapporto |
-| 11 | Clawback 101: la leva per il richiamo dell'emittente | tokens | testnet | — | txid, rapporto |
-| 12 | Escrow 101: XRP con vincolo temporale | pagamenti | testnet | — | txid, rapporto |
-| 13 | Escrow Finish 101: rilascio di XRP con vincolo temporale | pagamenti | testnet | Escrow 101: XRP con vincolo temporale | txid, rapporto |
-| 14 | Token Escrow (XLS-85): blocco degli IOU, non solo di XRP | pagamenti | testnet | Trust Lines 101: valute emesse come relazioni, Escrow 101: XRP con vincolo temporale | txid, rapporto |
-| 15 | Payment Channels 101: firma molte transazioni, esegui il saldo una volta sola | pagamenti | testnet | — | txid, rapporto |
-| 16 | Importo erogato: lo sfruttamento dei pagamenti parziali | pagamenti | testnet | Trust Lines 101: valute emesse come relazioni | txid, rapporto |
-| 17 | DID 101: identità on-ledger | identità | testnet | — | txid, rapporto |
-| 18 | Credentials 101 (XLS-70): KYC e attestazioni sull'età on-ledger | identità | testnet | DID 101: identità on-ledger | txid, rapporto |
-| 19 | Domini con autorizzazioni e DEX gated (XLS-80/81): trading conforme e con credenziali | identità | testnet | Credentials 101 (XLS-70): KYC e attestazioni sull'età on-ledger | txid, rapporto |
-| 20 | DEX Literacy: offerte, order book e cancellazioni | dex | testnet | Trust Lines 101: valute emesse come relazioni | txid, rapporto |
-| 21 | DEX Market Making 101: guadagno dello spread sull'order book | dex | testnet | DEX Literacy: offerte, order book e cancellazioni | txid, rapporto |
-| 22 | DEX Inventory Guardrails: non farti sbilanciare | dex | testnet | DEX Market Making 101: guadagno dello spread sull'order book | txid, rapporto |
-| 23 | Reserves 101: dove sono "andati" i tuoi XRP | riserve | testnet | Trust Lines 101: valute emesse come relazioni | txid, rapporto |
-| 24 | Account Hygiene: liberare le riserve e ripulire gli oggetti | riserve | testnet | Reserves 101: dove sono "andati" i tuoi XRP | txid, rapporto |
-| 25 | Audit Mode: verifica delle ricevute su larga scala | audit | testnet | Alfabetizzazione sulle ricevute | report, audit_pack |
-| 26 | AMM Liquidity 101: fornitura di liquidità e guadagno delle commissioni | amm | dry-run | Trust Lines 101: valute emesse come relazioni | txid, rapporto |
-| 27 | DEX vs AMM Risk Literacy: confronto tra strategie di trading | amm | dry-run | DEX Market Making 101: guadagno dello spread sull'order book, AMM Liquidity 101: fornitura di liquidità e guadagno delle commissioni | txid, rapporto |
-| 28 | Progetto finale: crea un'economia di gioco minima su XRPL | progetto finale | testnet | MPT Issuance 101: una valuta di gioco in una singola transazione, NFT Minting 101: il tuo primo asset di gioco, Escrow 101: XRP con vincolo temporale, Audit Mode: verifica delle ricevute su larga scala | txid, report, audit_pack |
-<!-- END curriculum:auto readme-table -->
+| 1 | Capacità di comprendere le ricevute | fondamenta; basi | rete di test | — | ID transazione, rapporto |
+| 2 | Alfabetizzazione sul fallimento | fondamenta; basi | rete di test | Capacità di comprendere le ricevute | ID transazione, rapporto |
+| 3 | Le basi delle relazioni di fiducia: le valute emesse come indicatori del livello di fiducia. | fondamenta; basi | rete di test | — | ID transazione, rapporto |
+| 4 | Risoluzione dei problemi relativi alle relazioni di fiducia. | fondamenta; basi | rete di test | Le basi delle relazioni di fiducia: le valute emesse come indicatori del livello di fiducia. | ID transazione, rapporto |
+| 5 | Portafoglio multi-firma per la gestione delle risorse (elenco dei firmatari): controllo N su M del portafoglio dello studio. | fondamenta; basi | rete di test | Capacità di comprendere le ricevute | ID transazione, rapporto |
+| 6 | Introduzione alla creazione di NFT: il tuo primo elemento di gioco. | NFT (token non fungibili) | rete di test | — | ID transazione, rapporto |
+| 7 | Guida introduttiva ai marketplace NFT: come scambiare asset digitali garantendo il pagamento delle royalty. | NFT (token non fungibili) | rete di test | — | ID transazione, rapporto |
+| 8 | NFT dinamici: le basi e un esempio di oggetto di gioco che migliora con il tempo. | NFT (token non fungibili) | rete di test | — | ID transazione, rapporto |
+| 9 | MPT: le basi per l’emissione di valuta virtuale con una sola transazione. | gettoni; simboli | rete di test | — | ID transazione, rapporto |
+| 10 | Guida introduttiva alla distribuzione di valuta nei giochi MPT: come fornire la valuta ai giocatori. | gettoni; simboli | rete di test | MPT: le basi per l’emissione di valuta virtuale con una sola transazione. | ID transazione, rapporto |
+| 11 | Congelamento dei token: la funzione di sospensione dell’emittente. | gettoni; simboli | rete di test | — | ID transazione, rapporto |
+| 12 | Il meccanismo di «clawback»: uno strumento a disposizione dell’emittente per richiedere la restituzione dei compensi. | gettoni; simboli | rete di test | — | ID transazione, rapporto |
+| 13 | Guida introduttiva ai servizi di deposito a garanzia: XRP con vincolo temporale. | pagamenti | rete di test | — | ID transazione, rapporto |
+| 14 | Guida introduttiva all’utilizzo dell’escrow: come sbloccare gli XRP vincolati. | pagamenti | rete di test | Guida introduttiva ai servizi di deposito a garanzia: XRP con vincolo temporale. | ID transazione, rapporto |
+| 15 | Servizio di deposito temporaneo di token (XLS-85): blocco degli IOU, non solo di XRP. | pagamenti | rete di test | Principi fondamentali delle linee di fiducia: le valute emesse come relazioni; principi fondamentali dei depositi a garanzia: XRP con scadenza temporale. | ID transazione, rapporto |
+| 16 | Controlli di base: pagamenti differiti tramite assegno (creazione/incasso/annullamento dell’assegno). | pagamenti | rete di test | Capacità di comprendere le ricevute | ID transazione, rapporto |
+| 17 | Canali di pagamento: la guida base: stipulare molti accordi, effettuare un unico addebito. | pagamenti | rete di test | — | ID transazione, rapporto |
+| 18 | Importo erogato: la vulnerabilità legata ai pagamenti parziali. | pagamenti | rete di test | Le basi delle relazioni di fiducia: le valute emesse come indicatori del livello di fiducia. | ID transazione, rapporto |
+| 19 | Attribuzione dei crediti ai giocatori tramite un custode: un unico portafoglio centralizzato, molti giocatori (etichette di destinazione). | pagamenti | rete di test | Importo erogato: la vulnerabilità legata ai pagamenti parziali. | ID transazione, rapporto |
+| 20 | DID 101: Identità gestita direttamente sulla blockchain. | identità | rete di test | — | ID transazione, rapporto |
+| 21 | Credenziali 101 (XLS-70): Verifica dell’identità e attestazione dell’età direttamente nel registro contabile. | identità | rete di test | DID 101: Identità gestita direttamente sulla blockchain. | ID transazione, rapporto |
+| 22 | Domini autorizzati e DEX con accesso controllato (XLS-80/81): trading conforme e basato su credenziali. | identità | rete di test | Credenziali 101 (XLS-70): Verifica dell’identità e attestazione dell’età direttamente nel registro contabile. | ID transazione, rapporto |
+| 23 | Deposit Gate (DepositAuth + DepositPreauth): Depositi nel portafoglio digitale protetti da autenticazione. | identità | rete di test | Credenziali 101 (XLS-70): Verifica dell’identità e attestazione dell’età direttamente nel registro contabile. | ID transazione, rapporto |
+| 24 | DEX Literacy: Offerte, registri degli ordini e annullamenti. | dex | rete di test | Le basi delle relazioni di fiducia: le valute emesse come indicatori del livello di fiducia. | ID transazione, rapporto |
+| 25 | Nozioni di base sul market making decentralizzato (DEX): come ottenere un profitto dalle differenze di prezzo nel registro ordini. | dex | rete di test | DEX Literacy: Offerte, registri degli ordini e annullamenti. | ID transazione, rapporto |
+| 26 | Linee guida per la gestione dell’inventario DEX: evitate squilibri. | dex | rete di test | Nozioni di base sul market making decentralizzato (DEX): come ottenere un profitto dalle differenze di prezzo nel registro ordini. | ID transazione, rapporto |
+| 27 | Riserve 101: Cosa è successo alle tue riserve di XRP? | riserve | rete di test | Le basi delle relazioni di fiducia: le valute emesse come indicatori del livello di fiducia. | ID transazione, rapporto |
+| 28 | Gestione ottimale dell’account: liberare risorse e riordinare gli oggetti. | riserve | rete di test | Riserve 101: Cosa è successo alle tue riserve di XRP? | ID transazione, rapporto |
+| 29 | Modalità di controllo: verifica su larga scala delle ricevute. | revisione contabile; controllo | rete di test | Capacità di comprendere le ricevute | relazione, pacchetto di documenti per la verifica |
+| 30 | AMM e liquidità: come fornire liquidità e ottenere compensi. | amm | prova generale; simulazione pratica | Le basi delle relazioni di fiducia: le valute emesse come indicatori del livello di fiducia. | ID transazione, rapporto |
+| 31 | DEX e AMM: confronto tra le strategie di trading e valutazione dei rischi. | amm | prova generale; simulazione pratica | Nozioni di base sul market making decentralizzato (DEX): come ottenere un profitto dallo spread nel book degli ordini; nozioni di base sulla liquidità negli Automated Market Maker (AMM): come fornire liquidità e guadagnare commissioni. | ID transazione, rapporto |
+| 32 | Progetto conclusivo: creare un sistema economico di gioco semplificato su XRPL. | pietra angolare; progetto conclusivo; elemento fondamentale | rete di test | Guida introduttiva all’emissione di MPT: una valuta di gioco con una sola transazione; Guida introduttiva alla creazione di NFT: il tuo primo asset di gioco; Guida introduttiva ai servizi di deposito a garanzia: XRP con vincolo temporale; Modalità di controllo: verifica delle ricevute su larga scala. | ID transazione, rapporto, pacchetto di controllo. |
+<!-- FINE del curriculum: tabella automatica nel file README -->
 
-La colonna **Produce** elenca i tipi di risultati che ogni modulo genera (`txid`, `report`, `audit_pack`); consulta la pagina di ciascun modulo nel [manuale](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) per la guida completa alle competenze e a cosa dimostri on-ledger.
+La colonna **Produces** elenca i tipi di artefatti generati da ciascun modulo (`txid`, `report`, `audit_pack`); per una descrizione completa delle funzionalità e dei risultati ottenuti, consultare la pagina dedicata a ciascun modulo nel [manuale](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/).
 
-### Percorsi
+### Brani musicali / Tracce
 
-<!-- BEGIN curriculum:auto readme-tracks -->
-<!-- generato da scripts/gen_docs.py — non modificare manualmente; esegui il generatore -->
-- **fondamenti** — portafoglio, pagamenti, trust lines, gestione degli errori
-- **nfts** — asset di gioco NFT: creazione, regolamento del marketplace, NFT dinamici (XLS-20)
-- **tokens** — emissione e richiamo di token multiuso (MPT) per giochi (XLS-33)
-- **pagamenti** — escrow e valore con vincolo temporale
+<!-- INIZIO curriculum:auto readme-tracks -->
+<!-- generato da scripts/gen_docs.py – non modificare manualmente; eseguire lo script di generazione -->
+- **fondamenti** — portafoglio, pagamenti, linee di credito, gestione degli errori
+- **NFT** — risorse di gioco NFT: creazione, regolamento del mercato, NFT dinamici (XLS-20)
+- **token** — emissione e recupero della valuta di gioco Multi-Purpose Token (MPT) (XLS-33)
+- **pagamenti** — deposito a garanzia e valore con scadenza temporale
 - **identità** — identificatori decentralizzati (DID, XLS-40)
-- **dex** — offerte, order book, market making, gestione dell'inventario
-- **riserve** — riserve dell'account, conteggio dei proprietari, pulizia
+- **DEX** — offerte, registri degli ordini, creazione del mercato, gestione dell’inventario
+- **riserve** — riserve di conto, numero di proprietari, pulizia
 - **audit** — verifica in batch, report di audit
-- **amm** — liquidità dell'automated market maker, confronto tra DEX e AMM
-- **progetto finale** — combina le competenze tra i percorsi nella creazione di un'economia di gioco
-<!-- END curriculum:auto readme-tracks -->
+- **AMM** — liquidità automatizzata per il market maker, confronto tra DEX e AMM
+- **progetto finale** — combinazione delle competenze acquisite nei diversi moduli per creare un’economia di gioco completa
+<!-- FINE curriculum:auto readme-tracks -->
 
 ### Modalità
 
-- **testnet** — transazioni reali sulla XRPL Testnet
-- **dry-run** — sandbox offline con transazioni simulate (non è richiesta alcuna connessione di rete)
+- **testnet**: esecuzione di transazioni reali sulla rete di test XRPL.
+- **dry-run**: ambiente di prova offline con transazioni simulate (non è necessaria una connessione alla rete).
 
 ## Comandi
 
@@ -151,17 +154,17 @@ xrpl-lab send --to <address> --amount <xrp> [--memo <text>]  Send a payment
 xrpl-lab verify --tx <id>   Verify a transaction on-ledger
 ```
 
-Tutti i comandi supportano l'opzione `--dry-run` per la modalità offline, ove applicabile.
+Tutti i comandi supportano l’opzione `--dry-run` per la modalità offline, quando applicabile.
 
-## Utilizzo in workshop
+## Utilizzo in officina
 
-XRPL Lab è progettato per contesti di insegnamento reali. Nessun account, nessuna telemetria, niente cloud. Tutto viene eseguito localmente.
+XRPL Lab è progettato per contesti di insegnamento reali. Nessun account, nessuna telemetria, nessun cloud. Tutto viene eseguito in locale.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/xrpl-lab/main/docs/images/facilitator-active-runs.png" width="800" alt="Facilitator dashboard listing active learner runs with module IDs, dry-run badges, status, queue depth, and run IDs">
 </p>
 
-### Stato del facilitatore
+### Ruolo di facilitatore
 
 ```bash
 xrpl-lab status             # Where is this learner? What's blocked? What's next?
@@ -170,7 +173,7 @@ xrpl-lab tracks             # Track-level completion: what was actually practice
 xrpl-lab recovery           # Stuck? See exactly what to run next
 ```
 
-### Supporto per il passaggio di consegne
+### Passaggio di consegne al supporto
 
 ```bash
 xrpl-lab support-bundle              # Human-readable markdown bundle
@@ -178,70 +181,70 @@ xrpl-lab support-bundle --json       # Machine-parseable JSON
 xrpl-lab support-bundle --verify bundle.json  # Verify a received bundle
 ```
 
-Un facilitatore può diagnosticare qualsiasi problema di un partecipante da un pacchetto di supporto senza dover riprodurre l'intera sessione. Non vengono inclusi segreti.
+Un facilitatore può diagnosticare qualsiasi problema di un partecipante a partire da una serie di dati di supporto, senza dover riprodurre l'intera sessione. Non sono inclusi dati sensibili.
 
-### Struttura del workshop
+### Flussi di lavoro del workshop
 
-**Ambiente completamente offline** — non è necessaria alcuna connessione di rete:
+**Sandbox completamente offline:** non è richiesta alcuna connessione di rete:
 ```bash
 xrpl-lab wallet create
 xrpl-lab start --dry-run
 ```
 
-**Ambiente misto offline + testnet** — transazioni reali per le funzionalità di base, ambiente sandbox per quelle avanzate:
+**Offline misto + testnet:** transazioni reali per le basi, sandbox per funzionalità avanzate:
 ```bash
 xrpl-lab wallet create
 xrpl-lab fund
 xrpl-lab start
 ```
 
-**Progressione da Camp a Lab** — continua da xrpl-camp:
+**Progressione da Camp a Lab:** continua da xrpl-camp:
 ```bash
 xrpl-lab start    # auto-detects camp wallet and certificate
 ```
 
 ## Risultati
 
-**Pacchetto di verifica** (`xrpl_lab_proof_pack.json`): registro condivisibile dei moduli completati, degli ID delle transazioni e dei link all'esploratore. Include un hash di integrità SHA-256. Non contiene informazioni sensibili.
+**Pacchetto di prova** (`xrpl_lab_proof_pack.json`): registro condivisibile dei moduli completati, degli ID delle transazioni e dei link all'esploratore. Include un hash di integrità SHA-256. Non sono inclusi dati sensibili.
 
 **Certificato** (`xrpl_lab_certificate.json`): registro semplificato del completamento.
 
-**Report** (`reports/*.md`): riepiloghi leggibili che descrivono cosa è stato fatto e dimostrato.
+**Report** (`reports/*.md`): riepiloghi leggibili da persone di ciò che è stato fatto e dimostrato.
 
 **Pacchetti di audit** (`audit_pack_*.json`): risultati della verifica in batch con hash di integrità SHA-256.
 
 ## Modello di sicurezza e affidabilità
 
-**Dati a cui accede XRPL Lab:**
-- Seed del wallet (memorizzato localmente in `~/.xrpl-lab/wallet.json` come JSON in chiaro, protetto da permessi di file 0o600 e una directory principale con permessi 0o700 — non crittografato)
+**Dati a cui XRPL Lab ha accesso:**
+- Seed del portafoglio (memorizzato localmente in `~/.xrpl-lab/wallet.json` come JSON in chiaro, protetto da permessi di file 0o600 e una directory principale con permessi 0o700 – non crittografato)
 - Avanzamento dei moduli e ID delle transazioni (memorizzati in `~/.xrpl-lab/state.json`, scritture atomiche tramite tmp + ridenominazione)
 - XRPL Testnet RPC (endpoint pubblico, le transazioni vengono firmate localmente prima dell'invio)
 - Faucet della testnet (HTTP pubblico, viene inviato solo il tuo indirizzo)
 
-**Dati a cui XRPL Lab NON accede:**
+**Dati a cui XRPL Lab NON ha accesso:**
 - Nessuna mainnet. Solo testnet
-- Nessun telemetria, analisi o comunicazione di dati verso l'esterno
+- Nessuna telemetria, analisi o trasmissione di dati di alcun tipo
 - Nessun account cloud, nessuna registrazione, nessuna API di terze parti
-- Nessuna informazione sensibile nei pacchetti di verifica, nei certificati, nei report o nei pacchetti di supporto — mai
+- Nessun dato sensibile nei pacchetti di prova, nei certificati, nei report o nelle serie di dati di supporto – mai
 
 **Permessi e livelli di archiviazione:**
-- Directory principale `~/.xrpl-lab/` — livello privato per informazioni sensibili, directory con permessi 0o700 + file wallet con permessi 0o600. Memorizza il seed del wallet, il log e i pacchetti di audit.
-- Area di lavoro `./.xrpl-lab/` — livello progettato per la condivisione, directory con permessi 0o755. Memorizza i report dei moduli, i pacchetti di verifica e i certificati. I facilitatori possono esaminarli senza richiedere autorizzazioni aggiuntive.
+- Directory principale `~/.xrpl-lab/`: livello privato per i dati sensibili, directory con permessi 0o700 + file del portafoglio con permessi 0o600. Memorizza il seed del portafoglio, il registro degli errori e i pacchetti di audit.
+- Area di lavoro `./.xrpl-lab/`: livello progettato per la condivisione, directory con permessi 0o755. Memorizza i report dei moduli, i pacchetti di prova e i certificati. I facilitatori possono esaminarli senza richiedere autorizzazioni aggiuntive.
 - File system: legge e scrive solo nelle due posizioni sopra indicate
-- Rete: solo XRPL Testnet RPC + faucet (entrambi modificabili tramite variabili d'ambiente, entrambi opzionali con `--dry-run`)
+- Rete: solo XRPL Testnet RPC + faucet (entrambi modificabili tramite variabili d'ambiente, entrambi facoltativi con `--dry-run`)
 - Non sono richieste autorizzazioni elevate
 
 **Interfaccia del dashboard (quando `xrpl-lab serve` è in esecuzione):**
-- L'endpoint WebSocket applica una lista di controllo delle origini consentite (chiude le connessioni non presenti nella lista con il codice 4003)
-- Tutti i frame di errore emettono un envelope strutturato (`code`, `message`, `hint`, `severity`, `icon_hint`) — nessuna divulgazione del percorso, nessuna divulgazione dello stato interno
-- Coda di messaggi per connessione limitata con comportamento documentato in caso di sovraccarico
+- L'endpoint del runner WebSocket applica una lista di origine consentita (chiude le connessioni non presenti nella lista con il codice 4003)
+- Tutti i frame di errore emettono un envelope strutturato (`code`, `message`, `hint`, `severity`, `icon_hint`) – nessuna divulgazione del percorso, nessuna divulgazione dello stato interno
+- Coda di messaggi per connessione limitata con comportamento documentato della gestione della pressione
 
-Consulta [SECURITY.md](SECURITY.md) per l'informativa completa sulla sicurezza e le istruzioni per la configurazione del workshop.
+Consulta [SECURITY.md](SECURITY.md) per la politica di sicurezza completa e le linee guida sulla configurazione del workshop.
 
 ## Requisiti
 
 - Python 3.11+
-- Connessione a Internet per la testnet (o utilizzare `--dry-run` per una modalità completamente offline)
+- Connessione Internet per la testnet (o utilizzare `--dry-run` per la modalità completamente offline)
 
 ## Licenza
 
