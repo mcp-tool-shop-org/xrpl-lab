@@ -53,7 +53,16 @@ class SubmitResult:
     mpt_issuance_id: str = ""  # MPTokenIssuanceID, set on a successful MPTokenIssuanceCreate
     channel_id: str = ""  # PayChannel id, set on a successful PaymentChannelCreate
     domain_id: str = ""  # DomainID (Hash256), set on a successful PermissionedDomainSet (create)
+    check_id: str = ""  # Check ledger-object id (Hash256 hex), set on a successful CheckCreate
     offer_sequence: int | None = None  # placing tx Sequence, set on a permissioned OfferCreate
+    # The submitted transaction's Sequence (the value OfferCancel /
+    # EscrowFinish / EscrowCancel consume). The testnet transport reads it
+    # from the validated submit response (API v2: ``tx_json.Sequence``); the
+    # dry-run transport sets the synthetic create-sequence on the methods
+    # whose sequence is consumed downstream (offer/escrow creates). ``None``
+    # means the transport could not resolve it — callers keep their existing
+    # read-back fallbacks.
+    sequence: int | None = None
 
 
 @dataclass
@@ -95,6 +104,15 @@ class TxInfo:
     # "unavailable". Empty string means the field was absent (a non-partial tx
     # where delivered == Amount, or a transport that did not populate it).
     delivered_amount: str = ""
+    # Custodial crediting (destination tags): ``DestinationTag`` routes a
+    # payment to a sub-account/player behind ONE shared receiving address;
+    # ``SourceTag`` is the sender-side return/bounce routing hint. Both are
+    # OPTIONAL 32-bit unsigned ints with NO on-ledger meaning beyond the
+    # asfRequireDest presence gate — the tag→player map lives entirely in the
+    # receiving backend, and a tag is a ROUTING HINT, not authentication
+    # (anyone can send any tag). ``None`` means the field was absent.
+    destination_tag: int | None = None
+    source_tag: int | None = None
 
 
 @dataclass
@@ -181,7 +199,10 @@ class CredentialInfo:
     the subject must run CredentialAccept for the credential to become valid.
     ``credential_type`` is the raw hex tag (opaque; issuer + verifier agree on
     the plaintext out-of-band). ``uri`` is decoded UTF-8 if possible, else hex,
-    and is IMMUTABLE after create.
+    and is IMMUTABLE after create. ``credential_id`` is the Credential ledger
+    object's index (a Hash256 hex string) — this is the value a sender attaches
+    to a Payment's ``CredentialIDs`` field to satisfy a DepositPreauth
+    credential-based gate (deposit_gate_101); empty when unknown/unresolved.
     """
 
     subject: str
@@ -190,6 +211,7 @@ class CredentialInfo:
     accepted: bool = False
     uri: str = ""
     expiration: int | None = None
+    credential_id: str = ""
 
 
 @dataclass
@@ -241,6 +263,22 @@ class ChannelInfo:
     public_key: str = ""
     expiration: int | None = None
     cancel_after: int | None = None
+
+
+@dataclass
+class SignerListInfo:
+    """The SignerList ledger object attached to an account (SignerListSet).
+
+    ``signer_quorum`` is the minimum COMBINED weight of signatures required to
+    authorize a multi-signed transaction for the account. ``entries`` is the
+    signer roster as ``(account, weight)`` pairs — 1..32 entries, no duplicate
+    accounts, and the owning account can never appear in its own list. There
+    is currently exactly one signer list per account (``SignerListID`` 0), and
+    it costs one owner-reserve increment (~0.2 XRP) while it exists.
+    """
+
+    signer_quorum: int
+    entries: list[tuple[str, int]]  # [(signer account, SignerWeight), ...]
 
 
 @dataclass
@@ -322,8 +360,130 @@ class Transport(ABC):
         destination: str,
         amount: str,
         memo: str = "",
+        destination_tag: int | None = None,
+        source_tag: int | None = None,
+        credential_ids: list[str] | None = None,
+        wallet_address: str = "",
     ) -> SubmitResult:
-        """Submit a payment transaction."""
+        """Submit a payment transaction.
+
+        ``destination_tag`` / ``source_tag`` are the optional 32-bit unsigned
+        routing tags (custodial crediting): the destination tag tells the
+        RECEIVING backend which player/sub-account to credit when many users
+        share one pooled address; the source tag is the sender's own
+        return/bounce routing hint. Both transports enforce the network's
+        RequireDest rule identically: an UNTAGGED payment to an account with
+        ``asfRequireDest`` set fails ``tecDST_TAG_NEEDED``. Out-of-range tags
+        (outside 0..2^32-1) are a local error — xrpl-py's model rejects them
+        at construction, and the dry-run mirrors that so a dry-run pass never
+        masks a testnet failure.
+
+        ``credential_ids`` (deposit_gate_101, XLS-70 extension) is an optional
+        list of 1-8 Credential ledger-object ids the SENDER attaches to satisfy
+        a destination's DepositAuth/DepositPreauth gate by credential (see
+        :meth:`submit_deposit_preauth`). Both transports enforce the same
+        DepositAuth rule: a Payment to a destination with ``asfDepositAuth``
+        set fails ``tecNO_PERMISSION`` unless the sender is preauthorized —
+        either its address was directly authorized, or it attaches a currently
+        valid (accepted, unexpired) credential matching one the destination
+        authorized via ``AuthorizeCredentials``. An empty or >8-entry or
+        duplicate-containing list is a local error, mirroring xrpl-py's own
+        ``credential_ids`` validation so a dry-run pass never masks a testnet
+        failure. As an emergency exemption (so a DepositAuth account can never
+        get permanently stuck), a destination whose OWN balance is at or below
+        the base reserve may still receive an XRP Payment of at most the base
+        reserve from ANYONE, preauthorized or not.
+
+        ``wallet_address`` is the SENDER's real classic address — a dry-run
+        keying aid (every dry-run seed collapses to one synthetic address, so
+        distinguishing multiple senders in the SAME dry-run session against a
+        shared DepositAuth/DepositPreauth policy needs this, exactly like
+        every other multi-party action). The testnet transport derives the
+        sender from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_deposit_auth(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Enable (or clear) asfDepositAuth on the account (AccountSet, SetFlag 9).
+
+        ``asfDepositAuth`` (ledger flag ``lsfDepositAuth``) makes the account
+        REJECT any unsolicited incoming Payment from a sender that is not
+        preauthorized, failing ``tecNO_PERMISSION``. It blocks Payments ONLY —
+        pull-style transactions the recipient itself initiates (CheckCash,
+        EscrowFinish, PaymentChannelClaim, OfferCreate) still work, and so does
+        the sub-reserve exemption documented on :meth:`submit_payment`.
+        ``enable=False`` clears the flag (the named compensator, symmetric with
+        :meth:`submit_require_dest`). ``wallet_address`` is the account's real
+        classic address, used by the dry-run transport to key per-account flag
+        state (every dry-run seed collapses to one synthetic address); the
+        testnet transport derives the account from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_deposit_preauth(
+        self,
+        wallet_seed: str,
+        authorize: str = "",
+        unauthorize: str = "",
+        authorize_credentials: list[tuple[str, str]] | None = None,
+        unauthorize_credentials: list[tuple[str, str]] | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Preauthorize (or revoke) a sender for DepositAuth (DepositPreauth, XLS-70 extension).
+
+        Exactly ONE of ``authorize`` / ``unauthorize`` / ``authorize_credentials``
+        / ``unauthorize_credentials`` must be set — xrpl-py's model raises at
+        construction otherwise (surfaced as ``local_error``, mirrored by the
+        dry-run transport for parity).
+
+        ``authorize`` / ``unauthorize`` whitelist (or revoke) a SINGLE sender
+        ADDRESS: ``temCANNOT_PREAUTH_SELF`` if it names the account's own
+        address, ``tecDUPLICATE`` authorizing an address already authorized,
+        ``tecNO_ENTRY`` revoking one that was never authorized (or already
+        revoked). Each preauthorized address is its own ledger object (one
+        owner-reserve increment).
+
+        ``authorize_credentials`` / ``unauthorize_credentials`` are 1-8
+        ``(issuer, credential_type_hex)`` pairs describing which CREDENTIAL(S)
+        a sender may hold instead of being individually whitelisted — a
+        depositor satisfies the gate by holding just ONE currently valid
+        (accepted, unexpired) credential matching ANY ONE listed pair (OR
+        semantics, exactly like Permissioned Domains' ``AcceptedCredentials``).
+        The sender then attaches the credential's on-ledger id via
+        ``Payment.credential_ids`` (see :meth:`submit_payment`). Preauth-by-
+        credential is currency-agnostic, one-directional, and cannot
+        preauthorize the account itself.
+
+        ``wallet_address`` is a dry-run keying aid (every dry-run seed
+        collapses to one synthetic address); the testnet transport derives the
+        account from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_require_dest(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Enable (or clear) asfRequireDest on the account (AccountSet).
+
+        ``asfRequireDest`` (ledger flag ``lsfRequireDestTag``) makes the
+        account REJECT any incoming Payment that lacks a ``DestinationTag``
+        with ``tecDST_TAG_NEEDED``. This is the operational-hygiene switch for
+        a custodial/pooled treasury: without it an untagged deposit lands
+        unattributable — funds arrive but the backend cannot tell whose they
+        are. ALWAYS enable it on a shared hot wallet. ``enable=False`` clears
+        the flag (the named compensator). ``wallet_address`` is the account's
+        real classic address, used by the dry-run transport to key per-account
+        flag state (every dry-run seed collapses to one synthetic address);
+        the testnet transport derives the account from the seed and ignores it.
+        """
 
     @abstractmethod
     async def submit_trust_set(
@@ -694,6 +854,90 @@ class Transport(ABC):
         """List Escrow objects owned by an address."""
 
     @abstractmethod
+    async def submit_check_create(
+        self,
+        wallet_seed: str,
+        destination: str,
+        send_max: str,
+        expiration: int | None = None,
+        destination_tag: int | None = None,
+        invoice_id: str = "",
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Write a Check authorizing *destination* to pull up to *send_max* (CheckCreate).
+
+        The deferred-pull contrast to Escrow: this writes a Check ledger object
+        naming the Destination and a ``SendMax`` ceiling, but moves and locks
+        NOTHING — the writer's spendable balance is unchanged the instant this
+        validates (unlike ``submit_escrow_create``, which debits the locked
+        amount immediately). ``send_max`` is an XRP amount string; it caps what
+        this Check can ever deliver, not a guarantee that amount will still be
+        there when the destination gets around to cashing it. ``expiration``
+        (optional, ripple-epoch seconds) makes the Check un-cashable (but still
+        cancellable by anyone) once passed. Returns ``SubmitResult.check_id``
+        (the 64-hex Check object id) on success — the value ``submit_check_cash``
+        / ``submit_check_cancel`` need. ``wallet_address`` is a dry-run keying
+        aid (every dry-run seed collapses to one synthetic address); the
+        testnet transport derives the writer from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_check_cash(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        amount: str | None = None,
+        deliver_min: str | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Redeem a Check for an exact ``amount`` or a flexible ``deliver_min`` (CheckCash).
+
+        Exactly one of ``amount`` / ``deliver_min`` must be set — xrpl-py's
+        model raises "either amount or deliver_min... not both" at
+        construction if both or neither are given (surfaced as
+        ``local_error``); the dry-run transport mirrors the same rejection so
+        a dry-run pass never masks a testnet failure.
+
+        Only the Check's Destination may cash it — any other signer fails
+        ``tecNO_PERMISSION``. A Check past its ``Expiration`` can only be
+        cancelled, never cashed (``tecEXPIRED``). A wrong/already-consumed
+        ``check_id`` fails ``tecNO_ENTRY``. And because ``CheckCreate`` never
+        locked anything, the writer's CURRENT balance is checked only now, at
+        cash time — insufficient funds fails ``tecUNFUNDED`` (or
+        ``tecPATH_PARTIAL`` on the token-check path); a CheckCreate that
+        returned ``tesSUCCESS`` is never a guaranteed payout. xrpl.org names
+        CheckCash explicitly as a transaction type whose own amount field is
+        not authoritative — callers MUST credit from the resulting validated
+        tx's ``delivered_amount`` metadata, never from ``amount`` /
+        ``deliver_min`` / the Check's ``SendMax`` (the delivered_amount_101
+        discipline, reused here unchanged). ``wallet_address`` is a dry-run
+        keying aid; the testnet transport derives the casher from the seed and
+        ignores it.
+        """
+
+    @abstractmethod
+    async def submit_check_cancel(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Void an unredeemed Check, freeing the WRITER's reserve (CheckCancel).
+
+        While the Check is live, either the writer or the Destination may
+        cancel it (any other signer fails ``tecNO_PERMISSION``); once it has
+        expired, ANY address may clean it up. A wrong/already-consumed
+        ``check_id`` fails ``tecNO_ENTRY``. Unlike ``submit_escrow_cancel``
+        (which refunds the locked amount to the owner), this credits NOBODY —
+        ``CheckCreate`` never moved or locked anything, so there is nothing to
+        refund; only the Check object's owner-reserve slot is freed, to the
+        WRITER (the reserve is always charged to whoever wrote the Check,
+        never the destination). ``wallet_address`` is a dry-run keying aid;
+        the testnet transport derives the canceller from the seed and ignores
+        it.
+        """
+
+    @abstractmethod
     async def submit_did_set(
         self,
         wallet_seed: str,
@@ -999,3 +1243,61 @@ class Transport(ABC):
     ) -> bool:
         """Verify an off-ledger channel claim signature against the channel's
         public key. No network."""
+
+    @abstractmethod
+    async def submit_signer_list_set(
+        self,
+        owner_seed: str,
+        quorum: int,
+        entries: list[tuple[str, int]],
+        owner_address: str = "",
+    ) -> SubmitResult:
+        """Create, replace, or delete the account's signer list (SignerListSet).
+
+        ``entries`` is the full intended roster as ``(account, weight)`` pairs —
+        the ledger REPLACES the whole list on every SignerListSet, never patches
+        it. ``quorum`` is the minimum combined weight that authorizes a
+        multi-signed transaction. Passing ``quorum=0`` with an EMPTY ``entries``
+        DELETES the list (freeing its owner reserve); mixing the two — a zero
+        quorum WITH entries, or a non-zero quorum WITHOUT entries — is
+        ``temMALFORMED``. Other network preflight rules both transports must
+        reject identically: 1..32 entries, no duplicate signer accounts, the
+        owner cannot list itself (``temBAD_SIGNER``), every weight must be
+        positive (``temBAD_WEIGHT``), and the quorum cannot exceed the sum of
+        the weights (``temBAD_QUORUM``). ``owner_address`` is a dry-run keying
+        aid (every dry-run seed collapses to one synthetic address); the
+        testnet transport derives the owner from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_multisig_payment(
+        self,
+        owner_address: str,
+        destination: str,
+        amount: str,
+        signer_seeds: list[str],
+        signer_addresses: list[str] | None = None,
+        memo: str = "",
+    ) -> SubmitResult:
+        """Submit a MULTI-SIGNED XRP Payment from ``owner_address``.
+
+        Deliberately takes NO owner seed — that is the whole point of a signer
+        list: the treasury account's own key never signs. Each seed in
+        ``signer_seeds`` produces one entry in the transaction's ``Signers``
+        array (``{Account, SigningPubKey, TxnSignature}``); the transaction's
+        own top-level ``SigningPubKey`` stays EMPTY (""), which is how the
+        ledger knows to check the signer list instead of the master key.
+
+        Cost rule both transports model: the fee is base_fee × (1 + number of
+        signatures) — every co-signature is paid for. Failure parity the
+        dry-run must keep with the network: no signer list on the account →
+        ``tefNOT_MULTI_SIGNING``; a signer not on the list (or duplicated) →
+        ``tefBAD_SIGNATURE``; combined weight below the quorum →
+        ``tefBAD_QUORUM``. ``signer_addresses`` is the dry-run keying aid for
+        the signers (parallel to ``signer_seeds``); the testnet transport
+        derives each address from its seed and ignores it.
+        """
+
+    @abstractmethod
+    async def get_signer_list(self, address: str) -> SignerListInfo | None:
+        """Read the account's SignerList ledger object, or None if it has none."""

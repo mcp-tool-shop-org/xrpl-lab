@@ -30,7 +30,12 @@ const workbook = [
   { href: `${base}/app/doctor/`, label: 'Doctor', id: 'doctor', icon: ic.doctor },
 ];
 // F-FE-FT-001: facilitator surface — monitor concurrent learner runs.
+// F-5776cc92: facilitator/index.astro (the section landing page) previously
+// had no sidebar entry of its own, so it was unreachable from in-app
+// navigation. It now has a distinct "Overview" entry with its own nav id
+// (facilitator-home) so it no longer falsely highlights "Runs" when visited.
 const facilitator = [
+  { href: `${base}/app/facilitator/`, label: 'Overview', id: 'facilitator-home', icon: ic.dash },
   { href: `${base}/app/facilitator/runs/`, label: 'Runs', id: 'facilitator', icon: ic.board },
 ];
 ---
@@ -97,10 +102,8 @@ const facilitator = [
   <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
 
   <script>
-    import { fetchWithTimeout } from '../lib/api';
+    import { fetchStatus, isLocalOrigin } from '../lib/api';
     import { esc } from '../lib/dashboard-ui';
-
-    const API_BASE = 'http://localhost:8321';
 
     // Mobile nav drawer — with a11y: aria-expanded state, focus into the drawer
     // on open, Escape-to-close returning focus to the toggle (parity with the
@@ -134,9 +137,7 @@ const facilitator = [
       const text = document.getElementById('netpill-text');
       const ver = document.getElementById('sidebar-ver');
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/status`);
-        if (!res.ok) throw new Error(`API returned ${res.status}: ${res.statusText}`);
-        const s = await res.json();
+        const s = await fetchStatus();
         // FRONTEND-A-004: escape the network value before interpolating into
         // innerHTML. Safe today (network is a server enum) but escaping closes
         // the latent XSS if the source ever changes — matches every other
@@ -145,7 +146,15 @@ const facilitator = [
         if (dot) { dot.classList.remove('statdot--warn', 'statdot--err'); dot.classList.add('statdot--ok'); }
         if (ver && s.version) ver.textContent = `XRPL Lab · v${s.version} · MIT`;
       } catch {
-        if (text) text.textContent = 'API offline — run xrpl-lab serve';
+        // F-cb775026: on the GitHub Pages-hosted copy, "run xrpl-lab serve"
+        // is permanently unactionable from THIS tab (CORS blocks it
+        // regardless of what's running locally) — say so distinctly instead
+        // of implying a local server fixes this exact tab.
+        const local = isLocalOrigin();
+        if (text) {
+          text.textContent = local ? 'API offline — run xrpl-lab serve' : 'Hosted preview — no local API';
+          text.title = local ? '' : 'This is the GitHub Pages-hosted copy of the dashboard. It cannot reach a local API. Run xrpl-lab serve, then open the URL it prints instead of this page.';
+        }
         if (dot) { dot.classList.remove('statdot--ok'); dot.classList.add('statdot--err'); }
       }
     })();

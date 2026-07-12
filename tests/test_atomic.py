@@ -73,7 +73,10 @@ class TestFileMode:
         real_open = os.open
 
         def spy_open(path, flags, mode=0o777, *args, **kwargs):
-            if str(path).endswith(("atomic_spy.json", "atomic_spy.json.tmp")):
+            # F-d6d7f5e8: the tmp name is now unique per call (pid + uuid4
+            # suffix), not a fixed "atomic_spy.json.tmp" literal — match by
+            # containment instead of an exact suffix.
+            if "atomic_spy.json" in str(path):
                 captured.append((path, flags, mode))
             return real_open(path, flags, mode, *args, **kwargs)
 
@@ -95,6 +98,12 @@ class TestAtomicSemantics:
     def test_atomic_uses_tmp_then_replace(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """F-d6d7f5e8: the tmp name is now unique per call (pid + uuid4
+        suffix, not a fixed ``<path>.tmp`` literal) — assert the SHAPE of
+        the name (starts with the final filename, ends with .tmp, differs
+        from the final path) rather than an exact string, and that
+        whatever name was opened is exactly what os.replace() later moves
+        onto the final path."""
         opened: list[str] = []
         replaced: list[tuple[str, str]] = []
         real_open = os.open
@@ -114,12 +123,22 @@ class TestAtomicSemantics:
         path = tmp_path / "data.json"
         atomic_write_json(path, {"k": "v"}, atomic=True)
 
-        tmp_target = str(tmp_path / "data.json.tmp")
         final_target = str(tmp_path / "data.json")
-        assert tmp_target in opened, f"tmp not opened: {opened}"
+        # Exclude the final path itself and (on POSIX) the directory-fsync
+        # open of tmp_path with no filename — keep only opens whose
+        # basename actually starts with "data.json".
+        tmp_opens = [
+            p for p in opened
+            if p != final_target and Path(p).name.startswith("data.json")
+        ]
+        assert len(tmp_opens) == 1, f"expected exactly one tmp open: {opened}"
+        tmp_target = tmp_opens[0]
+        assert tmp_target.endswith(".tmp"), tmp_target
+        assert tmp_target != final_target
+
         assert (tmp_target, final_target) in replaced
         assert path.exists()
-        assert not (tmp_path / "data.json.tmp").exists()
+        assert not Path(tmp_target).exists()
 
     def test_non_atomic_writes_direct_with_o_trunc(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -246,9 +265,11 @@ class TestAtomicSemantics:
             f"expected exactly 2 os.replace attempts (1 fail + 1 success), "
             f"got {calls['n']}"
         )
-        # The new content landed and no orphan tmp remains.
+        # The new content landed and no orphan tmp remains (unique-per-call
+        # naming means there's no single fixed literal to check anymore —
+        # glob for any leftover instead).
         assert json.loads(path.read_text(encoding="utf-8")) == {"version": 1}
-        assert not (tmp_path / "data.json.tmp").exists()
+        assert not list(tmp_path.glob("data.json.*.tmp"))
 
     def test_replace_reraises_after_exhausting_retries(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -282,7 +303,7 @@ class TestAtomicSemantics:
             f"got {calls['n']}"
         )
         # Orphan tmp cleaned up by the outer except, baseline untouched.
-        assert not (tmp_path / "data.json.tmp").exists()
+        assert not list(tmp_path.glob("data.json.*.tmp"))
         assert path.read_bytes() == original_bytes
 
 
@@ -298,7 +319,7 @@ class TestFailureCleanup:
         with pytest.raises(RuntimeError, match="simulated serializer failure"):
             atomic_write_json(path, {"k": "v"}, atomic=True, serialize=boom)
         # Serializer raises BEFORE we open the tmp, so no orphan.
-        assert not (tmp_path / "data.json.tmp").exists()
+        assert not list(tmp_path.glob("data.json.*.tmp"))
         # Final path was never created
         assert not path.exists()
 
@@ -338,7 +359,7 @@ class TestFailureCleanup:
             atomic_write_json(path, {"new": True}, atomic=True)
 
         # Orphan .tmp cleaned up
-        assert not (tmp_path / "data.json.tmp").exists(), (
+        assert not list(tmp_path.glob("data.json.*.tmp")), (
             "atomic write must unlink the orphan .tmp on failure"
         )
         # Baseline file untouched (no replace ran)
@@ -346,15 +367,33 @@ class TestFailureCleanup:
             "previous good copy must survive a failed atomic write"
         )
 
-    def test_atomic_recovers_from_stale_tmp(self, tmp_path: Path) -> None:
-        """A stale .tmp from a previously-killed process must be pre-cleaned;
-        otherwise O_EXCL would block the next save with FileExistsError."""
+    def test_atomic_recovers_from_stale_tmp(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A stale tmp file occupying the EXACT name a call is about to use
+        (a freak uuid4 collision, or a leftover from a process that crashed
+        between os.open and os.replace before this file existed) must be
+        pre-cleaned; otherwise O_EXCL would block the write with
+        FileExistsError.
+
+        F-d6d7f5e8: tmp names are now unique per call (pid + uuid4 suffix),
+        so a genuine collision with an INDEPENDENT writer's leftover is
+        vanishingly unlikely — this test pins the defensive pre-clean guard
+        that still protects the freak-collision case, using a deterministic
+        uuid4 so the exact tmp name is known ahead of time.
+        """
+        import uuid as uuid_module
+
         path = tmp_path / "data.json"
         atomic_write_json(path, {"baseline": True})
 
-        # Manually create a stale tmp (as if a previous process died after
-        # opening it but before os.replace ran).
-        stale = tmp_path / "data.json.tmp"
+        fixed_uuid = uuid_module.UUID(int=0)
+        monkeypatch.setattr("xrpl_lab._atomic.uuid.uuid4", lambda: fixed_uuid)
+
+        # Manually create a stale tmp at the EXACT name the next call will
+        # generate (as if a previous process died after opening it but
+        # before os.replace ran).
+        stale = tmp_path / f"data.json.{os.getpid()}.{fixed_uuid.hex[:8]}.tmp"
         stale.write_text('{"partial', encoding="utf-8")
         assert stale.exists()
 

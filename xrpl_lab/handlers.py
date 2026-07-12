@@ -8,6 +8,7 @@ uniform signature::
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from decimal import Decimal, InvalidOperation
@@ -23,11 +24,25 @@ from .actions.amm import (
     verify_lp_received,
     verify_withdrawal,
 )
+from .actions.checks import cancel_check, cash_check, create_check
 from .actions.credentials import (
     accept_credential,
     create_credential,
     delete_credential,
     verify_credential,
+)
+from .actions.custodial import (
+    credit_player_deposit,
+    enable_require_dest,
+    send_tagged_deposit,
+)
+from .actions.deposit_gate import (
+    authorize_deposit_address,
+    authorize_deposit_credential,
+    enable_deposit_auth,
+    get_credential_id,
+    send_gated_payment,
+    unauthorize_deposit_address,
 )
 from .actions.dex import (
     cancel_offer,
@@ -50,6 +65,12 @@ from .actions.mpt import (
     send_mpt,
     verify_mpt_balance,
     verify_mpt_issuance,
+)
+from .actions.multisig import (
+    delete_signer_list,
+    send_multisig_payment,
+    set_signer_list,
+    verify_signer_list,
 )
 from .actions.nft import (
     accept_nft_offer,
@@ -590,14 +611,20 @@ async def handle_issue_token_expect_fail(
         )
         if result.explorer_url:
             console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
-        context.setdefault("txids", []).append(result.txid)
-        state.record_tx(
-            txid=result.txid or "failed",
-            module_id=context.get("module_id", ""),
-            network=state.network,
-            success=True,
-            explorer_url=result.explorer_url,
-        )
+        # F-d18b2348: on the unexpected-success branch, record ONLY when a real
+        # txid exists (mirror handle_cancel_module_offers). The old
+        # `txid=result.txid or "failed"` could mint a {txid:"failed",
+        # success:true} record — a dead explorer link that inflates the proof
+        # pack's success count.
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid,
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=True,
+                explorer_url=result.explorer_url,
+            )
     else:
         console.print(f"  [green]Expected failure:[/] {result.result_code}")
         console.print(f"  Error: {result.error}")
@@ -1137,6 +1164,119 @@ async def handle_verify_channel(
 # ---------------------------------------------------------------------------
 
 
+def _canon_currency(code: str) -> str:
+    """Canonicalize a currency code for comparison.
+
+    XRPL renders non-standard (>3 char) codes as 40-char hex on-ledger, so a
+    handler that submitted ``HYGIENE`` reads back ``48594749454E45…00``. Decode
+    the hex form back to ASCII when possible so identity matching works on both
+    representations.
+    """
+    c = (code or "").strip()
+    if len(c) == 40:
+        try:
+            decoded = bytes.fromhex(c).rstrip(b"\x00").decode("ascii")
+            if decoded:
+                return decoded.upper()
+        except (ValueError, UnicodeDecodeError):
+            return c.upper()
+    return c.upper()
+
+
+def _offer_leg_currency(leg: str) -> str:
+    """Currency of an ``OfferInfo`` display leg (``value/CUR/issuer`` or drops)."""
+    parts = (leg or "").split("/")
+    if len(parts) >= 2:
+        return _canon_currency(parts[1])
+    return "XRP"
+
+
+def _offer_leg_matches(leg: str, currency: str, value: str) -> bool:
+    """True when a display leg matches the submitted ``(currency, value)`` pair.
+
+    Transports render XRP legs differently (testnet: drops; dry-run: the raw
+    XRP value), so an XRP leg matches either representation.
+    """
+    try:
+        want = Decimal(value)
+    except (InvalidOperation, ValueError, TypeError):
+        return False
+    if _canon_currency(currency) == "XRP":
+        if "/" in (leg or ""):
+            return False
+        try:
+            got = Decimal(leg)
+        except (InvalidOperation, ValueError, TypeError):
+            return False
+        return got == want or got == want * 1_000_000
+    parts = (leg or "").split("/")
+    if len(parts) < 2 or _canon_currency(parts[1]) != _canon_currency(currency):
+        return False
+    try:
+        return Decimal(parts[0]) == want
+    except (InvalidOperation, ValueError, TypeError):
+        return False
+
+
+async def _resolve_created_offer_sequence(
+    transport: Transport,
+    address: str,
+    result,
+    *,
+    taker_pays_currency: str,
+    taker_pays_value: str,
+    taker_gets_currency: str,
+    taker_gets_value: str,
+    console: Console,
+) -> int | None:
+    """Identify the JUST-PLACED offer's sequence instead of trusting ``offers[-1]``.
+
+    F-ee815beb: ``account_offers`` walks the owner directory in book/hash
+    order, NOT creation order — and an offer that crosses on placement leaves
+    no resting entry at all, so ``offers[-1]`` can capture a stale pre-existing
+    offer. A wrong sequence later sends OfferCancel at an innocent resting
+    offer (a real, wrong on-ledger action). Resolution order:
+
+    1. ``result.offer_sequence`` when the transport surfaced the placing tx's
+       Sequence (the permissioned-offer precedent) — exact.
+    2. Identity match on both legs (currency AND value); among matches the
+       HIGHEST sequence is the newest (account Sequence is monotonic).
+    3. Direction-only match (leg currencies) — covers a partially-crossed
+       offer whose resting amounts shrank.
+    4. No match → the offer likely fully crossed; capture NOTHING rather than
+       a stale offer's sequence.
+    """
+    seq = getattr(result, "offer_sequence", None)
+    if seq is not None:
+        return seq
+    offers = await transport.get_account_offers(address)
+    if not offers:
+        return None
+    exact = [
+        o for o in offers
+        if _offer_leg_matches(o.taker_pays, taker_pays_currency, taker_pays_value)
+        and _offer_leg_matches(o.taker_gets, taker_gets_currency, taker_gets_value)
+    ]
+    if exact:
+        return max(o.sequence for o in exact)
+    directional = [
+        o for o in offers
+        if _offer_leg_currency(o.taker_pays) == _canon_currency(taker_pays_currency)
+        and _offer_leg_currency(o.taker_gets) == _canon_currency(taker_gets_currency)
+    ]
+    if directional:
+        console.print(
+            "  [dim]Offer amounts differ from the resting entry (it may have "
+            "partially crossed); matched by direction.[/]"
+        )
+        return max(o.sequence for o in directional)
+    console.print(
+        "  [yellow]The new offer left no matching resting entry (it may have "
+        "fully crossed on placement) — sequence not captured.[/]"
+    )
+    return None
+
+
 async def handle_create_offer(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -1176,11 +1316,16 @@ async def handle_create_offer(
             explorer_url=result.explorer_url,
         )
         context.setdefault("txids", []).append(result.txid)
-        offers = await transport.get_account_offers(
-            state.wallet_address or ""
+        # F-ee815beb: select the created offer by identity, not offers[-1]
+        # (account_offers is book/hash-ordered, not creation-ordered).
+        seq = await _resolve_created_offer_sequence(
+            transport, state.wallet_address or "", result,
+            taker_pays_currency=pays_currency, taker_pays_value=pays_value,
+            taker_gets_currency=gets_currency, taker_gets_value=gets_value,
+            console=console,
         )
-        if offers:
-            context["offer_sequence"] = offers[-1].sequence
+        if seq is not None:
+            context["offer_sequence"] = seq
             console.print(
                 f"  Offer sequence: "
                 f"[cyan]{context['offer_sequence']}[/]"
@@ -1833,12 +1978,20 @@ async def handle_strategy_offer_bid(
         )
         context.setdefault("txids", []).append(result.txid)
 
-        offers = await transport.get_account_offers(
-            state.wallet_address or ""
+        # F-ee815beb: identity-match the created bid, don't trust offers[-1].
+        seq = await _resolve_created_offer_sequence(
+            transport, state.wallet_address or "", result,
+            taker_pays_currency=pays_currency, taker_pays_value=pays_value,
+            taker_gets_currency=gets_currency, taker_gets_value=gets_value,
+            console=console,
         )
-        if offers:
-            seq = offers[-1].sequence
+        if seq is not None:
             context.setdefault("strategy_offer_sequences", []).append(seq)
+            # F-d0b4cddf: record the intended direction so verify_module_offers
+            # can assert it against the resting offer (a bid REQUESTS the token).
+            context.setdefault("strategy_offer_directions", {})[seq] = {
+                "side": "bid", "token": pays_currency,
+            }
             console.print(f"  Offer sequence: [cyan]{seq}[/]")
     else:
         console.print(f"  [red]Bid failed: {result.error}[/]")
@@ -1880,10 +2033,16 @@ async def handle_strategy_offer_ask(
     )
     console.print(f"  Memo: [dim]{memo}[/]")
 
+    # F-d0b4cddf (CRITICAL): XRPL semantics — TakerGets is what the offer
+    # creator PROVIDES (sells), TakerPays what it REQUESTS (buys). An ASK
+    # sells the token, so the token amount (pays_value/pays_currency) goes on
+    # taker_GETS and the price (gets_value/gets_currency, XRP) on taker_PAYS.
+    # The old mapping built the OPPOSITE — a second BUY of the token — so the
+    # learner's "two-sided market" was two same-side bids on-ledger.
     result = await create_offer(
         transport, context["wallet_seed"].get(),
-        pays_currency, pays_value, pays_issuer,
-        gets_currency, gets_value, gets_issuer,
+        gets_currency, gets_value, gets_issuer,   # taker_pays: the price we request
+        pays_currency, pays_value, pays_issuer,   # taker_gets: the token we sell
     )
 
     if result.success:
@@ -1902,12 +2061,20 @@ async def handle_strategy_offer_ask(
         )
         context.setdefault("txids", []).append(result.txid)
 
-        offers = await transport.get_account_offers(
-            state.wallet_address or ""
+        # F-ee815beb: identity-match the created ask, don't trust offers[-1].
+        seq = await _resolve_created_offer_sequence(
+            transport, state.wallet_address or "", result,
+            taker_pays_currency=gets_currency, taker_pays_value=gets_value,
+            taker_gets_currency=pays_currency, taker_gets_value=pays_value,
+            console=console,
         )
-        if offers:
-            seq = offers[-1].sequence
+        if seq is not None:
             context.setdefault("strategy_offer_sequences", []).append(seq)
+            # F-d0b4cddf: an ask PROVIDES the token — verify_module_offers
+            # asserts the resting offer's taker_gets currency is the token.
+            context.setdefault("strategy_offer_directions", {})[seq] = {
+                "side": "ask", "token": pays_currency,
+            }
             console.print(f"  Offer sequence: [cyan]{seq}[/]")
     else:
         console.print(f"  [red]Ask failed: {result.error}[/]")
@@ -1938,6 +2105,7 @@ async def handle_verify_module_offers(
         )
         return context
 
+    directions = context.get("strategy_offer_directions", {})
     all_found = True
     failures: list[str] = []
     for seq in seqs:
@@ -1947,6 +2115,39 @@ async def handle_verify_module_offers(
         if result.found:
             for check in result.checks:
                 console.print(f"  [green]\u2713[/] {check}")
+            # F-d0b4cddf: DIRECTION assertion \u2014 a future leg inversion must not
+            # pass silently. A resting ASK must PROVIDE the token
+            # (taker_gets currency == token); a BID must REQUEST it
+            # (taker_pays currency == token).
+            direction = directions.get(seq)
+            if direction and result.offer is not None:
+                side = direction.get("side", "")
+                token = _canon_currency(direction.get("token", ""))
+                gets_cur = _offer_leg_currency(result.offer.taker_gets)
+                pays_cur = _offer_leg_currency(result.offer.taker_pays)
+                if side == "ask" and gets_cur != token:
+                    all_found = False
+                    msg = (
+                        f"Offer seq {seq} direction INVERTED: the ask must SELL "
+                        f"{token} (taker_gets={token}), but taker_gets is "
+                        f"{gets_cur} \u2014 this offer BUYS instead of selling"
+                    )
+                    console.print(f"  [red]\u2717[/] {msg}")
+                    failures.append(msg)
+                elif side == "bid" and pays_cur != token:
+                    all_found = False
+                    msg = (
+                        f"Offer seq {seq} direction INVERTED: the bid must BUY "
+                        f"{token} (taker_pays={token}), but taker_pays is "
+                        f"{pays_cur} \u2014 this offer SELLS instead of buying"
+                    )
+                    console.print(f"  [red]\u2717[/] {msg}")
+                    failures.append(msg)
+                elif side:
+                    console.print(
+                        f"  [green]\u2713[/] Offer seq {seq} direction OK: "
+                        f"{side} of {token}"
+                    )
         else:
             all_found = False
             for fail in result.failures:
@@ -2003,6 +2204,7 @@ async def handle_cancel_module_offers(
     save_state(state)
     context["offers_cancelled"] = cancelled
     context["strategy_offer_sequences"] = []
+    context["strategy_offer_directions"] = {}
     return context
 
 
@@ -2189,14 +2391,20 @@ async def handle_place_safe_sides(
                 explorer_url=result.explorer_url,
             )
             context.setdefault("txids", []).append(result.txid)
-            offers = await transport.get_account_offers(
-                state.wallet_address or ""
+            # F-ee815beb: identity-match the created bid, not offers[-1].
+            seq = await _resolve_created_offer_sequence(
+                transport, state.wallet_address or "", result,
+                taker_pays_currency=pays_currency, taker_pays_value=bid_value,
+                taker_gets_currency=gets_currency, taker_gets_value=bid_price,
+                console=console,
             )
-            if offers:
-                seq = offers[-1].sequence
+            if seq is not None:
                 context.setdefault(
                     "strategy_offer_sequences", []
                 ).append(seq)
+                context.setdefault("strategy_offer_directions", {})[seq] = {
+                    "side": "bid", "token": pays_currency,
+                }
             placed += 1
         else:
             console.print(f"  [red]Bid failed: {result.error}[/]")
@@ -2216,10 +2424,15 @@ async def handle_place_safe_sides(
         )
         console.print(f"  Memo: [dim]{memo}[/]")
 
+        # F-d0b4cddf (CRITICAL): the ask SELLS the token — the token amount
+        # goes on taker_GETS (what the creator provides) and the XRP price on
+        # taker_PAYS. The old mapping committed XRP while the inventory
+        # guardrail above (inv.can_ask) gated on TOKEN balance, so the
+        # guardrail did not protect the asset the offer actually spent.
         result = await create_offer(
             transport, context["wallet_seed"].get(),
-            pays_currency, ask_value, pays_issuer,
-            gets_currency, ask_price, gets_issuer,
+            gets_currency, ask_price, gets_issuer,   # taker_pays: price requested
+            pays_currency, ask_value, pays_issuer,   # taker_gets: token sold
         )
 
         if result.success:
@@ -2233,14 +2446,20 @@ async def handle_place_safe_sides(
                 explorer_url=result.explorer_url,
             )
             context.setdefault("txids", []).append(result.txid)
-            offers = await transport.get_account_offers(
-                state.wallet_address or ""
+            # F-ee815beb: identity-match the created ask, not offers[-1].
+            seq = await _resolve_created_offer_sequence(
+                transport, state.wallet_address or "", result,
+                taker_pays_currency=gets_currency, taker_pays_value=ask_price,
+                taker_gets_currency=pays_currency, taker_gets_value=ask_value,
+                console=console,
             )
-            if offers:
-                seq = offers[-1].sequence
+            if seq is not None:
                 context.setdefault(
                     "strategy_offer_sequences", []
                 ).append(seq)
+                context.setdefault("strategy_offer_directions", {})[seq] = {
+                    "side": "ask", "token": pays_currency,
+                }
             placed += 1
         else:
             console.print(f"  [red]Ask failed: {result.error}[/]")
@@ -2358,6 +2577,10 @@ async def handle_mint_nft(
         if result.nft_id:
             console.print(f"  NFTokenID: [cyan]{result.nft_id}[/]")
             context["nft_id"] = result.nft_id
+        # F-b1ebc369: keep the mint's TransferFee so verify_nft_trade can
+        # compute the protocol royalty when the issuer is a trade principal
+        # (the raw balance delta mixes price and royalty on those hops).
+        context["nft_transfer_fee"] = transfer_fee
         if result.explorer_url:
             console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
         state.record_tx(
@@ -2420,17 +2643,16 @@ async def handle_burn_nft(
         return context
     seed = context["wallet_seed"].get()
     # Resolve the NFTokenID: an explicit module arg wins, else the one captured
-    # at mint, else the most recently owned NFT on-ledger (so the module flows
-    # mint -> verify -> burn without the author pasting an id).
+    # at mint. F-ee815beb: the old third fallback burned owned[-1] claiming
+    # "most recently owned" — but account_nfts is sorted by NFTokenID, not mint
+    # order, so a module authored with burn-but-no-mint burned an essentially
+    # ARBITRARY NFT, irreversibly. Burning now requires an explicit id.
     nft_id = step.action_args.get("nftoken_id", "") or context.get("nft_id", "")
     if not nft_id:
-        owned = await transport.get_account_nfts(state.wallet_address or "")
-        if owned:
-            nft_id = owned[-1].nft_id
-    if not nft_id:
         console.print(
-            "  [red]No NFToken to burn — run the mint step first so an "
-            "NFTokenID is captured.[/]"
+            "  [red]No NFToken to burn — pass `nftoken_id:` explicitly or run "
+            "the mint step first so an NFTokenID is captured. (Burns are "
+            "irreversible, so nothing is guessed from the on-ledger list.)[/]"
         )
         return context
     console.print(f"  Burning NFToken [cyan]{nft_id[:24]}...[/]")
@@ -2515,6 +2737,56 @@ def _record_submit(state: LabState, context: dict, result) -> None:
     save_state(state)
 
 
+async def _resolve_created_escrow_sequence(
+    transport: Transport,
+    owner: str,
+    destination: str,
+    finish_after: int | None,
+    cancel_after: int | None,
+    console: Console,
+) -> int | None:
+    """Identify the JUST-CREATED escrow's create-sequence by identity.
+
+    F-25d8d8e1: ``account_objects`` returns Escrow entries in ledger-object-
+    index (hash) order, NOT creation order, so ``escrows[-1]`` is a coin flip
+    whenever the account already owns another escrow — the DEFAULT curriculum
+    path (escrow_101 leaves an escrow; escrow_finish_101 / token_escrow_101
+    then create a second one). A wrong capture makes EscrowFinish release the
+    WRONG escrow. Match on the identity the handler just submitted
+    (destination + FinishAfter + CancelAfter); fall back to
+    destination + CancelAfter; among matches the highest create-sequence is
+    the newest (account Sequence is monotonic). No match → capture nothing.
+    """
+    escrows = await transport.get_escrows(owner)
+    if not escrows:
+        return None
+    exact = [
+        e for e in escrows
+        if e.destination == destination
+        and e.finish_after == finish_after
+        and e.cancel_after == cancel_after
+    ]
+    candidates = exact
+    if not candidates:
+        candidates = [
+            e for e in escrows
+            if e.destination == destination and e.cancel_after == cancel_after
+        ]
+        if candidates:
+            console.print(
+                "  [dim]Escrow matched by destination + CancelAfter "
+                "(FinishAfter differed on read-back).[/]"
+            )
+    if not candidates:
+        console.print(
+            "  [yellow]Could not identify the created escrow among the "
+            "account's escrows — create-sequence not captured.[/]"
+        )
+        return None
+    seq = max(e.sequence for e in candidates)
+    return seq if seq else None
+
+
 async def handle_create_escrow(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -2553,19 +2825,21 @@ async def handle_create_escrow(
             console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
         # Capture the create-sequence (OfferSequence for finish/cancel) and the
         # owner so a later finish_escrow / cancel_escrow step can consume them.
-        # Both transports populate EscrowInfo.sequence (TRANSPORT-A-003), so we
-        # read it back from the ledger rather than guessing.
+        # Both transports populate EscrowInfo.sequence (TRANSPORT-A-003).
+        # F-25d8d8e1: select the created escrow by IDENTITY (destination +
+        # FinishAfter + CancelAfter), not escrows[-1] — account_objects is
+        # hash-ordered, so [-1] is a coin flip once a second escrow exists.
         owner = state.wallet_address or ""
-        escrows = await transport.get_escrows(owner)
-        if escrows:
-            seq = escrows[-1].sequence
-            context["escrow_owner"] = owner
-            context["escrow_destination"] = destination
-            context["escrow_finish_after"] = finish_after
-            context["escrow_cancel_after"] = cancel_after
-            if seq:
-                context["escrow_sequence"] = seq
-                console.print(f"  Escrow create-sequence: [cyan]{seq}[/]")
+        context["escrow_owner"] = owner
+        context["escrow_destination"] = destination
+        context["escrow_finish_after"] = finish_after
+        context["escrow_cancel_after"] = cancel_after
+        seq = await _resolve_created_escrow_sequence(
+            transport, owner, destination, finish_after, cancel_after, console,
+        )
+        if seq:
+            context["escrow_sequence"] = seq
+            console.print(f"  Escrow create-sequence: [cyan]{seq}[/]")
     else:
         console.print(f"  [red]Escrow failed: {result.error}[/]")
         _explain_failure(console, result.result_code)
@@ -2601,6 +2875,36 @@ async def handle_verify_escrow(
     return context
 
 
+async def _wait_for_finish_after(
+    transport: Transport, finish_after, console: Console, max_wait: int = 300,
+) -> None:
+    """Wait (bounded) until an escrow's FinishAfter has elapsed on a real network.
+
+    EscrowFinish before FinishAfter fails ``tecNO_PERMISSION`` — and a tec is
+    FINAL once validated, so submitting early burns the fee and fails the
+    lesson. Skips instantly on the dry-run transport (its deterministic clock
+    treats a fresh escrow as already finishable) and caps the wait so a module
+    authored with a huge FinishAfter cannot hang the runner.
+    """
+    if finish_after is None:
+        return
+    if getattr(transport, "network_name", "") == "dry-run":
+        return
+    try:
+        remaining = int(finish_after) - (int(time.time()) - _RIPPLE_EPOCH)
+    except (TypeError, ValueError):
+        return
+    if remaining <= 0:
+        return
+    # +2s margin: rippled gates on the ledger's close time, which can trail
+    # wall-clock by a close interval.
+    wait = min(remaining + 2, max_wait)
+    console.print(
+        f"  Waiting ~{wait}s for FinishAfter to elapse (the time-lock)..."
+    )
+    await asyncio.sleep(wait)
+
+
 def _resolve_escrow_target(state: LabState, context: dict) -> tuple[str, int | None]:
     """Resolve (owner, offer_sequence) for an escrow finish/cancel step.
 
@@ -2628,6 +2932,9 @@ async def handle_finish_escrow(
             "so its create-sequence is captured.[/]"
         )
         return context
+    await _wait_for_finish_after(
+        transport, context.get("escrow_finish_after"), console
+    )
     console.print(f"  Finishing escrow (owner {owner[:12]}..., OfferSequence {seq})...")
     result = await finish_escrow(transport, seed, owner, seq)
     if result.success:
@@ -2778,6 +3085,56 @@ async def handle_create_token_recipient(
     return context
 
 
+async def handle_create_noopt_issuer(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund a SECOND issuer that never opts in to token escrow, then issue.
+
+    F-59ba7d9d: asfAllowTrustLineLocking is ACCOUNT-WIDE, so once the MAIN
+    issuer opts in (step 5 of token_escrow_101), escrowing ANY currency it
+    issues passes the opt-in check — the "no opt-in → tecNO_PERMISSION" lesson
+    can never fire against it. This mirrors handle_create_noclaw_issuer: a
+    distinct issuer that NEVER sets the flag issues a token to the holder, so
+    the expect-fail step exercises the real missing-opt-in rejection.
+    """
+    args = step.action_args
+    currency = args.get("currency", "NOP")
+    amount = args.get("amount", "50")
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    console.print(
+        "  Creating a second issuer (never sets asfAllowTrustLineLocking)..."
+    )
+    issuer = create_wallet()
+    fund = await transport.fund_from_faucet(issuer.address)
+    if not fund.success and getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    context["noopt_issuer_seed"] = _SecretValue(issuer.seed)
+    context["noopt_issuer_address"] = issuer.address
+    context["noopt_currency"] = currency
+    # Holder trusts this issuer, then it issues tokens (opt-in NEVER set) so
+    # the later escrow attempt fails on the opt-in rule, not on tecNO_LINE.
+    holder_seed = context["wallet_seed"].get()
+    await set_trust_line(transport, holder_seed, issuer.address, currency, "1000")
+    issue = await issue_token(
+        transport, issuer.seed, state.wallet_address or "",
+        currency, issuer.address, amount,
+        memo=f"XRPLLAB|ISSUE|{currency}|{amount}",
+    )
+    if issue.success:
+        console.print(
+            f"  [green]Issued {amount} {currency} from a no-opt-in issuer.[/]"
+        )
+    else:
+        console.print(f"  [yellow]Issuance setup note: {issue.error}[/]")
+    return context
+
+
 async def handle_snapshot_recipient_balance(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -2836,13 +3193,34 @@ async def handle_create_token_escrow(
         cancel_seconds = 1
     cancel_after = int(time.time()) - _RIPPLE_EPOCH + cancel_seconds
 
+    # F-12f62ad2: fix1571 requires EVERY EscrowCreate to carry FinishAfter or a
+    # Condition — XLS-85 only ADDS the mandatory-CancelAfter rule, it does not
+    # relax fix1571. The old hardcoded finish_after=None was signed, submitted,
+    # and rejected temMALFORMED on every real-network run. Mirror
+    # handle_create_escrow: a short FinishAfter (the "release time" step 11 of
+    # token_escrow_101 already narrates).
+    try:
+        finish_seconds = int(args.get("finish_seconds", "30"))
+    except ValueError:
+        console.print("  [yellow]Invalid finish_seconds, using default (30).[/]")
+        finish_seconds = 30
+    if finish_seconds < 1:
+        console.print(
+            f"  [yellow]finish_seconds {finish_seconds} is invalid "
+            f"(must be >= 1); using 1.[/]"
+        )
+        finish_seconds = 1
+    finish_after = int(time.time()) - _RIPPLE_EPOCH + finish_seconds
+
     console.print(
         f"  Holder escrowing [cyan]{value} {currency}[/] to the recipient "
-        f"(mandatory CancelAfter ~{cancel_seconds}s out)..."
+        f"(release in ~{finish_seconds}s, mandatory CancelAfter "
+        f"~{cancel_seconds}s out)..."
     )
     result = await create_token_escrow(
         transport, holder_seed, currency, issuer_address, value, recipient,
-        cancel_after=cancel_after, finish_after=None, source_address=holder_address,
+        cancel_after=cancel_after, finish_after=finish_after,
+        source_address=holder_address,
     )
     if result.success:
         console.print("  [green]Token escrow created — IOU locked on-ledger![/]")
@@ -2854,14 +3232,19 @@ async def handle_create_token_escrow(
         context["token_escrow_amount"] = value
         context["token_escrow_recipient"] = recipient
         owner = holder_address
-        escrows = await transport.get_escrows(owner)
-        if escrows:
-            seq = escrows[-1].sequence
-            context["token_escrow_owner"] = owner
-            context["token_escrow_cancel_after"] = cancel_after
-            if seq:
-                context["token_escrow_sequence"] = seq
-                console.print(f"  Escrow create-sequence: [cyan]{seq}[/]")
+        context["token_escrow_owner"] = owner
+        context["token_escrow_finish_after"] = finish_after
+        context["token_escrow_cancel_after"] = cancel_after
+        # F-25d8d8e1: identity-match the created escrow (destination +
+        # FinishAfter + CancelAfter) instead of escrows[-1] — with a leftover
+        # escrow from escrow_101, [-1] could capture the OLD XRP escrow and
+        # finish_token_escrow would release the wrong object.
+        seq = await _resolve_created_escrow_sequence(
+            transport, owner, recipient, finish_after, cancel_after, console,
+        )
+        if seq:
+            context["token_escrow_sequence"] = seq
+            console.print(f"  Escrow create-sequence: [cyan]{seq}[/]")
     else:
         console.print(f"  [red]Token escrow failed: {result.error}[/]")
         _explain_failure(console, result.result_code)
@@ -2880,11 +3263,23 @@ async def handle_create_token_escrow_expect_fail(
     so the failure teaches the opt-in rule inline.
     """
     args = step.action_args
-    currency = args.get("currency", "NOP")
+    currency = args.get("currency") or context.get("noopt_currency") or "NOP"
     value = args.get("amount", "50")
     # A second, DELIBERATELY-not-opted-in issuer keyed by a separate address so
     # the main issuer's opt-in doesn't accidentally satisfy this one.
-    issuer_address = context.get("noopt_issuer_address") or context.get("issuer_address", "")
+    # F-59ba7d9d: the noopt issuer comes from the create_noopt_issuer setup
+    # step. asfAllowTrustLineLocking is ACCOUNT-WIDE, so falling back to the
+    # (opted-in) main issuer can never produce the taught tecNO_PERMISSION —
+    # surface that degradation honestly instead of silently reusing it.
+    issuer_address = context.get("noopt_issuer_address", "")
+    if not issuer_address:
+        console.print(
+            "  [yellow]No non-opted-in issuer in context (run the "
+            "create_noopt_issuer step first). Falling back to the MAIN issuer, "
+            "which HAS opted in — the failure below cannot demonstrate the "
+            "missing-opt-in tecNO_PERMISSION.[/]"
+        )
+        issuer_address = context.get("issuer_address", "")
     if "wallet_seed" not in context:
         console.print("  [red]No wallet in context. Run the wallet step first.[/]")
         return context
@@ -2897,6 +3292,14 @@ async def handle_create_token_escrow_expect_fail(
     except ValueError:
         cancel_seconds = 86400
     cancel_after = int(time.time()) - _RIPPLE_EPOCH + max(1, cancel_seconds)
+    # F-12f62ad2: carry a FinishAfter here too — without it, fix1571 rejects
+    # the tx temMALFORMED BEFORE the opt-in check, so the step would teach the
+    # wrong failure. This step's lesson is the XLS-85 opt-in rule.
+    try:
+        finish_seconds = int(args.get("finish_seconds", "30"))
+    except ValueError:
+        finish_seconds = 30
+    finish_after = int(time.time()) - _RIPPLE_EPOCH + max(1, finish_seconds)
 
     console.print(
         f"  [yellow]Attempting to escrow {value} {currency} with NO issuer "
@@ -2904,7 +3307,8 @@ async def handle_create_token_escrow_expect_fail(
     )
     result = await create_token_escrow(
         transport, holder_seed, currency, issuer_address, value, recipient,
-        cancel_after=cancel_after, finish_after=None, source_address=holder_address,
+        cancel_after=cancel_after, finish_after=finish_after,
+        source_address=holder_address,
     )
     if result.success:
         console.print(
@@ -2913,13 +3317,27 @@ async def handle_create_token_escrow_expect_fail(
         )
         if result.explorer_url:
             console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
-        context.setdefault("txids", []).append(result.txid)
-        state.record_tx(
-            txid=result.txid or "failed", module_id=context.get("module_id", ""),
-            network=state.network, success=True, explorer_url=result.explorer_url,
-        )
+        # F-d18b2348: record only a REAL txid on the unexpected-success branch
+        # (no {txid:"failed", success:true} records in the proof pack).
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid, module_id=context.get("module_id", ""),
+                network=state.network, success=True,
+                explorer_url=result.explorer_url,
+            )
     else:
-        console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        # F-59ba7d9d: name the code honestly — only tecNO_PERMISSION is the
+        # taught opt-in failure; anything else is a DIFFERENT failure and must
+        # not be green-printed as the expected one.
+        if result.result_code == "tecNO_PERMISSION":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"tecNO_PERMISSION (the missing-opt-in rejection). The "
+                f"demonstration did not exercise the opt-in rule.[/]"
+            )
         console.print(f"  {result.error}")
         _explain_failure(console, result.result_code)
         context.setdefault("failed_txids", []).append(
@@ -2953,6 +3371,12 @@ async def handle_finish_token_escrow(
         console.print("  [red]No wallet to submit EscrowFinish.[/]")
         return context
 
+    # F-12f62ad2: the escrow now carries a real FinishAfter — wait it out on a
+    # real network so the finish isn't rejected tecNO_PERMISSION for being
+    # early (a tec is final once validated).
+    await _wait_for_finish_after(
+        transport, context.get("token_escrow_finish_after"), console
+    )
     console.print(
         f"  Recipient finishing the token escrow "
         f"(owner {owner[:12]}..., OfferSequence {seq})..."
@@ -3011,6 +3435,382 @@ async def handle_verify_token_moved(
     context["last_token_moved_verify"] = result
     _record_verification(
         context, "verify_token_moved", result.passed, result.failures
+    )
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Multisig treasury actions (SignerListSet + multi-signed Payment)
+# ---------------------------------------------------------------------------
+
+
+async def handle_create_signer_wallets(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create N keyholder wallets for the treasury's signer list.
+
+    Deliberately NOT funded: a SignerEntry does not need to be a funded
+    on-ledger account — the ledger checks each co-signature against the key
+    that derives the listed address, so cold keys that have never touched the
+    ledger work. That keeps keyholder onboarding free.
+    """
+    args = step.action_args
+    try:
+        count = int(args.get("count", "3"))
+    except ValueError:
+        console.print("  [yellow]Invalid count, using default (3).[/]")
+        count = 3
+    if not 1 <= count <= 8:
+        console.print(
+            f"  [yellow]count {count} is outside this lesson's 1-8 range; "
+            f"using 3.[/]"
+        )
+        count = 3
+    console.print(
+        f"  Creating [cyan]{count}[/] keyholder wallets (kept UNFUNDED — "
+        "signer entries don't need on-ledger accounts, only keys)..."
+    )
+    seeds: list[_SecretValue] = []
+    addresses: list[str] = []
+    for i in range(count):
+        signer = create_wallet()
+        seeds.append(_SecretValue(signer.seed))
+        addresses.append(signer.address)
+        console.print(f"  Signer {i + 1}: [cyan]{signer.address}[/]")
+    context["signer_seeds"] = seeds
+    context["signer_addresses"] = addresses
+    return context
+
+
+async def handle_set_signer_list(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Install the N-of-M signer list on the treasury (SignerListSet)."""
+    args = step.action_args
+    try:
+        quorum = int(args.get("quorum", "2"))
+    except ValueError:
+        console.print("  [yellow]Invalid quorum, using default (2).[/]")
+        quorum = 2
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    addresses: list[str] = context.get("signer_addresses", [])
+    if not addresses:
+        console.print(
+            "  [red]No signer wallets in context. Run the create-signer-wallets "
+            "step first.[/]"
+        )
+        return context
+
+    # Per-signer weights, padded with 1s so "1,1,1" and a bare "1" both work.
+    raw_weights = [w.strip() for w in args.get("weights", "").split(",") if w.strip()]
+    weights: list[int] = []
+    for i in range(len(addresses)):
+        try:
+            weights.append(int(raw_weights[i]) if i < len(raw_weights) else 1)
+        except ValueError:
+            weights.append(1)
+    entries = list(zip(addresses, weights, strict=True))
+
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    weight_sum = sum(w for _a, w in entries)
+    console.print(
+        f"  Installing a [cyan]{quorum}-of-{weight_sum}[/] signer list on the "
+        f"treasury ({len(entries)} signers, quorum {quorum})..."
+    )
+    result = await set_signer_list(
+        transport, owner_seed, quorum, entries, owner_address
+    )
+    if result.success:
+        console.print("  [green]Signer list installed — the treasury is now N-of-M.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        console.print(
+            "  [dim]The SignerList object holds one owner-reserve increment "
+            "(~0.2 XRP) while it exists — freed if you delete the list.[/]"
+        )
+        context["multisig_quorum"] = quorum
+        context["multisig_entries"] = entries
+    else:
+        console.print(f"  [red]SignerListSet failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_signer_list(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Checkpoint: the signer list on-ledger matches what was installed."""
+    owner = state.wallet_address or ""
+    expected_quorum = context.get("multisig_quorum")
+    expected_entries = context.get("multisig_entries")
+    if not owner or expected_quorum is None:
+        console.print(
+            "  [red]No signer list in context — the SignerListSet step did "
+            "not run.[/]"
+        )
+        # Honest-pack contract: a verify that COULD NOT run is a FAILED
+        # verification, not a silent skip.
+        _record_verification(
+            context, "verify_signer_list", passed=False,
+            failures=[
+                "treasury/quorum missing — the SignerListSet step that "
+                "produces them did not run"
+            ],
+        )
+        return context
+
+    result = await verify_signer_list(
+        transport, owner,
+        expected_quorum=expected_quorum,
+        expected_entries=expected_entries,
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    if result.passed:
+        console.print(
+            "  [green]The ledger holds exactly the quorum and roster you "
+            "installed.[/]"
+        )
+    context["last_signer_list_verify"] = result
+    _record_verification(
+        context, "verify_signer_list", result.passed, result.failures
+    )
+    return context
+
+
+def _pick_signers(
+    context: dict, signer_count: int,
+) -> tuple[list[str], list[str]]:
+    """Resolve the first *signer_count* signer (seeds, addresses) from context."""
+    raw_seeds = context.get("signer_seeds", [])[:signer_count]
+    seeds = [
+        s.get() if isinstance(s, _SecretValue) else s for s in raw_seeds
+    ]
+    addresses = list(context.get("signer_addresses", [])[:signer_count])
+    return seeds, addresses
+
+
+def _combined_weight(context: dict, addresses: list[str]) -> int:
+    """Sum the installed weights of *addresses* (0 for unknown signers)."""
+    weights = dict(context.get("multisig_entries", []))
+    return sum(weights.get(a, 0) for a in addresses)
+
+
+async def handle_send_multisig_payment(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Submit a multi-signed Payment that MEETS the quorum."""
+    args = step.action_args
+    amount = args.get("amount", "10")
+    try:
+        signer_count = int(args.get("signer_count", "2"))
+    except ValueError:
+        console.print("  [yellow]Invalid signer_count, using default (2).[/]")
+        signer_count = 2
+    owner_address = state.wallet_address or ""
+    if not owner_address or "signer_seeds" not in context:
+        console.print(
+            "  [red]Missing treasury or signer wallets. Run the earlier steps "
+            "first.[/]"
+        )
+        return context
+    seeds, addresses = _pick_signers(context, signer_count)
+    if len(seeds) < signer_count:
+        console.print(
+            f"  [red]Only {len(seeds)} signer wallet(s) in context — cannot "
+            f"co-sign with {signer_count}.[/]"
+        )
+        return context
+    # The payout destination: explicit arg, else the first keyholder's ops
+    # wallet. On XRPL a payment >= the base reserve CREATES an unfunded
+    # account, so the treasury's first payout also activates it.
+    destination = args.get("destination") or context.get(
+        "multisig_payee", (context.get("signer_addresses") or [""])[0]
+    )
+    quorum = context.get("multisig_quorum")
+    combined = _combined_weight(context, addresses)
+    console.print(
+        f"  Co-signing with [cyan]{signer_count}[/] of "
+        f"{len(context.get('signer_addresses', []))} keyholders — combined "
+        f"weight [cyan]{combined}[/] vs quorum [cyan]{quorum}[/]..."
+    )
+    console.print(
+        f"  [dim]Multisig fee rule: base fee × (1 + {signer_count} "
+        f"signatures) — every co-signature is paid for.[/]"
+    )
+    result = await send_multisig_payment(
+        transport, owner_address, destination, amount, seeds,
+        signer_addresses=addresses,
+        memo=f"XRPLLAB|MULTISIG|{signer_count}sig",
+    )
+    if result.success:
+        console.print(
+            f"  [green]Multi-signed payment validated — {amount} XRP moved "
+            "with the treasury key never touching it![/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        console.print(f"  Fee paid: [cyan]{result.fee}[/] drops (scaled per-signature)")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["multisig_payment_txid"] = result.txid
+    else:
+        console.print(f"  [red]Multi-signed payment failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_send_multisig_payment_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attempt a BELOW-QUORUM multi-signed payment — expects tefBAD_QUORUM.
+
+    Submit-and-learn: one valid signature whose weight is below the quorum.
+    The signature itself verifies fine; the ledger rejects the COMBINATION —
+    that distinction (tefBAD_QUORUM, not tefBAD_SIGNATURE) is the lesson.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    try:
+        signer_count = int(args.get("signer_count", "1"))
+    except ValueError:
+        signer_count = 1
+    owner_address = state.wallet_address or ""
+    if not owner_address or "signer_seeds" not in context:
+        console.print(
+            "  [red]Missing treasury or signer wallets. Run the earlier steps "
+            "first.[/]"
+        )
+        return context
+    seeds, addresses = _pick_signers(context, signer_count)
+    if not seeds:
+        console.print("  [red]No signer wallets in context.[/]")
+        return context
+    destination = args.get("destination") or (
+        context.get("signer_addresses") or [""]
+    )[0]
+    quorum = context.get("multisig_quorum")
+    combined = _combined_weight(context, addresses)
+    console.print(
+        f"  [yellow]Attempting a payment with only {signer_count} "
+        f"signature(s) — combined weight {combined} vs quorum {quorum} "
+        f"(expecting tefBAD_QUORUM)...[/]"
+    )
+    result = await send_multisig_payment(
+        transport, owner_address, destination, amount, seeds,
+        signer_addresses=addresses,
+        memo=f"XRPLLAB|MULTISIG|{signer_count}sig",
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the signature set met the quorum "
+            "on this transport.[/]"
+        )
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        # Record only a REAL txid on the unexpected-success branch (no
+        # {txid:'failed', success:true} records in the proof pack).
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid, module_id=context.get("module_id", ""),
+                network=state.network, success=True,
+                explorer_url=result.explorer_url,
+            )
+    else:
+        # Name the code honestly — only tefBAD_QUORUM is the taught
+        # below-quorum failure; anything else is a DIFFERENT failure and must
+        # not be green-printed as the expected one.
+        if result.result_code == "tefBAD_QUORUM":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"tefBAD_QUORUM (the below-quorum rejection). The "
+                f"demonstration did not exercise the quorum rule.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    save_state(state)
+    return context
+
+
+async def handle_delete_signer_list(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Delete the signer list (SignerQuorum=0, SignerEntries omitted)."""
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    console.print(
+        "  Deleting the signer list ([cyan]SignerQuorum=0[/] with "
+        "SignerEntries OMITTED — supplying only one of the two is "
+        "temMALFORMED)..."
+    )
+    result = await delete_signer_list(transport, owner_seed, owner_address)
+    if result.success:
+        console.print(
+            "  [green]Signer list deleted — its owner reserve is freed.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        console.print(
+            "  [dim]Safety rule: with the master key disabled and no regular "
+            "key, the network refuses this delete (tecNO_ALTERNATIVE_KEY) — "
+            "an account can't sign away its last key.[/]"
+        )
+        context["signer_list_deleted"] = True
+    else:
+        console.print(f"  [red]Delete failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_signer_list_deleted(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Checkpoint: the SignerList object is gone from the account."""
+    owner = state.wallet_address or ""
+    if not owner:
+        console.print("  [red]No treasury wallet in context.[/]")
+        _record_verification(
+            context, "verify_signer_list_deleted", passed=False,
+            failures=["treasury address missing — the wallet step did not run"],
+        )
+        return context
+    result = await verify_signer_list(transport, owner, expect_absent=True)
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    if result.passed:
+        console.print(
+            "  [green]The treasury is back to single-key control — quorum "
+            "rules no longer apply.[/]"
+        )
+    _record_verification(
+        context, "verify_signer_list_deleted", result.passed, result.failures
     )
     return context
 
@@ -3800,6 +4600,484 @@ async def handle_verify_permissioned_offer(
     return context
 
 
+# ---------------------------------------------------------------------------
+# Deposit Gate: DepositAuth + DepositPreauth (identity track, XLS-70 extension)
+# ---------------------------------------------------------------------------
+#
+# Completes the XLS-70 arc: composes with credentials_101 (reusing
+# CredentialCreate/CredentialAccept unchanged — no new credential machinery
+# here) to gate INBOUND value to a treasury, rather than a trading book
+# (permissioned_domains_101's DomainID rail). The learner's wallet plays BOTH
+# the protected treasury AND the credential issuer, exactly like
+# permissioned_domains_101's dual owner/issuer role.
+
+
+async def handle_enable_deposit_auth(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Enable asfDepositAuth on the treasury (AccountSet).
+
+    From this point the treasury REJECTS any unsolicited incoming Payment
+    from a non-preauthorized sender (tecNO_PERMISSION) — pull-style txns
+    (CheckCash / EscrowFinish / OfferCreate / PaymentChannelClaim) still work.
+    """
+    address = state.wallet_address or ""
+    console.print(
+        "  Enabling [cyan]asfDepositAuth[/] on the treasury — unsolicited "
+        "incoming Payments will now be rejected unless the sender is "
+        "preauthorized..."
+    )
+    result = await enable_deposit_auth(transport, wallet_seed, wallet_address=address)
+    if result.success:
+        console.print(
+            "  [green]Deposit Authorization enabled.[/] Only a preauthorized "
+            "sender — by address or by credential — can pay this account now."
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["deposit_auth_enabled"] = True
+    else:
+        console.print(f"  [red]Enabling Deposit Authorization failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_sender_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund the SENDER wallet — a random player, no preauthorization yet."""
+    console.print(
+        "  Creating the sender's wallet (a random player with no "
+        "preauthorization yet)..."
+    )
+    sender = create_wallet()
+    context["sender_seed"] = _SecretValue(sender.seed)
+    context["sender_address"] = sender.address
+    console.print(f"  Sender wallet: [cyan]{sender.address}[/]")
+    result = await transport.fund_from_faucet(sender.address)
+    if result.success:
+        console.print(f"  Sender funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
+    else:
+        console.print(f"  [yellow]Sender funding: {result.message}[/]")
+    return context
+
+
+async def handle_send_sender_payment_expect_blocked(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The sender's Payment is BLOCKED — expects tecNO_PERMISSION.
+
+    DepositAuth is on and the sender holds no preauthorization yet (neither
+    by address nor by credential) — the ledger refuses the unsolicited Payment.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("sender_seed", "")
+    sender_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    treasury = state.wallet_address or ""
+    if not sender_seed or not treasury:
+        console.print(
+            "  [red]Missing sender wallet or treasury address. Run the "
+            "wallet steps first.[/]"
+        )
+        return context
+    console.print(
+        f"  [yellow]Sender attempting to pay {amount} XRP into the treasury "
+        "(expecting tecNO_PERMISSION — no preauthorization yet)...[/]"
+    )
+    result = await send_gated_payment(
+        transport, sender_seed, treasury, amount, memo="XRPLLAB|DEPOSITGATE",
+        sender_address=context.get("sender_address", ""),
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the Payment landed despite no "
+            "preauthorization. Recording the tx.[/]"
+        )
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid, module_id=context.get("module_id", ""),
+                network=state.network, success=True,
+                explorer_url=result.explorer_url,
+            )
+            save_state(state)
+    else:
+        if result.result_code == "tecNO_PERMISSION":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]The treasury rejected the unsolicited Payment — "
+                "Deposit Authorization blocks anyone not preauthorized.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"tecNO_PERMISSION. The demonstration did not exercise the gate.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_preauthorize_self_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Treasury tries to preauthorize ITS OWN address — expects temCANNOT_PREAUTH_SELF."""
+    address = state.wallet_address or ""
+    console.print(
+        "  [yellow]Treasury attempting to preauthorize its OWN address "
+        "(expecting temCANNOT_PREAUTH_SELF)...[/]"
+    )
+    result = await authorize_deposit_address(
+        transport, wallet_seed, address, wallet_address=address
+    )
+    if result.success:
+        console.print("  [yellow]Unexpected success — recording the tx.[/]")
+        _record_submit(state, context, result)
+    else:
+        if result.result_code == "temCANNOT_PREAUTH_SELF":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]An account can never preauthorize itself — that's not "
+                "what the field is for.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"temCANNOT_PREAUTH_SELF.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_authorize_sender_address(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Treasury preauthorizes the sender BY ADDRESS (DepositPreauth Authorize)."""
+    address = state.wallet_address or ""
+    sender_address = context.get("sender_address", "")
+    if not sender_address:
+        console.print(
+            "  [red]No sender wallet in context. Run the sender-wallet step first.[/]"
+        )
+        return context
+    console.print(
+        f"  Preauthorizing sender [cyan]{sender_address[:12]}...[/] by "
+        "address (DepositPreauth Authorize)..."
+    )
+    result = await authorize_deposit_address(
+        transport, wallet_seed, sender_address, wallet_address=address
+    )
+    if result.success:
+        console.print(
+            "  [green]Sender preauthorized — its Payments will now be admitted.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Preauthorization failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_authorize_sender_address_duplicate(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Re-preauthorize the SAME sender address — expects tecDUPLICATE."""
+    address = state.wallet_address or ""
+    sender_address = context.get("sender_address", "")
+    console.print(
+        "  [yellow]Re-preauthorizing the SAME sender address (expecting "
+        "tecDUPLICATE)...[/]"
+    )
+    result = await authorize_deposit_address(
+        transport, wallet_seed, sender_address, wallet_address=address
+    )
+    if result.success:
+        console.print("  [yellow]Unexpected success — recording the tx.[/]")
+        _record_submit(state, context, result)
+    else:
+        if result.result_code == "tecDUPLICATE":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]This DepositPreauth object already exists — nothing "
+                "to add.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected tecDUPLICATE.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_send_sender_payment(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The now-preauthorized sender's Payment lands."""
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("sender_seed", "")
+    sender_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    treasury = state.wallet_address or ""
+    if not sender_seed or not treasury:
+        console.print(
+            "  [red]Missing sender wallet or treasury address. Run the "
+            "wallet steps first.[/]"
+        )
+        return context
+    console.print(f"  Preauthorized sender paying {amount} XRP into the treasury...")
+    result = await send_gated_payment(
+        transport, sender_seed, treasury, amount, memo="XRPLLAB|DEPOSITGATE",
+        sender_address=context.get("sender_address", ""),
+    )
+    if result.success:
+        console.print(
+            "  [green]Payment landed — the address preauthorization admitted it.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Payment failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_authorize_kyc_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Treasury preauthorizes BY CREDENTIAL (DepositPreauth AuthorizeCredentials).
+
+    Reuses the {issuer, credential_type} the FC-002 steps issued — any sender
+    holding a currently valid (accepted, unexpired) credential of this type
+    from this issuer may now deposit, without being individually whitelisted.
+    """
+    address = state.wallet_address or ""
+    credential_type = context.get("credential_type", "kyc-deposit")
+    issuer_address = context.get("credential_issuer", address)
+    console.print(
+        f"  Preauthorizing BY CREDENTIAL — any sender holding an accepted "
+        f"[cyan]{credential_type}[/] credential from "
+        f"[cyan]{issuer_address[:12]}...[/] may now deposit..."
+    )
+    result = await authorize_deposit_credential(
+        transport, wallet_seed, issuer_address, credential_type, wallet_address=address
+    )
+    if result.success:
+        console.print("  [green]Credential-based preauthorization installed.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Credential preauthorization failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_send_kyc_payment(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The KYC'd player attaches CredentialIDs and pays — succeeds.
+
+    Resolves the accepted credential's on-ledger CredentialID and attaches it
+    via Payment.CredentialIDs — the deposit-authorization rail, distinct from
+    Permissioned Domains' DomainID (trading) rail.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("subject_seed", "")
+    subject_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    subject_address = context.get("subject_address", "")
+    treasury = state.wallet_address or ""
+    credential_type = context.get("credential_type", "kyc-deposit")
+    issuer_address = context.get("credential_issuer", treasury)
+    if not subject_seed or not subject_address:
+        console.print(
+            "  [red]No KYC'd player wallet. Run the credential steps first.[/]"
+        )
+        return context
+    cred_id = await get_credential_id(
+        transport, subject_address, issuer_address, credential_type
+    )
+    if not cred_id:
+        console.print(
+            "  [red]Could not resolve the accepted credential's on-ledger "
+            "id. Run the create/accept-credential steps first.[/]"
+        )
+        return context
+    console.print(
+        f"  KYC'd player paying {amount} XRP, attaching "
+        f"CredentialIDs=[cyan]{cred_id[:16]}...[/]"
+    )
+    result = await send_gated_payment(
+        transport, subject_seed, treasury, amount,
+        credential_ids=[cred_id], memo="XRPLLAB|DEPOSITGATE-KYC",
+        sender_address=subject_address,
+    )
+    if result.success:
+        console.print(
+            "  [green]Payment landed — the credential satisfied the "
+            "treasury's AuthorizeCredentials policy.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Payment failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_send_outsider_payment_expect_blocked(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The outsider's Payment stays BLOCKED — expects tecNO_PERMISSION.
+
+    Holds no address preauthorization and no credential the treasury accepts
+    — proves the credential-based gate is not a general bypass.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("outsider_seed", "")
+    outsider_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    treasury = state.wallet_address or ""
+    if not outsider_seed:
+        console.print(
+            "  [red]No outsider wallet in context. Run the outsider-wallet "
+            "step first.[/]"
+        )
+        return context
+    console.print(
+        f"  [yellow]Outsider attempting to pay {amount} XRP — no address "
+        "preauthorization, no credential (expecting tecNO_PERMISSION)...[/]"
+    )
+    result = await send_gated_payment(
+        transport, outsider_seed, treasury, amount, memo="XRPLLAB|DEPOSITGATE-OUT",
+        sender_address=context.get("outsider_address", ""),
+    )
+    if result.success:
+        console.print("  [yellow]Unexpected success — recording the tx.[/]")
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid, module_id=context.get("module_id", ""),
+                network=state.network, success=True,
+                explorer_url=result.explorer_url,
+            )
+            save_state(state)
+    else:
+        if result.result_code == "tecNO_PERMISSION":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]No address preauth, no matching credential — the "
+                "gate holds for anyone outside both policies.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"tecNO_PERMISSION.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_unauthorize_sender_address(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Revoke the sender's address preauthorization — the named compensator."""
+    address = state.wallet_address or ""
+    sender_address = context.get("sender_address", "")
+    console.print(
+        "  Revoking the sender's address preauthorization (compensator)..."
+    )
+    result = await unauthorize_deposit_address(
+        transport, wallet_seed, sender_address, wallet_address=address
+    )
+    if result.success:
+        console.print("  [green]Preauthorization revoked — reserve freed.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Revocation failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_unauthorize_sender_address_duplicate(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Revoke the SAME (already-revoked) preauthorization again — expects tecNO_ENTRY."""
+    address = state.wallet_address or ""
+    sender_address = context.get("sender_address", "")
+    console.print(
+        "  [yellow]Revoking the SAME preauthorization again (expecting "
+        "tecNO_ENTRY)...[/]"
+    )
+    result = await unauthorize_deposit_address(
+        transport, wallet_seed, sender_address, wallet_address=address
+    )
+    if result.success:
+        console.print("  [yellow]Unexpected success — recording the tx.[/]")
+        _record_submit(state, context, result)
+    else:
+        if result.result_code == "tecNO_ENTRY":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print("  [dim]Nothing to revoke — it's already gone.[/]")
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected tecNO_ENTRY.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
 async def handle_create_mpt_issuance(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -4033,6 +5311,311 @@ async def handle_verify_delivered_amount(
     context["last_delivered_amount_verify"] = result
     _record_verification(
         context, "verify_delivered_amount", result.passed, result.failures
+    )
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Custodial player crediting (destination tags — payments track)
+# ---------------------------------------------------------------------------
+
+
+async def handle_enable_require_dest(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Enable asfRequireDest on the pooled treasury (AccountSet).
+
+    From this point the pool REJECTS any untagged incoming Payment with
+    tecDST_TAG_NEEDED — fail-closed custody hygiene, always on for a shared
+    hot wallet.
+    """
+    address = state.wallet_address or ""
+    console.print(
+        "  Enabling [cyan]asfRequireDest[/] on the pooled treasury — "
+        "untagged deposits will now bounce (tecDST_TAG_NEEDED)..."
+    )
+    result = await enable_require_dest(
+        transport, wallet_seed, wallet_address=address
+    )
+    if result.success:
+        console.print(
+            "  [green]RequireDest enabled — every incoming Payment must "
+            "carry a DestinationTag.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["require_dest_enabled"] = True
+    else:
+        console.print(f"  [red]RequireDest enable failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_player_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund the PLAYER wallet — the depositor on the other side.
+
+    The player is a distinct account so the deposit is a real third-party
+    Payment into the pool, exactly like production traffic.
+    """
+    console.print("  Creating the player's wallet (the depositor)...")
+    player = create_wallet()
+    context["player_seed"] = _SecretValue(player.seed)
+    context["player_address"] = player.address
+    console.print(f"  Player wallet: [cyan]{player.address}[/]")
+
+    fund = await transport.fund_from_faucet(player.address)
+    if fund.success:
+        console.print(f"  Player funded! Balance: [green]{fund.balance} XRP[/]")
+    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    else:
+        console.print(f"  [yellow]Player funding: {fund.message}[/]")
+    return context
+
+
+async def handle_assign_player_tag(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Assign the player a deposit tag in the backend's OFF-LEDGER registry.
+
+    No transaction here on purpose: the tag→player map has NO on-ledger
+    representation. It lives in the studio's database, it is load-bearing
+    (lose it and every pooled deposit becomes unattributable), and it must be
+    backed up like any other production table.
+    """
+    args = step.action_args
+    try:
+        tag = int(args.get("tag", "1001"))
+    except (TypeError, ValueError):
+        console.print("  [yellow]Invalid tag, using default (1001).[/]")
+        tag = 1001
+    player = args.get("player", "arya") or "arya"
+
+    registry = context.setdefault("tag_registry", {})
+    if tag in registry and registry[tag] != player:
+        console.print(
+            f"  [yellow]Tag {tag} is already assigned to "
+            f"'{registry[tag]}' — never reuse a live tag for a second "
+            f"player. Reassigning for this lesson.[/]"
+        )
+    registry[tag] = player
+    context["player_tag"] = tag
+    context["player_name"] = player
+    console.print(
+        f"  Backend registry entry: tag [cyan]{tag}[/] -> player "
+        f"[cyan]{player}[/]"
+    )
+    console.print(
+        "  [dim]Off-ledger only — the ledger never sees this map. It is "
+        "load-bearing: back it up.[/]"
+    )
+    return context
+
+
+async def handle_send_tagged_deposit(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The player deposits XRP into the pool WITH a DestinationTag."""
+    args = step.action_args
+    amount = args.get("amount", "25")
+    try:
+        tag = int(args.get("tag") or context.get("player_tag") or 1001)
+    except (TypeError, ValueError):
+        tag = 1001
+    source_tag: int | None = None
+    raw_source = args.get("source_tag", "")
+    if raw_source:
+        try:
+            source_tag = int(raw_source)
+        except (TypeError, ValueError):
+            console.print(
+                f"  [yellow]Invalid source_tag {raw_source!r}; omitting it.[/]"
+            )
+
+    _raw = context.get("player_seed", "")
+    player_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    pool = state.wallet_address or ""
+    if not player_seed or not pool:
+        console.print(
+            "  [red]Missing player wallet or pool address. Run the wallet / "
+            "player steps first.[/]"
+        )
+        return context
+
+    console.print(
+        f"  Player sending [cyan]{amount} XRP[/] to the pool with "
+        f"DestinationTag [cyan]{tag}[/]"
+        + (f" (SourceTag {source_tag})" if source_tag is not None else "")
+        + "..."
+    )
+    result = await send_tagged_deposit(
+        transport, player_seed, pool, amount,
+        destination_tag=tag, source_tag=source_tag, memo="XRPLLAB|DEPOSIT",
+    )
+    if result.success:
+        console.print("  [green]Tagged deposit validated.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        console.print(
+            "  [dim]The tag rode the transaction on-ledger — but it MEANS "
+            "nothing until the backend maps it. That attribution is next.[/]"
+        )
+        context["deposit_txid"] = result.txid
+        context["deposit_amount"] = amount
+        context["deposit_tag"] = tag
+    else:
+        console.print(f"  [red]Deposit failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_send_untagged_deposit_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The player sends an UNTAGGED deposit — expects tecDST_TAG_NEEDED.
+
+    Submit-and-learn: with asfRequireDest on the pool, the ledger refuses the
+    payment rather than let it land unattributable. This is the wall a real
+    integration hits the first time a wallet omits the tag.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("player_seed", "")
+    player_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    pool = state.wallet_address or ""
+    if not player_seed or not pool:
+        console.print(
+            "  [red]Missing player wallet or pool address. Run the wallet / "
+            "player steps first.[/]"
+        )
+        return context
+    if not context.get("require_dest_enabled"):
+        console.print(
+            "  [yellow]asfRequireDest was not enabled on this pool (run the "
+            "enable step first) — an untagged deposit will LAND, "
+            "unattributable, instead of bouncing.[/]"
+        )
+
+    console.print(
+        f"  [yellow]Player sending {amount} XRP with NO DestinationTag "
+        "(expecting tecDST_TAG_NEEDED)...[/]"
+    )
+    result = await send_tagged_deposit(
+        transport, player_seed, pool, amount,
+        destination_tag=None, memo="XRPLLAB|UNTAGGED",
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the untagged deposit LANDED. "
+            "Without RequireDest these funds would sit unattributable in "
+            "the pool.[/]"
+        )
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        # Record only a REAL txid on the unexpected-success branch (mirrors
+        # the F-d18b2348 rule — no {txid:"failed", success:true} records).
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid, module_id=context.get("module_id", ""),
+                network=state.network, success=True,
+                explorer_url=result.explorer_url,
+            )
+            save_state(state)
+    else:
+        # Name the code honestly — only tecDST_TAG_NEEDED is the taught
+        # missing-tag rejection; anything else is a DIFFERENT failure and must
+        # not be green-printed as the expected one (F-59ba7d9d discipline).
+        if result.result_code == "tecDST_TAG_NEEDED":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]The pool refused the deposit rather than accept "
+                "funds it cannot attribute. Fail-closed is the point.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"tecDST_TAG_NEEDED (the missing-tag rejection). The "
+                f"demonstration did not exercise the RequireDest rule.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_credit_player_deposit(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attribute the deposit via its DestinationTag and credit delivered_amount.
+
+    The custodial receiving discipline end-to-end: tesSUCCESS + validated
+    first, tag read from the tx, tag validated against the backend's OWN
+    registry (a tag is a routing hint, not authentication), and the credit
+    taken from delivered_amount — never the Amount field.
+    """
+    args = step.action_args
+    txid = context.get("deposit_txid", "")
+    registry = context.get("tag_registry", {}) or {}
+    if not txid:
+        console.print(
+            "  [red]No deposit to credit. Run the tagged-deposit step first.[/]"
+        )
+        # FT-001: the step that produces the txid never ran → honest FAILED
+        # verification, not an invisible skip.
+        _record_verification(
+            context, "credit_player_deposit", passed=False,
+            failures=["deposit_txid missing — the step that produces it did not run"],
+        )
+        return context
+
+    expected_xrp = args.get("expected") or context.get("deposit_amount")
+    expected_drops: str | None = None
+    if expected_xrp:
+        try:
+            expected_drops = str(int(Decimal(str(expected_xrp)) * 1_000_000))
+        except (InvalidOperation, ValueError):
+            console.print(
+                f"  [yellow]Could not parse expected amount "
+                f"{expected_xrp!r}; skipping the exact-amount assertion.[/]"
+            )
+
+    result = await credit_player_deposit(
+        transport, txid, registry, expected_drops=expected_drops
+    )
+    for check in result.checks:
+        console.print(f"  [green]✓[/] {check}")
+    for fail in result.failures:
+        console.print(f"  [red]✗[/] {fail}")
+
+    if result.passed:
+        console.print()
+        console.print(
+            f"  [bold green]CREDITED:[/] player [cyan]{result.player}[/] "
+            f"(tag {result.tag}) +[cyan]{result.credited_drops}[/] drops — "
+            "attributed by the tag, validated against the registry, credited "
+            "from delivered_amount."
+        )
+    context["last_player_credit"] = result
+    _record_verification(
+        context, "credit_player_deposit", result.passed, result.failures
     )
     return context
 
@@ -4518,7 +6101,14 @@ async def handle_verify_nft_trade(
     for f in result.failures:
         console.print(f"  [red]{f}[/]")
 
-    # Royalty observation (resale only — first sale from the issuer pays none).
+    # Royalty observation. F-b1ebc369: the issuer's raw balance delta is only
+    # a royalty when the issuer is a THIRD PARTY to the trade. In this module
+    # the issuer (the learner's wallet) is a PRINCIPAL on both hops — seller on
+    # the first sale (delta = full sale PRICE, no royalty paid) and buyer on
+    # the resale (delta ≈ -(price - royalty)) — so the old "+delta = royalty"
+    # print labeled the sale price a royalty and reported "no royalty" on the
+    # only hop that actually paid one. When the issuer is a principal, compute
+    # the royalty from the mint's TransferFee (units of 1/100000) × price.
     before = context.get("nft_issuer_balance_before")
     after = context.get("nft_issuer_balance_after")
     if before is not None and after is not None:
@@ -4526,16 +6116,55 @@ async def handle_verify_nft_trade(
             delta = Decimal(str(after)) - Decimal(str(before))
         except (InvalidOperation, ValueError):
             delta = Decimal("0")
-        if delta > 0:
+        issuer_addr = state.wallet_address or ""
+        principals = {buyer_addr, prev_owner}
+        if issuer_addr and issuer_addr not in principals:
+            # Third-party issuer: the balance delta IS the protocol royalty.
+            if delta > 0:
+                console.print(
+                    f"  [green]Royalty (TransferFee) paid to issuer: "
+                    f"+{delta} XRP — protocol-enforced creator royalty.[/]"
+                )
+            else:
+                console.print(
+                    "  [dim]No royalty on this hop (first sale from the issuer "
+                    "pays none; the TransferFee is enforced on resales).[/]"
+                )
+        elif prev_owner == issuer_addr:
+            # First sale: the issuer IS the seller — the delta is the sale
+            # price, not a royalty (you don't pay yourself a royalty).
             console.print(
-                f"  [green]Royalty (TransferFee) paid to issuer: "
-                f"+{delta} XRP — protocol-enforced creator royalty.[/]"
+                f"  [dim]No royalty on this hop — the issuer is the SELLER "
+                f"(first sale): the +{delta} XRP delta is the sale price "
+                f"itself. The TransferFee is enforced on resales.[/]"
             )
         else:
-            console.print(
-                "  [dim]No royalty on this hop (first sale from the issuer pays "
-                "none; the TransferFee is enforced on resales).[/]"
-            )
+            # Resale where the issuer takes part (here: buys the NFT back).
+            # The delta mixes the price paid with the royalty received, so
+            # compute the royalty from the protocol fields instead.
+            royalty = None
+            fee = context.get("nft_transfer_fee")
+            price = context.get("nft_offer_price")
+            try:
+                if fee and price is not None:
+                    royalty = Decimal(str(price)) * Decimal(int(fee)) / Decimal(100000)
+            except (InvalidOperation, ValueError, TypeError):
+                royalty = None
+            if royalty is not None and royalty > 0:
+                console.print(
+                    f"  [green]Royalty (TransferFee) enforced on this resale: "
+                    f"{royalty} XRP of the {price} XRP price went to the "
+                    f"issuer — protocol-enforced, no marketplace code needed. "
+                    f"(The issuer also took part in the trade, so its raw "
+                    f"balance delta of {delta:+} XRP mixes price and "
+                    f"royalty.)[/]"
+                )
+            else:
+                console.print(
+                    "  [dim]Royalty note: the issuer took part in this trade, "
+                    "so its balance delta mixes price and royalty; no "
+                    "TransferFee was recorded at mint to compute it from.[/]"
+                )
     if result.passed:
         console.print("  [green]NFT trade verified on-ledger.[/]")
     context["last_nft_trade_verify"] = result
@@ -4650,6 +6279,297 @@ async def handle_verify_nft_modified(
 
 
 # ---------------------------------------------------------------------------
+# Checks: deferred pull-payments (payments track, FC-005)
+# ---------------------------------------------------------------------------
+#
+# The claimable-reward pattern: CheckCreate authorizes a player to pull up to
+# an amount whenever they choose. Unlike Escrow, NOTHING is locked at create
+# time — the writer's spendable balance is unchanged, proven here by reusing
+# the existing snapshot_account / verify_reserve_change actions (no new code
+# needed for that contrast). Crediting the cashed Check reuses
+# verify_delivered_amount (FC-003) unchanged — xrpl.org names CheckCash as a
+# transaction type whose own amount field is not authoritative.
+
+
+async def handle_create_recipient_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund the RECIPIENT (player) wallet — the only account this
+    Check will ever let cash it."""
+    console.print(
+        "  Creating the player's wallet (the only account this Check will "
+        "let cash it)..."
+    )
+    recipient = create_wallet()
+    context["recipient_seed"] = _SecretValue(recipient.seed)
+    context["recipient_address"] = recipient.address
+    console.print(f"  Player wallet: [cyan]{recipient.address}[/]")
+    result = await transport.fund_from_faucet(recipient.address)
+    if result.success:
+        console.print(f"  Player funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
+    else:
+        console.print(f"  [yellow]Player funding: {result.message}[/]")
+    return context
+
+
+async def handle_create_check(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Studio writes a Check authorizing the player to pull up to amount (CheckCreate).
+
+    Nothing moves here — this is the entire lesson. Contrast with
+    ``create_escrow``, which debits the locked amount immediately.
+    """
+    args = step.action_args
+    amount = args.get("amount", "50")
+    destination = args.get("destination") or context.get("recipient_address", "")
+    address = state.wallet_address or ""
+    if not destination:
+        console.print(
+            "  [red]No player wallet in context. Run the recipient-wallet "
+            "step first.[/]"
+        )
+        return context
+    console.print(
+        f"  Writing a Check authorizing up to [cyan]{amount} XRP[/] (SendMax) "
+        f"to [cyan]{destination[:12]}...[/] — no funds move yet."
+    )
+    result = await create_check(
+        transport, wallet_seed, destination, amount, wallet_address=address,
+    )
+    if result.success:
+        console.print("  [green]Check written![/]")
+        console.print(f"  CheckID: [cyan]{result.check_id}[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["check_id"] = result.check_id
+        context["check_destination"] = destination
+        context["check_send_max"] = amount
+    else:
+        console.print(f"  [red]CheckCreate failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_cash_check(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The player cashes the Check for an exact Amount (CheckCash).
+
+    Only the Check's Destination may do this — the studio's own key plays no
+    role in this transaction.
+    """
+    args = step.action_args
+    amount = args.get("amount") or context.get("check_send_max", "50")
+    check_id = context.get("check_id", "")
+    _raw = context.get("recipient_seed", "")
+    recipient_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    recipient_address = context.get("recipient_address", "")
+    if not check_id or not recipient_seed:
+        console.print(
+            "  [red]No Check to cash. Run the create-check step first.[/]"
+        )
+        return context
+    console.print(
+        f"  Player cashing the Check for exactly [cyan]{amount} XRP[/] "
+        "(CheckCash Amount)..."
+    )
+    result = await cash_check(
+        transport, recipient_seed, check_id, amount=amount,
+        wallet_address=recipient_address,
+    )
+    if result.success:
+        console.print("  [green]Check cashed![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["check_cash_txid"] = result.txid
+        context["check_cash_amount"] = amount
+        # The Check object is gone the instant it's cashed — clear it so a
+        # later step can't accidentally try to reuse it.
+        context["check_id"] = ""
+    else:
+        console.print(f"  [red]CheckCash failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_credit_check_cash(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Credit the player from the cashed Check's delivered_amount.
+
+    REUSES verify_delivered_amount (FC-003) unchanged: xrpl.org names
+    CheckCash as a transaction type whose own amount field is not
+    authoritative — always credit from the validated tx's delivered_amount
+    metadata.
+
+    No ``expected_delivered`` is passed: ``check_cash_amount`` is an XRP
+    display string (e.g. "50") while ``delivered_amount`` for an XRP tx is
+    drops (e.g. "50000000") — comparing the two directly would be a unit
+    mismatch, not a real check. The verification below already asserts
+    ``tesSUCCESS`` + ``validated: true`` and prints the actual delivered
+    figure; that IS the "credit from delivered_amount" proof.
+    """
+    txid = context.get("check_cash_txid", "")
+    if not txid:
+        console.print(
+            "  [red]No CheckCash tx to inspect. Run the cash-check step "
+            "first.[/]"
+        )
+        # FT-001: the step that produces the txid never ran → honest FAILED
+        # verification, not an invisible skip.
+        _record_verification(
+            context, "credit_check_cash", passed=False,
+            failures=[
+                "check_cash_txid missing — the step that produces it did not run"
+            ],
+        )
+        return context
+
+    result = await verify_delivered_amount(transport, txid)
+    for check in result.checks:
+        console.print(f"  [green]✓[/] {check}")
+    for fail in result.failures:
+        console.print(f"  [red]✗[/] {fail}")
+    if result.passed:
+        console.print(
+            f"  [green]Credited the player {result.delivered_amount} drops "
+            "from delivered_amount[/] — never the Check's own "
+            "Amount/SendMax fields."
+        )
+    context["last_delivered_amount_verify"] = result
+    _record_verification(
+        context, "credit_check_cash", result.passed, result.failures
+    )
+    return context
+
+
+async def handle_create_outsider_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund a THIRD wallet — not this Check's Destination."""
+    console.print(
+        "  Creating an outsider wallet (not the Check's Destination)..."
+    )
+    outsider = create_wallet()
+    context["outsider_seed"] = _SecretValue(outsider.seed)
+    context["outsider_address"] = outsider.address
+    console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
+    result = await transport.fund_from_faucet(outsider.address)
+    if result.success:
+        console.print(f"  Outsider funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    else:
+        console.print(f"  [yellow]Outsider funding: {result.message}[/]")
+    return context
+
+
+async def handle_cash_check_wrong_destination_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """A non-Destination tries to cash the Check — expects tecNO_PERMISSION."""
+    args = step.action_args
+    amount = args.get("amount") or context.get("check_send_max", "20")
+    check_id = context.get("check_id", "")
+    _raw = context.get("outsider_seed", "")
+    outsider_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    outsider_address = context.get("outsider_address", "")
+    if not check_id or not outsider_seed:
+        console.print(
+            "  [red]Missing Check or outsider wallet. Run the previous "
+            "steps first.[/]"
+        )
+        return context
+    console.print(
+        "  [yellow]Outsider attempting to cash the Check (expecting "
+        "tecNO_PERMISSION — it is not the Destination)...[/]"
+    )
+    result = await cash_check(
+        transport, outsider_seed, check_id, amount=amount,
+        wallet_address=outsider_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the Check should have refused "
+            "this signer. Recording the tx.[/]"
+        )
+        _record_submit(state, context, result)
+    else:
+        if result.result_code == "tecNO_PERMISSION":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]Only the Destination named on CheckCreate may cash "
+                "a Check — anyone else is refused, no matter how much they "
+                "know about it.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                "tecNO_PERMISSION.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_cancel_check(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Studio cancels the unredeemed Check (CheckCancel) — the compensator.
+
+    Notice what does NOT happen: no XRP moves back to the studio, because
+    none was ever taken. Only the owner reserve is freed.
+    """
+    check_id = context.get("check_id", "")
+    if not check_id:
+        console.print(
+            "  [red]No Check to cancel. Run the create-check step first.[/]"
+        )
+        return context
+    address = state.wallet_address or ""
+    console.print(
+        f"  Cancelling Check [cyan]{check_id[:16]}...[/] — nothing to "
+        "refund, nothing was ever moved."
+    )
+    result = await cancel_check(transport, wallet_seed, check_id, wallet_address=address)
+    if result.success:
+        console.print("  [green]Check cancelled — reserve freed.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["check_id"] = ""
+    else:
+        console.print(f"  [red]CheckCancel failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+# ---------------------------------------------------------------------------
 # Registration — populate the registry
 # ---------------------------------------------------------------------------
 
@@ -4723,7 +6643,9 @@ def _register_all() -> None:
             wallet_required=True,
             payload_fields=[
                 PayloadField(name="nftoken_id",
-                             description="NFTokenID to burn (defaults to last minted)"),
+                             description="NFTokenID to burn (defaults to the id "
+                                         "captured at mint; never guessed from "
+                                         "the on-ledger list)"),
             ],
         ),
         ActionDef(
@@ -4799,8 +6721,24 @@ def _register_all() -> None:
                 PayloadField(name="currency", default="GLD"),
                 PayloadField(name="amount", default="50", description="IOU amount to escrow"),
                 PayloadField(name="destination", description="Recipient (defaults to context)"),
+                PayloadField(name="finish_seconds", type="int", default="30",
+                             description="Seconds until FinishAfter (fix1571 requires "
+                                         "FinishAfter or a Condition on every EscrowCreate)"),
                 PayloadField(name="cancel_seconds", type="int", default="86400",
                              description="Seconds until CancelAfter (mandatory for token escrow)"),
+            ],
+        ),
+        ActionDef(
+            name="create_noopt_issuer",
+            handler=handle_create_noopt_issuer,
+            description=(
+                "Create a second issuer WITHOUT the token-escrow opt-in "
+                "(sets up the failure case)"
+            ),
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="currency", default="NOP"),
+                PayloadField(name="amount", default="50"),
             ],
         ),
         ActionDef(
@@ -4811,6 +6749,7 @@ def _register_all() -> None:
             payload_fields=[
                 PayloadField(name="currency", default="NOP"),
                 PayloadField(name="amount", default="50"),
+                PayloadField(name="finish_seconds", type="int", default="30"),
                 PayloadField(name="cancel_seconds", type="int", default="86400"),
             ],
         ),
@@ -4824,6 +6763,69 @@ def _register_all() -> None:
             name="verify_token_moved",
             handler=handle_verify_token_moved,
             description="Verify the escrowed IOU reached the recipient's trust line",
+        ),
+        # ── Multisig treasury (SignerListSet) — foundations track ──
+        ActionDef(
+            name="create_signer_wallets",
+            handler=handle_create_signer_wallets,
+            description="Create N unfunded keyholder wallets for the signer list",
+            payload_fields=[
+                PayloadField(name="count", type="int", default="3",
+                             description="How many keyholder wallets (1-8)"),
+            ],
+        ),
+        ActionDef(
+            name="set_signer_list",
+            handler=handle_set_signer_list,
+            description="Install an N-of-M signer list on the treasury (SignerListSet)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="quorum", type="int", default="2",
+                             description="Min combined weight to authorize"),
+                PayloadField(name="weights", default="1,1,1",
+                             description="Comma-separated per-signer weights"),
+            ],
+        ),
+        ActionDef(
+            name="verify_signer_list",
+            handler=handle_verify_signer_list,
+            description="Verify the on-ledger signer list matches the installed quorum + roster",
+        ),
+        ActionDef(
+            name="send_multisig_payment",
+            handler=handle_send_multisig_payment,
+            description="Submit a multi-signed Payment meeting the quorum",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+                PayloadField(name="signer_count", type="int", default="2",
+                             description="How many keyholders co-sign"),
+                PayloadField(name="destination",
+                             description="Payee (defaults to signer 1's address)"),
+            ],
+        ),
+        ActionDef(
+            name="send_multisig_payment_expect_fail",
+            handler=handle_send_multisig_payment_expect_fail,
+            description="Attempt a below-quorum multi-signed payment (expects tefBAD_QUORUM)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="10"),
+                PayloadField(name="signer_count", type="int", default="1",
+                             description="Signers to use (below quorum)"),
+                PayloadField(name="destination"),
+            ],
+        ),
+        ActionDef(
+            name="delete_signer_list",
+            handler=handle_delete_signer_list,
+            description="Delete the signer list (SignerQuorum=0, entries omitted), freeing reserve",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_signer_list_deleted",
+            handler=handle_verify_signer_list_deleted,
+            description="Verify the SignerList object is gone from the account",
         ),
         ActionDef(
             name="set_did",
@@ -4984,6 +6986,92 @@ def _register_all() -> None:
             handler=handle_verify_permissioned_offer,
             description="Verify the credentialed account's permissioned offer is resting",
         ),
+        # ── Deposit Gate: DepositAuth + DepositPreauth (identity track, XLS-70 ext.) ──
+        ActionDef(
+            name="enable_deposit_auth",
+            handler=handle_enable_deposit_auth,
+            description=(
+                "Enable asfDepositAuth on the treasury (AccountSet) — "
+                "unsolicited deposits now bounce tecNO_PERMISSION"
+            ),
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="create_sender_wallet",
+            handler=handle_create_sender_wallet,
+            description="Create + fund a random sender wallet with no preauthorization yet",
+        ),
+        ActionDef(
+            name="send_sender_payment_expect_blocked",
+            handler=handle_send_sender_payment_expect_blocked,
+            description="Non-preauthorized sender's Payment is rejected (teaches tecNO_PERMISSION)",
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="preauthorize_self_expect_fail",
+            handler=handle_preauthorize_self_expect_fail,
+            description="Treasury tries to preauthorize itself (teaches temCANNOT_PREAUTH_SELF)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="authorize_sender_address",
+            handler=handle_authorize_sender_address,
+            description="Preauthorize the sender BY ADDRESS (DepositPreauth Authorize)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="authorize_sender_address_duplicate",
+            handler=handle_authorize_sender_address_duplicate,
+            description="Re-preauthorize the same address (teaches tecDUPLICATE)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="send_sender_payment",
+            handler=handle_send_sender_payment,
+            description="The address-preauthorized sender's Payment lands",
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="authorize_kyc_credential",
+            handler=handle_authorize_kyc_credential,
+            description="Preauthorize BY CREDENTIAL (DepositPreauth AuthorizeCredentials)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="send_kyc_payment",
+            handler=handle_send_kyc_payment,
+            description="KYC'd player attaches CredentialIDs and pays — succeeds",
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="send_outsider_payment_expect_blocked",
+            handler=handle_send_outsider_payment_expect_blocked,
+            description=(
+                "Non-credentialed, non-preauthorized outsider's Payment stays "
+                "blocked (tecNO_PERMISSION)"
+            ),
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="unauthorize_sender_address",
+            handler=handle_unauthorize_sender_address,
+            description="Revoke the sender's address preauthorization (compensator)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="unauthorize_sender_address_duplicate",
+            handler=handle_unauthorize_sender_address_duplicate,
+            description="Revoke the same preauthorization again (teaches tecNO_ENTRY)",
+            wallet_required=True,
+        ),
         ActionDef(
             name="create_mpt_issuance",
             handler=handle_create_mpt_issuance,
@@ -5019,7 +7107,10 @@ def _register_all() -> None:
             description="Set a trust line to an issuer",
             wallet_required=True,
             payload_fields=[
-                PayloadField(name="currency", default="LAB"),
+                # F-feb389a6 (same class): the handler _require()s currency,
+                # so advertising default="LAB" contradicted the contract.
+                PayloadField(name="currency",
+                             description="Currency code (required, e.g. LAB)"),
                 PayloadField(name="limit", default="1000"),
             ],
         ),
@@ -5146,9 +7237,15 @@ def _register_all() -> None:
             wallet_required=True,
             payload_fields=[
                 PayloadField(name="a_currency"),
-                PayloadField(name="a_value", default="10"),
+                # F-feb389a6: the handler REQUIRES a_value/b_value via
+                # _require (F-BACKEND-B-001) and the runner discards schema
+                # defaults, so the previously-advertised default="10" was a
+                # lie — a module relying on it failed INPUT_REQUIRED_FIELD.
+                PayloadField(name="a_value",
+                             description="Amount of asset A (required)"),
                 PayloadField(name="b_currency"),
-                PayloadField(name="b_value", default="10"),
+                PayloadField(name="b_value",
+                             description="Amount of asset B (required)"),
             ],
         ),
         ActionDef(
@@ -5463,6 +7560,74 @@ def _register_all() -> None:
                 "the Amount field — proves the partial-payment exploit"
             ),
         ),
+        # ── custodial player crediting: destination tags (payments track) ──
+        ActionDef(
+            name="enable_require_dest",
+            handler=handle_enable_require_dest,
+            description=(
+                "Enable asfRequireDest on the pooled treasury (AccountSet) — "
+                "untagged deposits bounce tecDST_TAG_NEEDED"
+            ),
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="create_player_wallet",
+            handler=handle_create_player_wallet,
+            description="Create + fund the player (depositor) wallet",
+        ),
+        ActionDef(
+            name="assign_player_tag",
+            handler=handle_assign_player_tag,
+            description=(
+                "Assign the player a deposit tag in the OFF-LEDGER backend "
+                "registry (the load-bearing tag -> player map)"
+            ),
+            payload_fields=[
+                PayloadField(name="tag", type="int", default="1001",
+                             description="32-bit DestinationTag assigned to the player"),
+                PayloadField(name="player", default="arya",
+                             description="Player id the tag routes to"),
+            ],
+        ),
+        ActionDef(
+            name="send_tagged_deposit",
+            handler=handle_send_tagged_deposit,
+            description=(
+                "Player deposits XRP into the pool WITH a DestinationTag "
+                "(and optional SourceTag for refund routing)"
+            ),
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="25", description="XRP amount"),
+                PayloadField(name="tag", type="int",
+                             description="DestinationTag (defaults to the assigned player tag)"),
+                PayloadField(name="source_tag", type="int",
+                             description="Optional SourceTag — the sender's return/bounce hint"),
+            ],
+        ),
+        ActionDef(
+            name="send_untagged_deposit_expect_fail",
+            handler=handle_send_untagged_deposit_expect_fail,
+            description=(
+                "Player sends an UNTAGGED deposit to the RequireDest pool "
+                "(expects tecDST_TAG_NEEDED)"
+            ),
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="credit_player_deposit",
+            handler=handle_credit_player_deposit,
+            description=(
+                "Attribute the deposit via its DestinationTag against the "
+                "registry and credit delivered_amount (never Amount)"
+            ),
+            payload_fields=[
+                PayloadField(name="expected", description="Expected credited amount in XRP"),
+            ],
+        ),
         # ── v2.0.0 game-economy control: NFT marketplace (nfts track) ──
         ActionDef(
             name="create_buyer_wallet",
@@ -5535,6 +7700,67 @@ def _register_all() -> None:
             name="verify_nft_modified",
             handler=handle_verify_nft_modified,
             description="Verify the NFT's URI advanced on the same NFTokenID",
+        ),
+        # ── Checks: deferred pull-payments (payments track, FC-005) ──
+        ActionDef(
+            name="create_recipient_wallet",
+            handler=handle_create_recipient_wallet,
+            description="Create + fund the player wallet (the Check's Destination)",
+        ),
+        ActionDef(
+            name="create_check",
+            handler=handle_create_check,
+            description=(
+                "Write a Check authorizing the player to pull up to amount "
+                "(CheckCreate) — moves and locks nothing"
+            ),
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="50",
+                             description="SendMax — the ceiling, in XRP"),
+                PayloadField(name="destination",
+                             description="Who may cash it (defaults to the player)"),
+            ],
+        ),
+        ActionDef(
+            name="cash_check",
+            handler=handle_cash_check,
+            description="Player cashes the Check for an exact Amount (CheckCash)",
+            payload_fields=[
+                PayloadField(name="amount", default="50", description="Exact XRP to redeem"),
+            ],
+        ),
+        ActionDef(
+            name="credit_check_cash",
+            handler=handle_credit_check_cash,
+            description=(
+                "Credit the player from delivered_amount — reuses the "
+                "delivered_amount_101 discipline unchanged"
+            ),
+        ),
+        ActionDef(
+            name="create_outsider_wallet",
+            handler=handle_create_outsider_wallet,
+            description="Create + fund a wallet that is NOT the Check's Destination",
+        ),
+        ActionDef(
+            name="cash_check_wrong_destination_expect_fail",
+            handler=handle_cash_check_wrong_destination_expect_fail,
+            description=(
+                "A non-Destination tries to cash the Check (teaches tecNO_PERMISSION)"
+            ),
+            payload_fields=[
+                PayloadField(name="amount", default="20", description="XRP amount attempted"),
+            ],
+        ),
+        ActionDef(
+            name="cancel_check",
+            handler=handle_cancel_check,
+            description=(
+                "Studio cancels the unredeemed Check (CheckCancel) — nothing "
+                "is refunded, nothing was ever moved"
+            ),
+            wallet_required=True,
         ),
     ]
 

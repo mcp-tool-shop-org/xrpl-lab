@@ -63,7 +63,7 @@ class TestIssuerOptInMandatory:
         _seed_holding(t, HOLDER, "100")
         r = await create_token_escrow(
             t, "sHOLDER", CUR, ISSUER, "50", RECIPIENT,
-            cancel_after=CANCEL, source_address=HOLDER,
+            cancel_after=CANCEL, finish_after=FINISH, source_address=HOLDER,
         )
         assert r.success is False
         assert r.result_code == "tecNO_PERMISSION"
@@ -78,7 +78,7 @@ class TestIssuerOptInMandatory:
         assert opt.success is True
         r = await create_token_escrow(
             t, "sHOLDER", CUR, ISSUER, "50", RECIPIENT,
-            cancel_after=CANCEL, source_address=HOLDER,
+            cancel_after=CANCEL, finish_after=FINISH, source_address=HOLDER,
         )
         assert r.success is True
         assert r.txid != ""
@@ -94,7 +94,7 @@ class TestIssuerCannotBeSource:
         # source_address == the issuer of the escrowed token.
         r = await create_token_escrow(
             t, "sISSUER", CUR, ISSUER, "50", RECIPIENT,
-            cancel_after=CANCEL, source_address=ISSUER,
+            cancel_after=CANCEL, finish_after=FINISH, source_address=ISSUER,
         )
         assert r.success is False
         assert r.result_code == "tecNO_PERMISSION"
@@ -111,7 +111,7 @@ class TestCancelAfterMandatory:
         await set_allow_trustline_locking(t, "sISSUER", ISSUER)
         r = await create_token_escrow(
             t, "sHOLDER", CUR, ISSUER, "50", RECIPIENT,
-            cancel_after=None, source_address=HOLDER,
+            cancel_after=None, finish_after=FINISH, source_address=HOLDER,
         )
         assert r.success is False
         assert "CancelAfter" in r.error
@@ -133,7 +133,7 @@ class TestHappyPath:
         # Holder locks 50 GLD to the recipient.
         r = await create_token_escrow(
             t, "sHOLDER", CUR, ISSUER, "50", RECIPIENT,
-            cancel_after=CANCEL, source_address=HOLDER,
+            cancel_after=CANCEL, finish_after=FINISH, source_address=HOLDER,
         )
         assert r.success is True
 
@@ -170,7 +170,7 @@ class TestHappyPath:
         await set_allow_trustline_locking(t, "sISSUER", ISSUER)
         await create_token_escrow(
             t, "sHOLDER", CUR, ISSUER, "50", RECIPIENT,
-            cancel_after=CANCEL, source_address=HOLDER,
+            cancel_after=CANCEL, finish_after=FINISH, source_address=HOLDER,
         )
         seq = (await t.get_escrows(HOLDER))[0].sequence
         await finish_escrow(t, "sRECIP", HOLDER, seq)
@@ -208,7 +208,7 @@ class TestVerifyHandlerRecords:
         await set_allow_trustline_locking(t, "sISSUER", ISSUER)
         await create_token_escrow(
             t, "sHOLDER", CUR, ISSUER, "50", RECIPIENT,
-            cancel_after=CANCEL, source_address=HOLDER,
+            cancel_after=CANCEL, finish_after=FINISH, source_address=HOLDER,
         )
         seq = (await t.get_escrows(HOLDER))[0].sequence
         await finish_escrow(t, "sRECIP", HOLDER, seq)

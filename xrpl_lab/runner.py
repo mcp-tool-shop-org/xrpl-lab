@@ -78,14 +78,26 @@ def _snapshot_context(context: dict) -> dict:
     leaking out when the step itself raises mid-mutation.
     """
     secrets: dict = {}
+    secret_lists: dict = {}
     safe: dict = {}
     for k, v in context.items():
         if isinstance(v, _SecretValue):
             secrets[k] = v
+        elif isinstance(v, list) and any(isinstance(i, _SecretValue) for i in v):
+            # A LIST holding secret wrappers (e.g. the multisig module's
+            # ``signer_seeds``). Copy the list itself — so a partial append
+            # mid-step still rolls back, same as txids — while sharing the
+            # unclonable wrapper references, same rationale as ``secrets``
+            # above (the wrapped string is immutable).
+            secret_lists[k] = [
+                i if isinstance(i, _SecretValue) else copy.deepcopy(i)
+                for i in v
+            ]
         else:
             safe[k] = v
     snapshot = copy.deepcopy(safe)
     snapshot.update(secrets)
+    snapshot.update(secret_lists)
     return snapshot
 
 
@@ -318,9 +330,26 @@ async def run_module(
                     if exc.error.hint:
                         console.print(f"  [yellow]Hint:[/] {exc.error.hint}")
                 else:
+                    # F-ae597821: mirror the recovery-save except block's
+                    # redaction discipline just below — do NOT interpolate
+                    # str(exc) into the console. This branch fires for ANY
+                    # unhandled exception from ANY action handler (an
+                    # OSError writing a report, a lock/replace race, or
+                    # anything else that happens to embed an absolute path
+                    # + OS username). `console` is the same WS-forwarding
+                    # capture console in dashboard mode, and `serve` supports
+                    # binding to non-loopback hosts — so a raw str(exc) here
+                    # is reachable by anyone on the LAN who triggers a step
+                    # failure during a serve-hosted run. Full detail goes to
+                    # the server log only (WARNING), never the console.
+                    logger.warning(
+                        "step failed for module %s (action=%s): %s",
+                        module.id,
+                        step.action,
+                        exc,
+                    )
                     console.print(
-                        f"[red]Step failed:[/] "
-                        f"{type(exc).__name__}: {exc}"
+                        f"[red]Step failed:[/] {type(exc).__name__}"
                     )
                     console.print(
                         "[yellow]Hint: Run 'xrpl-lab doctor' "

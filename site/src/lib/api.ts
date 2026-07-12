@@ -4,7 +4,48 @@
  * Drift is caught by tests/test_schema_drift.py.
  */
 
-const API_BASE = 'http://localhost:8321';
+/**
+ * Base URL for the xrpl-lab API — the SINGLE source of truth (F-cb775026).
+ * Previously this constant was copy-pasted verbatim into 10 files (this one
+ * plus DashboardLayout.astro and every page under site/src/pages/app/**), so
+ * changing the port meant editing 10 places and inevitably drifting. Every
+ * caller now imports this constant — or, better, one of the typed fetch*
+ * functions below, which use it internally — instead of declaring its own
+ * copy.
+ *
+ * Configurable at BUILD time via the public env var PUBLIC_XRPL_LAB_API
+ * (Astro/Vite inlines `PUBLIC_`-prefixed vars into the client bundle — see
+ * https://docs.astro.build/en/guides/environment-variables/). Defaults to
+ * the port `xrpl-lab serve` binds by default when unset.
+ *
+ * IMPORTANT: this default is only ever reachable from a loopback-family
+ * origin. site/astro.config.mjs builds ALL of app/** (including this file's
+ * consumers) into the GitHub Pages-hosted copy of the dashboard, which runs
+ * on https://mcp-tool-shop-org.github.io — an origin the backend's CORS +
+ * WebSocket origin allow-list (xrpl_lab/api/runner_ws.py _ALLOWED_ORIGINS)
+ * can never include. So on that hosted origin, this URL is unreachable no
+ * matter what the visitor runs locally. See isLocalOrigin() below and
+ * hostedPreviewMessage() in ./dashboard-ui for the honest messaging that
+ * covers this case instead of implying a refresh will help.
+ */
+export const API_BASE: string =
+  (import.meta.env.PUBLIC_XRPL_LAB_API as string | undefined) || 'http://localhost:8321';
+
+/**
+ * True when the page's own origin is loopback-family (localhost / 127.0.0.1 /
+ * the IPv6 loopback). `xrpl-lab serve` always mounts the dashboard on a
+ * loopback-family origin (or is proxied to one via the Astro dev server on
+ * :4321/:3000); a non-loopback origin is a static host — the GitHub
+ * Pages-hosted copy, in practice — which can never reach API_BASE regardless
+ * of what is running locally (see the CORS note on API_BASE above). Returns
+ * true outside the browser (SSR/build) so build-time evaluation defaults to
+ * the common case rather than false-alarming.
+ */
+export function isLocalOrigin(): boolean {
+  if (typeof window === 'undefined') return true;
+  const h = window.location.hostname;
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1';
+}
 
 /**
  * fetch() with a hard timeout via AbortController.
@@ -36,7 +77,14 @@ export async function fetchWithTimeout(
 async function request<T>(path: string): Promise<T> {
   const res = await fetchWithTimeout(`${API_BASE}${path}`);
   if (!res.ok) {
-    throw new Error(`API ${path} returned ${res.status}: ${res.statusText}`);
+    // F-ec3beb79: tag the status so callers can distinguish "server responded
+    // with an error" (HTTP 4xx/5xx) from "couldn't reach the server at all"
+    // (TypeError) — mirrors the httpStatus-tagging every page already does by
+    // hand around its own inline fetches, so migrating a page to call these
+    // typed functions instead doesn't lose that distinction.
+    const e = new Error(`API ${path} returned ${res.status}: ${res.statusText}`);
+    (e as any).httpStatus = res.status;
+    throw e;
   }
   return res.json() as Promise<T>;
 }
@@ -215,6 +263,14 @@ export interface VerifyResponse {
   version: string;
   address: string;
   network: string;
+  // F-e4e193c5: present on the Python VerifyResponse model (schemas.py) since
+  // the FT-002 simulated-mode work but missing here until now — verify.astro
+  // reads both at runtime (r.simulated drives the SIMULATED banner,
+  // r.all_verified === false drives the UNVERIFIED banner) but only compiled
+  // because that call site typed its param `any`, so the compiler never got
+  // the chance to flag them as absent from this interface.
+  simulated: boolean;
+  all_verified: boolean;
 }
 
 /**
@@ -301,7 +357,7 @@ export async function fetchRun(runId: string): Promise<RunInfo> {
  * should surface the error gracefully rather than spin.
  */
 export async function cancelRun(runId: string): Promise<{ ok: boolean; status: number; statusText: string }> {
-  const res = await fetchWithTimeout(`${API_BASE}/api/runs/${runId}`, {
+  const res = await fetchWithTimeout(`${API_BASE}/api/runs/${encodeURIComponent(runId)}`, {
     method: 'DELETE',
   });
   return { ok: res.ok, status: res.status, statusText: res.statusText };

@@ -1636,6 +1636,18 @@ def reset(keep_wallet: bool, module_id: str | None, skip_confirm: bool):
         except ValueError as e:
             console.print(f"[yellow]{e}[/]")
             sys.exit(1)
+        except LabException as e:
+            # F-5312c8ba: reset_module's save_state() can now raise a
+            # structured LabException (e.g. STATE_LOCKED if another
+            # xrpl-lab process is mid-save and the advisory lock's bounded
+            # wait is exhausted) instead of only ever succeeding or
+            # raising ValueError. Handle it the same structured way the
+            # rest of the CLI does (code/message/hint) instead of letting
+            # it fall through as an uncaught traceback.
+            console.print(f"[red]{e.error.code}:[/] {e.error.message}")
+            if e.error.hint:
+                console.print(f"  [yellow]Hint:[/] {e.error.hint}")
+            sys.exit(e.exit_code)
         console.print(
             f"[green]Module '{module_id}' reset.[/] "
             f"Cleared {summary['tx_records_cleared']} tx record(s); "

@@ -18,32 +18,44 @@ from .registry import PayloadError, PayloadSchema, is_registered, resolve
 # kb_source never blocks a release.
 _KB_DERIVED_TRACKS = frozenset({"nfts", "tokens", "payments", "identity"})
 
-# Default location of the xrpl-knowledge KB on this rig. The KB is an OPTIONAL
-# external dependency — it lives in the ``readouts`` monorepo, NOT in this repo
-# and NOT in CI — so its absence must never fail a lint run. Override with the
-# ``XRPL_LAB_KB_DB`` env var (used by tests and non-default checkouts).
-_DEFAULT_KB_DB = Path(r"E:\AI\readouts\xrpl-knowledge\xrpl.db")
+# The xrpl-knowledge KB is an OPTIONAL external dependency — it lives in the
+# ``readouts`` monorepo, NOT in this repo and NOT in CI — so its absence must
+# never fail a lint run. Activation is explicit via the ``XRPL_LAB_KB_DB`` env
+# var (used by tests and non-default checkouts).
+#
+# F-99b70cc9 (LOW): there used to be a hardcoded fallback path here
+# (``E:\AI\readouts\xrpl-knowledge\xrpl.db``) specific to one contributor's
+# local machine — harmless functionally (still guarded by ``path.is_file()``)
+# but a packaging smell: baking a personal Windows path into published source
+# also meant the cross-check silently never activated for any OTHER
+# contributor/CI environment unless they happened to know the env var existed
+# and discover the exact path to point it at. Dropped in favor of requiring
+# ``XRPL_LAB_KB_DB`` to be set explicitly — no default, no rig-specific
+# assumption. Contributors who have the KB checked out locally opt in by
+# setting the env var; everyone else (including CI) gets a clean, honest
+# ``None`` — same graceful degrade as before, just without the personal path.
 
 
-def _resolve_kb_db() -> Path:
-    """Resolve the KB db path: ``XRPL_LAB_KB_DB`` env override, else default."""
+def _resolve_kb_db() -> Path | None:
+    """Resolve the KB db path from ``XRPL_LAB_KB_DB``, or ``None`` if unset."""
     import os
 
     override = os.environ.get("XRPL_LAB_KB_DB")
-    return Path(override) if override else _DEFAULT_KB_DB
+    return Path(override) if override else None
 
 
 def load_kb_capability_slugs(db_path: Path | None = None) -> frozenset[str] | None:
     """Load the set of capability slugs from the xrpl-knowledge KB.
 
-    Returns ``None`` when the KB db is absent or unreadable — the KB is an
-    optional external dependency (not in this repo, not in CI), so its absence
-    silently skips the cross-check rather than failing lint. When the KB is
-    present, returns a (possibly empty) frozenset of ``capabilities.slug``
-    values. Opens the db read-only so a lint run never mutates the KB.
+    Returns ``None`` when no KB db path is configured, or the configured path
+    is absent/unreadable — the KB is an optional external dependency (not in
+    this repo, not in CI, no default path), so its absence silently skips the
+    cross-check rather than failing lint. When the KB is present, returns a
+    (possibly empty) frozenset of ``capabilities.slug`` values. Opens the db
+    read-only so a lint run never mutates the KB.
     """
     path = db_path or _resolve_kb_db()
-    if not path.is_file():
+    if path is None or not path.is_file():
         return None
 
     import sqlite3

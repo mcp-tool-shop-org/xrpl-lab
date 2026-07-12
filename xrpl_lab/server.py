@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
@@ -13,12 +15,66 @@ from .api.routes import router
 from .api.runner_ws import _ALLOWED_ORIGINS
 from .api.runner_ws import router as runner_ws_router
 
+logger = logging.getLogger(__name__)
+
 # Where the built Astro dashboard is mounted. The Astro site is built with
 # ``base: '/xrpl-lab'`` (see site/astro.config.mjs), so the dist tree expects
 # to be served under this prefix — the interactive dashboard lands at
 # ``/xrpl-lab/app/``. The /api routes live outside this prefix, so there is no
 # collision.
 DASHBOARD_MOUNT_PATH = "/xrpl-lab"
+
+
+async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all so an unguarded route degrades to the structured envelope
+    instead of Starlette's default 500 body (F-6beae9bb).
+
+    Without this handler, ANY route that lets an exception escape (a
+    UnicodeDecodeError from a bad-encoding file read, a future bug) falls
+    through to Starlette's default ``{"detail": "Internal Server Error"}`` —
+    a bare STRING, not the ``{code, message, hint}`` OBJECT every other
+    error path in this API returns. The dashboard's error extraction
+    (``site/src/lib/api.ts``: ``body?.detail?.message || body?.message``)
+    assumes ``detail`` is an object, so that default shape silently yields
+    an empty message instead of something a learner or facilitator can act
+    on.
+
+    This mirrors ``runner_ws._error_envelope``'s generic ``RUNTIME_INTERNAL``
+    branch: full exception detail goes to the SERVER log only (never the
+    client), and every unguarded route now degrades to the SAME envelope
+    shape as every explicit ``HTTPException(detail={code,message,hint})``
+    raised elsewhere in this module — so a client-side error handler has
+    exactly one shape to parse, win or lose.
+
+    Registering a handler for the bare ``Exception`` class does not change
+    handling of ``HTTPException`` (FastAPI's built-in handler for it keeps
+    matching first — Starlette dispatches to the most specific registered
+    type), so every existing structured 4xx response is unaffected.
+    """
+    logger.error(
+        "unhandled exception on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+        exc_info=exc,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": {
+                "code": "RUNTIME_INTERNAL",
+                "message": (
+                    "An internal server error occurred. This is a "
+                    "server-side fault — not something you did wrong."
+                ),
+                "hint": (
+                    "Note the request path and time, and notify the "
+                    "workshop facilitator. They can check server logs to "
+                    "diagnose."
+                ),
+            }
+        },
+    )
 
 
 def create_app(
@@ -71,6 +127,13 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Catch-all so an unguarded route (or a future regression) degrades to
+    # the structured envelope shape instead of Starlette's bare-string
+    # default 500 body (F-6beae9bb). Registered on the FastAPI ``app``
+    # instance (not the router) since Starlette wires an ``Exception``
+    # handler into ``ServerErrorMiddleware`` at the application level.
+    app.add_exception_handler(Exception, _unhandled_exception_handler)
 
     app.include_router(router)
     app.include_router(runner_ws_router)

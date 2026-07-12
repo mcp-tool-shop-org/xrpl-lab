@@ -1,4 +1,73 @@
 # Changelog
+## 2.4.0 — 2026-07-12
+
+**Fourth dogfood re-swarm** — a deep health pass on the shipped v2.3.0 surface (2 CRITICAL +
+15 HIGH fixed, every finding confirmed on primary source or the installed library and
+cross-checked on a disjoint-family cloud panel), then a four-module **"run a real game-studio
+treasury on XRPL"** curriculum expansion. **28 → 32 modules, 1346 → 1663 tests.** Every new
+module was verified against the live XRPL testnet where its transaction path could be reached.
+
+### Added — the treasury bundle (4 mainnet-live modules)
+- **Multisig Treasury** — `multisig_treasury_101` (**foundations**): put N-of-M signer control on
+  a studio hot wallet with a native `SignerListSet`, move funds with a multi-signed Payment the
+  treasury key never touches, and hit the `tefBAD_QUORUM` wall below quorum. Teaches weighted
+  quorum arithmetic, the empty-`SigningPubKey` multisign shape, the fee-per-signature cost, and
+  the exact `SignerQuorum=0`-plus-entries-omitted delete (half a delete is `temMALFORMED`).
+- **Custodial Player Crediting** — `custodial_crediting_101` (**payments**, composes
+  `delivered_amount_101`): one pooled treasury, many players attributed by a 32-bit
+  `DestinationTag`. Enable `asfRequireDest` so untagged deposits bounce `tecDST_TAG_NEEDED`,
+  resolve tag→player in your own off-ledger registry (a tag is a routing hint, not
+  authentication), and credit from `delivered_amount`, never `Amount`.
+- **Credential-Gated Deposit Gate** — `deposit_gate_101` (**identity**, composes
+  `credentials_101`): completes the XLS-70 arc. Enable Deposit Authorization so the treasury
+  rejects unsolicited Payments (`tecNO_PERMISSION`), then clear senders by address
+  (`DepositPreauth Authorize`) and by held credential (`AuthorizeCredentials` + `CredentialIDs`).
+  Teaches both clearance paths, their guardrails (`temCANNOT_PREAUTH_SELF` / `tecDUPLICATE` /
+  `tecNO_ENTRY`), the `CredentialIDs`-vs-`DomainID` distinction, and payout/treasury separation.
+- **Checks** — `checks_101` (**payments**): deferred pull-payments — the claimable-reward
+  pattern. Write a Check authorizing a player to pull up to `SendMax`, prove on-ledger the funds
+  are **not** locked (unlike Escrow), cash it, credit from `delivered_amount`, and cancel an
+  unredeemed one. Teaches that `CheckCreate` success is never a guaranteed payout and that only
+  the Destination may cash (`tecNO_PERMISSION`).
+
+### Fixed / Security
+- **DEX market-making taught the wrong on-ledger direction (CRITICAL).** The strategy "ask" leg
+  built an `OfferCreate` with `TakerPays=LAB` / `TakerGets=XRP` — a *buy* of the token — while the
+  console and all three DEX modules narrated *selling* it; nothing verified direction and the
+  inventory guardrail gated the wrong asset. Fixed (the bid was already correct), with a permanent
+  direction assertion so an inversion can't pass silently again.
+- **`state.json` could silently lose progress under concurrency (CRITICAL).** The
+  load→mutate→save cycle had no lock or compare-and-swap, so the CLI racing the `serve` dashboard
+  clobbered recorded modules/transactions with no error surfaced. Now cross-process lock + merge
+  protected.
+- **The live-testnet path was broken against xrpl-py 4.5.** `submit_and_wait` raises on a
+  validated `tec` (the tec-handling branch was dead code, and a landed transaction was resubmitted
+  — 3× fees); `fetch_tx` parsed the pre-API-v2 response shape, so the honest-pack verifier branded
+  learners' own real receipts as forged. Both fixed against the installed library; the all-dry-run
+  suite could not have caught either.
+- **Token escrow built a `temMALFORMED` transaction.** `create_token_escrow` set neither
+  `FinishAfter` nor a `Condition`, which `fix1571` rejects on real testnet (the dry-run masked it).
+  Fixed with a `finish_seconds` field and dry-run parity.
+- **Credential leakage into shareable artifacts.** A user-configured RPC/faucet URL — which can
+  embed basic-auth or path/query tokens — was sealed verbatim into proof/audit packs and, via the
+  doctor's check details, into the shareable support bundle. All sites now sanitize to
+  `scheme://host[:port]` before sealing.
+- **`session-export` followed symlinks**, so a planted `→ wallet.json` symlink could exfiltrate a
+  facilitator's seed into the shared cohort archive. Symlink entries are now skipped with a
+  workspace-containment gate.
+- Plus: dry-run XRP-conservation and negative-amount fidelity fixes; a WebSocket output-channel
+  that bypassed the error-envelope sanitizer; escrow/offer sequence capture by identity instead of
+  `[-1]`; non-atomic artifact writes; an audit-pack integrity verifier; CSV formula-injection
+  hardening; and a centralized, configurable dashboard `API_BASE` with honest hosted-preview
+  messaging.
+
+### Internal
+- The health pass ran as a control-plane-coordinated dogfood swarm: six isolated-worktree fix
+  agents with mechanical ownership enforcement (0 violations), each finding's protocol facts
+  cross-checked on a disjoint-family Ollama Cloud panel. Two latent bugs surfaced by the new
+  modules were fixed in passing (a `_SecretValue`-in-a-list rollback-snapshot crash; a
+  drops-vs-XRP unit mismatch in the checks credit path).
+
 ## 2.3.0 — 2026-07-05
 
 **Third dogfood re-swarm** — a full health pass (bug/security → proactive → humanization →

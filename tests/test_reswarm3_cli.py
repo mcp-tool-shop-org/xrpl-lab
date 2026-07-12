@@ -59,7 +59,17 @@ class TestCL001DryRunProvenance:
         assert data["integrity_sha256"] != _recompute_pack_hash(tampered)
 
     def test_testnet_pack_backward_compatible(self, tmp_path):
-        """A non-dry-run pack keeps dry_run=false / network=testnet."""
+        """A non-dry-run pack keeps dry_run=false and a stable hash shape.
+
+        RA-001 (F-a8db1a2d) update: the pack's ``network`` is no longer a
+        hardcoded 'testnet' literal — it now seals the network the TRANSPORT
+        actually classified (run_audit reads net_info.network). This test's
+        stand-in transport IS the DryRunTransport, so the honest label here
+        is 'dry-run' even though the dry_run flag defaults False; a real
+        testnet run (XRPLTestnetTransport at the default RPC) still seals
+        'testnet'. The devnet/testnet truthfulness cases are pinned in
+        tests/test_reswarm4_reporting_audit.py.
+        """
         import asyncio
 
         from xrpl_lab.audit import run_audit, write_audit_pack
@@ -72,7 +82,8 @@ class TestCL001DryRunProvenance:
         data = json.loads(pack_path.read_text(encoding="utf-8"))
 
         assert data.get("dry_run") is False
-        assert data.get("network") == "testnet"
+        # Honest network label: what the transport reports, not a literal.
+        assert data.get("network") == "dry-run"
         assert data["integrity_sha256"] == _recompute_pack_hash(data)
 
     def test_dry_run_md_shows_simulated_banner(self, tmp_path):
@@ -103,6 +114,16 @@ class TestCL001DryRunProvenance:
 # ── CL-002: audit command exit code gating ───────────────────────────
 
 
+def _first_dry_run_txid() -> str:
+    """The deterministic txid of a dry-run session's FIRST transaction.
+
+    F-0feb8f21 made dry-run txids reproducible (sha256 of prefix+counter), so
+    a fresh CLI process recognizes prior-session receipts; anything else
+    audits as not_found (F-64106db7).
+    """
+    return hashlib.sha256(b"DRYRUN-1").hexdigest().upper()[:64]
+
+
 def _write_txids(dir_: Path, txids: list[str]) -> Path:
     p = dir_ / "txids.txt"
     p.write_text("\n".join(txids) + "\n", encoding="utf-8")
@@ -113,7 +134,9 @@ class TestCL002AuditExitCode:
     def test_all_pass_exits_zero(self, tmp_path):
         runner = CliRunner()
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            txp = _write_txids(Path("."), ["ABCDEF0123456789"])
+            # CORRECTED (F-64106db7): audit a GENUINE dry-run txid — fabricated
+            # ids no longer fake a validated tesSUCCESS offline.
+            txp = _write_txids(Path("."), [_first_dry_run_txid()])
             result = runner.invoke(
                 main, ["audit", "--txids", str(txp), "--dry-run", "--no-pack"]
             )
@@ -128,7 +151,9 @@ class TestCL002AuditExitCode:
         """
         runner = CliRunner()
         with runner.isolated_filesystem(temp_dir=tmp_path):
-            txp = _write_txids(Path("."), ["ABCDEF0123456789"])
+            # CORRECTED (F-64106db7): audit a GENUINE dry-run txid — fabricated
+            # ids no longer fake a validated tesSUCCESS offline.
+            txp = _write_txids(Path("."), [_first_dry_run_txid()])
             expect = Path("expect.json")
             expect.write_text(
                 json.dumps({"defaults": {"types_allowed": ["Escrow"]}}),

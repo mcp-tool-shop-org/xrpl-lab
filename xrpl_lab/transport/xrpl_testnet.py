@@ -13,7 +13,14 @@ from urllib.parse import urlparse
 
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
-from xrpl.asyncio.transaction import submit_and_wait
+from xrpl.asyncio.transaction import (
+    XRPLReliableSubmissionException,
+    autofill,
+    submit_and_wait,
+)
+from xrpl.asyncio.transaction import (
+    sign as sign_transaction,  # aliased: keypairs' raw `sign` is imported below
+)
 from xrpl.core.binarycodec import encode_for_signing_claim
 from xrpl.core.keypairs import derive_keypair, is_valid_message, sign
 from xrpl.models import (
@@ -26,10 +33,14 @@ from xrpl.models import (
     AccountSet,
     AccountSetAsfFlag,
     AccountTx,
+    CheckCancel,
+    CheckCash,
+    CheckCreate,
     Clawback,
     CredentialAccept,
     CredentialCreate,
     CredentialDelete,
+    DepositPreauth,
     DIDDelete,
     DIDSet,
     EscrowCancel,
@@ -59,14 +70,19 @@ from xrpl.models import (
     PaymentFlag,
     PermissionedDomainDelete,
     PermissionedDomainSet,
+    ServerInfo,
+    SignerEntry,
+    SignerListSet,
     TrustSet,
     TrustSetFlag,
     Tx,
 )
 from xrpl.models.amounts import MPTAmount
+from xrpl.models.transactions.deposit_preauth import Credential as DPCredential
 from xrpl.models.transactions.permissioned_domain_set import (
     Credential as PDCredential,
 )
+from xrpl.transaction import multisign
 from xrpl.utils import drops_to_xrp, get_nftoken_id, hex_to_str, str_to_hex, xrp_to_drops
 from xrpl.wallet import Wallet
 
@@ -85,6 +101,7 @@ from .base import (
     NFTOfferInfo,
     OfferInfo,
     PermissionedDomainInfo,
+    SignerListInfo,
     SubmitResult,
     Transport,
     TrustLineInfo,
@@ -139,6 +156,20 @@ def _extract_domain_id(meta: dict) -> str:
         if created.get("LedgerEntryType") == "PermissionedDomain":
             fields = created.get("NewFields", {})
             return fields.get("DomainID") or created.get("LedgerIndex", "")
+    return ""
+
+
+def _extract_check_id(meta: dict) -> str:
+    """Pull the new CheckID out of a CheckCreate's meta.
+
+    The created Check object's ledger index IS the CheckID (a Hash256 derived
+    from Owner + Sequence) — mirrors ``_extract_channel_id`` /
+    ``_extract_domain_id``. Best-effort walk of AffectedNodes; the dry-run
+    transport sets the id directly, so the offline-tested path is exact."""
+    for node in meta.get("AffectedNodes", []):
+        created = node.get("CreatedNode", {})
+        if created.get("LedgerEntryType") == "Check":
+            return created.get("LedgerIndex", "")
     return ""
 
 
@@ -305,8 +336,12 @@ def _friendly_error(exc: Exception) -> str:
 
 # XRPL malformed/permanent result-code tokens that mean "do not retry" — the
 # tx is structurally bad and resubmitting the identical bytes can never
-# succeed. These match the canonical ``temBAD…`` / ``tefBAD…`` result codes
-# (e.g. ``temBADAmount``, ``tefBAD_AUTH``) as whole tokens.
+# succeed. F-1947a03d widened the old ``temBAD*``-only match to ALL ``tem``
+# codes: every tem code is malformed by definition (``temMALFORMED``,
+# ``temDISABLED``, ``temINVALID_FLAG``, ...), so a tem prelim rejection was
+# being pointlessly retried. The ``[A-Z]`` after ``tem`` is load-bearing —
+# XRPL codes are tem+UPPERCASE, and plain English words like "temporary"
+# must NOT suppress a warranted retry.
 #
 # TRANSPORT-A-004: the previous heuristic substring-scanned the FRIENDLY
 # message for ``("temBAD", "tefBAD", "Invalid", "malformed")``. The bare
@@ -314,18 +349,150 @@ def _friendly_error(exc: Exception) -> str:
 # whose friendly text merely contains "Invalid" (e.g. "Invalid response from
 # RPC endpoint, please retry") would suppress a warranted retry. We now match
 # only genuine result-code tokens on word boundaries, so generic prose can no
-# longer short-circuit the retry loop while real temBAD*/tefBAD* aborts still do.
-_NO_RETRY_CODE_RE = re.compile(r"\b(?:temBAD|tefBAD)\w*\b")
+# longer short-circuit the retry loop while real tem*/tefBAD* aborts still do.
+_NO_RETRY_CODE_RE = re.compile(r"\b(?:tem[A-Z]\w*|tefBAD\w*)\b")
 
 
 def _is_no_retry_error(message: str) -> bool:
     """Return True if *message* names a malformed/permanent XRPL result code.
 
     Used by the signing/submit retry loops to abort early instead of retrying a
-    transaction that can never succeed. Matches ``temBAD*`` / ``tefBAD*``
+    transaction that can never succeed. Matches ``tem*`` / ``tefBAD*``
     result-code tokens only — not the generic words "Invalid" or "malformed".
     """
     return bool(_NO_RETRY_CODE_RE.search(message or ""))
+
+
+# Any XRPL engine result-code token in FAILURE classes (tec/tef/tel/tem/ter).
+# Deliberately excludes ``tes`` — "Prelim result: tesSUCCESS" appears in
+# xrpl-py's expired-LastLedgerSequence message and must not be parsed as a
+# final result code.
+_RESULT_CODE_RE = re.compile(r"\b(?:tec|tef|tel|tem|ter)[A-Z][A-Z_0-9]*\b")
+
+# xrpl-py raises this exact prefix when a tx VALIDATED with a non-tesSUCCESS
+# result (see reliable_submission._wait_for_final_transaction_outcome).
+_VALIDATED_FAILURE_PREFIX = "Transaction failed: "
+
+
+def _code_from_exception_message(message: str) -> str:
+    """Pull the first failure-class XRPL result-code token out of *message*."""
+    m = _RESULT_CODE_RE.search(message or "")
+    return m.group(0) if m else ""
+
+
+def _structured_failure(result_code: str) -> SubmitResult:
+    """Build the failed SubmitResult for a REAL engine result code.
+
+    Routes the code through ``explain_result_code`` (the doctor teach moment)
+    exactly like the non-raising parse path, so live failures and dry-run
+    failures surface identically to handlers/artifacts.
+    """
+    from ..doctor import explain_result_code
+
+    info = explain_result_code(result_code)
+    return SubmitResult(
+        success=False,
+        result_code=result_code,
+        error=f"{info['meaning']}. {info['action']}",
+    )
+
+
+def _map_reliable_submission_failure(exc: Exception) -> SubmitResult | None:
+    """Map a raised ``XRPLReliableSubmissionException`` to a SubmitResult.
+
+    F-1947a03d: xrpl-py 4.x's ``submit_and_wait`` RAISES on failure — it never
+    returns a response carrying a tec code:
+
+    * ``"Transaction failed: tecXXX"`` — the tx VALIDATED with a non-tes
+      result. It is on-ledger, consumed a fee and a sequence; resubmitting it
+      lands ANOTHER fee-claiming failure. Return the structured failure with
+      the REAL code; the caller must NOT retry.
+    * ``"temXXX: <engine message>"`` — prelim malformed rejection. Can never
+      succeed; return the structured failure, no retry.
+    * anything else (expired LastLedgerSequence window, missing
+      last_ledger_sequence, ...) — the tx did NOT validate; returns None so
+      the caller's normal retry policy applies.
+    """
+    msg = str(exc)
+    code = _code_from_exception_message(msg)
+    if code and msg.startswith(_VALIDATED_FAILURE_PREFIX):
+        return _structured_failure(code)
+    if code and _is_no_retry_error(code):
+        return _structured_failure(code)
+    return None
+
+
+def _timeout_no_resubmit(label: str) -> SubmitResult:
+    """The structured result for a submit that timed out client-side.
+
+    F-0cbd05ef: a 60s client timeout does NOT mean the tx failed — the first
+    broadcast is frequently STILL inside its LastLedgerSequence validity
+    window (~20 ledgers) and can still validate. Resubmitting the unsigned
+    model autofills a FRESH Sequence, so BOTH transactions could land,
+    duplicating the payment/offer/mint/escrow. The submit loops therefore
+    NEVER auto-resubmit after a timeout; the learner is told to verify before
+    retrying.
+    """
+    return SubmitResult(
+        success=False,
+        result_code="local_error",
+        error=(
+            f"{label} submission timed out after {SUBMIT_TIMEOUT}s. The "
+            "transaction may STILL validate in the next few ledgers — it was "
+            "handed to the network and its validity window may not have "
+            "closed. Not resubmitting automatically (a blind resubmit can "
+            "DUPLICATE the transaction). Check your account's recent "
+            "transactions or the explorer first, then retry only if it never "
+            "landed."
+        ),
+    )
+
+
+def _parse_submit_fields(result: dict) -> tuple[str, str, str, int | None, int | None]:
+    """Parse (result_code, txid, fee, ledger_idx, sequence) from a submit result.
+
+    Shared by every submit path so the API-v2 shape (F-5e672008: tx fields
+    under ``tx_json``) is normalized in ONE place. ``hash`` / ``ledger_index``
+    stay top-level in v2; ``Fee`` and ``Sequence`` ride in the tx body.
+    """
+    meta = result.get("meta", {})
+    tx = _tx_body(result)
+    result_code = meta.get(
+        "TransactionResult", result.get("engine_result", "unknown")
+    )
+    txid = result.get("hash", "") or tx.get("hash", "")
+    fee = tx.get("Fee", "0")
+    ledger_idx = _int_or_none(
+        result.get("ledger_index") or meta.get("ledger_index")
+    )
+    sequence = _int_or_none(tx.get("Sequence"))
+    return result_code, txid, fee, ledger_idx, sequence
+
+
+def _tx_body(result: dict) -> dict:
+    """Resolve the transaction's own fields from a Tx / submit response.
+
+    F-5e672008: xrpl-py 4.x sends ``api_version=2``, where the transaction's
+    fields nest under ``tx_json`` (top level keeps hash / ledger_index / meta /
+    validated) and a Payment's ``Amount`` is renamed ``DeliverMax``. The old
+    parser read the API-v1 top-level shape, so EVERY real-testnet read-back
+    yielded empty account/type/destination and zero amount/fee — which made the
+    honest-pack live verifier brand the learner's own receipts as forged.
+    Falls back to the top level so v1-shaped fixtures/older rippled keep
+    parsing.
+    """
+    tx_json = result.get("tx_json")
+    if isinstance(tx_json, dict):
+        return tx_json
+    return result
+
+
+def _tx_amount_raw(tx: dict):
+    """The tx's Amount field across API versions (v2 renames it DeliverMax)."""
+    amount = tx.get("DeliverMax")
+    if amount is None:
+        amount = tx.get("Amount", "0")
+    return amount
 
 
 def _int_or_none(value) -> int | None:
@@ -419,11 +586,31 @@ async def _rpc_client(rpc_url: str):
     yield AsyncJsonRpcClient(rpc_url)
 
 
+# server_info network ids of the chains XRPL Lab may sign against when the
+# endpoint host classifies as 'local' (F-4cf20cef): 1 = testnet, 2 = devnet.
+# Mainnet is network_id 0 (often omitted entirely). A standalone/custom-network
+# rippled that reports neither can be explicitly allowed with
+# XRPL_LAB_ALLOW_LOCAL=1 — an informed opt-in, never a silent default.
+_TEST_CHAIN_NETWORK_IDS = frozenset({1, 2})
+
+
+def _allow_local_env() -> bool:
+    """True when the operator explicitly vouched for the localhost endpoint."""
+    return os.environ.get("XRPL_LAB_ALLOW_LOCAL", "").strip().lower() in (
+        "1", "true", "yes",
+    )
+
+
 class XRPLTestnetTransport(Transport):
     """Real XRPL Testnet transport using xrpl-py async client."""
 
     def __init__(self) -> None:
         self._rpc_url = get_rpc_url()
+        # F-4cf20cef: per-URL cache of the local chain-identity probe. Only
+        # DEFINITIVE verdicts are cached (verified test chain -> None, or a
+        # verified-mainnet refusal string); an indeterminate probe (server
+        # down) is retried on the next write.
+        self._local_chain_verdicts: dict[str, str | None] = {}
 
     @property
     def network_name(self) -> str:
@@ -469,6 +656,80 @@ class XRPLTestnetTransport(Transport):
             f"--dry-run for fully offline practice."
         )
 
+    async def _verify_local_chain(self) -> str | None:
+        """Verify a 'local' endpoint fronts a TEST chain before any signed write.
+
+        F-4cf20cef: a localhost URL is not inherently safe — a default-config
+        rippled peers with MAINNET out of the box, and an SSH tunnel/port
+        forward can put a mainnet node behind 127.0.0.1. 'local' being in
+        SAFE_NETWORKS therefore left a residual mainnet write path with no
+        warning. Before the first signed submit per URL we ask the server for
+        its chain identity (``server_info`` → ``info.network_id``) and require
+        a known test chain (1 = testnet, 2 = devnet). network_id 0 / absent is
+        treated as mainnet — fail closed. ``XRPL_LAB_ALLOW_LOCAL=1`` skips the
+        probe for standalone/custom-network rippled nodes (an explicit,
+        documented opt-in). Definitive verdicts are cached per URL.
+        """
+        if _allow_local_env():
+            return None
+        url = self._rpc_url
+        if url in self._local_chain_verdicts:
+            return self._local_chain_verdicts[url]
+        refusal = (
+            f"Refusing to submit: XRPL_LAB_RPC_URL points at a local endpoint "
+            f"({url}) whose chain identity is not a known test network. A "
+            f"local rippled can front MAINNET (default config, or a tunnel), "
+            f"so XRPL Lab requires server_info.info.network_id to be 1 "
+            f"(testnet) or 2 (devnet) before signing. Point the node at a test "
+            f"network, set XRPL_LAB_ALLOW_LOCAL=1 if you are certain this "
+            f"local node is safe, or run with --dry-run."
+        )
+        try:
+            async with _rpc_client(url) as client:
+                resp = await asyncio.wait_for(
+                    client.request(ServerInfo()), timeout=RPC_TIMEOUT
+                )
+            info = (resp.result or {}).get("info", {}) or {}
+            network_id = info.get("network_id")
+        except Exception as exc:
+            # Indeterminate — the node is unreachable/broken. Fail closed for
+            # THIS write but do not cache, so a recovered node re-probes.
+            logger.warning(
+                "local chain-identity probe failed for %s: %s",
+                url, _friendly_error(exc), exc_info=True,
+            )
+            return (
+                f"Refusing to submit: could not verify the chain identity of "
+                f"the local endpoint ({url}) — server_info failed "
+                f"({_friendly_error(exc)}). XRPL Lab will not sign against an "
+                f"unverified local node; set XRPL_LAB_ALLOW_LOCAL=1 to bypass "
+                f"this check for a node you trust, or run with --dry-run."
+            )
+        if isinstance(network_id, int) and network_id in _TEST_CHAIN_NETWORK_IDS:
+            self._local_chain_verdicts[url] = None
+            return None
+        logger.warning(
+            "local endpoint %s reports network_id=%r — refusing signed writes",
+            url, network_id,
+        )
+        self._local_chain_verdicts[url] = refusal
+        return refusal
+
+    async def _guard_write(self) -> str | None:
+        """Full write-path guard: host classification + local chain identity.
+
+        Every signing method calls this BEFORE ``Wallet.from_seed``. The sync
+        ``_network_guard`` host check runs first (mainnet/unknown refused with
+        no network traffic at all); a 'local' endpoint must additionally PROVE
+        it fronts a test chain (F-4cf20cef) before the first signed submit.
+        """
+        guard = self._network_guard()
+        if guard is not None:
+            return guard
+        if classify_network(self._rpc_url) == "local":
+            return await self._verify_local_chain()
+        return None
+
     async def get_network_info(self) -> NetworkInfo:
         network = classify_network(self._rpc_url)
         try:
@@ -507,7 +768,7 @@ class XRPLTestnetTransport(Transport):
     async def fund_from_faucet(self, address: str) -> FundResult:
         import httpx
 
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return FundResult(
                 success=False, address=address, message=guard, code="CONFIG_NON_TESTNET"
@@ -603,6 +864,13 @@ class XRPLTestnetTransport(Transport):
                     # Non-429 HTTP error — clear any prior 429 code so the
                     # final result reflects the latest failure mode.
                     last_code = ""
+                    # F-69a13b3b: back off before re-POSTing, like the 429 /
+                    # bad-JSON-200 / timeout branches. Without this a degraded
+                    # faucet (500/502/503) got hammered with MAX_RETRIES+1
+                    # back-to-back requests.
+                    if attempt < MAX_RETRIES:
+                        await asyncio.sleep(RETRY_DELAY)
+                    continue
             except httpx.TimeoutException:
                 last_error = "Faucet timed out. The testnet faucet may be down."
                 last_code = ""
@@ -624,8 +892,14 @@ class XRPLTestnetTransport(Transport):
         destination: str,
         amount: str,
         memo: str = "",
+        destination_tag: int | None = None,
+        source_tag: int | None = None,
+        credential_ids: list[str] | None = None,
+        wallet_address: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        # ``wallet_address`` is a dry-run keying aid (see base contract); the
+        # testnet path derives the sender from the seed and ignores it.
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
@@ -653,11 +927,23 @@ class XRPLTestnetTransport(Transport):
         # the object-rebuild half of the defect without disturbing that seam.
         try:
             wallet = Wallet.from_seed(wallet_seed)
+            # destination_tag / source_tag: optional 32-bit routing tags
+            # (custodial crediting). xrpl-py's model rejects an out-of-range
+            # tag at construction, surfaced below as local_error — the dry-run
+            # transport mirrors that ceiling. An untagged Payment to an
+            # asfRequireDest destination fails tecDST_TAG_NEEDED on-ledger.
             payment = Payment(
                 account=wallet.address,
                 destination=destination,
                 amount=xrp_to_drops(amount_f),  # xrp_to_drops accepts Decimal
                 memos=_memo_field(memo) or None,
+                destination_tag=destination_tag,
+                source_tag=source_tag,
+                # deposit_gate_101: credential ids the sender presents to
+                # satisfy a DepositPreauth credential-based gate (XLS-70
+                # extension). xrpl-py validates the 1-8/no-duplicate rule at
+                # construction (raises below), mirrored by the dry-run transport.
+                credential_ids=credential_ids,
             )
         except Exception as exc:
             return SubmitResult(
@@ -675,15 +961,8 @@ class XRPLTestnetTransport(Transport):
                     )
 
                 result = response.result
-                meta = result.get("meta", {})
-                result_code = meta.get(
-                    "TransactionResult", result.get("engine_result", "unknown")
-                )
-                txid = result.get("hash", "")
-                fee = result.get("Fee", "0")
-                ledger_idx = _int_or_none(
-                    result.get("ledger_index") or meta.get("ledger_index")
-                )
+                (result_code, txid, fee,
+                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
 
                 success = result_code == "tesSUCCESS"
 
@@ -703,13 +982,26 @@ class XRPLTestnetTransport(Transport):
                     ledger_index=ledger_idx,
                     explorer_url=self._explorer_url(txid),
                     error=error_msg,
+                    sequence=tx_sequence,
                 )
 
             except TimeoutError:
-                last_error = (
-                    "Transaction submission timed out. The ledger may be under load. "
-                    "Try again in a minute."
-                )
+                # F-0cbd05ef: NEVER resubmit after a client timeout — the first
+                # broadcast may still be inside its LastLedgerSequence window
+                # and a resubmit autofills a FRESH Sequence, so BOTH payments
+                # could validate. Verify-then-retry is the learner's job.
+                return _timeout_no_resubmit("Payment")
+            except XRPLReliableSubmissionException as exc:
+                # F-1947a03d: xrpl-py RAISES on a validated non-tesSUCCESS
+                # ("Transaction failed: tecXXX" — fee + sequence consumed,
+                # never resubmit) and on tem prelim rejections. Map to the
+                # structured failure with the REAL result code.
+                failure = _map_reliable_submission_failure(exc)
+                if failure is not None:
+                    return failure
+                # Expired validity window — the tx can never land; a retry
+                # with a fresh autofill is safe.
+                last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:
                     logger.info(
                         "Retry %d/%d after %ds",
@@ -724,7 +1016,7 @@ class XRPLTestnetTransport(Transport):
                     break
                 if attempt < MAX_RETRIES:
                     # PT-004 (observability breadcrumb): this is a NON-TIMEOUT
-                    # failure — distinct from the benign timeout retry above. If
+                    # failure — distinct from the timeout no-resubmit above. If
                     # the first submission actually landed on-ledger before the
                     # error surfaced, the resubmit here is a possible DUPLICATE
                     # tx (the documented idempotency residual — submit_and_wait
@@ -754,7 +1046,7 @@ class XRPLTestnetTransport(Transport):
         currency: str,
         limit: str,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
@@ -778,15 +1070,8 @@ class XRPLTestnetTransport(Transport):
                     )
 
                 result = response.result
-                meta = result.get("meta", {})
-                result_code = meta.get(
-                    "TransactionResult", result.get("engine_result", "unknown")
-                )
-                txid = result.get("hash", "")
-                fee = result.get("Fee", "0")
-                ledger_idx = _int_or_none(
-                    result.get("ledger_index") or meta.get("ledger_index")
-                )
+                (result_code, txid, fee,
+                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
 
                 success = result_code == "tesSUCCESS"
                 error_msg = ""
@@ -804,12 +1089,20 @@ class XRPLTestnetTransport(Transport):
                     ledger_index=ledger_idx,
                     explorer_url=self._explorer_url(txid),
                     error=error_msg,
+                    sequence=tx_sequence,
                 )
 
             except TimeoutError:
-                last_error = (
-                    "TrustSet submission timed out. Try again in a minute."
-                )
+                # F-0cbd05ef: never resubmit after a client timeout (see
+                # _timeout_no_resubmit).
+                return _timeout_no_resubmit("TrustSet")
+            except XRPLReliableSubmissionException as exc:
+                # F-1947a03d: validated tec / prelim tem raise — map to the
+                # structured failure; never retry a validated failure.
+                failure = _map_reliable_submission_failure(exc)
+                if failure is not None:
+                    return failure
+                last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:
                     logger.info(
                         "Retry %d/%d after %ds",
@@ -844,7 +1137,7 @@ class XRPLTestnetTransport(Transport):
         amount: str,
         memo: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
@@ -870,15 +1163,8 @@ class XRPLTestnetTransport(Transport):
                     )
 
                 result = response.result
-                meta = result.get("meta", {})
-                result_code = meta.get(
-                    "TransactionResult", result.get("engine_result", "unknown")
-                )
-                txid = result.get("hash", "")
-                fee = result.get("Fee", "0")
-                ledger_idx = _int_or_none(
-                    result.get("ledger_index") or meta.get("ledger_index")
-                )
+                (result_code, txid, fee,
+                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
 
                 success = result_code == "tesSUCCESS"
                 error_msg = ""
@@ -896,12 +1182,20 @@ class XRPLTestnetTransport(Transport):
                     ledger_index=ledger_idx,
                     explorer_url=self._explorer_url(txid),
                     error=error_msg,
+                    sequence=tx_sequence,
                 )
 
             except TimeoutError:
-                last_error = (
-                    "Issued payment timed out. Try again in a minute."
-                )
+                # F-0cbd05ef: never resubmit after a client timeout (see
+                # _timeout_no_resubmit).
+                return _timeout_no_resubmit("Issued payment")
+            except XRPLReliableSubmissionException as exc:
+                # F-1947a03d: validated tec / prelim tem raise — map to the
+                # structured failure; never retry a validated failure.
+                failure = _map_reliable_submission_failure(exc)
+                if failure is not None:
+                    return failure
+                last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:
                     logger.info(
                         "Retry %d/%d after %ds",
@@ -951,7 +1245,7 @@ class XRPLTestnetTransport(Transport):
         # Testnet-only invariant: refuse to sign against mainnet/unknown BEFORE
         # Wallet.from_seed (mirrors every other signing method — see
         # tests/test_network_safety.py::_MAINNET_REFUSAL_CALLS).
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1010,7 +1304,7 @@ class XRPLTestnetTransport(Transport):
         transferable: bool = True,
         mutable: bool = False,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
@@ -1040,14 +1334,8 @@ class XRPLTestnetTransport(Transport):
 
                 result = response.result
                 meta = result.get("meta", {})
-                result_code = meta.get(
-                    "TransactionResult", result.get("engine_result", "unknown")
-                )
-                txid = result.get("hash", "")
-                fee = result.get("Fee", "0")
-                ledger_idx = _int_or_none(
-                    result.get("ledger_index") or meta.get("ledger_index")
-                )
+                (result_code, txid, fee,
+                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
 
                 success = result_code == "tesSUCCESS"
                 nft_id = ""
@@ -1072,10 +1360,20 @@ class XRPLTestnetTransport(Transport):
                     explorer_url=self._explorer_url(txid),
                     error=error_msg,
                     nft_id=nft_id,
+                    sequence=tx_sequence,
                 )
 
             except TimeoutError:
-                last_error = "NFTokenMint submission timed out. Try again in a minute."
+                # F-0cbd05ef: never resubmit after a client timeout (see
+                # _timeout_no_resubmit).
+                return _timeout_no_resubmit("NFTokenMint")
+            except XRPLReliableSubmissionException as exc:
+                # F-1947a03d: validated tec / prelim tem raise — map to the
+                # structured failure; never retry a validated failure.
+                failure = _map_reliable_submission_failure(exc)
+                if failure is not None:
+                    return failure
+                last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(RETRY_DELAY)
                     continue
@@ -1128,7 +1426,7 @@ class XRPLTestnetTransport(Transport):
         wallet_seed: str,
         nftoken_id: str,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1169,7 +1467,7 @@ class XRPLTestnetTransport(Transport):
         currency: str = "XRP",
         issuer: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1211,7 +1509,7 @@ class XRPLTestnetTransport(Transport):
         sell_offer: str = "",
         buy_offer: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1234,7 +1532,7 @@ class XRPLTestnetTransport(Transport):
         uri: str,
         owner: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1295,7 +1593,7 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``issuer_address`` is a dry-run aid (see base contract); the testnet
         # path derives the account from the seed and ignores it.
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1320,7 +1618,7 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``issuer_address`` is a dry-run aid (see base contract); the testnet
         # path derives the clawing account from the seed and ignores it.
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1360,14 +1658,8 @@ class XRPLTestnetTransport(Transport):
                     )
                 result = response.result
                 meta = result.get("meta", {})
-                result_code = meta.get(
-                    "TransactionResult", result.get("engine_result", "unknown")
-                )
-                txid = result.get("hash", "")
-                fee = result.get("Fee", "0")
-                ledger_idx = _int_or_none(
-                    result.get("ledger_index") or meta.get("ledger_index")
-                )
+                (result_code, txid, fee,
+                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
                 success = result_code == "tesSUCCESS"
                 error_msg = ""
                 extra: dict = {}
@@ -1385,10 +1677,19 @@ class XRPLTestnetTransport(Transport):
                 return SubmitResult(
                     success=success, txid=txid, result_code=result_code, fee=fee,
                     ledger_index=ledger_idx, explorer_url=self._explorer_url(txid),
-                    error=error_msg, **extra,
+                    error=error_msg, sequence=tx_sequence, **extra,
                 )
             except TimeoutError:
-                last_error = f"{label} submission timed out. Try again in a minute."
+                # F-0cbd05ef: never resubmit after a client timeout (see
+                # _timeout_no_resubmit).
+                return _timeout_no_resubmit(label)
+            except XRPLReliableSubmissionException as exc:
+                # F-1947a03d: validated tec / prelim tem raise — map to the
+                # structured failure; never retry a validated failure.
+                failure = _map_reliable_submission_failure(exc)
+                if failure is not None:
+                    return failure
+                last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(RETRY_DELAY)
                     continue
@@ -1413,7 +1714,7 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``issuer_address`` is a dry-run aid (see base contract); the testnet
         # path derives the account from the seed and ignores it.
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         flag = TrustSetFlag.TF_SET_FREEZE if freeze else TrustSetFlag.TF_CLEAR_FREEZE
@@ -1441,7 +1742,7 @@ class XRPLTestnetTransport(Transport):
         enable: bool,
         issuer_address: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1509,7 +1810,7 @@ class XRPLTestnetTransport(Transport):
         self, wallet_seed: str, amount_xrp: str, destination: str,
         settle_delay: int, public_key: str, cancel_after: int | None = None,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1535,7 +1836,7 @@ class XRPLTestnetTransport(Transport):
         self, wallet_seed: str, channel_id: str, amount_xrp: str,
         expiration: int | None = None,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1557,7 +1858,7 @@ class XRPLTestnetTransport(Transport):
         amount_xrp: str = "", signature: str = "", public_key: str = "",
         close: bool = False,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1643,7 +1944,7 @@ class XRPLTestnetTransport(Transport):
         finish_after: int,
         cancel_after: int | None = None,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1661,6 +1962,120 @@ class XRPLTestnetTransport(Transport):
             )
         return await self._submit_tx(tx, wallet, "EscrowCreate")
 
+    async def submit_require_dest(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # Custodial-pool hygiene: AccountSet asfRequireDest (ledger flag
+        # lsfRequireDestTag) makes the account reject any untagged incoming
+        # Payment with tecDST_TAG_NEEDED. ``enable=False`` clears the flag
+        # (the named compensator). ``wallet_address`` is a dry-run keying aid;
+        # the testnet path derives the account from the seed and ignores it.
+        # Signs a real tx, so the testnet-only invariant applies — guard
+        # BEFORE Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            if enable:
+                tx = AccountSet(
+                    account=wallet.address,
+                    set_flag=AccountSetAsfFlag.ASF_REQUIRE_DEST,
+                )
+            else:
+                tx = AccountSet(
+                    account=wallet.address,
+                    clear_flag=AccountSetAsfFlag.ASF_REQUIRE_DEST,
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AccountSet(require-dest)")
+
+    async def submit_deposit_auth(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # deposit_gate_101: AccountSet asfDepositAuth (ledger flag
+        # lsfDepositAuth) makes the account reject any unsolicited incoming
+        # Payment unless the sender is preauthorized (tecNO_PERMISSION).
+        # ``enable=False`` clears the flag. ``wallet_address`` is a dry-run
+        # keying aid; the testnet path derives the account from the seed and
+        # ignores it. Signs a real tx, so the testnet-only invariant applies —
+        # guard BEFORE Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            if enable:
+                tx = AccountSet(
+                    account=wallet.address,
+                    set_flag=AccountSetAsfFlag.ASF_DEPOSIT_AUTH,
+                )
+            else:
+                tx = AccountSet(
+                    account=wallet.address,
+                    clear_flag=AccountSetAsfFlag.ASF_DEPOSIT_AUTH,
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AccountSet(deposit-auth)")
+
+    async def submit_deposit_preauth(
+        self,
+        wallet_seed: str,
+        authorize: str = "",
+        unauthorize: str = "",
+        authorize_credentials: list[tuple[str, str]] | None = None,
+        unauthorize_credentials: list[tuple[str, str]] | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # deposit_gate_101: DepositPreauth whitelists a sender either by
+        # ADDRESS (authorize/unauthorize) or by CREDENTIAL
+        # (authorize_credentials/unauthorize_credentials — the XLS-70
+        # extension). xrpl-py's model validates "exactly one of the four"
+        # at construction (raises below, mirrored by the dry-run transport);
+        # temCANNOT_PREAUTH_SELF / tecDUPLICATE / tecNO_ENTRY are the
+        # network's own preclaim/claim results for the address path.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = DepositPreauth(
+                account=wallet.address,
+                authorize=authorize or None,
+                unauthorize=unauthorize or None,
+                authorize_credentials=(
+                    [
+                        DPCredential(issuer=iss, credential_type=ctype)
+                        for iss, ctype in authorize_credentials
+                    ]
+                    if authorize_credentials else None
+                ),
+                unauthorize_credentials=(
+                    [
+                        DPCredential(issuer=iss, credential_type=ctype)
+                        for iss, ctype in unauthorize_credentials
+                    ]
+                    if unauthorize_credentials else None
+                ),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "DepositPreauth")
+
     async def submit_allow_trustline_locking(
         self,
         issuer_seed: str,
@@ -1671,7 +2086,7 @@ class XRPLTestnetTransport(Transport):
         # tecNO_PERMISSION. ``issuer_address`` is a dry-run aid; the testnet path
         # derives the account from the seed and ignores it. Signs a real tx, so
         # the testnet-only invariant applies — guard BEFORE Wallet.from_seed.
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1702,7 +2117,7 @@ class XRPLTestnetTransport(Transport):
         # mandatory on-ledger; the issuer opt-in and issuer-as-source rules are
         # enforced by rippled (returning tecNO_PERMISSION). ``source_address`` is
         # a dry-run aid; the testnet path derives the source from the seed.
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1721,6 +2136,146 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
         return await self._submit_tx(tx, wallet, "EscrowCreate(token)")
+
+    # ── Multisig treasury methods (SignerListSet + multi-signed Payment) ─
+
+    async def submit_signer_list_set(
+        self,
+        owner_seed: str,
+        quorum: int,
+        entries: list[tuple[str, int]],
+        owner_address: str = "",
+    ) -> SubmitResult:
+        # SignerListSet: create/replace (quorum>0 + 1..32 entries) or delete
+        # (quorum=0 + entries omitted) the account's signer list. The action
+        # layer pre-validates the tem-class preflight rules with the network's
+        # codes; xrpl-py's model enforces the same set at construction, so the
+        # try/except below is a backstop, not the primary gate.
+        # ``owner_address`` is a dry-run keying aid; the testnet path derives
+        # the owner from the seed. Signs a real tx, so the testnet-only
+        # invariant applies — guard BEFORE Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(owner_seed)
+            if quorum == 0 and not entries:
+                # Delete: SignerQuorum=0 with SignerEntries OMITTED (the model
+                # rejects a zero quorum WITH entries as malformed).
+                tx = SignerListSet(account=wallet.address, signer_quorum=0)
+            else:
+                tx = SignerListSet(
+                    account=wallet.address,
+                    signer_quorum=quorum,
+                    signer_entries=[
+                        SignerEntry(account=acct, signer_weight=weight)
+                        for acct, weight in entries
+                    ],
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "SignerListSet")
+
+    async def submit_multisig_payment(
+        self,
+        owner_address: str,
+        destination: str,
+        amount: str,
+        signer_seeds: list[str],
+        signer_addresses: list[str] | None = None,
+        memo: str = "",
+    ) -> SubmitResult:
+        # Multi-signed Payment: the treasury account's own key NEVER signs.
+        # Flow (xrpl-py's own multisign primitives — never hand-rolled):
+        #   1. autofill(tx, client, signers_count=N) — fee = base × (1 + N),
+        #      plus Sequence/LastLedgerSequence, fixed for every co-signer.
+        #   2. sign(autofilled, signer_wallet, multisign=True) per signer —
+        #      each yields a one-entry Signers array over the SAME tx.
+        #   3. multisign(autofilled, signed_list) — merges + sorts the Signers
+        #      (the tx's own SigningPubKey stays ""), producing the final tx.
+        #   4. submit_and_wait(combined, client) — already signed, submits as-is.
+        # ``signer_addresses`` is the dry-run keying aid; here each signer's
+        # address derives from its seed. Signs real txs, so the testnet-only
+        # invariant applies — guard BEFORE any Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
+        if not signer_seeds:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED",
+                error=(
+                    "A multi-signed transaction needs a non-empty Signers "
+                    "array — zero signatures can never meet a quorum."
+                ),
+            )
+        try:
+            amount_f = Decimal(amount)
+        except (ValueError, TypeError, InvalidOperation):
+            return SubmitResult(
+                success=False,
+                result_code="local_error",
+                error=f"Invalid amount: {amount!r} — expected a numeric value like '10' or '1.5'",
+            )
+        try:
+            signer_wallets = [Wallet.from_seed(seed) for seed in signer_seeds]
+            payment = Payment(
+                account=owner_address,
+                destination=destination,
+                amount=xrp_to_drops(amount_f),
+                memos=_memo_field(memo) or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                autofilled = await asyncio.wait_for(
+                    autofill(payment, client, signers_count=len(signer_wallets)),
+                    timeout=RPC_TIMEOUT,
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        try:
+            signed = [
+                sign_transaction(autofilled, w, multisign=True)
+                for w in signer_wallets
+            ]
+            combined = multisign(autofilled, signed)
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        # The combined tx is fully signed — submit_and_wait submits it as-is
+        # (its wallet parameter is only consulted for unsigned transactions).
+        return await self._submit_tx(combined, None, "Payment(multisig)")
+
+    async def get_signer_list(self, address: str) -> SignerListInfo | None:
+        try:
+            objs = await self._account_objects(address)
+        except Exception:
+            logger.warning("get_signer_list failed for %s", address, exc_info=True)
+            return None
+        for o in objs:
+            if o.get("LedgerEntryType") != "SignerList":
+                continue
+            entries: list[tuple[str, int]] = []
+            for wrapper in o.get("SignerEntries", []) or []:
+                se = wrapper.get("SignerEntry", {}) or {}
+                acct = se.get("Account", "")
+                weight = _int_or_none(se.get("SignerWeight")) or 0
+                if acct:
+                    entries.append((acct, weight))
+            return SignerListInfo(
+                signer_quorum=_int_or_none(o.get("SignerQuorum")) or 0,
+                entries=entries,
+            )
+        return None
 
     async def _escrow_create_sequences(self, address: str) -> dict[str, int]:
         """Map ``PreviousTxnID`` → EscrowCreate sequence for *address* (TRANSPORT-A-003).
@@ -1806,7 +2361,7 @@ class XRPLTestnetTransport(Transport):
         condition: str = "",
         fulfillment: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1830,7 +2385,7 @@ class XRPLTestnetTransport(Transport):
         owner: str,
         offer_sequence: int,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1846,8 +2401,108 @@ class XRPLTestnetTransport(Transport):
             )
         return await self._submit_tx(tx, wallet, "EscrowCancel")
 
+    # ── Checks — deferred pull-payments (checks_101) ──────────────────
+
+    async def submit_check_create(
+        self,
+        wallet_seed: str,
+        destination: str,
+        send_max: str,
+        expiration: int | None = None,
+        destination_tag: int | None = None,
+        invoice_id: str = "",
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # checks_101: CheckCreate writes an authorization (Destination +
+        # SendMax ceiling) but moves and locks NOTHING — contrast
+        # submit_escrow_create, which debits the locked amount immediately.
+        # ``wallet_address`` is a dry-run keying aid; the testnet path derives
+        # the writer from the seed and ignores it. Signs a real tx, so the
+        # testnet-only invariant applies — guard BEFORE Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = CheckCreate(
+                account=wallet.address,
+                destination=destination,
+                send_max=xrp_to_drops(Decimal(send_max)),
+                expiration=expiration,
+                destination_tag=destination_tag,
+                invoice_id=invoice_id or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(
+            tx, wallet, "CheckCreate",
+            extract=lambda meta: {"check_id": _extract_check_id(meta)},
+        )
+
+    async def submit_check_cash(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        amount: str | None = None,
+        deliver_min: str | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # checks_101: exactly one of amount/deliver_min — xrpl-py's CheckCash
+        # model raises "either amount or deliver_min... not both" at
+        # construction otherwise, caught below as local_error. Only the
+        # Check's Destination may cash it (tecNO_PERMISSION), an expired Check
+        # can only be cancelled (tecEXPIRED), and the writer must still hold
+        # the funds NOW (tecUNFUNDED / tecPATH_PARTIAL) — CheckCreate
+        # succeeding never guaranteed a payout. ``wallet_address`` is a
+        # dry-run keying aid; the testnet path derives the casher from the
+        # seed and ignores it.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = CheckCash(
+                account=wallet.address,
+                check_id=check_id,
+                amount=xrp_to_drops(Decimal(amount)) if amount is not None else None,
+                deliver_min=(
+                    xrp_to_drops(Decimal(deliver_min)) if deliver_min is not None else None
+                ),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CheckCash")
+
+    async def submit_check_cancel(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # checks_101: either the writer or the Destination may cancel a LIVE
+        # Check; once expired, ANY address may. Unlike submit_escrow_cancel,
+        # this credits nobody — CheckCreate never moved or locked anything, so
+        # there is nothing to refund; only the writer's reserve slot is freed.
+        # ``wallet_address`` is a dry-run keying aid; the testnet path derives
+        # the canceller from the seed and ignores it.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = CheckCancel(account=wallet.address, check_id=check_id)
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CheckCancel")
+
     async def submit_did_set(self, wallet_seed: str, uri: str = "", data: str = "") -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1886,7 +2541,7 @@ class XRPLTestnetTransport(Transport):
         return None
 
     async def submit_did_delete(self, wallet_seed: str) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1914,7 +2569,7 @@ class XRPLTestnetTransport(Transport):
         expiration: int | None = None,
         issuer_address: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1939,7 +2594,7 @@ class XRPLTestnetTransport(Transport):
         credential_type: str,
         subject_address: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -1963,7 +2618,7 @@ class XRPLTestnetTransport(Transport):
         credential_type: str,
         wallet_address: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -2024,6 +2679,11 @@ class XRPLTestnetTransport(Transport):
                     accepted=accepted,
                     uri=_dec(o.get("URI", "")),
                     expiration=o.get("Expiration"),
+                    # deposit_gate_101: the Credential ledger object's own
+                    # index IS its CredentialID — the value a sender attaches
+                    # via Payment.credential_ids to satisfy a DepositPreauth
+                    # credential-based gate.
+                    credential_id=o.get("index", ""),
                 )
         return None
 
@@ -2043,7 +2703,7 @@ class XRPLTestnetTransport(Transport):
         domain_id: str = "",
         owner_address: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -2078,7 +2738,7 @@ class XRPLTestnetTransport(Transport):
         domain_id: str,
         owner_address: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -2106,7 +2766,7 @@ class XRPLTestnetTransport(Transport):
         hybrid: bool = False,
         wallet_address: str = "",
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -2131,25 +2791,16 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
 
-        def _extract(meta: dict) -> dict:
-            return {}
-
-        result = await self._submit_tx(
-            offer, wallet, "PermissionedOfferCreate", extract=_extract
-        )
-        # Surface the placing tx's Sequence (the value OfferCancel would consume)
-        # by reading it back — the signed model autofilled it, so re-derive from
-        # the account's resting offers on success. Best-effort; a failure leaves
-        # offer_sequence None.
+        result = await self._submit_tx(offer, wallet, "PermissionedOfferCreate")
+        # F-88f82c27: the placing tx's Sequence (the value OfferCancel consumes)
+        # comes straight from the validated submit response (API v2:
+        # tx_json.Sequence — _submit_tx parses it onto SubmitResult.sequence).
+        # The old ``get_account_offers()[-1]`` read-back was WRONG whenever the
+        # offer crossed fully (returns some OTHER resting offer's sequence — a
+        # later OfferCancel with it cancels the wrong offer) or multiple offers
+        # rest (ledger-directory order is not creation order).
         if result.success and result.offer_sequence is None:
-            try:
-                offers = await self.get_account_offers(wallet.address)
-                if offers:
-                    result.offer_sequence = offers[-1].sequence
-            except Exception:
-                logger.warning(
-                    "permissioned offer sequence read-back failed", exc_info=True
-                )
+            result.offer_sequence = result.sequence
         return result
 
     async def get_permissioned_domains(
@@ -2190,7 +2841,7 @@ class XRPLTestnetTransport(Transport):
         transfer_fee: int = 0,
         can_transfer: bool = True,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -2217,7 +2868,7 @@ class XRPLTestnetTransport(Transport):
         issuance_id: str,
         unauthorize: bool = False,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -2240,7 +2891,7 @@ class XRPLTestnetTransport(Transport):
         issuance_id: str,
         amount: str,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
         try:
@@ -2325,7 +2976,7 @@ class XRPLTestnetTransport(Transport):
         taker_gets_value: str,
         taker_gets_issuer: str,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
@@ -2359,15 +3010,8 @@ class XRPLTestnetTransport(Transport):
                     )
 
                 result = response.result
-                meta = result.get("meta", {})
-                result_code = meta.get(
-                    "TransactionResult", result.get("engine_result", "unknown")
-                )
-                txid = result.get("hash", "")
-                fee = result.get("Fee", "0")
-                ledger_idx = _int_or_none(
-                    result.get("ledger_index") or meta.get("ledger_index")
-                )
+                (result_code, txid, fee,
+                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
 
                 success = result_code == "tesSUCCESS"
                 error_msg = ""
@@ -2385,12 +3029,20 @@ class XRPLTestnetTransport(Transport):
                     ledger_index=ledger_idx,
                     explorer_url=self._explorer_url(txid),
                     error=error_msg,
+                    sequence=tx_sequence,
                 )
 
             except TimeoutError:
-                last_error = (
-                    "OfferCreate timed out. Try again in a minute."
-                )
+                # F-0cbd05ef: never resubmit after a client timeout (see
+                # _timeout_no_resubmit).
+                return _timeout_no_resubmit("OfferCreate")
+            except XRPLReliableSubmissionException as exc:
+                # F-1947a03d: validated tec / prelim tem raise — map to the
+                # structured failure; never retry a validated failure.
+                failure = _map_reliable_submission_failure(exc)
+                if failure is not None:
+                    return failure
+                last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:
                     logger.info(
                         "Retry %d/%d after %ds",
@@ -2430,7 +3082,7 @@ class XRPLTestnetTransport(Transport):
         wallet_seed: str,
         offer_sequence: int,
     ) -> SubmitResult:
-        guard = self._network_guard()
+        guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
@@ -2459,15 +3111,8 @@ class XRPLTestnetTransport(Transport):
                     )
 
                 result = response.result
-                meta = result.get("meta", {})
-                result_code = meta.get(
-                    "TransactionResult", result.get("engine_result", "unknown")
-                )
-                txid = result.get("hash", "")
-                fee = result.get("Fee", "0")
-                ledger_idx = _int_or_none(
-                    result.get("ledger_index") or meta.get("ledger_index")
-                )
+                (result_code, txid, fee,
+                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
 
                 success = result_code == "tesSUCCESS"
                 error_msg = ""
@@ -2485,12 +3130,20 @@ class XRPLTestnetTransport(Transport):
                     ledger_index=ledger_idx,
                     explorer_url=self._explorer_url(txid),
                     error=error_msg,
+                    sequence=tx_sequence,
                 )
 
             except TimeoutError:
-                last_error = (
-                    "OfferCancel timed out. Try again in a minute."
-                )
+                # F-0cbd05ef: never resubmit after a client timeout (see
+                # _timeout_no_resubmit).
+                return _timeout_no_resubmit("OfferCancel")
+            except XRPLReliableSubmissionException as exc:
+                # F-1947a03d: validated tec / prelim tem raise — map to the
+                # structured failure; never retry a validated failure.
+                failure = _map_reliable_submission_failure(exc)
+                if failure is not None:
+                    return failure
+                last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:
                     logger.info(
                         "Retry %d/%d after %ds",
@@ -2585,7 +3238,15 @@ class XRPLTestnetTransport(Transport):
 
             result = response.result
             meta = result.get("meta", {})
-            memos_raw = result.get("Memos", [])
+            # F-5e672008: xrpl-py 4.x speaks API v2 — the tx's own fields nest
+            # under ``tx_json`` (v1 had them top-level) and a Payment's Amount
+            # is renamed DeliverMax. The old top-level reads yielded empty
+            # account/type/destination and zero amount/fee on EVERY live
+            # read-back, which made the honest-pack live verifier brand the
+            # learner's own txid as a borrowed/forged receipt. ``_tx_body``
+            # falls back to the top level so v1 fixtures keep parsing.
+            tx = _tx_body(result)
+            memos_raw = tx.get("Memos", [])
 
             # FC-003: delivered_amount is a METADATA field (meta.delivered_amount)
             # on a validated tx — the ACTUAL amount delivered, distinct from the
@@ -2604,11 +3265,11 @@ class XRPLTestnetTransport(Transport):
 
             return TxInfo(
                 txid=txid,
-                tx_type=result.get("TransactionType", ""),
-                account=result.get("Account", ""),
-                destination=result.get("Destination", ""),
-                amount=self._format_amount(result.get("Amount", "0")),
-                fee=result.get("Fee", "0"),
+                tx_type=tx.get("TransactionType", ""),
+                account=tx.get("Account", ""),
+                destination=tx.get("Destination", ""),
+                amount=self._format_amount(_tx_amount_raw(tx)),
+                fee=tx.get("Fee", "0"),
                 result_code=meta.get("TransactionResult", ""),
                 # TR-005: match the submit paths' fallback chain. A validated tx
                 # response may carry ledger_index only under inLedger or in meta;
@@ -2623,6 +3284,12 @@ class XRPLTestnetTransport(Transport):
                 validated=result.get("validated", False),
                 raw=result,
                 delivered_amount=delivered_str,
+                # Custodial crediting: the 32-bit routing tags, read from the
+                # tx body (API v2 nests them under tx_json like every other tx
+                # field). None when absent — the credit path treats an absent
+                # DestinationTag as unattributable.
+                destination_tag=_int_or_none(tx.get("DestinationTag")),
+                source_tag=_int_or_none(tx.get("SourceTag")),
             )
         except TimeoutError:
             # TXBCD-002: a READ-BACK failure is NOT a tx failure. Populate the

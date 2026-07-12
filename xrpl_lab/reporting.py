@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import json
+import os
 import tarfile
 import time
 import zipfile
@@ -13,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 from . import __version__
 from .state import (
@@ -46,6 +49,60 @@ def _explorer_url(txid: str, network: str) -> str:
     if not base or not txid:
         return ""
     return f"{base}/{txid}"
+
+
+def sanitize_endpoint(url: str) -> str:
+    """Reduce an RPC URL to ``scheme://host[:port]`` for sealing into artifacts.
+
+    RA-002 (F-60b2df48): RPC URLs routinely embed credentials — basic-auth
+    userinfo (``https://user:pass@host``), QuickNode-style path tokens
+    (``https://x.quiknode.pro/<token>/``), and query API keys (``?api_key=``).
+    Artifacts are workshop-shareable AND hash-sealed, so a credential embedded
+    at generation time is effectively permanent (redacting later breaks the
+    integrity hash). This sanitizer runs BEFORE the value enters any hashed
+    pack: userinfo, path, and query are all dropped; only scheme + host + port
+    survive. Non-URL provenance labels the transports emit ("none" for
+    dry-run, "dry-run" for strategy metadata) parse to a bare host and pass
+    through unchanged. Anything unparseable is dropped ("") — fail closed,
+    never echo a string we could not strip.
+    """
+    if not url:
+        return ""
+    try:
+        # A schemeless label ("none", "dry-run") would otherwise parse as a
+        # path; force it into the netloc slot so hostname extraction works.
+        parts = urlsplit(url if "://" in url else f"//{url}")
+        host = parts.hostname or ""
+        port = parts.port
+    except ValueError:
+        return ""
+    if not host:
+        return ""
+    netloc = f"{host}:{port}" if port is not None else host
+    return f"{parts.scheme}://{netloc}" if parts.scheme else netloc
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` atomically (local ``<path>.tmp`` + replace).
+
+    F-55604e7e: proof packs and certificates use FIXED filenames, so a plain
+    ``write_text`` truncate-overwrites the previous GOOD artifact before the
+    new content lands — a crash mid-write destroys the learner's only existing
+    proof. Writing to a sibling temp file and ``os.replace``-ing (atomic on
+    POSIX and Windows for same-volume renames) means the destination always
+    holds either the complete old artifact or the complete new one. Kept local
+    to the artifact writers on purpose — the state-tier helper in ``_atomic``
+    is a different ownership domain.
+    """
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        # On any failure between write and replace, never leave a stray tmp.
+        if tmp.exists():
+            with contextlib.suppress(OSError):
+                tmp.unlink()
 
 
 # The id of the culminating capstone module (curriculum.py 'capstone' track).
@@ -172,11 +229,23 @@ def generate_proof_pack(state: LabState) -> dict:
     # pack's own integrity hash.
     all_verified = all(cm.verified for cm in state.completed_modules)
 
+    summary_net = _summary_network(state)
+
+    # RA-002 (F-60b2df48): the endpoint is sealed INSIDE the hash, so it is
+    # sanitized (scheme://host[:port] only — no userinfo/path/query) BEFORE the
+    # pack is hashed; a credentialed XRPL_LAB_RPC_URL never enters the artifact.
+    # F-314bdd5a: a fully dry-run pack seals endpoint="none" (matching the
+    # dry-run transport's own provenance) — it implied testnet contact that
+    # never happened. For any other summary network the endpoint reflects
+    # GENERATION-TIME configuration, not per-tx provenance (a pack spanning
+    # runs under different XRPL_LAB_RPC_URL values records the current one).
+    endpoint = "none" if summary_net == "dry-run" else sanitize_endpoint(get_rpc_url())
+
     pack = {
         "xrpl_lab_proof_pack": True,
         "version": __version__,
-        "network": _summary_network(state),
-        "endpoint": get_rpc_url(),
+        "network": summary_net,
+        "endpoint": endpoint,
         "address": state.wallet_address or "unknown",
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "completed_modules": modules,
@@ -243,7 +312,9 @@ def write_proof_pack(state: LabState, output_dir: Path | None = None) -> Path:
     _ensure_dir_mode(out, WORKSPACE_DIR_MODE)
     path = out / "xrpl_lab_proof_pack.json"
     pack = generate_proof_pack(state)
-    path.write_text(json.dumps(pack, indent=2), encoding="utf-8")
+    # F-55604e7e: fixed filename — atomic replace so regeneration can never
+    # truncate the learner's previous good pack and crash before rewriting it.
+    _atomic_write_text(path, json.dumps(pack, indent=2))
     return path
 
 
@@ -254,7 +325,8 @@ def write_certificate(state: LabState, output_dir: Path | None = None) -> Path:
     _ensure_dir_mode(out, WORKSPACE_DIR_MODE)
     path = out / "xrpl_lab_certificate.json"
     cert = generate_certificate(state)
-    path.write_text(json.dumps(cert, indent=2), encoding="utf-8")
+    # F-55604e7e: fixed filename — atomic replace (see write_proof_pack).
+    _atomic_write_text(path, json.dumps(cert, indent=2))
     return path
 
 
@@ -289,13 +361,47 @@ def write_module_report(
         lines.append(body)
         lines.append("")
 
-    path.write_text("\n".join(lines), encoding="utf-8")
+    # F-55604e7e: atomic replace — a crash mid-write must not leave a
+    # truncated report where a complete one previously existed.
+    _atomic_write_text(path, "\n".join(lines))
     return path
 
 
 # ---------------------------------------------------------------------------
 # Verification — close the trust loop
 # ---------------------------------------------------------------------------
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict:
+    """``object_pairs_hook`` that refuses JSON objects with duplicated keys."""
+    out: dict = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(
+                f"duplicate key {key!r} — file is not a generator-produced artifact"
+            )
+        out[key] = value
+    return out
+
+
+def load_artifact_json(text: str) -> dict:
+    """Parse artifact JSON text for verification, rejecting duplicate keys.
+
+    F-f7520b7f: ``json.loads`` keeps the LAST occurrence of a duplicated key,
+    while several first-key-wins consumers (JSON viewers, other parsers, a
+    human reading the raw file) display the FIRST. A crafted pack carrying a
+    forged value first and the original last would hash-verify (Python hashes
+    the original values) while displaying the forgery elsewhere. Verify paths
+    should parse artifact files through this loader so a duplicated key fails
+    verification outright instead of enabling that presentation differential.
+
+    Raises ``ValueError`` (``json.JSONDecodeError`` is a subclass) on invalid
+    JSON, duplicate keys, or a non-object top level.
+    """
+    data = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
+    if not isinstance(data, dict):
+        raise ValueError("artifact JSON must be a single top-level object")
+    return data
 
 
 def verify_proof_pack(pack: dict) -> tuple[bool, str]:
@@ -514,8 +620,6 @@ def _default_transport_factory(network: str) -> Transport:
     endpoint is used so an override aimed at one network never silently
     misroutes another network's txid.
     """
-    import os
-
     from .transport.xrpl_testnet import (
         XRPLTestnetTransport,
         classify_network,
@@ -534,6 +638,20 @@ def _default_transport_factory(network: str) -> Transport:
     # Pin the transport to THIS tx's network rather than the process-wide
     # env default — a pack can span testnet + devnet and each receipt must
     # resolve against its own ledger.
+    #
+    # F-65f845fa: this pokes a private attribute, and a bare assignment would
+    # SUCCEED silently even if the transport renamed it (creating a dead attr
+    # and reverting fetches to the env/default URL — the exact wrong-network
+    # bug this factory exists to prevent). Guard: the attribute must already
+    # exist on the constructed transport, so a rename fails LOUDLY here (and
+    # in the factory's unit test) instead of misrouting devnet txids. The
+    # durable fix — a public rpc_url constructor parameter — lives in the
+    # transport's own module.
+    if not hasattr(transport, "_rpc_url"):
+        raise AttributeError(
+            "XRPLTestnetTransport no longer exposes _rpc_url — update "
+            "_default_transport_factory to the transport's new URL surface."
+        )
     transport._rpc_url = rpc_url
     return transport
 
@@ -548,6 +666,32 @@ def _is_simulated_txid(txid: str) -> bool:
     txid, which can never be fetched.
     """
     return not txid
+
+
+def _ambiguous_network_failure(txid: str) -> TxLiveResult:
+    """FAIL-CLOSED verdict for a txid whose network label is ``"mixed"``.
+
+    F-0183341d: ``"mixed"`` is a legitimate TOP-LEVEL summary label, but as a
+    PER-TX label (which only the legacy completed_modules fallback produces —
+    modern packs record each tx's own network) it means "unknown network for
+    this claim". Folding it into the honest dry-run SKIP made a legacy pack
+    with network='mixed' and fabricated txids come back ``live_passed=true``
+    with a 'Dry-run pack' note — a green verdict for claims that were never
+    fetched from any ledger. An unresolvable claim is a FAILURE to anchor, not
+    an honest absence of anchors.
+    """
+    return TxLiveResult(
+        txid=txid,
+        network="mixed",
+        status=LIVE_FAIL,
+        reason=(
+            "Cannot anchor: this txid's network label is 'mixed' (ambiguous — "
+            "a legacy pack without per-tx networks). The claim cannot be "
+            "resolved against a specific ledger, so it fails closed. "
+            "Regenerate the pack with a current xrpl-lab so each transaction "
+            "records its own network."
+        ),
+    )
 
 
 async def _verify_one_tx_live(
@@ -770,6 +914,11 @@ async def verify_proof_pack_live(
     for claim in claims:
         txid = claim["txid"]
         network = claim["network"]
+        # F-0183341d: a per-tx 'mixed' label is unresolvable — fail closed
+        # rather than skipping it into a green "nothing to verify" verdict.
+        if network == "mixed":
+            result.tx_results.append(_ambiguous_network_failure(txid))
+            continue
         # dry-run / local / simulated txids have no public on-ledger anchor.
         if network not in _LIVE_VERIFIABLE_NETWORKS or _is_simulated_txid(txid):
             result.tx_results.append(TxLiveResult(
@@ -792,11 +941,30 @@ async def verify_proof_pack_live(
         ))
 
     if not real_seen:
-        result.no_onledger_txids = True
-        result.note = (
-            "Dry-run pack — no on-ledger txids to verify. The offline "
-            "integrity (SHA-256) check is the only applicable proof here."
-        )
+        if result.failed_count:
+            # F-0183341d: ambiguous-network claims failed closed above — this
+            # is NOT a dry-run pack, and the note must not diagnose it as one.
+            result.note = (
+                "Cannot anchor this pack: its txids carry ambiguous network "
+                "labels ('mixed'), so nothing was verified — fail closed."
+            )
+        else:
+            skipped_nets = sorted(
+                {r.network for r in result.tx_results if r.status == LIVE_SKIPPED}
+            )
+            result.no_onledger_txids = True
+            # Only diagnose "dry-run" when the labels actually say so.
+            if set(skipped_nets) <= {"dry-run", "local"}:
+                result.note = (
+                    "Dry-run pack — no on-ledger txids to verify. The offline "
+                    "integrity (SHA-256) check is the only applicable proof here."
+                )
+            else:
+                result.note = (
+                    f"No live-verifiable txids — network label(s) "
+                    f"{', '.join(repr(n) for n in skipped_nets)} have no public "
+                    "on-ledger anchor this tool can check."
+                )
     elif result.skipped_count:
         result.note = (
             f"Mixed pack — verified {len(result.real_tx_results)} real-network "
@@ -840,6 +1008,10 @@ async def verify_certificate_live(
     for claim in claims:
         txid = claim["txid"]
         network = claim["network"]
+        # F-0183341d: fail closed on ambiguous per-tx labels (see proof pack).
+        if network == "mixed":
+            result.tx_results.append(_ambiguous_network_failure(txid))
+            continue
         if network not in _LIVE_VERIFIABLE_NETWORKS or _is_simulated_txid(txid):
             result.tx_results.append(TxLiveResult(
                 txid=txid,
@@ -861,8 +1033,14 @@ async def verify_certificate_live(
         ))
 
     if not real_seen:
-        result.no_onledger_txids = True
-        result.note = "Dry-run certificate — no on-ledger txids to verify."
+        if result.failed_count:
+            result.note = (
+                "Cannot anchor this certificate: its txids carry ambiguous "
+                "network labels ('mixed'), so nothing was verified — fail closed."
+            )
+        else:
+            result.no_onledger_txids = True
+            result.note = "Dry-run certificate — no on-ledger txids to verify."
     return result
 
 
@@ -905,6 +1083,10 @@ SESSION_EXPORT_INCLUDE_DIRS = ("proofs", "reports", "audit_packs", "certificates
 # Files we MUST never archive — these are private to the learner's machine.
 # wallet.json holds the seed; state.json + doctor.log hold incremental
 # learner-private progress + diagnostic data outside the threat-model line.
+# RA-003 (F-a39c228a): matched as case-insensitive NAME PREFIXES, not exact
+# names — wallet.json.bak / state.json.tmp / state.json.corrupted.<ts> /
+# doctor.log.1 variants that editors, crashes, and rotation produce are just
+# as secret as the originals and must not ride into a cohort archive.
 SESSION_EXPORT_EXCLUDE_FILES = ("wallet.json", "state.json", "doctor.log")
 
 
@@ -926,20 +1108,51 @@ def _collect_learner_artifacts(learner_dir: Path) -> list[tuple[Path, str]]:
     what we filtered. The exclusion is defensive: state.json/wallet.json
     live in ~/.xrpl-lab not <workspace>/.xrpl-lab in the canonical
     layout, but workshop dirs sometimes carry both.
+
+    RA-003 (F-a39c228a) — symlink exfiltration defense. The DD-1 threat model
+    is a facilitator archiving LEARNER-SUBMITTED workspaces: a planted
+    ``proofs/innocent.json -> ~/.xrpl-lab/wallet.json`` symlink (links survive
+    tar and unix zip extraction) would previously be read THROUGH at export
+    time — packing the FACILITATOR's wallet seed into the cohort-distributed
+    archive, with the exclusion list blind to it because it matched the LINK's
+    name, never the target's. Three gates, all at collection time (the single
+    source both the MANIFEST hasher and both archive writers iterate):
+
+    1. symlinks are never collected (``is_symlink`` before ``is_file``);
+    2. exclusions match case-insensitive name PREFIXES (wallet.json*, ...);
+    3. realpath containment — the resolved path must remain inside the
+       learner's own workspace, so a file reached through a symlinked
+       directory (or any other traversal) is dropped even when gate 1
+       cannot see a link on the final component.
     """
     learner_id = learner_dir.name
     workspace = learner_dir / ".xrpl-lab"
     if not workspace.is_dir():
         return []
+    workspace_root = workspace.resolve()
     items: list[tuple[Path, str]] = []
     for subdir_name in SESSION_EXPORT_INCLUDE_DIRS:
         subdir = workspace / subdir_name
         if not subdir.is_dir():
             continue
         for file_path in sorted(subdir.rglob("*")):
+            # Gate 1: never read through a symlink, whatever it points at.
+            if file_path.is_symlink():
+                continue
             if not file_path.is_file():
                 continue
-            if file_path.name in SESSION_EXPORT_EXCLUDE_FILES:
+            # Gate 2: secret-file names are excluded by PREFIX, so backup /
+            # temp / rotated variants (wallet.json.bak, state.json.tmp,
+            # doctor.log.1) are excluded with the originals.
+            if file_path.name.lower().startswith(SESSION_EXPORT_EXCLUDE_FILES):
+                continue
+            # Gate 3: realpath containment — the file's resolved location
+            # must stay inside THIS learner's workspace.
+            try:
+                resolved = file_path.resolve(strict=True)
+            except OSError:
+                continue
+            if not resolved.is_relative_to(workspace_root):
                 continue
             rel = file_path.relative_to(workspace)
             archive_rel = f"{learner_id}/{rel.as_posix()}"
@@ -974,6 +1187,12 @@ def build_session_manifest(
     files: list[dict] = []
     for _learner_id, artifacts in learner_artifacts.items():
         for src, archive_rel in artifacts:
+            # RA-003: never hash/stat through a symlink — collection already
+            # filters them, but the manifest is also callable directly, and a
+            # secret target's hash + size in a shared MANIFEST is a metadata
+            # leak (plus a manifest/archive divergence) in its own right.
+            if src.is_symlink():
+                continue
             files.append({
                 "path": archive_rel,
                 "sha256": _sha256_file(src),
@@ -1045,32 +1264,54 @@ def write_session_export(
 
     outfile.parent.mkdir(parents=True, exist_ok=True)
 
+    # F-55604e7e: build the archive at a sibling temp path and atomically
+    # replace, so an interrupted export never leaves a truncated (or
+    # partially-written) archive at the destination name.
+    tmp_outfile = outfile.with_name(outfile.name + ".tmp")
+
     total_bytes = 0
     total_files = 0
-    if archive_format == "tar.gz":
-        with tarfile.open(outfile, "w:gz") as tar:
-            mtime = time.time()
-            mi = tarfile.TarInfo(name="MANIFEST.json")
-            mi.size = len(manifest_bytes)
-            mi.mtime = mtime
-            tar.addfile(mi, io.BytesIO(manifest_bytes))
-            total_files += 1
-            total_bytes += len(manifest_bytes)
-            for _learner_id, artifacts in learner_artifacts.items():
-                for src, archive_rel in artifacts:
-                    tar.add(src, arcname=archive_rel)
-                    total_files += 1
-                    total_bytes += src.stat().st_size
-    else:  # zip
-        with zipfile.ZipFile(outfile, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("MANIFEST.json", manifest_bytes)
-            total_files += 1
-            total_bytes += len(manifest_bytes)
-            for _learner_id, artifacts in learner_artifacts.items():
-                for src, archive_rel in artifacts:
-                    zf.write(src, arcname=archive_rel)
-                    total_files += 1
-                    total_bytes += src.stat().st_size
+    try:
+        if archive_format == "tar.gz":
+            with tarfile.open(tmp_outfile, "w:gz") as tar:
+                mtime = time.time()
+                mi = tarfile.TarInfo(name="MANIFEST.json")
+                mi.size = len(manifest_bytes)
+                mi.mtime = mtime
+                tar.addfile(mi, io.BytesIO(manifest_bytes))
+                total_files += 1
+                total_bytes += len(manifest_bytes)
+                for _learner_id, artifacts in learner_artifacts.items():
+                    for src, archive_rel in artifacts:
+                        # RA-003: second gate at write time — never add (or,
+                        # in zip's case, read through) a symlink, even if a
+                        # caller hands an unvetted artifact list.
+                        if src.is_symlink():
+                            continue
+                        tar.add(src, arcname=archive_rel)
+                        total_files += 1
+                        total_bytes += src.stat().st_size
+        else:  # zip
+            with zipfile.ZipFile(
+                tmp_outfile, "w", compression=zipfile.ZIP_DEFLATED
+            ) as zf:
+                zf.writestr("MANIFEST.json", manifest_bytes)
+                total_files += 1
+                total_bytes += len(manifest_bytes)
+                for _learner_id, artifacts in learner_artifacts.items():
+                    for src, archive_rel in artifacts:
+                        # RA-003: zf.write reads THROUGH a symlink and embeds
+                        # the target's content — the exact seed-exfil path.
+                        if src.is_symlink():
+                            continue
+                        zf.write(src, arcname=archive_rel)
+                        total_files += 1
+                        total_bytes += src.stat().st_size
+        os.replace(tmp_outfile, outfile)
+    finally:
+        if tmp_outfile.exists():
+            with contextlib.suppress(OSError):
+                tmp_outfile.unlink()
 
     return {
         "learners": len(learner_artifacts),

@@ -241,6 +241,11 @@ class TestNFTRoyaltyMath:
         """Reseller (≠ issuer) pays the 5% fee; issuer nets exactly that."""
         # Mint, first-sell to BUYER so BUYER holds it and is NOT the issuer.
         transport._balances[BUYER] = 1_000_000_000
+        # F-233393c2: NFT settlement now requires the price payer to FUND the
+        # price (tecINSUFFICIENT_FUNDS otherwise, matching the network). The
+        # issuer buys the NFT back for 200 XRP below, so fund it — previously
+        # the sim let the issuer "pay" from a 100 XRP balance.
+        transport._balances[ISSUER] = 1_000_000_000
         mint = await mint_nft(
             transport, ISSUER_SEED, "ipfs://i.json", transfer_fee=5000, transferable=True
         )
@@ -436,12 +441,18 @@ class TestTransportParity:
     @pytest.mark.parametrize("method", _NEW_SIGNING_METHODS)
     def test_testnet_methods_network_guard_before_wallet(self, method):
         src = inspect.getsource(getattr(XRPLTestnetTransport, method))
-        guard_pos = src.find("_network_guard")
+        # F-4cf20cef: the write guard is now the async _guard_write() wrapper
+        # (sync _network_guard host check + local chain-identity probe).
+        # Either spelling satisfies the guard-before-wallet invariant; the
+        # end-to-end refusal stays pinned by test_network_safety.py.
+        guard_pos = src.find("_guard_write")
+        if guard_pos == -1:
+            guard_pos = src.find("_network_guard")
         wallet_pos = src.find("Wallet.from_seed")
-        assert guard_pos != -1, f"{method} must call _network_guard()"
+        assert guard_pos != -1, f"{method} must call the write guard"
         assert wallet_pos != -1, f"{method} must build a wallet"
         assert guard_pos < wallet_pos, (
-            f"{method}: _network_guard() must run BEFORE Wallet.from_seed"
+            f"{method}: the write guard must run BEFORE Wallet.from_seed"
         )
 
     def test_clawback_amount_issuer_carries_holder_on_testnet(self):

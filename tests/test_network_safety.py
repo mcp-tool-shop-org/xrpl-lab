@@ -207,6 +207,29 @@ _MAINNET_REFUSAL_CALLS = {
             "sEdSEED", "GLD", "rISSUER", "50", "rDEST", 999999999
         )
     ),
+    # ── Custodial crediting (destination tags) signing method ──
+    # AccountSet asfRequireDest (pooled-treasury opt-in: reject untagged
+    # deposits with tecDST_TAG_NEEDED) signs a real tx, so the testnet-only
+    # invariant applies — MUST call _network_guard() before Wallet.from_seed.
+    # (The tagged Payment itself rides on submit_payment, already covered.)
+    "submit_require_dest": (
+        lambda t: t.submit_require_dest("sEdSEED")
+    ),
+    # ── Multisig treasury signing methods (SignerListSet + multisig Payment) ──
+    # SignerListSet signs with the owner's key; the multi-signed Payment signs
+    # with EVERY co-signer's key (sign(multisign=True) per seed), so both move
+    # real authority/value and the testnet-only invariant applies — each MUST
+    # call the write guard BEFORE any Wallet.from_seed.
+    "submit_signer_list_set": (
+        lambda t: t.submit_signer_list_set(
+            "sEdSEED", 2, [("rSIGNER1", 1), ("rSIGNER2", 1)]
+        )
+    ),
+    "submit_multisig_payment": (
+        lambda t: t.submit_multisig_payment(
+            "rTREASURY", "rDEST", "10", ["sEdSEED1", "sEdSEED2"]
+        )
+    ),
     # ── FC-002 Credentials (XLS-70) signing methods ──
     # CredentialCreate/Accept/Delete each sign a real tx (issuer attests, subject
     # accepts moving the reserve, either party deletes to revoke), so the
@@ -240,6 +263,30 @@ _MAINNET_REFUSAL_CALLS = {
         lambda t: t.submit_permissioned_offer_create(
             "sEdSEED", "LAB", "50", "rISSUER", "XRP", "10", "", "A" * 64
         )
+    ),
+    # ── deposit_gate_101: DepositAuth + DepositPreauth (XLS-70 extension) ──
+    # AccountSet asfDepositAuth and DepositPreauth (address or credential)
+    # each sign a real tx (the treasury locks down inbound value / clears a
+    # sender), so the testnet-only invariant applies — each MUST call
+    # _network_guard() before Wallet.from_seed like every other signing method.
+    "submit_deposit_auth": (
+        lambda t: t.submit_deposit_auth("sEdSEED")
+    ),
+    "submit_deposit_preauth": (
+        lambda t: t.submit_deposit_preauth("sEdSEED", authorize="rDEST")
+    ),
+    # ── checks_101: deferred pull-payments (CheckCreate/Cash/Cancel) ──
+    # Each signs a real tx (writing an authorization, redeeming it, or voiding
+    # it), so the testnet-only invariant applies — every one MUST call
+    # _network_guard() before Wallet.from_seed like every other signing method.
+    "submit_check_create": (
+        lambda t: t.submit_check_create("sEdSEED", "rDEST", "10")
+    ),
+    "submit_check_cash": (
+        lambda t: t.submit_check_cash("sEdSEED", "A" * 64, amount="10")
+    ),
+    "submit_check_cancel": (
+        lambda t: t.submit_check_cancel("sEdSEED", "A" * 64)
     ),
 }
 

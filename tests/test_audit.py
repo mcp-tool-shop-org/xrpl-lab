@@ -17,6 +17,7 @@ from xrpl_lab.audit import (
     parse_txids_file,
     parse_txids_list,
     run_audit,
+    verify_audit_pack,
     write_audit_pack,
     write_audit_report_csv,
     write_audit_report_md,
@@ -307,11 +308,35 @@ class TestAuditVerdict:
 class TestRunAudit:
     @pytest.mark.asyncio
     async def test_basic_audit(self):
+        """CORRECTED (F-64106db7): audit txids the session actually PRODUCED.
+
+        The old test audited fabricated txids ("TX1"/"TX2") and relied on the
+        dry-run transport inventing a validated tesSUCCESS for ANY unknown
+        txid — exactly the behavior that made the 'verify before trusting'
+        lesson unrepresentable offline. Unknown txids now audit as not_found;
+        real session txids still pass.
+        """
         transport = DryRunTransport()
-        report = await run_audit(transport, ["TX1", "TX2"])
+        from xrpl_lab.transport.dry_run import _DRY_RUN_WALLET_ADDRESS
+
+        await transport.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
+        r1 = await transport.submit_payment("sSENDER", "rDEST", "1")
+        r2 = await transport.submit_payment("sSENDER", "rDEST", "2")
+        report = await run_audit(transport, [r1.txid, r2.txid])
         assert report.total == 2
-        assert report.passed == 2  # dry-run default txs pass
+        assert report.passed == 2  # the session's own txs pass
         assert report.failed == 0
+
+    @pytest.mark.asyncio
+    async def test_unknown_txid_audits_as_not_found(self):
+        """F-64106db7: a fake/mistyped txid must FAIL the audit offline, the
+        way txnNotFound fails it on the live ledger."""
+        transport = DryRunTransport()
+        report = await run_audit(transport, ["TX1"])
+        assert report.total == 1
+        assert report.passed == 0
+        assert report.not_found == 1
+        assert report.verdicts[0].status == "not_found"
 
     @pytest.mark.asyncio
     async def test_audit_with_fixtures(self):
@@ -359,13 +384,17 @@ class TestRunAudit:
 class TestReportGeneration:
     @pytest.mark.asyncio
     async def test_md_report(self, tmp_path):
+        # CORRECTED (F-64106db7): audit a txid the session produced — unknown
+        # txids no longer fabricate a PASS.
         transport = DryRunTransport()
-        report = await run_audit(transport, ["TX1"])
+        sent = await transport.submit_payment("sSENDER", "rDEST", "1")
+        report = await run_audit(transport, [sent.txid])
         path = tmp_path / "report.md"
         write_audit_report_md(report, path)
         content = path.read_text(encoding="utf-8")
         assert "Audit Report" in content
-        assert "TX1" in content
+        # The MD table truncates long txids — match the visible prefix.
+        assert sent.txid[:16] in content
         assert "PASS" in content
 
     @pytest.mark.asyncio
@@ -380,8 +409,10 @@ class TestReportGeneration:
 
     @pytest.mark.asyncio
     async def test_audit_pack(self, tmp_path):
+        # CORRECTED (F-64106db7): audit a txid the session produced.
         transport = DryRunTransport()
-        report = await run_audit(transport, ["TX1"])
+        sent = await transport.submit_payment("sSENDER", "rDEST", "1")
+        report = await run_audit(transport, [sent.txid])
         path = tmp_path / "pack.json"
         write_audit_pack(report, path)
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -428,25 +459,18 @@ class TestReportGeneration:
 
 class TestAuditPackTamperDetection:
     """``write_audit_pack`` embeds an ``integrity_sha256`` and documents a
-    5-step verification procedure in its docstring (audit.py ~L377-382), but
-    until now no test proved the procedure actually DETECTS tampering — unlike
-    the proof pack / certificate, which have tamper tests (test_cli.py:
-    ``test_proof_verify_tampered`` / ``test_cert_verify_tampered``).
+    5-step verification procedure in its docstring. These tests exercise the
+    REAL verifier — ``verify_audit_pack`` (added for F-0fb57446, closing the
+    trust loop that proof packs / certificates already had) — and prove BOTH
+    halves:
+      * a clean pack verifies (valid=True), and
+      * a pack with a mutated hashed field FAILS (valid=False, hash mismatch).
 
-    There is no ``verify_audit_pack`` function in source, so these tests
-    replicate the DOCUMENTED procedure verbatim and prove BOTH halves:
-      * a clean pack verifies (recomputed hash == stored hash), and
-      * a pack with a mutated hashed field FAILS (recomputed != stored).
-
-    The recompute mirrors the producer exactly (``json.dumps(pack,
-    sort_keys=True, indent=2)`` over the pack with ``integrity_sha256``
-    blanked, then sha256) so the test is a faithful external verifier, not
-    a re-derivation of the producer's private logic.
-
-    NOTE (out of this agent's scope — test-only): extracting a real
-    ``verify_audit_pack()`` helper into ``audit.py`` so the documented
-    procedure is tested CODE rather than prose-replicated-in-tests is a
-    recommended FEATURE-pass follow-up. These tests pin the contract today.
+    An earlier version of this class prose-replicated the docstring procedure
+    because no ``verify_audit_pack`` existed in source; the fix repointed
+    these tests at the shipped function so the documented procedure is tested
+    CODE. ``test_audit_pack_verify_clean`` additionally re-runs the verbatim
+    documented steps so the docstring can never drift from the function.
     """
 
     @staticmethod
@@ -454,15 +478,10 @@ class TestAuditPackTamperDetection:
         """Replicate the 5-step verification procedure from the
         ``write_audit_pack`` docstring and return the recomputed hash.
 
-        Steps (verbatim from audit.py):
-          1. (caller) read the file and parse JSON → ``pack``
-          2. set ``pack["integrity_sha256"] = ""``
-          3. serialize with ``json.dumps(pack, sort_keys=True, indent=2)``
-          4. compute ``hashlib.sha256(serialization.encode()).hexdigest()``
-          5. (caller) compare to the original ``integrity_sha256``
+        Kept alongside the real-function tests as the docstring-drift guard:
+        an external auditor following the PROSE must reach the same verdict
+        as ``verify_audit_pack``.
         """
-        # Operate on a copy so step 2's blanking doesn't clobber the
-        # caller's stored hash before they compare in step 5.
         recompute = dict(pack)
         recompute["integrity_sha256"] = ""
         canonical = json.dumps(recompute, sort_keys=True, indent=2)
@@ -470,28 +489,31 @@ class TestAuditPackTamperDetection:
 
     @pytest.mark.asyncio
     async def test_audit_pack_verify_clean(self, tmp_path):
-        """A pristine pack written by the real writer must verify: the
-        recomputed hash (per the documented procedure) equals the stored
-        ``integrity_sha256``."""
+        """A pristine pack written by the real writer must verify via
+        ``verify_audit_pack``, and the documented prose procedure must agree."""
         transport = DryRunTransport()
         report = await run_audit(transport, ["TX1", "TX2"])
         path = tmp_path / "pack.json"
         write_audit_pack(report, path)
 
         pack = json.loads(path.read_text(encoding="utf-8"))
-        stored = pack["integrity_sha256"]
-        recomputed = self._recompute_from_documented_procedure(pack)
 
-        assert recomputed == stored, (
-            "clean audit pack failed self-verification — the documented "
-            "5-step procedure does not reproduce the stored hash, so the "
+        valid, message = verify_audit_pack(pack)
+        assert valid, (
+            f"clean audit pack failed verify_audit_pack: {message} — the "
             "integrity claim is unverifiable by an external auditor."
         )
+        assert "verified" in message.lower()
+
+        # Docstring-drift guard: the documented 5-step prose procedure must
+        # reproduce the stored hash exactly like the shipped function does.
+        assert self._recompute_from_documented_procedure(pack) == \
+            pack["integrity_sha256"]
 
     @pytest.mark.asyncio
     async def test_audit_pack_verify_tampered(self, tmp_path):
         """Mutating a hashed field after the pack is written must be
-        DETECTED: the recomputed hash no longer matches the stored one.
+        DETECTED by ``verify_audit_pack``.
 
         We mutate ``summary.passed`` (a hashed field — it sits inside the
         dict the producer hashes), simulating an attacker editing the
@@ -502,23 +524,32 @@ class TestAuditPackTamperDetection:
         write_audit_pack(report, path)
 
         pack = json.loads(path.read_text(encoding="utf-8"))
-        stored = pack["integrity_sha256"]
 
         # Tamper: inflate the passed count. This field is part of the
-        # hashed payload, so any honest recompute must diverge.
-        original_passed = pack["summary"]["passed"]
-        pack["summary"]["passed"] = original_passed + 99
+        # hashed payload, so verification must diverge.
+        pack["summary"]["passed"] = pack["summary"]["passed"] + 99
 
-        recomputed = self._recompute_from_documented_procedure(pack)
-
-        assert recomputed != stored, (
+        valid, message = verify_audit_pack(pack)
+        assert not valid, (
             "tampered audit pack passed verification — mutating "
-            "summary.passed did NOT change the recomputed hash, so the "
-            "integrity_sha256 provides no tamper protection."
+            "summary.passed was NOT detected, so the integrity_sha256 "
+            "provides no tamper protection."
         )
+        assert "mismatch" in message.lower()
 
 
 # ── CLI smoke test ───────────────────────────────────────────────────
+
+
+def _dry_run_txid(counter: int) -> str:
+    """The deterministic txid a dry-run session's Nth transaction produces.
+
+    F-0feb8f21 made dry-run txids reproducible (sha256 of prefix+counter), so
+    a CLI audit in a FRESH process can recognize a PRIOR dry-run session's
+    receipts — these tests audit exactly such txids. Garbage txids (the old
+    "AAAA"/"TX1" placeholders) now honestly audit as not_found (F-64106db7).
+    """
+    return hashlib.sha256(f"DRYRUN-{counter}".encode()).hexdigest().upper()[:64]
 
 
 class TestAuditCLI:
@@ -528,9 +559,12 @@ class TestAuditCLI:
 
         from xrpl_lab.cli import main
 
-        # Write txids file
+        # Write txids file — genuine cross-session dry-run txids (CORRECTED,
+        # F-64106db7: fabricated ids like "AAAA" no longer fake a PASS).
         txids_file = tmp_path / "txids.txt"
-        txids_file.write_text("AAAA\nBBBB\n", encoding="utf-8")
+        txids_file.write_text(
+            f"{_dry_run_txid(1)}\n{_dry_run_txid(2)}\n", encoding="utf-8"
+        )
 
         runner = CliRunner()
         result = runner.invoke(main, [
@@ -541,6 +575,22 @@ class TestAuditCLI:
         assert "Checked" in result.output
         assert "Pass" in result.output
 
+    def test_audit_command_garbage_txid_fails(self, tmp_path, monkeypatch):
+        """F-64106db7: a mistyped/forged txid must FAIL the dry-run audit."""
+        monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws")
+        from click.testing import CliRunner
+
+        from xrpl_lab.cli import main
+
+        txids_file = tmp_path / "txids.txt"
+        txids_file.write_text("AAAA\n", encoding="utf-8")
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "audit", "--txids", str(txids_file), "--dry-run", "--no-pack",
+        ])
+        assert result.exit_code != 0
+
     def test_audit_with_expectations(self, tmp_path, monkeypatch):
         monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", tmp_path / "ws")
         from click.testing import CliRunner
@@ -548,7 +598,7 @@ class TestAuditCLI:
         from xrpl_lab.cli import main
 
         txids_file = tmp_path / "txids.txt"
-        txids_file.write_text("TX1\n", encoding="utf-8")
+        txids_file.write_text(f"{_dry_run_txid(1)}\n", encoding="utf-8")
 
         expect_file = tmp_path / "expect.json"
         expect_file.write_text(json.dumps({
