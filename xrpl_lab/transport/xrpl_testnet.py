@@ -33,6 +33,9 @@ from xrpl.models import (
     AccountSet,
     AccountSetAsfFlag,
     AccountTx,
+    CheckCancel,
+    CheckCash,
+    CheckCreate,
     Clawback,
     CredentialAccept,
     CredentialCreate,
@@ -153,6 +156,20 @@ def _extract_domain_id(meta: dict) -> str:
         if created.get("LedgerEntryType") == "PermissionedDomain":
             fields = created.get("NewFields", {})
             return fields.get("DomainID") or created.get("LedgerIndex", "")
+    return ""
+
+
+def _extract_check_id(meta: dict) -> str:
+    """Pull the new CheckID out of a CheckCreate's meta.
+
+    The created Check object's ledger index IS the CheckID (a Hash256 derived
+    from Owner + Sequence) — mirrors ``_extract_channel_id`` /
+    ``_extract_domain_id``. Best-effort walk of AffectedNodes; the dry-run
+    transport sets the id directly, so the offline-tested path is exact."""
+    for node in meta.get("AffectedNodes", []):
+        created = node.get("CreatedNode", {})
+        if created.get("LedgerEntryType") == "Check":
+            return created.get("LedgerIndex", "")
     return ""
 
 
@@ -2383,6 +2400,106 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
         return await self._submit_tx(tx, wallet, "EscrowCancel")
+
+    # ── Checks — deferred pull-payments (checks_101) ──────────────────
+
+    async def submit_check_create(
+        self,
+        wallet_seed: str,
+        destination: str,
+        send_max: str,
+        expiration: int | None = None,
+        destination_tag: int | None = None,
+        invoice_id: str = "",
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # checks_101: CheckCreate writes an authorization (Destination +
+        # SendMax ceiling) but moves and locks NOTHING — contrast
+        # submit_escrow_create, which debits the locked amount immediately.
+        # ``wallet_address`` is a dry-run keying aid; the testnet path derives
+        # the writer from the seed and ignores it. Signs a real tx, so the
+        # testnet-only invariant applies — guard BEFORE Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = CheckCreate(
+                account=wallet.address,
+                destination=destination,
+                send_max=xrp_to_drops(Decimal(send_max)),
+                expiration=expiration,
+                destination_tag=destination_tag,
+                invoice_id=invoice_id or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(
+            tx, wallet, "CheckCreate",
+            extract=lambda meta: {"check_id": _extract_check_id(meta)},
+        )
+
+    async def submit_check_cash(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        amount: str | None = None,
+        deliver_min: str | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # checks_101: exactly one of amount/deliver_min — xrpl-py's CheckCash
+        # model raises "either amount or deliver_min... not both" at
+        # construction otherwise, caught below as local_error. Only the
+        # Check's Destination may cash it (tecNO_PERMISSION), an expired Check
+        # can only be cancelled (tecEXPIRED), and the writer must still hold
+        # the funds NOW (tecUNFUNDED / tecPATH_PARTIAL) — CheckCreate
+        # succeeding never guaranteed a payout. ``wallet_address`` is a
+        # dry-run keying aid; the testnet path derives the casher from the
+        # seed and ignores it.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = CheckCash(
+                account=wallet.address,
+                check_id=check_id,
+                amount=xrp_to_drops(Decimal(amount)) if amount is not None else None,
+                deliver_min=(
+                    xrp_to_drops(Decimal(deliver_min)) if deliver_min is not None else None
+                ),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CheckCash")
+
+    async def submit_check_cancel(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # checks_101: either the writer or the Destination may cancel a LIVE
+        # Check; once expired, ANY address may. Unlike submit_escrow_cancel,
+        # this credits nobody — CheckCreate never moved or locked anything, so
+        # there is nothing to refund; only the writer's reserve slot is freed.
+        # ``wallet_address`` is a dry-run keying aid; the testnet path derives
+        # the canceller from the seed and ignores it.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = CheckCancel(account=wallet.address, check_id=check_id)
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "CheckCancel")
 
     async def submit_did_set(self, wallet_seed: str, uri: str = "", data: str = "") -> SubmitResult:
         guard = await self._guard_write()

@@ -39,6 +39,7 @@ assert getcontext().prec >= 18, (
 
 # Deterministic fake data for offline use
 _FAKE_TXID_PREFIX = "DRYRUN"
+_FAKE_CHECKID_PREFIX = "CHECKID"
 # Genesis account — valid XRPL base58 address (no invalid chars like 0 or I)
 _FAKE_ADDRESS = "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh"
 
@@ -321,6 +322,17 @@ class DryRunTransport(Transport):
         # legacy compressed-time demo escrows and keep the old
         # immediately-finishable behavior.
         self._escrow_created_at: dict[tuple[str, int], int] = {}
+        # Check state (deferred pull-payments — checks_101). Keyed by a
+        # synthetic 64-hex CheckID, mirroring the real Check ledger object:
+        # {owner (writer), destination, send_max (int drops), expiration
+        # (ripple-epoch seconds or None), destination_tag, invoice_id}.
+        # DELIBERATELY no balance debit happens at create time — that is the
+        # whole lesson (contrast submit_escrow_create, which debits
+        # immediately). The reserve is charged to the WRITER (owner) via
+        # _inc_owner and freed by either submit_check_cash or
+        # submit_check_cancel via _dec_owner — never the destination.
+        self._checks: dict[str, dict] = {}
+        self._check_counter = 0
         # MPT holder state (FT-CURRIC-004): authorizations + per-holder balances,
         # both keyed (holder, issuance_id).
         self._mpt_auths: set[tuple[str, str]] = set()
@@ -401,6 +413,18 @@ class DryRunTransport(Transport):
         txid = hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
         self._issued_txids.add(txid)
         return txid
+
+    def _next_check_id(self) -> str:
+        """Generate a unique deterministic 64-hex Check ledger-object id.
+
+        Mirrors ``_next_txid`` (same construction, separate counter/prefix so
+        a CheckID and a txid can never collide) — a real CheckID is a Hash256
+        derived from (Owner, Sequence); this is a stand-in with the right
+        shape for the offline transport.
+        """
+        self._check_counter += 1
+        raw = f"{_FAKE_CHECKID_PREFIX}-{self._check_counter}"
+        return hashlib.sha256(raw.encode()).hexdigest().upper()[:64]
 
     # ── Owner-count bookkeeping (TRANSPORT-A-002) ────────────────────────
     #
@@ -2858,6 +2882,226 @@ class DryRunTransport(Transport):
         self._remove_escrow(owner, target)
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="")
+
+    # ── Checks — deferred pull-payments (checks_101) ──────────────────
+    #
+    # The contrast to Escrow: CheckCreate moves and locks NOTHING (no balance
+    # debit below), only CheckCash does. The reserve is always charged to the
+    # WRITER (owner), freed by whichever of CheckCash/CheckCancel consumes the
+    # Check object first.
+
+    async def submit_check_create(
+        self,
+        wallet_seed: str,
+        destination: str,
+        send_max: str,
+        expiration: int | None = None,
+        destination_tag: int | None = None,
+        invoice_id: str = "",
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_DST", fee="12",
+                                error="[dry-run] Simulated failure: check create")
+        # Parity with testnet: reject the same bad XRP amounts (negative /
+        # sub-drop / too-large) the network rejects — this is SendMax, the
+        # ceiling, not an amount that gets locked.
+        try:
+            send_max_drops = _validate_xrp_amount(send_max)
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
+        # Tag range parity (mirrors submit_payment): xrpl-py rejects an
+        # out-of-range DestinationTag at construction.
+        if destination_tag is not None and not 0 <= int(destination_tag) <= _MAX_TAG:
+            return SubmitResult(
+                success=False, txid="", result_code="local_error", fee="0",
+                error=(
+                    f"[dry-run] DestinationTag {destination_tag} is out of "
+                    f"range — tags are 32-bit unsigned integers (0..{_MAX_TAG})."
+                ),
+            )
+        owner = wallet_address or _address_from_seed(wallet_seed)
+        # F-CHECKS-NOLOCK (the entire lesson): NO balance debit here — unlike
+        # submit_escrow_create, which locks the amount immediately, CheckCreate
+        # only WRITES an authorization. The writer's spendable balance is
+        # unchanged; only the owner-reserve slot for the Check object itself
+        # is new.
+        check_id = self._next_check_id()
+        self._checks[check_id] = {
+            "owner": owner,
+            "destination": destination,
+            "send_max": send_max_drops,
+            "expiration": expiration,
+            "destination_tag": destination_tag,
+            "invoice_id": invoice_id,
+        }
+        self._inc_owner(owner)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS", fee="12",
+            ledger_index=99999999, explorer_url="", check_id=check_id,
+        )
+
+    async def submit_check_cash(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        amount: str | None = None,
+        deliver_min: str | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
+                                error="[dry-run] Simulated failure: check cash")
+        # xrpl-py's CheckCash model requires EXACTLY one of amount/deliver_min
+        # (raises "either amount or deliver_min... not both" at construction).
+        # dry_run.py has no xrpl-py import, so this is mirrored manually — a
+        # dry-run pass must never mask the same testnet local_error.
+        if (amount is None) == (deliver_min is None):
+            return SubmitResult(
+                success=False, txid="", result_code="local_error", fee="0",
+                error=(
+                    "[dry-run] Exactly one of amount or deliver_min must be "
+                    "set for CheckCash (not both, not neither)."
+                ),
+            )
+        check = self._checks.get(check_id)
+        if check is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error=(
+                    f"[dry-run] No Check found for id {check_id[:16]}... — "
+                    "wrong CheckID, or it was already cashed/cancelled."
+                ),
+            )
+        casher = wallet_address or _address_from_seed(wallet_seed)
+        if casher != check["destination"]:
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    "[dry-run] Only the Check's Destination may cash it — "
+                    "this signer is not the Destination (tecNO_PERMISSION)."
+                ),
+            )
+        if check["expiration"] is not None and self._dry_clock >= check["expiration"]:
+            return SubmitResult(
+                success=False, result_code="tecEXPIRED", fee="12",
+                error=(
+                    "[dry-run] This Check expired — past Expiration a Check "
+                    "can only be cancelled, never cashed (tecEXPIRED)."
+                ),
+            )
+        try:
+            requested_drops = _validate_xrp_amount(
+                amount if amount is not None else deliver_min
+            )
+        except DryRunAmountError as exc:
+            return SubmitResult(success=False, result_code=exc.result_code, fee="12",
+                                error=f"[dry-run] {exc}")
+        # SendMax is a CEILING: asking to cash more than the Check ever
+        # authorized can never be funded, regardless of the writer's current
+        # balance — modeled as the same tecUNFUNDED family the KB documents
+        # for "the requested delivery could not be satisfied" (real rippled
+        # may return tecPATH_PARTIAL on the issued-currency path).
+        if requested_drops > check["send_max"]:
+            return SubmitResult(
+                success=False, result_code="tecUNFUNDED", fee="12",
+                error=(
+                    f"[dry-run] Requested {requested_drops} drops exceeds "
+                    f"this Check's SendMax ({check['send_max']} drops) — "
+                    "SendMax is a ceiling, never a guarantee of what's "
+                    "actually deliverable (tecUNFUNDED)."
+                ),
+            )
+        # Flexible (DeliverMin) cash: this dry-run has no partial-liquidity
+        # model, so "deliver at least this, up to SendMax" simplifies to "the
+        # full SendMax" whenever the writer can afford it.
+        deliver_drops = check["send_max"] if deliver_min is not None else requested_drops
+        owner = check["owner"]
+        # THE LESSON: CheckCreate never locked this — only NOW, at cash time,
+        # do we learn whether the writer can actually still afford it. Scope
+        # guard matches every other balance check in this transport: only
+        # enforced when the owner is tracked (funded/previously transacted).
+        if owner in self._balances and deliver_drops > self._balances[owner]:
+            return SubmitResult(
+                success=False, result_code="tecUNFUNDED", fee="12",
+                error=(
+                    f"[dry-run] The Check's writer holds only "
+                    f"{self._balances[owner]} drops — less than the "
+                    f"{deliver_drops} being cashed. CheckCreate succeeding "
+                    "never guaranteed the funds would still be there at cash "
+                    "time (tecUNFUNDED)."
+                ),
+            )
+        txid = self._next_txid()
+        if owner in self._balances:
+            self._balances[owner] -= deliver_drops
+        self._balances[casher] = self._balances.get(casher, 0) + deliver_drops
+        del self._checks[check_id]
+        self._dec_owner(owner)
+        # delivered_amount (FC-003 discipline, reused): the ACTUAL amount
+        # delivered, distinct from this tx's own Amount/DeliverMin field.
+        # For a plain-XRP exact cash the two are numerically equal, but the
+        # checkpoint teaches reading delivered_amount every time regardless —
+        # it is the field xrpl.org names authoritative for CheckCash.
+        self._tx_fixtures[txid] = TxInfo(
+            txid=txid,
+            tx_type="CheckCash",
+            account=casher,
+            destination=check["destination"],
+            amount=str(deliver_drops),
+            fee="12",
+            result_code="tesSUCCESS",
+            ledger_index=99999999,
+            validated=True,
+            delivered_amount=str(deliver_drops),
+        )
+        return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="")
+
+    async def submit_check_cancel(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
+                                error="[dry-run] Simulated failure: check cancel")
+        check = self._checks.get(check_id)
+        if check is None:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error=(
+                    f"[dry-run] No Check found for id {check_id[:16]}... — "
+                    "wrong CheckID, or it was already cashed/cancelled."
+                ),
+            )
+        canceller = wallet_address or _address_from_seed(wallet_seed)
+        expired = (
+            check["expiration"] is not None and self._dry_clock >= check["expiration"]
+        )
+        # Either party may cancel a LIVE check; once expired, ANY address may
+        # clean it up (mirrors CheckCancel's own xrpl-py docstring).
+        if canceller not in (check["owner"], check["destination"]) and not expired:
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    "[dry-run] Only the writer or the Destination may cancel "
+                    "a LIVE Check — this signer is neither, and the Check "
+                    "has not expired yet (tecNO_PERMISSION)."
+                ),
+            )
+        # NO credit to anyone: CheckCreate never moved or locked funds, so
+        # CheckCancel has nothing to refund — contrast submit_escrow_cancel,
+        # which DOES credit the owner because Escrow actually locked the XRP.
+        self._dec_owner(check["owner"])
+        del self._checks[check_id]
+        return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                            fee="12", ledger_index=99999999, explorer_url="")
 
     async def submit_did_set(self, wallet_seed: str, uri: str = "", data: str = "") -> SubmitResult:
         if self._fail_next:

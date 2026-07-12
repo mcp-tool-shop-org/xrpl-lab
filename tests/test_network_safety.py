@@ -275,6 +275,19 @@ _MAINNET_REFUSAL_CALLS = {
     "submit_deposit_preauth": (
         lambda t: t.submit_deposit_preauth("sEdSEED", authorize="rDEST")
     ),
+    # ── checks_101: deferred pull-payments (CheckCreate/Cash/Cancel) ──
+    # Each signs a real tx (writing an authorization, redeeming it, or voiding
+    # it), so the testnet-only invariant applies — every one MUST call
+    # _network_guard() before Wallet.from_seed like every other signing method.
+    "submit_check_create": (
+        lambda t: t.submit_check_create("sEdSEED", "rDEST", "10")
+    ),
+    "submit_check_cash": (
+        lambda t: t.submit_check_cash("sEdSEED", "A" * 64, amount="10")
+    ),
+    "submit_check_cancel": (
+        lambda t: t.submit_check_cancel("sEdSEED", "A" * 64)
+    ),
 }
 
 # AMM submit_* methods are stubs that return result_code="notSupported"

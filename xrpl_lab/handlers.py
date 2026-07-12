@@ -24,6 +24,7 @@ from .actions.amm import (
     verify_lp_received,
     verify_withdrawal,
 )
+from .actions.checks import cancel_check, cash_check, create_check
 from .actions.credentials import (
     accept_credential,
     create_credential,
@@ -6278,6 +6279,297 @@ async def handle_verify_nft_modified(
 
 
 # ---------------------------------------------------------------------------
+# Checks: deferred pull-payments (payments track, FC-005)
+# ---------------------------------------------------------------------------
+#
+# The claimable-reward pattern: CheckCreate authorizes a player to pull up to
+# an amount whenever they choose. Unlike Escrow, NOTHING is locked at create
+# time — the writer's spendable balance is unchanged, proven here by reusing
+# the existing snapshot_account / verify_reserve_change actions (no new code
+# needed for that contrast). Crediting the cashed Check reuses
+# verify_delivered_amount (FC-003) unchanged — xrpl.org names CheckCash as a
+# transaction type whose own amount field is not authoritative.
+
+
+async def handle_create_recipient_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund the RECIPIENT (player) wallet — the only account this
+    Check will ever let cash it."""
+    console.print(
+        "  Creating the player's wallet (the only account this Check will "
+        "let cash it)..."
+    )
+    recipient = create_wallet()
+    context["recipient_seed"] = _SecretValue(recipient.seed)
+    context["recipient_address"] = recipient.address
+    console.print(f"  Player wallet: [cyan]{recipient.address}[/]")
+    result = await transport.fund_from_faucet(recipient.address)
+    if result.success:
+        console.print(f"  Player funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
+    else:
+        console.print(f"  [yellow]Player funding: {result.message}[/]")
+    return context
+
+
+async def handle_create_check(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Studio writes a Check authorizing the player to pull up to amount (CheckCreate).
+
+    Nothing moves here — this is the entire lesson. Contrast with
+    ``create_escrow``, which debits the locked amount immediately.
+    """
+    args = step.action_args
+    amount = args.get("amount", "50")
+    destination = args.get("destination") or context.get("recipient_address", "")
+    address = state.wallet_address or ""
+    if not destination:
+        console.print(
+            "  [red]No player wallet in context. Run the recipient-wallet "
+            "step first.[/]"
+        )
+        return context
+    console.print(
+        f"  Writing a Check authorizing up to [cyan]{amount} XRP[/] (SendMax) "
+        f"to [cyan]{destination[:12]}...[/] — no funds move yet."
+    )
+    result = await create_check(
+        transport, wallet_seed, destination, amount, wallet_address=address,
+    )
+    if result.success:
+        console.print("  [green]Check written![/]")
+        console.print(f"  CheckID: [cyan]{result.check_id}[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["check_id"] = result.check_id
+        context["check_destination"] = destination
+        context["check_send_max"] = amount
+    else:
+        console.print(f"  [red]CheckCreate failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_cash_check(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The player cashes the Check for an exact Amount (CheckCash).
+
+    Only the Check's Destination may do this — the studio's own key plays no
+    role in this transaction.
+    """
+    args = step.action_args
+    amount = args.get("amount") or context.get("check_send_max", "50")
+    check_id = context.get("check_id", "")
+    _raw = context.get("recipient_seed", "")
+    recipient_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    recipient_address = context.get("recipient_address", "")
+    if not check_id or not recipient_seed:
+        console.print(
+            "  [red]No Check to cash. Run the create-check step first.[/]"
+        )
+        return context
+    console.print(
+        f"  Player cashing the Check for exactly [cyan]{amount} XRP[/] "
+        "(CheckCash Amount)..."
+    )
+    result = await cash_check(
+        transport, recipient_seed, check_id, amount=amount,
+        wallet_address=recipient_address,
+    )
+    if result.success:
+        console.print("  [green]Check cashed![/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["check_cash_txid"] = result.txid
+        context["check_cash_amount"] = amount
+        # The Check object is gone the instant it's cashed — clear it so a
+        # later step can't accidentally try to reuse it.
+        context["check_id"] = ""
+    else:
+        console.print(f"  [red]CheckCash failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_credit_check_cash(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Credit the player from the cashed Check's delivered_amount.
+
+    REUSES verify_delivered_amount (FC-003) unchanged: xrpl.org names
+    CheckCash as a transaction type whose own amount field is not
+    authoritative — always credit from the validated tx's delivered_amount
+    metadata.
+
+    No ``expected_delivered`` is passed: ``check_cash_amount`` is an XRP
+    display string (e.g. "50") while ``delivered_amount`` for an XRP tx is
+    drops (e.g. "50000000") — comparing the two directly would be a unit
+    mismatch, not a real check. The verification below already asserts
+    ``tesSUCCESS`` + ``validated: true`` and prints the actual delivered
+    figure; that IS the "credit from delivered_amount" proof.
+    """
+    txid = context.get("check_cash_txid", "")
+    if not txid:
+        console.print(
+            "  [red]No CheckCash tx to inspect. Run the cash-check step "
+            "first.[/]"
+        )
+        # FT-001: the step that produces the txid never ran → honest FAILED
+        # verification, not an invisible skip.
+        _record_verification(
+            context, "credit_check_cash", passed=False,
+            failures=[
+                "check_cash_txid missing — the step that produces it did not run"
+            ],
+        )
+        return context
+
+    result = await verify_delivered_amount(transport, txid)
+    for check in result.checks:
+        console.print(f"  [green]✓[/] {check}")
+    for fail in result.failures:
+        console.print(f"  [red]✗[/] {fail}")
+    if result.passed:
+        console.print(
+            f"  [green]Credited the player {result.delivered_amount} drops "
+            "from delivered_amount[/] — never the Check's own "
+            "Amount/SendMax fields."
+        )
+    context["last_delivered_amount_verify"] = result
+    _record_verification(
+        context, "credit_check_cash", result.passed, result.failures
+    )
+    return context
+
+
+async def handle_create_outsider_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund a THIRD wallet — not this Check's Destination."""
+    console.print(
+        "  Creating an outsider wallet (not the Check's Destination)..."
+    )
+    outsider = create_wallet()
+    context["outsider_seed"] = _SecretValue(outsider.seed)
+    context["outsider_address"] = outsider.address
+    console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
+    result = await transport.fund_from_faucet(outsider.address)
+    if result.success:
+        console.print(f"  Outsider funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    else:
+        console.print(f"  [yellow]Outsider funding: {result.message}[/]")
+    return context
+
+
+async def handle_cash_check_wrong_destination_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """A non-Destination tries to cash the Check — expects tecNO_PERMISSION."""
+    args = step.action_args
+    amount = args.get("amount") or context.get("check_send_max", "20")
+    check_id = context.get("check_id", "")
+    _raw = context.get("outsider_seed", "")
+    outsider_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    outsider_address = context.get("outsider_address", "")
+    if not check_id or not outsider_seed:
+        console.print(
+            "  [red]Missing Check or outsider wallet. Run the previous "
+            "steps first.[/]"
+        )
+        return context
+    console.print(
+        "  [yellow]Outsider attempting to cash the Check (expecting "
+        "tecNO_PERMISSION — it is not the Destination)...[/]"
+    )
+    result = await cash_check(
+        transport, outsider_seed, check_id, amount=amount,
+        wallet_address=outsider_address,
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the Check should have refused "
+            "this signer. Recording the tx.[/]"
+        )
+        _record_submit(state, context, result)
+    else:
+        if result.result_code == "tecNO_PERMISSION":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]Only the Destination named on CheckCreate may cash "
+                "a Check — anyone else is refused, no matter how much they "
+                "know about it.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                "tecNO_PERMISSION.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_cancel_check(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Studio cancels the unredeemed Check (CheckCancel) — the compensator.
+
+    Notice what does NOT happen: no XRP moves back to the studio, because
+    none was ever taken. Only the owner reserve is freed.
+    """
+    check_id = context.get("check_id", "")
+    if not check_id:
+        console.print(
+            "  [red]No Check to cancel. Run the create-check step first.[/]"
+        )
+        return context
+    address = state.wallet_address or ""
+    console.print(
+        f"  Cancelling Check [cyan]{check_id[:16]}...[/] — nothing to "
+        "refund, nothing was ever moved."
+    )
+    result = await cancel_check(transport, wallet_seed, check_id, wallet_address=address)
+    if result.success:
+        console.print("  [green]Check cancelled — reserve freed.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["check_id"] = ""
+    else:
+        console.print(f"  [red]CheckCancel failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+# ---------------------------------------------------------------------------
 # Registration — populate the registry
 # ---------------------------------------------------------------------------
 
@@ -7408,6 +7700,67 @@ def _register_all() -> None:
             name="verify_nft_modified",
             handler=handle_verify_nft_modified,
             description="Verify the NFT's URI advanced on the same NFTokenID",
+        ),
+        # ── Checks: deferred pull-payments (payments track, FC-005) ──
+        ActionDef(
+            name="create_recipient_wallet",
+            handler=handle_create_recipient_wallet,
+            description="Create + fund the player wallet (the Check's Destination)",
+        ),
+        ActionDef(
+            name="create_check",
+            handler=handle_create_check,
+            description=(
+                "Write a Check authorizing the player to pull up to amount "
+                "(CheckCreate) — moves and locks nothing"
+            ),
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="50",
+                             description="SendMax — the ceiling, in XRP"),
+                PayloadField(name="destination",
+                             description="Who may cash it (defaults to the player)"),
+            ],
+        ),
+        ActionDef(
+            name="cash_check",
+            handler=handle_cash_check,
+            description="Player cashes the Check for an exact Amount (CheckCash)",
+            payload_fields=[
+                PayloadField(name="amount", default="50", description="Exact XRP to redeem"),
+            ],
+        ),
+        ActionDef(
+            name="credit_check_cash",
+            handler=handle_credit_check_cash,
+            description=(
+                "Credit the player from delivered_amount — reuses the "
+                "delivered_amount_101 discipline unchanged"
+            ),
+        ),
+        ActionDef(
+            name="create_outsider_wallet",
+            handler=handle_create_outsider_wallet,
+            description="Create + fund a wallet that is NOT the Check's Destination",
+        ),
+        ActionDef(
+            name="cash_check_wrong_destination_expect_fail",
+            handler=handle_cash_check_wrong_destination_expect_fail,
+            description=(
+                "A non-Destination tries to cash the Check (teaches tecNO_PERMISSION)"
+            ),
+            payload_fields=[
+                PayloadField(name="amount", default="20", description="XRP amount attempted"),
+            ],
+        ),
+        ActionDef(
+            name="cancel_check",
+            handler=handle_cancel_check,
+            description=(
+                "Studio cancels the unredeemed Check (CheckCancel) — nothing "
+                "is refunded, nothing was ever moved"
+            ),
+            wallet_required=True,
         ),
     ]
 

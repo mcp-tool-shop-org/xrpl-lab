@@ -53,6 +53,7 @@ class SubmitResult:
     mpt_issuance_id: str = ""  # MPTokenIssuanceID, set on a successful MPTokenIssuanceCreate
     channel_id: str = ""  # PayChannel id, set on a successful PaymentChannelCreate
     domain_id: str = ""  # DomainID (Hash256), set on a successful PermissionedDomainSet (create)
+    check_id: str = ""  # Check ledger-object id (Hash256 hex), set on a successful CheckCreate
     offer_sequence: int | None = None  # placing tx Sequence, set on a permissioned OfferCreate
     # The submitted transaction's Sequence (the value OfferCancel /
     # EscrowFinish / EscrowCancel consume). The testnet transport reads it
@@ -851,6 +852,90 @@ class Transport(ABC):
     @abstractmethod
     async def get_escrows(self, address: str) -> list[EscrowInfo]:
         """List Escrow objects owned by an address."""
+
+    @abstractmethod
+    async def submit_check_create(
+        self,
+        wallet_seed: str,
+        destination: str,
+        send_max: str,
+        expiration: int | None = None,
+        destination_tag: int | None = None,
+        invoice_id: str = "",
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Write a Check authorizing *destination* to pull up to *send_max* (CheckCreate).
+
+        The deferred-pull contrast to Escrow: this writes a Check ledger object
+        naming the Destination and a ``SendMax`` ceiling, but moves and locks
+        NOTHING — the writer's spendable balance is unchanged the instant this
+        validates (unlike ``submit_escrow_create``, which debits the locked
+        amount immediately). ``send_max`` is an XRP amount string; it caps what
+        this Check can ever deliver, not a guarantee that amount will still be
+        there when the destination gets around to cashing it. ``expiration``
+        (optional, ripple-epoch seconds) makes the Check un-cashable (but still
+        cancellable by anyone) once passed. Returns ``SubmitResult.check_id``
+        (the 64-hex Check object id) on success — the value ``submit_check_cash``
+        / ``submit_check_cancel`` need. ``wallet_address`` is a dry-run keying
+        aid (every dry-run seed collapses to one synthetic address); the
+        testnet transport derives the writer from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_check_cash(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        amount: str | None = None,
+        deliver_min: str | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Redeem a Check for an exact ``amount`` or a flexible ``deliver_min`` (CheckCash).
+
+        Exactly one of ``amount`` / ``deliver_min`` must be set — xrpl-py's
+        model raises "either amount or deliver_min... not both" at
+        construction if both or neither are given (surfaced as
+        ``local_error``); the dry-run transport mirrors the same rejection so
+        a dry-run pass never masks a testnet failure.
+
+        Only the Check's Destination may cash it — any other signer fails
+        ``tecNO_PERMISSION``. A Check past its ``Expiration`` can only be
+        cancelled, never cashed (``tecEXPIRED``). A wrong/already-consumed
+        ``check_id`` fails ``tecNO_ENTRY``. And because ``CheckCreate`` never
+        locked anything, the writer's CURRENT balance is checked only now, at
+        cash time — insufficient funds fails ``tecUNFUNDED`` (or
+        ``tecPATH_PARTIAL`` on the token-check path); a CheckCreate that
+        returned ``tesSUCCESS`` is never a guaranteed payout. xrpl.org names
+        CheckCash explicitly as a transaction type whose own amount field is
+        not authoritative — callers MUST credit from the resulting validated
+        tx's ``delivered_amount`` metadata, never from ``amount`` /
+        ``deliver_min`` / the Check's ``SendMax`` (the delivered_amount_101
+        discipline, reused here unchanged). ``wallet_address`` is a dry-run
+        keying aid; the testnet transport derives the casher from the seed and
+        ignores it.
+        """
+
+    @abstractmethod
+    async def submit_check_cancel(
+        self,
+        wallet_seed: str,
+        check_id: str,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Void an unredeemed Check, freeing the WRITER's reserve (CheckCancel).
+
+        While the Check is live, either the writer or the Destination may
+        cancel it (any other signer fails ``tecNO_PERMISSION``); once it has
+        expired, ANY address may clean it up. A wrong/already-consumed
+        ``check_id`` fails ``tecNO_ENTRY``. Unlike ``submit_escrow_cancel``
+        (which refunds the locked amount to the owner), this credits NOBODY —
+        ``CheckCreate`` never moved or locked anything, so there is nothing to
+        refund; only the Check object's owner-reserve slot is freed, to the
+        WRITER (the reserve is always charged to whoever wrote the Check,
+        never the destination). ``wallet_address`` is a dry-run keying aid;
+        the testnet transport derives the canceller from the seed and ignores
+        it.
+        """
 
     @abstractmethod
     async def submit_did_set(
