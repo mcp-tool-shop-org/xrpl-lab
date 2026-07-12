@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import UTC, datetime
 from typing import Any
@@ -41,6 +42,8 @@ from .schemas import (
     VerifyResponse,
     VerifyTxResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _active_network(request: Request) -> str:
@@ -310,16 +313,28 @@ def list_reports() -> list[ReportSummary]:
 
     result: list[ReportSummary] = []
     for p in sorted(reports_dir.glob("*.md"))[:_MAX_REPORTS_INLINE]:
+        # F-6beae9bb: read_text() (and getmtime()) are file I/O against a
+        # workspace directory that can change out from under us between the
+        # glob() above and this read — a manual tamper, an encoding hiccup,
+        # or a future bug that captures binary console output into a
+        # ".md" report. Before this fix NEITHER call was guarded and NO
+        # exception handler was registered anywhere in the app, so a single
+        # bad file 500'd the ENTIRE listing (every other module's report,
+        # not just the bad one). Mirrors modules.py's load_all_modules()
+        # per-file try/except-continue: skip-and-warn on ONE bad file,
+        # keep serving everyone else's reports.
+        try:
+            # Generated timestamp from file mtime
+            mtime = os.path.getmtime(p)
+            # Read content, bounded — a pathologically large report is
+            # truncated so a single response can't inline unbounded bytes.
+            raw = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            logger.warning("skipping unreadable report %s: %s", p.name, exc)
+            continue
         # Title from filename (strip .md, replace underscores with spaces, title-case)
         title = p.stem.replace("_", " ").replace("-", " ").title()
-        # Generated timestamp from file mtime
-        mtime = os.path.getmtime(p)
         generated = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
-        # Read content, bounded — a pathologically large report is truncated so
-        # a single response can't inline unbounded bytes. Read one cap's worth
-        # plus a probe byte to detect (without loading the rest) whether we
-        # truncated, then append an honest marker pointing at the lazy endpoint.
-        raw = p.read_text(encoding="utf-8")
         if len(raw.encode("utf-8")) > _MAX_REPORT_CONTENT_BYTES:
             content = (
                 raw.encode("utf-8")[:_MAX_REPORT_CONTENT_BYTES].decode(
@@ -368,9 +383,30 @@ def get_report(module_id: str) -> ReportDetail:
             "hint": "Run a module first to generate its report",
         })
 
+    # F-6beae9bb: there is a TOCTOU window between the .exists() check above
+    # and this read — the file can be removed, replaced, or hold non-UTF-8
+    # bytes in between. Guard the read itself rather than letting either
+    # exception escape unguarded (previously no exception handler was
+    # registered anywhere in the app, so this degraded to a generic
+    # non-conforming 500 instead of the structured envelope every other
+    # error path here returns).
+    try:
+        content = report_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        logger.warning("report '%s' exists but could not be read: %s", module_id, exc)
+        raise HTTPException(status_code=500, detail={
+            "code": "REPORT_UNREADABLE",
+            "message": f"Report for '{module_id}' exists but could not be read.",
+            "hint": (
+                "The file may have been modified or removed after it was "
+                "listed. Try again, or re-run the module to regenerate "
+                "its report."
+            ),
+        }) from exc
+
     return ReportDetail(
         module_id=module_id,
-        content=report_path.read_text(encoding="utf-8"),
+        content=content,
     )
 
 
