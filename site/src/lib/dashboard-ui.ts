@@ -8,6 +8,8 @@
  * Status is encoded as shape + glyph + label + hue — never hue alone.
  */
 
+import { API_BASE, isLocalOrigin } from './api';
+
 export const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, (c) => (
     // Escape the single quote too (&#39;) so this shared escaper is safe in BOTH
@@ -16,6 +18,38 @@ export const esc = (s: unknown): string =>
     // attribute would otherwise open an attribute-breakout XSS hole (AW-002).
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
   ));
+
+// Re-exported so pages that already import from here for UI copy don't need
+// a second import just to gate on it (see hostedPreviewMessage below).
+export { isLocalOrigin };
+
+/**
+ * Honest copy for "the API looks unreachable AND this page is not being
+ * viewed from a loopback origin" (F-cb775026) — i.e. this is very likely the
+ * GitHub Pages-hosted copy of the dashboard, which can NEVER reach a local
+ * API: the backend's CORS + WebSocket-origin allow-list only ever contains
+ * loopback origins (xrpl_lab/api/runner_ws.py _ALLOWED_ORIGINS), so no amount
+ * of refreshing THIS tab can succeed — even while `xrpl-lab serve` is running
+ * locally at this exact moment. Every page's ordinary "offline, refresh to
+ * retry" copy implicitly promises refreshing will help once the server is
+ * up; that promise can never be kept on this origin, so callers should show
+ * this instead whenever `!isLocalOrigin()` and the failure looks like plain
+ * unreachability (no HTTP status, not a timeout).
+ */
+export function hostedPreviewMessage(): string {
+  return `This hosted preview (GitHub Pages) can't reach a local API — browsers block the cross-origin request even while <code class="mono">xrpl-lab serve</code> is running. Open <code class="mono">${esc(API_BASE)}/xrpl-lab/app/</code> instead — the URL <code class="mono">xrpl-lab serve</code> prints in your terminal — not this page.`;
+}
+
+/**
+ * Plain-text variant of hostedPreviewMessage(), for sinks that deliberately
+ * use `textContent` rather than `innerHTML` (e.g. the run page's streaming
+ * terminal output and the shared #announcer live region — both textContent
+ * on purpose, so untrusted server output is never interpreted as markup).
+ * Using the HTML variant there would show literal `<code>` tags.
+ */
+export function hostedPreviewMessagePlain(): string {
+  return `This hosted preview (GitHub Pages) can't reach a local API — browsers block the cross-origin request even while xrpl-lab serve is running. Open ${API_BASE}/xrpl-lab/app/ instead (the URL xrpl-lab serve prints in your terminal) — not this page.`;
+}
 
 export const elFrom = (html: string): HTMLElement => {
   const t = document.createElement('template');
@@ -139,7 +173,19 @@ export interface ModalOpts {
   variant?: 'danger' | 'error' | 'ok';
   icon?: string;
   title: string;
-  body: string;
+  /**
+   * Plain-text body — escaped automatically (F-914e57b3). Omit if `bodyHtml`
+   * is supplied instead.
+   */
+  body?: string;
+  /**
+   * Opt-in RAW HTML body, for the rare case a caller needs to embed markup
+   * (e.g. a `<code>` snippet). Rendered verbatim — the caller is responsible
+   * for escaping any untrusted values (txids, API messages, module titles,
+   * etc.) BEFORE interpolating them into this string, same as every other
+   * raw-HTML sink in this file. Takes precedence over `body` when both are set.
+   */
+  bodyHtml?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm?: () => void;
@@ -150,10 +196,16 @@ export interface ModalOpts {
  * Open a branded alertdialog modal — the accessible replacement for native
  * confirm()/alert(): focus-trapped, Escape cancels, Enter confirms, backdrop
  * click cancels, focus returns to the trigger on close.
+ *
+ * F-914e57b3: `title` and `body` are escaped by default here, matching every
+ * other dynamic-content helper in this file (runBadge, verifyBadge,
+ * healthIcon) — a future caller that passes a raw module title, API error
+ * message, or txid no longer has to remember to pre-escape it first. Callers
+ * that deliberately need markup in the body use `bodyHtml` instead.
  */
 export function openModal(opts: ModalOpts): void {
   const {
-    variant = 'danger', icon, title, body,
+    variant = 'danger', icon, title, body, bodyHtml,
     confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm, returnTo,
   } = opts;
   closeModal();
@@ -163,8 +215,8 @@ export function openModal(opts: ModalOpts): void {
   const overlay = elFrom(
     `<div class="modal-overlay"><div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="mTitle" aria-describedby="mBody">
         <div class="modal__ic ${variant === 'ok' ? 'modal__ic--ok' : ''}">${icon || icons.alert}</div>
-        <h2 class="modal__title" id="mTitle">${title}</h2>
-        <p class="modal__body" id="mBody">${body}</p>
+        <h2 class="modal__title" id="mTitle">${esc(title)}</h2>
+        <p class="modal__body" id="mBody">${bodyHtml ?? esc(body ?? '')}</p>
         <div class="modal__actions">
           <button class="btn" data-act="cancel">${esc(cancelLabel)}</button>
           <button class="btn ${variant === 'ok' ? 'btn--primary' : 'btn--danger'}" data-act="confirm">${esc(confirmLabel)}</button>

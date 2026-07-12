@@ -24,11 +24,9 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
   </div>
 
   <script>
-    import { fetchWithTimeout } from '../../lib/api';
-    import { icons, healthIcon, announce, esc } from '../../lib/dashboard-ui';
+    import { fetchDoctor, isLocalOrigin } from '../../lib/api';
+    import { icons, healthIcon, announce, esc, hostedPreviewMessage } from '../../lib/dashboard-ui';
 
-    // Canonical API base — update in all app pages if port changes
-    const API_BASE = 'http://localhost:8321';
     const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
 
     // Map the doctor overall verdict onto a banner variant + branded copy.
@@ -51,14 +49,21 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       if (err?.name === 'AbortError') {
         msg = 'Doctor checks timed out — check API server is responsive.';
       } else if (err instanceof TypeError) {
-        msg = 'Could not reach API server — is it running?';
+        // F-cb775026: on the hosted GitHub Pages copy, refreshing THIS tab
+        // can never reach a local API (CORS blocks it) — say so distinctly.
+        msg = !isLocalOrigin() ? hostedPreviewMessage() : 'Could not reach API server — is it running?';
       } else if (err?.httpStatus) {
         // FRONTEND-A-005: an HTTP error (e.g. 500) means the server is up but
         // errored — report that honestly instead of "API offline".
         msg = `API error (HTTP ${err.httpStatus}). The server is up but returned an error.`;
       }
+      // `msg` is always internally-built copy (never user/API-derived text),
+      // so it is trusted verbatim here — NOT esc()-wrapped — matching every
+      // sibling page's offline/error message (index.astro, artifacts.astro,
+      // etc.) and letting the <code> markup in hostedPreviewMessage() render
+      // instead of showing as literal escaped tags.
       return `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
-        <div class="empty__t">Can't run the doctor</div><div>${esc(msg)}</div></div></div>`;
+        <div class="empty__t">Can't run the doctor</div><div>${msg}</div></div></div>`;
     }
 
     function doctorHTML(result: any) {
@@ -89,15 +94,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       if (btn) btn.disabled = true;
 
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/doctor`);
-        if (!res.ok) {
-          // FRONTEND-A-005: tag with the status so errorHTML reports it
-          // honestly rather than parsing an HTML error body as JSON.
-          const e = new Error(`API returned ${res.status}: ${res.statusText}`);
-          (e as any).httpStatus = res.status;
-          throw e;
-        }
-        const result = await res.json();
+        const result = await fetchDoctor();
         results.innerHTML = doctorHTML(result);
         // Announce the verdict so screen-reader users hear the result of a re-run.
         const verdict = result?.overall === 'healthy' ? 'all checks passed'

@@ -12,10 +12,10 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
   </div>
 
   <script>
-    import { fetchWithTimeout } from '../../lib/api';
-    import { icons, runBadge, healthIcon, esc } from '../../lib/dashboard-ui';
+    import { fetchStatus, fetchDoctor, isLocalOrigin } from '../../lib/api';
+    import type { Status, DoctorResult } from '../../lib/api';
+    import { icons, runBadge, healthIcon, esc, hostedPreviewMessage } from '../../lib/dashboard-ui';
 
-    const API_BASE = 'http://localhost:8321';
     const II = (svg: string) =>
       `<span style="display:inline-flex;width:16px;height:16px;color:var(--text-3)">${svg}</span>`;
     const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
@@ -42,12 +42,16 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
         ? `API error (HTTP ${err.httpStatus}). The server is up but returned an error. Refresh to retry.`
         : timeout
         ? 'Request timed out. The API may be slow or restarting. Refresh to retry.'
+        // F-cb775026: on the hosted GitHub Pages copy, refreshing THIS tab can
+        // never reach a local API (CORS blocks it) — say so distinctly.
+        : !isLocalOrigin()
+        ? hostedPreviewMessage()
         : 'API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
       return `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
         <div class="empty__t">Can't reach the API</div><div>${msg}</div></div></div>`;
     }
 
-    function overviewHTML(s: any, doctor: any) {
+    function overviewHTML(s: Status, doctor: DoctorResult | null) {
       const pct = s.modules_total > 0 ? Math.round((s.modules_completed / s.modules_total) * 100) : 0;
       const walletShort = s.wallet_address
         ? s.wallet_address.slice(0, 5) + '…' + s.wallet_address.slice(-4)
@@ -153,26 +157,17 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       const root = document.getElementById('overview-root');
       if (!root) return;
       root.innerHTML = skeletonOverview();
-      let status: any;
+      let status: Status;
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/status`);
-        if (!res.ok) {
-          // FRONTEND-A-005: tag with the status so offlineHTML reports the HTTP
-          // error honestly instead of parsing an HTML error body as JSON.
-          const e = new Error(`API returned ${res.status}: ${res.statusText}`);
-          (e as any).httpStatus = res.status;
-          throw e;
-        }
-        status = await res.json();
+        status = await fetchStatus();
       } catch (err) {
         root.innerHTML = offlineHTML(err);
         return;
       }
-      let doctor: any = null;
+      let doctor: DoctorResult | null = null;
       // Best-effort: skip the doctor card on any non-OK or network error.
       try {
-        const dRes = await fetchWithTimeout(`${API_BASE}/api/doctor`);
-        if (dRes.ok) doctor = await dRes.json();
+        doctor = await fetchDoctor();
       } catch { /* best-effort */ }
       root.innerHTML = overviewHTML(status, doctor);
       requestAnimationFrame(animateProgress);

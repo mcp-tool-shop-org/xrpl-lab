@@ -18,10 +18,10 @@ const { id } = Astro.params;
   </div>
 
   <script>
-    import { fetchWithTimeout } from '../../../lib/api';
-    import { icons, healthIcon, esc } from '../../../lib/dashboard-ui';
+    import { fetchModule, fetchModules, isLocalOrigin } from '../../../lib/api';
+    import type { ModuleDetail, ModuleSummary } from '../../../lib/api';
+    import { icons, healthIcon, esc, hostedPreviewMessage } from '../../../lib/dashboard-ui';
 
-    const API_BASE = 'http://localhost:8321';
     const II = (svg: string) =>
       `<span style="display:inline-flex;width:16px;height:16px;color:var(--text-3)">${svg}</span>`;
     const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
@@ -37,7 +37,7 @@ const { id } = Astro.params;
 
     // 404 / API-unreachable — humanized copy matching the overview page.
     function errorHTML(err: any) {
-      let msg = 'Could not load module details. The module may not exist, or the API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
+      let msg: string;
       if (err?.name === 'AbortError') {
         msg = 'Request timed out. The API may be slow or restarting. Refresh to retry.';
       } else if (err?.httpStatus) {
@@ -47,13 +47,19 @@ const { id } = Astro.params;
         msg = err.httpStatus === 404
           ? 'This module was not found (HTTP 404). It may have been renamed or removed.'
           : `API error (HTTP ${err.httpStatus}). The server is up but returned an error.`;
+      } else if (!isLocalOrigin()) {
+        // F-cb775026: on the hosted GitHub Pages copy, refreshing THIS tab
+        // can never reach a local API (CORS blocks it) — say so distinctly.
+        msg = hostedPreviewMessage();
+      } else {
+        msg = 'Could not load module details. The module may not exist, or the API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
       }
       return `<div class="screen-head">${backLink}</div>
         <div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
           <div class="empty__t">Can't load this module</div><div>${msg}</div></div></div>`;
     }
 
-    function detailHTML(mod: any, prereqsHTML: string, hasUnmetPrereq = false) {
+    function detailHTML(mod: ModuleDetail, prereqsHTML: string, hasUnmetPrereq = false) {
       const prereqList = mod.prerequisites || [];
       const artifacts = mod.artifacts || [];
 
@@ -110,20 +116,20 @@ const { id } = Astro.params;
     // Build the prerequisites card by cross-fetching /api/modules to resolve
     // each prereq's title + completion. Returns '' when there are none, or a
     // best-effort card (skipping the detail section) if the cross-fetch fails.
-    async function prereqsCard(mod: any): Promise<{ html: string; hasUnmet: boolean }> {
+    async function prereqsCard(mod: ModuleDetail): Promise<{ html: string; hasUnmet: boolean }> {
       const prereqList = mod.prerequisites || [];
       if (!prereqList.length) return { html: '', hasUnmet: false };
-      let moduleMap: Map<string, any>;
+      let moduleMap: Map<string, ModuleSummary>;
       try {
-        const allModules = await (await fetchWithTimeout(`${API_BASE}/api/modules`)).json();
-        moduleMap = new Map(allModules.map((m: any) => [m.id, m]));
+        const allModules = await fetchModules();
+        moduleMap = new Map(allModules.map((m) => [m.id, m]));
       } catch {
         // skip prerequisites detail on error
         return { html: '', hasUnmet: false };
       }
       let hasUnmet = false;
       const rows = prereqList.map((pid: string) => {
-        const pm = moduleMap.get(pid) as any;
+        const pm = moduleMap.get(pid);
         const completed = pm?.completed;
         if (!completed) hasUnmet = true;
         const title = pm?.title || pid;
@@ -146,19 +152,9 @@ const { id } = Astro.params;
       if (!moduleId) return;
       root.innerHTML = skeletonDetail();
 
-      let mod: any;
+      let mod: ModuleDetail;
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/modules/${moduleId}`);
-        if (!res.ok) {
-          // FEBCD-001: tag with the HTTP status so errorHTML reports it honestly
-          // (e.g. "API error (HTTP 500)") rather than parsing an error body as
-          // JSON and mislabeling a server fault as "offline" — mirrors the
-          // sibling pages (modules/index, artifacts, doctor) hardened earlier.
-          const e = new Error(`API returned ${res.status}: ${res.statusText}`);
-          (e as any).httpStatus = res.status;
-          throw e;
-        }
-        mod = await res.json();
+        mod = await fetchModule(moduleId);
       } catch (err) {
         root.innerHTML = errorHTML(err);
         return;

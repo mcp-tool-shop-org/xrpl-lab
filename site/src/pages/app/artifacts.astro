@@ -16,11 +16,8 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
   </div>
 
   <script>
-    import { fetchWithTimeout } from '../../lib/api';
-    import { icons, healthIcon, esc, downloadFile } from '../../lib/dashboard-ui';
-
-    // Canonical API base — update in all app pages if port changes
-    const API_BASE = 'http://localhost:8321';
+    import { fetchProofPack, fetchCertificate, fetchReports, isLocalOrigin } from '../../lib/api';
+    import { icons, healthIcon, esc, downloadFile, hostedPreviewMessage } from '../../lib/dashboard-ui';
 
     // FT-PROOF-002: retain the already-fetched raw objects so the Download
     // buttons can serialize them to a Blob with NO extra backend call. Keyed by
@@ -44,18 +41,14 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       return fallback;
     }
 
-    // Throw a tagged Error for a non-OK response so describeFetchError can
-    // report the status instead of the page silently treating it as offline.
-    function httpError(res: Response): Error {
-      const e = new Error(`API returned ${res.status}: ${res.statusText}`);
-      (e as any).httpStatus = res.status;
-      return e;
-    }
-
     function offlineHTML(err: any) {
       const timeout = err?.name === 'AbortError';
+      // F-cb775026: on the hosted GitHub Pages copy, refreshing THIS tab can
+      // never reach a local API (CORS blocks it) — say so distinctly.
       const msg = timeout
         ? 'Request timed out. The API may be slow or restarting. Refresh to retry.'
+        : !isLocalOrigin()
+        ? hostedPreviewMessage()
         : 'API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
       return `<div class="empty"><span class="empty__ic">${icons.alert}</span>
         <div class="empty__t">Can't reach the API</div><div>${msg}</div></div>`;
@@ -296,9 +289,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       // Three independent fetches — each panel degrades on its own.
       let proof = '';
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/proof-pack`);
-        if (!res.ok) throw httpError(res);
-        const data = await res.json();
+        const data = await fetchProofPack();
         proof = proofHTML(data);
       } catch (err: any) {
         proof = err instanceof TypeError || err?.name === 'AbortError'
@@ -309,9 +300,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
       let cert = '';
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/certificate`);
-        if (!res.ok) throw httpError(res);
-        const data = await res.json();
+        const data = await fetchCertificate();
         cert = certHTML(data);
       } catch (err: any) {
         cert = err instanceof TypeError || err?.name === 'AbortError'
@@ -322,9 +311,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
       let reports = '';
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/artifacts/reports`);
-        if (!res.ok) throw httpError(res);
-        const data = await res.json();
+        const data = await fetchReports();
         reports = reportsHTML(data);
       } catch (err: any) {
         reports = err instanceof TypeError || err?.name === 'AbortError'

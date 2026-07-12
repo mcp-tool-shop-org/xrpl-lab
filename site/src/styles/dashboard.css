@@ -415,15 +415,6 @@ a:hover { color: var(--accent-bright); }
 .modal__body code { font-family: var(--font-mono); font-size: 13px; color: var(--text); }
 .modal__actions { display: flex; justify-content: flex-end; gap: 10px; }
 
-/* ============================================================ TWEAKS PANEL (vanilla) */
-.tweaks { position: fixed; right: 18px; bottom: 18px; z-index: 120; width: 264px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--r-md); box-shadow: 0 24px 60px -20px rgba(0,0,0,.75); overflow: hidden; font-size: var(--fs-sm); }
-.tweaks[hidden] { display: none; }
-.tweaks__bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-.tweaks__title { font-family: var(--font-display); font-weight: 600; font-size: 14px; }
-.tweaks__x { background: none; border: 0; color: var(--text-3); cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 4px; border-radius: 6px; }
-.tweaks__x:hover { color: var(--text); background: var(--panel-2); }
-.tweaks__body { padding: 14px; display: flex; flex-direction: column; gap: 16px; max-height: 60vh; overflow: auto; }
-.tw-field > .tw-label { display: block; font-weight: 600; color: var(--text-2); margin-bottom: 8px; font-size: 12.5px; }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; background: var(--inset); border: 1px solid var(--line); border-radius: var(--r-sm); }
 .seg.seg--wrap { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
 .seg button { border: 0; background: none; color: var(--text-2); font: inherit; font-weight: 600; font-size: 12px; padding: 7px 6px; border-radius: 6px; cursor: pointer; text-transform: capitalize; }
