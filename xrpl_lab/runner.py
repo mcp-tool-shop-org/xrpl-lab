@@ -78,14 +78,26 @@ def _snapshot_context(context: dict) -> dict:
     leaking out when the step itself raises mid-mutation.
     """
     secrets: dict = {}
+    secret_lists: dict = {}
     safe: dict = {}
     for k, v in context.items():
         if isinstance(v, _SecretValue):
             secrets[k] = v
+        elif isinstance(v, list) and any(isinstance(i, _SecretValue) for i in v):
+            # A LIST holding secret wrappers (e.g. the multisig module's
+            # ``signer_seeds``). Copy the list itself — so a partial append
+            # mid-step still rolls back, same as txids — while sharing the
+            # unclonable wrapper references, same rationale as ``secrets``
+            # above (the wrapped string is immutable).
+            secret_lists[k] = [
+                i if isinstance(i, _SecretValue) else copy.deepcopy(i)
+                for i in v
+            ]
         else:
             safe[k] = v
     snapshot = copy.deepcopy(safe)
     snapshot.update(secrets)
+    snapshot.update(secret_lists)
     return snapshot
 
 

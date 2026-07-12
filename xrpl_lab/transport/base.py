@@ -252,6 +252,22 @@ class ChannelInfo:
 
 
 @dataclass
+class SignerListInfo:
+    """The SignerList ledger object attached to an account (SignerListSet).
+
+    ``signer_quorum`` is the minimum COMBINED weight of signatures required to
+    authorize a multi-signed transaction for the account. ``entries`` is the
+    signer roster as ``(account, weight)`` pairs — 1..32 entries, no duplicate
+    accounts, and the owning account can never appear in its own list. There
+    is currently exactly one signer list per account (``SignerListID`` 0), and
+    it costs one owner-reserve increment (~0.2 XRP) while it exists.
+    """
+
+    signer_quorum: int
+    entries: list[tuple[str, int]]  # [(signer account, SignerWeight), ...]
+
+
+@dataclass
 class FreezeStatus:
     """Whether an issuer has frozen a holder's trust line and/or globally.
 
@@ -1007,3 +1023,61 @@ class Transport(ABC):
     ) -> bool:
         """Verify an off-ledger channel claim signature against the channel's
         public key. No network."""
+
+    @abstractmethod
+    async def submit_signer_list_set(
+        self,
+        owner_seed: str,
+        quorum: int,
+        entries: list[tuple[str, int]],
+        owner_address: str = "",
+    ) -> SubmitResult:
+        """Create, replace, or delete the account's signer list (SignerListSet).
+
+        ``entries`` is the full intended roster as ``(account, weight)`` pairs —
+        the ledger REPLACES the whole list on every SignerListSet, never patches
+        it. ``quorum`` is the minimum combined weight that authorizes a
+        multi-signed transaction. Passing ``quorum=0`` with an EMPTY ``entries``
+        DELETES the list (freeing its owner reserve); mixing the two — a zero
+        quorum WITH entries, or a non-zero quorum WITHOUT entries — is
+        ``temMALFORMED``. Other network preflight rules both transports must
+        reject identically: 1..32 entries, no duplicate signer accounts, the
+        owner cannot list itself (``temBAD_SIGNER``), every weight must be
+        positive (``temBAD_WEIGHT``), and the quorum cannot exceed the sum of
+        the weights (``temBAD_QUORUM``). ``owner_address`` is a dry-run keying
+        aid (every dry-run seed collapses to one synthetic address); the
+        testnet transport derives the owner from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_multisig_payment(
+        self,
+        owner_address: str,
+        destination: str,
+        amount: str,
+        signer_seeds: list[str],
+        signer_addresses: list[str] | None = None,
+        memo: str = "",
+    ) -> SubmitResult:
+        """Submit a MULTI-SIGNED XRP Payment from ``owner_address``.
+
+        Deliberately takes NO owner seed — that is the whole point of a signer
+        list: the treasury account's own key never signs. Each seed in
+        ``signer_seeds`` produces one entry in the transaction's ``Signers``
+        array (``{Account, SigningPubKey, TxnSignature}``); the transaction's
+        own top-level ``SigningPubKey`` stays EMPTY (""), which is how the
+        ledger knows to check the signer list instead of the master key.
+
+        Cost rule both transports model: the fee is base_fee × (1 + number of
+        signatures) — every co-signature is paid for. Failure parity the
+        dry-run must keep with the network: no signer list on the account →
+        ``tefNOT_MULTI_SIGNING``; a signer not on the list (or duplicated) →
+        ``tefBAD_SIGNATURE``; combined weight below the quorum →
+        ``tefBAD_QUORUM``. ``signer_addresses`` is the dry-run keying aid for
+        the signers (parallel to ``signer_seeds``); the testnet transport
+        derives each address from its seed and ignores it.
+        """
+
+    @abstractmethod
+    async def get_signer_list(self, address: str) -> SignerListInfo | None:
+        """Read the account's SignerList ledger object, or None if it has none."""

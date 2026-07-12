@@ -207,6 +207,21 @@ _MAINNET_REFUSAL_CALLS = {
             "sEdSEED", "GLD", "rISSUER", "50", "rDEST", 999999999
         )
     ),
+    # ── Multisig treasury signing methods (SignerListSet + multisig Payment) ──
+    # SignerListSet signs with the owner's key; the multi-signed Payment signs
+    # with EVERY co-signer's key (sign(multisign=True) per seed), so both move
+    # real authority/value and the testnet-only invariant applies — each MUST
+    # call the write guard BEFORE any Wallet.from_seed.
+    "submit_signer_list_set": (
+        lambda t: t.submit_signer_list_set(
+            "sEdSEED", 2, [("rSIGNER1", 1), ("rSIGNER2", 1)]
+        )
+    ),
+    "submit_multisig_payment": (
+        lambda t: t.submit_multisig_payment(
+            "rTREASURY", "rDEST", "10", ["sEdSEED1", "sEdSEED2"]
+        )
+    ),
     # ── FC-002 Credentials (XLS-70) signing methods ──
     # CredentialCreate/Accept/Delete each sign a real tx (issuer attests, subject
     # accepts moving the reserve, either party deletes to revoke), so the

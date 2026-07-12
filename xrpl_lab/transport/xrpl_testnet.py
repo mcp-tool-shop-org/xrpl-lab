@@ -15,7 +15,11 @@ from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
 from xrpl.asyncio.transaction import (
     XRPLReliableSubmissionException,
+    autofill,
     submit_and_wait,
+)
+from xrpl.asyncio.transaction import (
+    sign as sign_transaction,  # aliased: keypairs' raw `sign` is imported below
 )
 from xrpl.core.binarycodec import encode_for_signing_claim
 from xrpl.core.keypairs import derive_keypair, is_valid_message, sign
@@ -63,6 +67,8 @@ from xrpl.models import (
     PermissionedDomainDelete,
     PermissionedDomainSet,
     ServerInfo,
+    SignerEntry,
+    SignerListSet,
     TrustSet,
     TrustSetFlag,
     Tx,
@@ -71,6 +77,7 @@ from xrpl.models.amounts import MPTAmount
 from xrpl.models.transactions.permissioned_domain_set import (
     Credential as PDCredential,
 )
+from xrpl.transaction import multisign
 from xrpl.utils import drops_to_xrp, get_nftoken_id, hex_to_str, str_to_hex, xrp_to_drops
 from xrpl.wallet import Wallet
 
@@ -89,6 +96,7 @@ from .base import (
     NFTOfferInfo,
     OfferInfo,
     PermissionedDomainInfo,
+    SignerListInfo,
     SubmitResult,
     Transport,
     TrustLineInfo,
@@ -1977,6 +1985,146 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
         return await self._submit_tx(tx, wallet, "EscrowCreate(token)")
+
+    # ── Multisig treasury methods (SignerListSet + multi-signed Payment) ─
+
+    async def submit_signer_list_set(
+        self,
+        owner_seed: str,
+        quorum: int,
+        entries: list[tuple[str, int]],
+        owner_address: str = "",
+    ) -> SubmitResult:
+        # SignerListSet: create/replace (quorum>0 + 1..32 entries) or delete
+        # (quorum=0 + entries omitted) the account's signer list. The action
+        # layer pre-validates the tem-class preflight rules with the network's
+        # codes; xrpl-py's model enforces the same set at construction, so the
+        # try/except below is a backstop, not the primary gate.
+        # ``owner_address`` is a dry-run keying aid; the testnet path derives
+        # the owner from the seed. Signs a real tx, so the testnet-only
+        # invariant applies — guard BEFORE Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(owner_seed)
+            if quorum == 0 and not entries:
+                # Delete: SignerQuorum=0 with SignerEntries OMITTED (the model
+                # rejects a zero quorum WITH entries as malformed).
+                tx = SignerListSet(account=wallet.address, signer_quorum=0)
+            else:
+                tx = SignerListSet(
+                    account=wallet.address,
+                    signer_quorum=quorum,
+                    signer_entries=[
+                        SignerEntry(account=acct, signer_weight=weight)
+                        for acct, weight in entries
+                    ],
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "SignerListSet")
+
+    async def submit_multisig_payment(
+        self,
+        owner_address: str,
+        destination: str,
+        amount: str,
+        signer_seeds: list[str],
+        signer_addresses: list[str] | None = None,
+        memo: str = "",
+    ) -> SubmitResult:
+        # Multi-signed Payment: the treasury account's own key NEVER signs.
+        # Flow (xrpl-py's own multisign primitives — never hand-rolled):
+        #   1. autofill(tx, client, signers_count=N) — fee = base × (1 + N),
+        #      plus Sequence/LastLedgerSequence, fixed for every co-signer.
+        #   2. sign(autofilled, signer_wallet, multisign=True) per signer —
+        #      each yields a one-entry Signers array over the SAME tx.
+        #   3. multisign(autofilled, signed_list) — merges + sorts the Signers
+        #      (the tx's own SigningPubKey stays ""), producing the final tx.
+        #   4. submit_and_wait(combined, client) — already signed, submits as-is.
+        # ``signer_addresses`` is the dry-run keying aid; here each signer's
+        # address derives from its seed. Signs real txs, so the testnet-only
+        # invariant applies — guard BEFORE any Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
+        if not signer_seeds:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED",
+                error=(
+                    "A multi-signed transaction needs a non-empty Signers "
+                    "array — zero signatures can never meet a quorum."
+                ),
+            )
+        try:
+            amount_f = Decimal(amount)
+        except (ValueError, TypeError, InvalidOperation):
+            return SubmitResult(
+                success=False,
+                result_code="local_error",
+                error=f"Invalid amount: {amount!r} — expected a numeric value like '10' or '1.5'",
+            )
+        try:
+            signer_wallets = [Wallet.from_seed(seed) for seed in signer_seeds]
+            payment = Payment(
+                account=owner_address,
+                destination=destination,
+                amount=xrp_to_drops(amount_f),
+                memos=_memo_field(memo) or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                autofilled = await asyncio.wait_for(
+                    autofill(payment, client, signers_count=len(signer_wallets)),
+                    timeout=RPC_TIMEOUT,
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        try:
+            signed = [
+                sign_transaction(autofilled, w, multisign=True)
+                for w in signer_wallets
+            ]
+            combined = multisign(autofilled, signed)
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        # The combined tx is fully signed — submit_and_wait submits it as-is
+        # (its wallet parameter is only consulted for unsigned transactions).
+        return await self._submit_tx(combined, None, "Payment(multisig)")
+
+    async def get_signer_list(self, address: str) -> SignerListInfo | None:
+        try:
+            objs = await self._account_objects(address)
+        except Exception:
+            logger.warning("get_signer_list failed for %s", address, exc_info=True)
+            return None
+        for o in objs:
+            if o.get("LedgerEntryType") != "SignerList":
+                continue
+            entries: list[tuple[str, int]] = []
+            for wrapper in o.get("SignerEntries", []) or []:
+                se = wrapper.get("SignerEntry", {}) or {}
+                acct = se.get("Account", "")
+                weight = _int_or_none(se.get("SignerWeight")) or 0
+                if acct:
+                    entries.append((acct, weight))
+            return SignerListInfo(
+                signer_quorum=_int_or_none(o.get("SignerQuorum")) or 0,
+                entries=entries,
+            )
+        return None
 
     async def _escrow_create_sequences(self, address: str) -> dict[str, int]:
         """Map ``PreviousTxnID`` → EscrowCreate sequence for *address* (TRANSPORT-A-003).

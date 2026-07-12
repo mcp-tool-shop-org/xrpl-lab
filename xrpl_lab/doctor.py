@@ -673,6 +673,42 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
         "meaning": "Sequence number already used",
         "action": "This may be a duplicate. Wait and retry",
     },
+    "tefBAD_QUORUM": {
+        "category": "failed",
+        "meaning": (
+            "The multi-signed transaction's signatures are individually valid "
+            "but their COMBINED SignerWeight is below the account's "
+            "SignerQuorum — together they do not authorize the transaction."
+        ),
+        "action": (
+            "Collect signatures from more (or higher-weighted) signers on the "
+            "list until the summed weight meets the quorum, then resubmit."
+        ),
+    },
+    "tefNOT_MULTI_SIGNING": {
+        "category": "failed",
+        "meaning": (
+            "The sending account has no SignerList, so a multi-signed "
+            "transaction cannot be authorized for it — multi-signing is "
+            "opt-in per account."
+        ),
+        "action": (
+            "Install a signer list first (SignerListSet with a quorum and "
+            "1-32 weighted signers), or sign normally with the account's key."
+        ),
+    },
+    "tefBAD_SIGNATURE": {
+        "category": "failed",
+        "meaning": (
+            "A signature in the Signers array doesn't belong to this "
+            "transaction's signer list — the co-signer is not on the list "
+            "(or appears twice), so its weight cannot count."
+        ),
+        "action": (
+            "Check every co-signer against the account's SignerList entries; "
+            "only listed signers contribute weight, each at most once."
+        ),
+    },
     # Local rejection
     "telINSUF_FEE_P": {
         "category": "local",
@@ -696,6 +732,38 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
         "category": "malformed",
         "meaning": "Fee value is malformed",
         "action": "Use a valid fee in drops (minimum 10)",
+    },
+    "temBAD_QUORUM": {
+        "category": "malformed",
+        "meaning": (
+            "The SignerListSet's SignerQuorum is unachievable — zero/negative "
+            "for a create, or greater than the sum of the SignerWeights, so "
+            "no combination of signatures could ever authorize anything."
+        ),
+        "action": (
+            "Set 0 < SignerQuorum <= sum of the SignerWeight values in the "
+            "entries list."
+        ),
+    },
+    "temBAD_SIGNER": {
+        "category": "malformed",
+        "meaning": (
+            "A SignerEntry is invalid — the account listed ITSELF as a "
+            "signer, or the same signer appears more than once. A signer "
+            "list delegates authority to OTHER keys, each listed once."
+        ),
+        "action": (
+            "Remove the owner's own address and any duplicates from "
+            "SignerEntries (raise a signer's weight instead of repeating it)."
+        ),
+    },
+    "temBAD_WEIGHT": {
+        "category": "malformed",
+        "meaning": (
+            "A SignerEntry carries a non-positive SignerWeight — a "
+            "zero-weight signer could never contribute toward the quorum."
+        ),
+        "action": "Give every signer entry a positive integer weight.",
     },
     # Retry
     "terPRE_SEQ": {

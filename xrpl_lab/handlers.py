@@ -52,6 +52,12 @@ from .actions.mpt import (
     verify_mpt_balance,
     verify_mpt_issuance,
 )
+from .actions.multisig import (
+    delete_signer_list,
+    send_multisig_payment,
+    set_signer_list,
+    verify_signer_list,
+)
 from .actions.nft import (
     accept_nft_offer,
     burn_nft,
@@ -3419,6 +3425,382 @@ async def handle_verify_token_moved(
     return context
 
 
+# ---------------------------------------------------------------------------
+# Multisig treasury actions (SignerListSet + multi-signed Payment)
+# ---------------------------------------------------------------------------
+
+
+async def handle_create_signer_wallets(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create N keyholder wallets for the treasury's signer list.
+
+    Deliberately NOT funded: a SignerEntry does not need to be a funded
+    on-ledger account — the ledger checks each co-signature against the key
+    that derives the listed address, so cold keys that have never touched the
+    ledger work. That keeps keyholder onboarding free.
+    """
+    args = step.action_args
+    try:
+        count = int(args.get("count", "3"))
+    except ValueError:
+        console.print("  [yellow]Invalid count, using default (3).[/]")
+        count = 3
+    if not 1 <= count <= 8:
+        console.print(
+            f"  [yellow]count {count} is outside this lesson's 1-8 range; "
+            f"using 3.[/]"
+        )
+        count = 3
+    console.print(
+        f"  Creating [cyan]{count}[/] keyholder wallets (kept UNFUNDED — "
+        "signer entries don't need on-ledger accounts, only keys)..."
+    )
+    seeds: list[_SecretValue] = []
+    addresses: list[str] = []
+    for i in range(count):
+        signer = create_wallet()
+        seeds.append(_SecretValue(signer.seed))
+        addresses.append(signer.address)
+        console.print(f"  Signer {i + 1}: [cyan]{signer.address}[/]")
+    context["signer_seeds"] = seeds
+    context["signer_addresses"] = addresses
+    return context
+
+
+async def handle_set_signer_list(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Install the N-of-M signer list on the treasury (SignerListSet)."""
+    args = step.action_args
+    try:
+        quorum = int(args.get("quorum", "2"))
+    except ValueError:
+        console.print("  [yellow]Invalid quorum, using default (2).[/]")
+        quorum = 2
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    addresses: list[str] = context.get("signer_addresses", [])
+    if not addresses:
+        console.print(
+            "  [red]No signer wallets in context. Run the create-signer-wallets "
+            "step first.[/]"
+        )
+        return context
+
+    # Per-signer weights, padded with 1s so "1,1,1" and a bare "1" both work.
+    raw_weights = [w.strip() for w in args.get("weights", "").split(",") if w.strip()]
+    weights: list[int] = []
+    for i in range(len(addresses)):
+        try:
+            weights.append(int(raw_weights[i]) if i < len(raw_weights) else 1)
+        except ValueError:
+            weights.append(1)
+    entries = list(zip(addresses, weights, strict=True))
+
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    weight_sum = sum(w for _a, w in entries)
+    console.print(
+        f"  Installing a [cyan]{quorum}-of-{weight_sum}[/] signer list on the "
+        f"treasury ({len(entries)} signers, quorum {quorum})..."
+    )
+    result = await set_signer_list(
+        transport, owner_seed, quorum, entries, owner_address
+    )
+    if result.success:
+        console.print("  [green]Signer list installed — the treasury is now N-of-M.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        console.print(
+            "  [dim]The SignerList object holds one owner-reserve increment "
+            "(~0.2 XRP) while it exists — freed if you delete the list.[/]"
+        )
+        context["multisig_quorum"] = quorum
+        context["multisig_entries"] = entries
+    else:
+        console.print(f"  [red]SignerListSet failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_signer_list(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Checkpoint: the signer list on-ledger matches what was installed."""
+    owner = state.wallet_address or ""
+    expected_quorum = context.get("multisig_quorum")
+    expected_entries = context.get("multisig_entries")
+    if not owner or expected_quorum is None:
+        console.print(
+            "  [red]No signer list in context — the SignerListSet step did "
+            "not run.[/]"
+        )
+        # Honest-pack contract: a verify that COULD NOT run is a FAILED
+        # verification, not a silent skip.
+        _record_verification(
+            context, "verify_signer_list", passed=False,
+            failures=[
+                "treasury/quorum missing — the SignerListSet step that "
+                "produces them did not run"
+            ],
+        )
+        return context
+
+    result = await verify_signer_list(
+        transport, owner,
+        expected_quorum=expected_quorum,
+        expected_entries=expected_entries,
+    )
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    if result.passed:
+        console.print(
+            "  [green]The ledger holds exactly the quorum and roster you "
+            "installed.[/]"
+        )
+    context["last_signer_list_verify"] = result
+    _record_verification(
+        context, "verify_signer_list", result.passed, result.failures
+    )
+    return context
+
+
+def _pick_signers(
+    context: dict, signer_count: int,
+) -> tuple[list[str], list[str]]:
+    """Resolve the first *signer_count* signer (seeds, addresses) from context."""
+    raw_seeds = context.get("signer_seeds", [])[:signer_count]
+    seeds = [
+        s.get() if isinstance(s, _SecretValue) else s for s in raw_seeds
+    ]
+    addresses = list(context.get("signer_addresses", [])[:signer_count])
+    return seeds, addresses
+
+
+def _combined_weight(context: dict, addresses: list[str]) -> int:
+    """Sum the installed weights of *addresses* (0 for unknown signers)."""
+    weights = dict(context.get("multisig_entries", []))
+    return sum(weights.get(a, 0) for a in addresses)
+
+
+async def handle_send_multisig_payment(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Submit a multi-signed Payment that MEETS the quorum."""
+    args = step.action_args
+    amount = args.get("amount", "10")
+    try:
+        signer_count = int(args.get("signer_count", "2"))
+    except ValueError:
+        console.print("  [yellow]Invalid signer_count, using default (2).[/]")
+        signer_count = 2
+    owner_address = state.wallet_address or ""
+    if not owner_address or "signer_seeds" not in context:
+        console.print(
+            "  [red]Missing treasury or signer wallets. Run the earlier steps "
+            "first.[/]"
+        )
+        return context
+    seeds, addresses = _pick_signers(context, signer_count)
+    if len(seeds) < signer_count:
+        console.print(
+            f"  [red]Only {len(seeds)} signer wallet(s) in context — cannot "
+            f"co-sign with {signer_count}.[/]"
+        )
+        return context
+    # The payout destination: explicit arg, else the first keyholder's ops
+    # wallet. On XRPL a payment >= the base reserve CREATES an unfunded
+    # account, so the treasury's first payout also activates it.
+    destination = args.get("destination") or context.get(
+        "multisig_payee", (context.get("signer_addresses") or [""])[0]
+    )
+    quorum = context.get("multisig_quorum")
+    combined = _combined_weight(context, addresses)
+    console.print(
+        f"  Co-signing with [cyan]{signer_count}[/] of "
+        f"{len(context.get('signer_addresses', []))} keyholders — combined "
+        f"weight [cyan]{combined}[/] vs quorum [cyan]{quorum}[/]..."
+    )
+    console.print(
+        f"  [dim]Multisig fee rule: base fee × (1 + {signer_count} "
+        f"signatures) — every co-signature is paid for.[/]"
+    )
+    result = await send_multisig_payment(
+        transport, owner_address, destination, amount, seeds,
+        signer_addresses=addresses,
+        memo=f"XRPLLAB|MULTISIG|{signer_count}sig",
+    )
+    if result.success:
+        console.print(
+            f"  [green]Multi-signed payment validated — {amount} XRP moved "
+            "with the treasury key never touching it![/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        console.print(f"  Fee paid: [cyan]{result.fee}[/] drops (scaled per-signature)")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["multisig_payment_txid"] = result.txid
+    else:
+        console.print(f"  [red]Multi-signed payment failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_send_multisig_payment_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attempt a BELOW-QUORUM multi-signed payment — expects tefBAD_QUORUM.
+
+    Submit-and-learn: one valid signature whose weight is below the quorum.
+    The signature itself verifies fine; the ledger rejects the COMBINATION —
+    that distinction (tefBAD_QUORUM, not tefBAD_SIGNATURE) is the lesson.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    try:
+        signer_count = int(args.get("signer_count", "1"))
+    except ValueError:
+        signer_count = 1
+    owner_address = state.wallet_address or ""
+    if not owner_address or "signer_seeds" not in context:
+        console.print(
+            "  [red]Missing treasury or signer wallets. Run the earlier steps "
+            "first.[/]"
+        )
+        return context
+    seeds, addresses = _pick_signers(context, signer_count)
+    if not seeds:
+        console.print("  [red]No signer wallets in context.[/]")
+        return context
+    destination = args.get("destination") or (
+        context.get("signer_addresses") or [""]
+    )[0]
+    quorum = context.get("multisig_quorum")
+    combined = _combined_weight(context, addresses)
+    console.print(
+        f"  [yellow]Attempting a payment with only {signer_count} "
+        f"signature(s) — combined weight {combined} vs quorum {quorum} "
+        f"(expecting tefBAD_QUORUM)...[/]"
+    )
+    result = await send_multisig_payment(
+        transport, owner_address, destination, amount, seeds,
+        signer_addresses=addresses,
+        memo=f"XRPLLAB|MULTISIG|{signer_count}sig",
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the signature set met the quorum "
+            "on this transport.[/]"
+        )
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        # Record only a REAL txid on the unexpected-success branch (no
+        # {txid:'failed', success:true} records in the proof pack).
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid, module_id=context.get("module_id", ""),
+                network=state.network, success=True,
+                explorer_url=result.explorer_url,
+            )
+    else:
+        # Name the code honestly — only tefBAD_QUORUM is the taught
+        # below-quorum failure; anything else is a DIFFERENT failure and must
+        # not be green-printed as the expected one.
+        if result.result_code == "tefBAD_QUORUM":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"tefBAD_QUORUM (the below-quorum rejection). The "
+                f"demonstration did not exercise the quorum rule.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    save_state(state)
+    return context
+
+
+async def handle_delete_signer_list(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Delete the signer list (SignerQuorum=0, SignerEntries omitted)."""
+    if "wallet_seed" not in context:
+        console.print("  [red]No wallet in context. Run the wallet step first.[/]")
+        return context
+    owner_seed = context["wallet_seed"].get()
+    owner_address = state.wallet_address or ""
+    console.print(
+        "  Deleting the signer list ([cyan]SignerQuorum=0[/] with "
+        "SignerEntries OMITTED — supplying only one of the two is "
+        "temMALFORMED)..."
+    )
+    result = await delete_signer_list(transport, owner_seed, owner_address)
+    if result.success:
+        console.print(
+            "  [green]Signer list deleted — its owner reserve is freed.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        console.print(
+            "  [dim]Safety rule: with the master key disabled and no regular "
+            "key, the network refuses this delete (tecNO_ALTERNATIVE_KEY) — "
+            "an account can't sign away its last key.[/]"
+        )
+        context["signer_list_deleted"] = True
+    else:
+        console.print(f"  [red]Delete failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_verify_signer_list_deleted(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Checkpoint: the SignerList object is gone from the account."""
+    owner = state.wallet_address or ""
+    if not owner:
+        console.print("  [red]No treasury wallet in context.[/]")
+        _record_verification(
+            context, "verify_signer_list_deleted", passed=False,
+            failures=["treasury address missing — the wallet step did not run"],
+        )
+        return context
+    result = await verify_signer_list(transport, owner, expect_absent=True)
+    for c in result.checks:
+        console.print(f"  [green]✓[/] {c}")
+    for f in result.failures:
+        console.print(f"  [red]✗[/] {f}")
+    if result.passed:
+        console.print(
+            "  [green]The treasury is back to single-key control — quorum "
+            "rules no longer apply.[/]"
+        )
+    _record_verification(
+        context, "verify_signer_list_deleted", result.passed, result.failures
+    )
+    return context
+
+
 async def handle_set_did(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -5293,6 +5675,69 @@ def _register_all() -> None:
             name="verify_token_moved",
             handler=handle_verify_token_moved,
             description="Verify the escrowed IOU reached the recipient's trust line",
+        ),
+        # ── Multisig treasury (SignerListSet) — foundations track ──
+        ActionDef(
+            name="create_signer_wallets",
+            handler=handle_create_signer_wallets,
+            description="Create N unfunded keyholder wallets for the signer list",
+            payload_fields=[
+                PayloadField(name="count", type="int", default="3",
+                             description="How many keyholder wallets (1-8)"),
+            ],
+        ),
+        ActionDef(
+            name="set_signer_list",
+            handler=handle_set_signer_list,
+            description="Install an N-of-M signer list on the treasury (SignerListSet)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="quorum", type="int", default="2",
+                             description="Min combined weight to authorize"),
+                PayloadField(name="weights", default="1,1,1",
+                             description="Comma-separated per-signer weights"),
+            ],
+        ),
+        ActionDef(
+            name="verify_signer_list",
+            handler=handle_verify_signer_list,
+            description="Verify the on-ledger signer list matches the installed quorum + roster",
+        ),
+        ActionDef(
+            name="send_multisig_payment",
+            handler=handle_send_multisig_payment,
+            description="Submit a multi-signed Payment meeting the quorum",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+                PayloadField(name="signer_count", type="int", default="2",
+                             description="How many keyholders co-sign"),
+                PayloadField(name="destination",
+                             description="Payee (defaults to signer 1's address)"),
+            ],
+        ),
+        ActionDef(
+            name="send_multisig_payment_expect_fail",
+            handler=handle_send_multisig_payment_expect_fail,
+            description="Attempt a below-quorum multi-signed payment (expects tefBAD_QUORUM)",
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="10"),
+                PayloadField(name="signer_count", type="int", default="1",
+                             description="Signers to use (below quorum)"),
+                PayloadField(name="destination"),
+            ],
+        ),
+        ActionDef(
+            name="delete_signer_list",
+            handler=handle_delete_signer_list,
+            description="Delete the signer list (SignerQuorum=0, entries omitted), freeing reserve",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="verify_signer_list_deleted",
+            handler=handle_verify_signer_list_deleted,
+            description="Verify the SignerList object is gone from the account",
         ),
         ActionDef(
             name="set_did",

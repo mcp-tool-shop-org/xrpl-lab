@@ -20,6 +20,7 @@ from .base import (
     NFTOfferInfo,
     OfferInfo,
     PermissionedDomainInfo,
+    SignerListInfo,
     SubmitResult,
     Transport,
     TrustLineInfo,
@@ -293,6 +294,13 @@ class DryRunTransport(Transport):
         self._mpt_balances: dict[tuple[str, str], Decimal] = {}
         # Payment-channel state (FT-CURRIC-001): channel_id -> channel dict.
         self._channels: dict[str, dict] = {}
+        # Multisig treasury state (SignerListSet): owner address -> SignerListInfo.
+        # Keyed by the owner's REAL address (the ``owner_address`` keying aid,
+        # exactly like clawback/freeze/locking) because every dry-run seed
+        # collapses to one synthetic address — without the real address a
+        # signer-list-equipped treasury would be indistinguishable from an
+        # account with no list, and tefNOT_MULTI_SIGNING could never fire.
+        self._signer_lists: dict[str, SignerListInfo] = {}
         # Escrow / DID / MPT state
         self._escrows: _PerAddressStore = _PerAddressStore()
         self._mpts: _PerAddressStore = _PerAddressStore()
@@ -3191,6 +3199,265 @@ class DryRunTransport(Transport):
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    # ── Multisig treasury methods (SignerListSet + multi-signed Payment) ─
+
+    async def submit_signer_list_set(
+        self,
+        owner_seed: str,
+        quorum: int,
+        entries: list[tuple[str, int]],
+        owner_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecINSUFFICIENT_RESERVE", fee="12",
+                error="[dry-run] Simulated failure: SignerListSet",
+            )
+        owner = owner_address or _address_from_seed(owner_seed)
+        entries = list(entries or [])
+
+        # tem preflight gates run FIRST — on the network a malformed
+        # SignerListSet is rejected in preflight (and xrpl-py's model raises at
+        # construction) BEFORE anything reaches the engine. The action layer
+        # already rejects these locally; enforce them here too so a direct
+        # transport caller sees exactly what the network returns.
+
+        # Delete shape: quorum=0 AND omit SignerEntries. Doing only one of the
+        # two is temMALFORMED (the KB-verified bad-delete rule).
+        if quorum == 0 and entries:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    "[dry-run] Deleting a signer list requires SignerQuorum=0 "
+                    "AND omitting SignerEntries — a zero quorum WITH entries is "
+                    "temMALFORMED."
+                ),
+            )
+        if quorum != 0 and not entries:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    "[dry-run] A non-zero SignerQuorum requires SignerEntries — "
+                    "omitting them is only valid for a delete (SignerQuorum=0)."
+                ),
+            )
+
+        if quorum == 0:
+            # Delete. rippled's removeSignersFromLedger: "If the signer list
+            # doesn't exist we've already succeeded in deleting it" — an
+            # idempotent tesSUCCESS, so mirror that (no reserve to free).
+            existing = self._signer_lists.pop(owner, None)
+            if existing is not None:
+                self._dec_owner(owner)
+            return SubmitResult(
+                success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+                fee="12", ledger_index=99999999, explorer_url="",
+            )
+
+        # Create/replace preflight, in the network's order.
+        if quorum < 0:
+            return SubmitResult(
+                success=False, result_code="temBAD_QUORUM", fee="12",
+                error="[dry-run] SignerQuorum cannot be negative (temBAD_QUORUM).",
+            )
+        if not 1 <= len(entries) <= 32:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    f"[dry-run] A signer list holds 1-32 entries; got "
+                    f"{len(entries)} (temMALFORMED)."
+                ),
+            )
+        accounts = [a for a, _w in entries]
+        if owner in accounts:
+            return SubmitResult(
+                success=False, result_code="temBAD_SIGNER", fee="12",
+                error=(
+                    "[dry-run] The account cannot appear in its OWN signer list "
+                    "(temBAD_SIGNER) — a signer list delegates authority to "
+                    "OTHER keys; the owner's key is governed by it, not part "
+                    "of it."
+                ),
+            )
+        if len(set(accounts)) != len(accounts):
+            return SubmitResult(
+                success=False, result_code="temBAD_SIGNER", fee="12",
+                error=(
+                    "[dry-run] Duplicate signer account in SignerEntries "
+                    "(temBAD_SIGNER) — each signer may appear once; raise its "
+                    "SignerWeight instead of listing it twice."
+                ),
+            )
+        if any(w <= 0 for _a, w in entries):
+            return SubmitResult(
+                success=False, result_code="temBAD_WEIGHT", fee="12",
+                error=(
+                    "[dry-run] Every SignerWeight must be a positive integer "
+                    "(temBAD_WEIGHT) — a zero-weight signer could never "
+                    "contribute toward the quorum."
+                ),
+            )
+        weight_sum = sum(w for _a, w in entries)
+        if quorum > weight_sum:
+            return SubmitResult(
+                success=False, result_code="temBAD_QUORUM", fee="12",
+                error=(
+                    f"[dry-run] SignerQuorum {quorum} exceeds the sum of the "
+                    f"SignerWeights ({weight_sum}) — no combination of "
+                    "signatures could ever authorize a transaction "
+                    "(temBAD_QUORUM)."
+                ),
+            )
+
+        # Create or wholesale-replace (the ledger never patches a signer list).
+        is_new = owner not in self._signer_lists
+        self._signer_lists[owner] = SignerListInfo(
+            signer_quorum=quorum, entries=list(entries),
+        )
+        if is_new:
+            # One owner-reserve increment for the SignerList object (the
+            # MultiSignReserve amendment made it a flat 1 regardless of size).
+            self._inc_owner(owner)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def submit_multisig_payment(
+        self,
+        owner_address: str,
+        destination: str,
+        amount: str,
+        signer_seeds: list[str],
+        signer_addresses: list[str] | None = None,
+        memo: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tefBAD_QUORUM", fee="12",
+                error="[dry-run] Simulated failure: multi-signed Payment",
+            )
+        signer_seeds = list(signer_seeds or [])
+        if not signer_seeds:
+            return SubmitResult(
+                success=False, result_code="temMALFORMED", fee="12",
+                error=(
+                    "[dry-run] A multi-signed transaction needs a non-empty "
+                    "Signers array — zero signatures can never meet a quorum."
+                ),
+            )
+        # Resolve signer identities. ``signer_addresses`` is the dry-run keying
+        # aid (parallel to signer_seeds); without it every seed collapses to
+        # the one synthetic address and list membership could not be checked.
+        signers = list(signer_addresses or [])
+        if len(signers) < len(signer_seeds):
+            signers += [
+                _address_from_seed(s) for s in signer_seeds[len(signers):]
+            ]
+
+        # Amount parity with testnet (round >6dp, reject negative/sub-drop/huge).
+        try:
+            drops = _validate_xrp_amount(amount)
+        except DryRunAmountError as exc:
+            return SubmitResult(
+                success=False, result_code=exc.result_code, fee="0",
+                error=f"[dry-run] {exc}",
+            )
+
+        # tef gates, in the network's order. No signer list at all →
+        # tefNOT_MULTI_SIGNING (the account never delegated signing authority).
+        slist = self._signer_lists.get(owner_address)
+        if slist is None:
+            return SubmitResult(
+                success=False, result_code="tefNOT_MULTI_SIGNING", fee="12",
+                error=(
+                    "[dry-run] The account has NO signer list, so a "
+                    "multi-signed transaction cannot be authorized "
+                    "(tefNOT_MULTI_SIGNING). Run SignerListSet first."
+                ),
+            )
+        weights = dict(slist.entries)
+        seen: set[str] = set()
+        combined = 0
+        for addr in signers:
+            if addr in seen:
+                # rippled requires the Signers array sorted-unique by account;
+                # a duplicated co-signature fails the signature check.
+                return SubmitResult(
+                    success=False, result_code="tefBAD_SIGNATURE", fee="12",
+                    error=(
+                        f"[dry-run] Signer {addr[:12]}... appears twice in the "
+                        "Signers array (tefBAD_SIGNATURE) — one signature per "
+                        "signer; a weight only counts once."
+                    ),
+                )
+            seen.add(addr)
+            if addr not in weights:
+                return SubmitResult(
+                    success=False, result_code="tefBAD_SIGNATURE", fee="12",
+                    error=(
+                        f"[dry-run] Signer {addr[:12]}... is not on the "
+                        "account's signer list (tefBAD_SIGNATURE) — only listed "
+                        "signers can contribute weight."
+                    ),
+                )
+            combined += weights[addr]
+        if combined < slist.signer_quorum:
+            return SubmitResult(
+                success=False, result_code="tefBAD_QUORUM", fee="12",
+                error=(
+                    f"[dry-run] Combined signer weight {combined} is below the "
+                    f"quorum {slist.signer_quorum} (tefBAD_QUORUM) — the "
+                    "signatures are individually valid but together they do "
+                    "not authorize the transaction. Collect more signatures "
+                    "and resubmit."
+                ),
+            )
+
+        # Fee rule: base_fee × (1 + number of signatures) — every co-signature
+        # is paid for. The dry fee model scales the same way so offline
+        # balances track what testnet charges.
+        fee_drops = _DRY_FEE_DROPS * (1 + len(signer_seeds))
+        if owner_address in self._balances:
+            current_balance = self._balances[owner_address]
+            reserve = (
+                _BASE_RESERVE_DROPS
+                + self._owner_counts.get(owner_address, 0) * _OWNER_RESERVE_DROPS
+            )
+            if drops + fee_drops > current_balance - reserve:
+                return SubmitResult(
+                    success=False, txid="", result_code="tecUNFUNDED_PAYMENT",
+                    fee=str(fee_drops),
+                    error=(
+                        f"[dry-run] insufficient XRP balance: have "
+                        f"{current_balance} drops, need {drops} + {fee_drops} "
+                        f"multisig fee while keeping the {reserve}-drop reserve "
+                        "(base reserve + owner reserve — the signer list itself "
+                        "adds one owner increment)"
+                    ),
+                )
+
+        txid = self._next_txid()
+        self._balances[owner_address] = (
+            self._balances.get(owner_address, 0) - drops - fee_drops
+        )
+        self._balances[destination] = self._balances.get(destination, 0) + drops
+        return SubmitResult(
+            success=True, txid=txid, result_code="tesSUCCESS",
+            fee=str(fee_drops), ledger_index=99999999, explorer_url="",
+        )
+
+    async def get_signer_list(self, address: str) -> SignerListInfo | None:
+        found = self._signer_lists.get(address)
+        if found is None:
+            return None
+        # Return a copy so callers can't mutate sim state through the read.
+        return SignerListInfo(
+            signer_quorum=found.signer_quorum, entries=list(found.entries),
         )
 
     async def get_account_channels(
