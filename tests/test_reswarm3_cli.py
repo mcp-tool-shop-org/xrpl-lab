@@ -59,7 +59,17 @@ class TestCL001DryRunProvenance:
         assert data["integrity_sha256"] != _recompute_pack_hash(tampered)
 
     def test_testnet_pack_backward_compatible(self, tmp_path):
-        """A non-dry-run pack keeps dry_run=false / network=testnet."""
+        """A non-dry-run pack keeps dry_run=false and a stable hash shape.
+
+        RA-001 (F-a8db1a2d) update: the pack's ``network`` is no longer a
+        hardcoded 'testnet' literal — it now seals the network the TRANSPORT
+        actually classified (run_audit reads net_info.network). This test's
+        stand-in transport IS the DryRunTransport, so the honest label here
+        is 'dry-run' even though the dry_run flag defaults False; a real
+        testnet run (XRPLTestnetTransport at the default RPC) still seals
+        'testnet'. The devnet/testnet truthfulness cases are pinned in
+        tests/test_reswarm4_reporting_audit.py.
+        """
         import asyncio
 
         from xrpl_lab.audit import run_audit, write_audit_pack
@@ -72,7 +82,8 @@ class TestCL001DryRunProvenance:
         data = json.loads(pack_path.read_text(encoding="utf-8"))
 
         assert data.get("dry_run") is False
-        assert data.get("network") == "testnet"
+        # Honest network label: what the transport reports, not a literal.
+        assert data.get("network") == "dry-run"
         assert data["integrity_sha256"] == _recompute_pack_hash(data)
 
     def test_dry_run_md_shows_simulated_banner(self, tmp_path):

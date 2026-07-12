@@ -17,6 +17,7 @@ from xrpl_lab.audit import (
     parse_txids_file,
     parse_txids_list,
     run_audit,
+    verify_audit_pack,
     write_audit_pack,
     write_audit_report_csv,
     write_audit_report_md,
@@ -428,25 +429,18 @@ class TestReportGeneration:
 
 class TestAuditPackTamperDetection:
     """``write_audit_pack`` embeds an ``integrity_sha256`` and documents a
-    5-step verification procedure in its docstring (audit.py ~L377-382), but
-    until now no test proved the procedure actually DETECTS tampering — unlike
-    the proof pack / certificate, which have tamper tests (test_cli.py:
-    ``test_proof_verify_tampered`` / ``test_cert_verify_tampered``).
+    5-step verification procedure in its docstring. These tests exercise the
+    REAL verifier — ``verify_audit_pack`` (added for F-0fb57446, closing the
+    trust loop that proof packs / certificates already had) — and prove BOTH
+    halves:
+      * a clean pack verifies (valid=True), and
+      * a pack with a mutated hashed field FAILS (valid=False, hash mismatch).
 
-    There is no ``verify_audit_pack`` function in source, so these tests
-    replicate the DOCUMENTED procedure verbatim and prove BOTH halves:
-      * a clean pack verifies (recomputed hash == stored hash), and
-      * a pack with a mutated hashed field FAILS (recomputed != stored).
-
-    The recompute mirrors the producer exactly (``json.dumps(pack,
-    sort_keys=True, indent=2)`` over the pack with ``integrity_sha256``
-    blanked, then sha256) so the test is a faithful external verifier, not
-    a re-derivation of the producer's private logic.
-
-    NOTE (out of this agent's scope — test-only): extracting a real
-    ``verify_audit_pack()`` helper into ``audit.py`` so the documented
-    procedure is tested CODE rather than prose-replicated-in-tests is a
-    recommended FEATURE-pass follow-up. These tests pin the contract today.
+    An earlier version of this class prose-replicated the docstring procedure
+    because no ``verify_audit_pack`` existed in source; the fix repointed
+    these tests at the shipped function so the documented procedure is tested
+    CODE. ``test_audit_pack_verify_clean`` additionally re-runs the verbatim
+    documented steps so the docstring can never drift from the function.
     """
 
     @staticmethod
@@ -454,15 +448,10 @@ class TestAuditPackTamperDetection:
         """Replicate the 5-step verification procedure from the
         ``write_audit_pack`` docstring and return the recomputed hash.
 
-        Steps (verbatim from audit.py):
-          1. (caller) read the file and parse JSON → ``pack``
-          2. set ``pack["integrity_sha256"] = ""``
-          3. serialize with ``json.dumps(pack, sort_keys=True, indent=2)``
-          4. compute ``hashlib.sha256(serialization.encode()).hexdigest()``
-          5. (caller) compare to the original ``integrity_sha256``
+        Kept alongside the real-function tests as the docstring-drift guard:
+        an external auditor following the PROSE must reach the same verdict
+        as ``verify_audit_pack``.
         """
-        # Operate on a copy so step 2's blanking doesn't clobber the
-        # caller's stored hash before they compare in step 5.
         recompute = dict(pack)
         recompute["integrity_sha256"] = ""
         canonical = json.dumps(recompute, sort_keys=True, indent=2)
@@ -470,28 +459,31 @@ class TestAuditPackTamperDetection:
 
     @pytest.mark.asyncio
     async def test_audit_pack_verify_clean(self, tmp_path):
-        """A pristine pack written by the real writer must verify: the
-        recomputed hash (per the documented procedure) equals the stored
-        ``integrity_sha256``."""
+        """A pristine pack written by the real writer must verify via
+        ``verify_audit_pack``, and the documented prose procedure must agree."""
         transport = DryRunTransport()
         report = await run_audit(transport, ["TX1", "TX2"])
         path = tmp_path / "pack.json"
         write_audit_pack(report, path)
 
         pack = json.loads(path.read_text(encoding="utf-8"))
-        stored = pack["integrity_sha256"]
-        recomputed = self._recompute_from_documented_procedure(pack)
 
-        assert recomputed == stored, (
-            "clean audit pack failed self-verification — the documented "
-            "5-step procedure does not reproduce the stored hash, so the "
+        valid, message = verify_audit_pack(pack)
+        assert valid, (
+            f"clean audit pack failed verify_audit_pack: {message} — the "
             "integrity claim is unverifiable by an external auditor."
         )
+        assert "verified" in message.lower()
+
+        # Docstring-drift guard: the documented 5-step prose procedure must
+        # reproduce the stored hash exactly like the shipped function does.
+        assert self._recompute_from_documented_procedure(pack) == \
+            pack["integrity_sha256"]
 
     @pytest.mark.asyncio
     async def test_audit_pack_verify_tampered(self, tmp_path):
         """Mutating a hashed field after the pack is written must be
-        DETECTED: the recomputed hash no longer matches the stored one.
+        DETECTED by ``verify_audit_pack``.
 
         We mutate ``summary.passed`` (a hashed field — it sits inside the
         dict the producer hashes), simulating an attacker editing the
@@ -502,20 +494,18 @@ class TestAuditPackTamperDetection:
         write_audit_pack(report, path)
 
         pack = json.loads(path.read_text(encoding="utf-8"))
-        stored = pack["integrity_sha256"]
 
         # Tamper: inflate the passed count. This field is part of the
-        # hashed payload, so any honest recompute must diverge.
-        original_passed = pack["summary"]["passed"]
-        pack["summary"]["passed"] = original_passed + 99
+        # hashed payload, so verification must diverge.
+        pack["summary"]["passed"] = pack["summary"]["passed"] + 99
 
-        recomputed = self._recompute_from_documented_procedure(pack)
-
-        assert recomputed != stored, (
+        valid, message = verify_audit_pack(pack)
+        assert not valid, (
             "tampered audit pack passed verification — mutating "
-            "summary.passed did NOT change the recomputed hash, so the "
-            "integrity_sha256 provides no tamper protection."
+            "summary.passed was NOT detected, so the integrity_sha256 "
+            "provides no tamper protection."
         )
+        assert "mismatch" in message.lower()
 
 
 # ── CLI smoke test ───────────────────────────────────────────────────
