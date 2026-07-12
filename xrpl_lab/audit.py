@@ -6,6 +6,7 @@ import csv
 import hashlib
 import io
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,6 +14,12 @@ from pathlib import Path
 import click
 
 from . import __version__
+
+# _atomic_write_text (F-55604e7e) + sanitize_endpoint (RA-002 / F-60b2df48)
+# are shared with the proof-pack writers so both artifact families strip
+# credentials and replace atomically with ONE implementation. reporting.py
+# never imports audit — no cycle.
+from .reporting import _atomic_write_text, sanitize_endpoint
 from .state import WORKSPACE_DIR_MODE, _ensure_dir_mode
 from .transport.base import Transport, TxInfo
 
@@ -66,6 +73,15 @@ class AuditReport:
     # ledger. Defaults False so every existing constructor keeps the real
     # (on-ledger) pack shape unchanged.
     dry_run: bool = False
+    # RA-001 (F-a8db1a2d): the CLASSIFIED network the audit actually ran
+    # against, populated by run_audit from the transport's own
+    # get_network_info(). The writers used to hardcode 'testnet' here — but
+    # audit is a READ path with no network guard and XRPL_LAB_RPC_URL supports
+    # devnet/local (and, for reads, even mainnet) overrides, so a hash-sealed
+    # audit pack could claim network=testnet while its own sealed endpoint
+    # contradicted it. Defaults 'testnet' only for direct constructors that
+    # predate the field; every run_audit-produced report carries the truth.
+    network: str = "testnet"
 
     @property
     def total(self) -> int:
@@ -95,17 +111,40 @@ class AuditReport:
 # ── Parsing ──────────────────────────────────────────────────────────
 
 
+# RA-007 (F-6b3c9205): accepted txid shapes. Real XRPL txids are strictly
+# 64-hex; dry-run fixture ids (TX1, TX_FAIL_1, DRYRUN-...) get a permissive
+# letters/digits/_/- shape. Both alphabets exclude every spreadsheet-formula
+# metacharacter except a leading '-' (which the CSV writer defuses), so a
+# hostile line like ``=HYPERLINK("http://evil","ok")`` or ``=cmd|' /C calc'!A0``
+# is rejected at parse time instead of riding into a report.
+_TXID_SHAPE = re.compile(r"[0-9A-Za-z_-]{1,128}")
+
+
 def parse_txids_file(path: Path) -> list[str]:
-    """Parse a txids file — one txid per line, ignore blanks and # comments."""
+    """Parse a txids file — one txid per line, ignore blanks and # comments.
+
+    RA-007: every non-comment line must look like a txid (64-hex) or a
+    dry-run fixture id (letters/digits/_/-, max 128 chars). The realistic
+    audit flow is a FACILITATOR feeding a LEARNER-SUBMITTED txids file to
+    ``xrpl-lab audit``; rejecting malformed lines here both blocks CSV
+    formula-injection payloads and surfaces pasted garbage early.
+    """
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as e:
         raise click.ClickException(f"Cannot read txids file: {path}: {e}") from e
     txids: list[str] = []
-    for line in text.splitlines():
+    for lineno, line in enumerate(text.splitlines(), start=1):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
+        if not _TXID_SHAPE.fullmatch(stripped):
+            raise click.ClickException(
+                f"Invalid txid on line {lineno} of {path.name}: "
+                f"{stripped[:40]!r} — txids are 64 hex characters (dry-run "
+                "fixture ids may use letters, digits, '_' and '-'). Remove or "
+                "fix the line and re-run."
+            )
         txids.append(stripped)
     return txids
 
@@ -298,10 +337,17 @@ async def run_audit(
     return AuditReport(
         verdicts=verdicts,
         config=config,
-        endpoint=endpoint or net_info.rpc_url,
+        # RA-002: strip credentials/query BEFORE the endpoint can reach any
+        # hashed pack or shareable report — a credentialed XRPL_LAB_RPC_URL
+        # (basic-auth userinfo, path tokens, ?api_key=) must never be sealed.
+        endpoint=sanitize_endpoint(endpoint or net_info.rpc_url),
         tool_version=__version__,
         timestamp=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         dry_run=dry_run,
+        # RA-001: seal the network the transport ACTUALLY classified — an
+        # audit against devnet/local/mainnet must not be labeled 'testnet'.
+        # A dry-run audit is labeled honestly as such.
+        network="dry-run" if dry_run else (net_info.network or "unknown"),
     )
 
 
@@ -324,8 +370,16 @@ def write_audit_report_md(report: AuditReport, path: Path) -> Path:
             "genuine audit.\n"
         )
     lines.append(f"- **Tool version**: {report.tool_version}")
-    lines.append(f"- **Network**: {'dry-run (SIMULATED)' if report.dry_run else 'testnet'}")
-    lines.append(f"- **Endpoint**: {report.endpoint}")
+    # RA-001: report the classified network the audit ran against, never a
+    # hardcoded 'testnet' — a devnet/local/mainnet read must be labeled
+    # honestly in a shareable report.
+    lines.append(
+        f"- **Network**: "
+        f"{'dry-run (SIMULATED)' if report.dry_run else report.network}"
+    )
+    # RA-002: belt-and-braces — run_audit already sanitizes, but a directly
+    # constructed report must not leak a credentialed endpoint either.
+    lines.append(f"- **Endpoint**: {sanitize_endpoint(report.endpoint)}")
     lines.append(f"- **Timestamp**: {report.timestamp}")
     lines.append(f"- **Transactions**: {report.total}")
     lines.append(
@@ -367,8 +421,23 @@ def write_audit_report_md(report: AuditReport, path: Path) -> Path:
     # DD-1: audit reports are workshop-shareable (facilitator handoff,
     # no secrets per threat model). 0o755.
     _ensure_dir_mode(path.parent, WORKSPACE_DIR_MODE)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    # F-55604e7e: atomic replace — never leave a truncated report behind.
+    _atomic_write_text(path, "\n".join(lines))
     return path
+
+
+def _csv_defuse(value: str) -> str:
+    """Neutralize spreadsheet formula injection in a CSV cell (RA-007).
+
+    A cell beginning with ``= + - @`` (or a tab/CR) executes as a formula when
+    the CSV is opened in Excel / LibreOffice / Sheets. Prefixing a single
+    quote makes the cell render as text. Applied to every data cell — the
+    txid column is the attacker-controlled one (parse-time validation is the
+    first gate), but ledger-sourced columns get the same defensive treatment.
+    """
+    if value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
 
 
 def write_audit_report_csv(report: AuditReport, path: Path) -> Path:
@@ -394,19 +463,24 @@ def write_audit_report_csv(report: AuditReport, path: Path) -> Path:
 
     for v in report.verdicts:
         tx = v.tx_info
+        # RA-007: defuse every cell against formula injection.
         writer.writerow([
-            v.txid,
-            v.status,
-            tx.tx_type if tx else "",
-            tx.result_code if tx else "",
-            tx.account if tx else "",
-            tx.destination if tx else "",
-            tx.fee if tx else "",
-            str(tx.validated) if tx else "",
-            "; ".join(v.failure_reasons),
+            _csv_defuse(str(cell))
+            for cell in (
+                v.txid,
+                v.status,
+                tx.tx_type if tx else "",
+                tx.result_code if tx else "",
+                tx.account if tx else "",
+                tx.destination if tx else "",
+                tx.fee if tx else "",
+                str(tx.validated) if tx else "",
+                "; ".join(v.failure_reasons),
+            )
         ])
 
-    path.write_text(buf.getvalue(), encoding="utf-8")
+    # F-55604e7e: atomic replace — never leave a truncated CSV behind.
+    _atomic_write_text(path, buf.getvalue())
     return path
 
 
@@ -423,7 +497,10 @@ def write_audit_pack(report: AuditReport, path: Path) -> Path:
     pack: dict = {
         "tool": "xrpl-lab",
         "version": report.tool_version,
-        "endpoint": report.endpoint,
+        # RA-002: sanitized (scheme://host[:port] only) BEFORE hashing —
+        # a credential sealed inside the hash could never be redacted later
+        # without breaking integrity verification.
+        "endpoint": sanitize_endpoint(report.endpoint),
         # CL-001: provenance sealed into the pack. ``dry_run`` and ``network``
         # are ordinary top-level keys, so they participate in the sort_keys
         # canonical serialization that ``integrity_sha256`` hashes below — the
@@ -436,7 +513,11 @@ def write_audit_pack(report: AuditReport, path: Path) -> Path:
         # digest. What the seal + the visible SIMULATED banner prevent is the
         # ACCIDENTAL case — a dry-run pack quietly mistaken for a real one.
         "dry_run": report.dry_run,
-        "network": "dry-run" if report.dry_run else "testnet",
+        # RA-001 (F-a8db1a2d): seal the network run_audit classified from the
+        # transport itself — the old hardcoded 'testnet' literal made an audit
+        # against devnet/local/mainnet (reads are unguarded) produce a sealed
+        # credibility artifact whose own endpoint field contradicted it.
+        "network": "dry-run" if report.dry_run else report.network,
         "timestamp": report.timestamp,
         "summary": {
             "total": report.total,
@@ -482,7 +563,52 @@ def write_audit_pack(report: AuditReport, path: Path) -> Path:
     # DD-1: audit packs are workshop-shareable (facilitator handoff,
     # no secrets per threat model). 0o755.
     _ensure_dir_mode(path.parent, WORKSPACE_DIR_MODE)
-    path.write_text(
-        json.dumps(pack, indent=2, sort_keys=True), encoding="utf-8"
-    )
+    # F-55604e7e: atomic replace — a crash mid-write must not destroy a
+    # previously good pack at the same path.
+    _atomic_write_text(path, json.dumps(pack, indent=2, sort_keys=True))
     return path
+
+
+def verify_audit_pack(pack: dict) -> tuple[bool, str]:
+    """Verify an audit pack's ``integrity_sha256`` (F-0fb57446).
+
+    Implements the sentinel procedure documented on :func:`write_audit_pack`
+    — until now that procedure existed only as a docstring replicated in
+    tests, leaving the trust loop closed for proof packs and certificates but
+    OPEN for audit packs (no tool-supported tamper check). Returns
+    ``(valid, message)``, mirroring ``verify_proof_pack`` /
+    ``verify_certificate`` in reporting.py so callers can dispatch uniformly.
+    """
+    if not isinstance(pack, dict):
+        return False, "Not a valid JSON object"
+
+    if pack.get("tool") != "xrpl-lab" or "verdicts" not in pack:
+        return False, (
+            "Missing audit-pack markers (tool='xrpl-lab' + verdicts) — you "
+            "may have pasted a proof pack (use `proof verify`) or a partial "
+            "file."
+        )
+
+    stored_hash = pack.get("integrity_sha256")
+    if not stored_hash:
+        return False, (
+            "No integrity_sha256 found in audit pack — the file may be "
+            "truncated or partial; regenerate with `xrpl-lab audit`."
+        )
+
+    # The documented sentinel procedure: blank the hash field, serialize
+    # canonically (sort_keys=True, indent=2), hash, compare. Operate on a
+    # copy so the caller's dict is untouched.
+    check = dict(pack)
+    check["integrity_sha256"] = ""
+    canonical = json.dumps(check, indent=2, sort_keys=True)
+    computed = hashlib.sha256(canonical.encode()).hexdigest()
+
+    if computed != stored_hash:
+        return False, (
+            f"Hash mismatch: expected {stored_hash[:16]}…, got {computed[:16]}… "
+            "— the file was edited after generation; regenerate with "
+            "`xrpl-lab audit`."
+        )
+
+    return True, "Integrity verified"
