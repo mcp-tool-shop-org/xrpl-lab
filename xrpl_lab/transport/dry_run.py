@@ -277,6 +277,24 @@ class DryRunTransport(Transport):
         # ``wallet_address`` keying aid, exactly like clawback/freeze/locking)
         # because every dry-run seed collapses to one synthetic address.
         self._require_dest: set[str] = set()
+        # Deposit Authorization gate (deposit_gate_101, XLS-70 extension).
+        # Addresses that have enabled asfDepositAuth (ledger flag
+        # lsfDepositAuth) — an unsolicited Payment to one of these fails
+        # tecNO_PERMISSION unless the sender is preauthorized. Keyed by the
+        # account's REAL address (the ``wallet_address`` keying aid), exactly
+        # like RequireDest/clawback/freeze, because every dry-run seed
+        # collapses to one synthetic address.
+        self._deposit_auth: set[str] = set()
+        # DepositPreauth by ADDRESS: destination -> set of preauthorized
+        # sender addresses (each entry is one owner-reserve-charged ledger
+        # object on the network; modeled here as flat membership).
+        self._deposit_preauth_addr: dict[str, set[str]] = {}
+        # DepositPreauth by CREDENTIAL: destination -> set of authorized
+        # (issuer, credential_type_hex) pairs. Additive (NOT full-replace like
+        # PermissionedDomainSet's AcceptedCredentials) — each
+        # AuthorizeCredentials submission adds to the destination's accepted
+        # set; UnauthorizeCredentials removes exactly the pairs named.
+        self._deposit_preauth_cred: dict[str, set[tuple[str, str]]] = {}
         # Token-escrow opt-in state (FC-001, XLS-85). An issuer address in this
         # set has enabled asfAllowTrustLineLocking, so its IOU can be escrowed.
         # A token EscrowCreate against an issuer NOT in this set fails
@@ -444,6 +462,8 @@ class DryRunTransport(Transport):
         memo: str = "",
         destination_tag: int | None = None,
         source_tag: int | None = None,
+        credential_ids: list[str] | None = None,
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -455,7 +475,12 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: insufficient funds",
             )
 
-        sender = _address_from_seed(wallet_seed)
+        # Key by the sender's REAL address when supplied — every dry-run seed
+        # collapses to one synthetic address, so distinguishing multiple
+        # senders in ONE dry-run session against a shared DepositAuth /
+        # DepositPreauth policy (deposit_gate_101) needs this, exactly like
+        # every other multi-party action's ``*_address`` keying aid.
+        sender = wallet_address or _address_from_seed(wallet_seed)
 
         # TRUE parity with testnet: xrpl-py's xrp_to_drops ROUNDS a >6dp amount
         # to the nearest drop (ROUND_HALF_EVEN) and REJECTS negative / sub-drop
@@ -490,6 +515,27 @@ class DryRunTransport(Transport):
                     ),
                 )
 
+        # CredentialIDs range parity (deposit_gate_101): xrpl-py's Payment
+        # model raises at CONSTRUCTION for an empty, >8-entry, or duplicate-
+        # containing credential_ids list — mirrored here so a dry-run pass
+        # never masks a testnet local_error.
+        if credential_ids is not None:
+            if len(credential_ids) == 0:
+                return SubmitResult(
+                    success=False, txid="", result_code="local_error", fee="0",
+                    error="[dry-run] CredentialIDs list cannot be empty.",
+                )
+            if len(credential_ids) > 8:
+                return SubmitResult(
+                    success=False, txid="", result_code="local_error", fee="0",
+                    error="[dry-run] CredentialIDs list cannot exceed 8 elements.",
+                )
+            if len(set(credential_ids)) != len(credential_ids):
+                return SubmitResult(
+                    success=False, txid="", result_code="local_error", fee="0",
+                    error="[dry-run] CredentialIDs list cannot contain duplicate values.",
+                )
+
         # RequireDest enforcement (custodial crediting): an UNTAGGED Payment
         # to an account with asfRequireDest set fails tecDST_TAG_NEEDED on the
         # network (checked in preclaim, BEFORE the funding check below). This
@@ -507,6 +553,38 @@ class DryRunTransport(Transport):
                     "unattributable (tecDST_TAG_NEEDED)."
                 ),
             )
+
+        # Deposit Authorization gate (deposit_gate_101): an unsolicited
+        # Payment to an asfDepositAuth destination fails tecNO_PERMISSION
+        # unless the sender is preauthorized — by address, or by attaching a
+        # currently valid credential matching the destination's
+        # AuthorizeCredentials set. Checked in preclaim, BEFORE the funding
+        # check below, exactly like RequireDest above. The sub-reserve
+        # exemption (a destination at/below its own base reserve can still
+        # receive an XRP Payment of at most the base reserve, from ANYONE) is
+        # the documented escape hatch that keeps a DepositAuth account from
+        # getting permanently stuck.
+        if (
+            destination in self._deposit_auth
+            and destination != sender
+            and not self._deposit_admits(destination, sender, credential_ids)
+        ):
+            dest_balance = self._balances.get(destination, 0)
+            exempt = dest_balance <= _BASE_RESERVE_DROPS and drops <= _BASE_RESERVE_DROPS
+            if not exempt:
+                return SubmitResult(
+                    success=False,
+                    txid="",
+                    result_code="tecNO_PERMISSION",
+                    fee="12",
+                    error=(
+                        "[dry-run] The destination has asfDepositAuth "
+                        "enabled and this sender is not preauthorized — "
+                        "neither by address (DepositPreauth Authorize) "
+                        "nor by a currently valid credential matching an "
+                        "AuthorizeCredentials entry (tecNO_PERMISSION)."
+                    ),
+                )
 
         # F-BRIDGE-B-DRY-NEG-BAL: pre-validate sender balance before debiting.
         # Previously the debit ran unconditionally, allowing a funded sender's
@@ -2267,6 +2345,190 @@ class DryRunTransport(Transport):
             fee="12", ledger_index=99999999, explorer_url="",
         )
 
+    # ── Deposit Authorization gate (deposit_gate_101, XLS-70 extension) ──
+    #
+    # DepositAuth (AccountSet asfDepositAuth) makes an account reject any
+    # unsolicited Payment unless the sender is preauthorized; DepositPreauth
+    # whitelists senders either by ADDRESS (Authorize/Unauthorize, one ledger
+    # object per address) or by CREDENTIAL (AuthorizeCredentials/
+    # UnauthorizeCredentials — additive, unlike PermissionedDomainSet's
+    # full-replace AcceptedCredentials). See ``submit_payment`` for the gate
+    # check itself and the sub-reserve exemption.
+
+    def _find_credential_by_id(self, credential_id: str) -> CredentialInfo | None:
+        """Resolve a Payment's attached CredentialID back to its Credential."""
+        for cred in self._credentials.values():
+            if cred.credential_id == credential_id:
+                return cred
+        return None
+
+    def _deposit_admits(
+        self,
+        destination: str,
+        sender: str,
+        credential_ids: list[str] | None,
+    ) -> bool:
+        """True if *sender* is preauthorized to pay *destination* (DepositAuth gate).
+
+        Admits by ADDRESS (a DepositPreauth Authorize naming this sender) OR by
+        CREDENTIAL: any attached CredentialID that resolves to a credential
+        which (a) belongs to this sender, (b) is currently accepted and
+        unexpired, and (c) matches one of the destination's authorized
+        (issuer, credential_type) pairs — OR semantics across both the
+        attached ids and the authorized set, exactly like Permissioned
+        Domains' accepted-credential membership check.
+        """
+        if sender in self._deposit_preauth_addr.get(destination, set()):
+            return True
+        authorized = self._deposit_preauth_cred.get(destination, set())
+        if authorized and credential_ids:
+            for cid in credential_ids:
+                cred = self._find_credential_by_id(cid)
+                if (
+                    cred is not None
+                    and cred.subject == sender
+                    and cred.accepted
+                    and (cred.expiration is None or self._dry_clock < cred.expiration)
+                    and (cred.issuer, cred.credential_type) in authorized
+                ):
+                    return True
+        return False
+
+    async def submit_deposit_auth(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecOWNERS", fee="12",
+                error="[dry-run] Simulated failure: AccountSet deposit-auth",
+            )
+        # Key by the account's REAL address when supplied — every dry-run seed
+        # collapses to one synthetic address, so without the real address a
+        # DepositAuth-protected treasury would be indistinguishable from an
+        # open account and tecNO_PERMISSION could never fire.
+        account = wallet_address or _address_from_seed(wallet_seed)
+        if enable:
+            self._deposit_auth.add(account)
+        else:
+            self._deposit_auth.discard(account)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def submit_deposit_preauth(
+        self,
+        wallet_seed: str,
+        authorize: str = "",
+        unauthorize: str = "",
+        authorize_credentials: list[tuple[str, str]] | None = None,
+        unauthorize_credentials: list[tuple[str, str]] | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] Simulated failure: DepositPreauth",
+            )
+        # Exactly one of the four — xrpl-py's model raises the same "exactly
+        # one" client-side error at construction; mirrored here as local_error
+        # so a dry-run pass never masks a testnet failure.
+        provided = [
+            bool(authorize), bool(unauthorize),
+            bool(authorize_credentials), bool(unauthorize_credentials),
+        ]
+        if sum(provided) != 1:
+            return SubmitResult(
+                success=False, txid="", result_code="local_error", fee="0",
+                error=(
+                    "[dry-run] Exactly one of authorize / unauthorize / "
+                    "authorize_credentials / unauthorize_credentials must be set."
+                ),
+            )
+        account = wallet_address or _address_from_seed(wallet_seed)
+
+        if authorize:
+            if authorize == account:
+                return SubmitResult(
+                    success=False, result_code="temCANNOT_PREAUTH_SELF", fee="12",
+                    error="[dry-run] An account cannot preauthorize itself "
+                          "(temCANNOT_PREAUTH_SELF).",
+                )
+            bucket = self._deposit_preauth_addr.setdefault(account, set())
+            if authorize in bucket:
+                return SubmitResult(
+                    success=False, result_code="tecDUPLICATE", fee="12",
+                    error="[dry-run] This address is already preauthorized "
+                          "(tecDUPLICATE).",
+                )
+            bucket.add(authorize)
+            self._inc_owner(account)
+            return SubmitResult(success=True, txid=self._next_txid(),
+                                result_code="tesSUCCESS", fee="12",
+                                ledger_index=99999999, explorer_url="")
+
+        if unauthorize:
+            bucket = self._deposit_preauth_addr.get(account, set())
+            if unauthorize not in bucket:
+                return SubmitResult(
+                    success=False, result_code="tecNO_ENTRY", fee="12",
+                    error="[dry-run] No such address preauthorization to "
+                          "revoke (tecNO_ENTRY).",
+                )
+            bucket.discard(unauthorize)
+            self._dec_owner(account)
+            return SubmitResult(success=True, txid=self._next_txid(),
+                                result_code="tesSUCCESS", fee="12",
+                                ledger_index=99999999, explorer_url="")
+
+        if authorize_credentials:
+            if len(authorize_credentials) > 8:
+                return SubmitResult(
+                    success=False, txid="", result_code="local_error", fee="0",
+                    error="[dry-run] AuthorizeCredentials cannot exceed 8 entries.",
+                )
+            if len(set(authorize_credentials)) != len(authorize_credentials):
+                return SubmitResult(
+                    success=False, txid="", result_code="local_error", fee="0",
+                    error="[dry-run] AuthorizeCredentials cannot contain duplicates.",
+                )
+            bucket = self._deposit_preauth_cred.setdefault(account, set())
+            # tecDUPLICATE: the entire submitted set is already covered —
+            # nothing new would be authorized (the ledger's exact-object-match
+            # duplicate rejection, simplified to per-pair membership since this
+            # module only ever authorizes one pair at a time).
+            if all(pair in bucket for pair in authorize_credentials):
+                return SubmitResult(
+                    success=False, result_code="tecDUPLICATE", fee="12",
+                    error="[dry-run] This credential set is already "
+                          "authorized (tecDUPLICATE).",
+                )
+            bucket.update(authorize_credentials)
+            self._inc_owner(account)
+            return SubmitResult(success=True, txid=self._next_txid(),
+                                result_code="tesSUCCESS", fee="12",
+                                ledger_index=99999999, explorer_url="")
+
+        # unauthorize_credentials
+        bucket = self._deposit_preauth_cred.get(account, set())
+        missing = [pair for pair in unauthorize_credentials if pair not in bucket]
+        if missing:
+            return SubmitResult(
+                success=False, result_code="tecNO_ENTRY", fee="12",
+                error="[dry-run] No such credential preauthorization to "
+                      "revoke (tecNO_ENTRY).",
+            )
+        bucket.difference_update(unauthorize_credentials)
+        self._dec_owner(account)
+        return SubmitResult(success=True, txid=self._next_txid(),
+                            result_code="tesSUCCESS", fee="12",
+                            ledger_index=99999999, explorer_url="")
+
     # ── Token escrow (XLS-85 / FC-001) ───────────────────────────────
 
     async def submit_allow_trustline_locking(
@@ -2688,9 +2950,18 @@ class DryRunTransport(Transport):
                 error="[dry-run] A credential with this (subject, issuer, type) "
                       "already exists (tecDUPLICATE).",
             )
+        # Synthetic CredentialID (deposit_gate_101): the dry-run analog of the
+        # real Credential ledger object's index — a Payment attaches this via
+        # CredentialIDs to satisfy a DepositPreauth credential-based gate.
+        # Deterministic per (subject, issuer, type) so a fresh get_credential()
+        # read-back resolves the SAME id the create minted.
+        credential_id = hashlib.sha256(
+            f"CRED-{subject}-{issuer}-{credential_type}".encode()
+        ).hexdigest().upper()[:64]
         self._credentials[key] = CredentialInfo(
             subject=subject, issuer=issuer, credential_type=credential_type,
             accepted=False, uri=uri, expiration=expiration,
+            credential_id=credential_id,
         )
         # Provisional: the ISSUER holds the owner reserve until accept.
         self._inc_owner(issuer)

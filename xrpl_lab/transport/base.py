@@ -198,7 +198,10 @@ class CredentialInfo:
     the subject must run CredentialAccept for the credential to become valid.
     ``credential_type`` is the raw hex tag (opaque; issuer + verifier agree on
     the plaintext out-of-band). ``uri`` is decoded UTF-8 if possible, else hex,
-    and is IMMUTABLE after create.
+    and is IMMUTABLE after create. ``credential_id`` is the Credential ledger
+    object's index (a Hash256 hex string) — this is the value a sender attaches
+    to a Payment's ``CredentialIDs`` field to satisfy a DepositPreauth
+    credential-based gate (deposit_gate_101); empty when unknown/unresolved.
     """
 
     subject: str
@@ -207,6 +210,7 @@ class CredentialInfo:
     accepted: bool = False
     uri: str = ""
     expiration: int | None = None
+    credential_id: str = ""
 
 
 @dataclass
@@ -357,6 +361,8 @@ class Transport(ABC):
         memo: str = "",
         destination_tag: int | None = None,
         source_tag: int | None = None,
+        credential_ids: list[str] | None = None,
+        wallet_address: str = "",
     ) -> SubmitResult:
         """Submit a payment transaction.
 
@@ -370,6 +376,91 @@ class Transport(ABC):
         (outside 0..2^32-1) are a local error — xrpl-py's model rejects them
         at construction, and the dry-run mirrors that so a dry-run pass never
         masks a testnet failure.
+
+        ``credential_ids`` (deposit_gate_101, XLS-70 extension) is an optional
+        list of 1-8 Credential ledger-object ids the SENDER attaches to satisfy
+        a destination's DepositAuth/DepositPreauth gate by credential (see
+        :meth:`submit_deposit_preauth`). Both transports enforce the same
+        DepositAuth rule: a Payment to a destination with ``asfDepositAuth``
+        set fails ``tecNO_PERMISSION`` unless the sender is preauthorized —
+        either its address was directly authorized, or it attaches a currently
+        valid (accepted, unexpired) credential matching one the destination
+        authorized via ``AuthorizeCredentials``. An empty or >8-entry or
+        duplicate-containing list is a local error, mirroring xrpl-py's own
+        ``credential_ids`` validation so a dry-run pass never masks a testnet
+        failure. As an emergency exemption (so a DepositAuth account can never
+        get permanently stuck), a destination whose OWN balance is at or below
+        the base reserve may still receive an XRP Payment of at most the base
+        reserve from ANYONE, preauthorized or not.
+
+        ``wallet_address`` is the SENDER's real classic address — a dry-run
+        keying aid (every dry-run seed collapses to one synthetic address, so
+        distinguishing multiple senders in the SAME dry-run session against a
+        shared DepositAuth/DepositPreauth policy needs this, exactly like
+        every other multi-party action). The testnet transport derives the
+        sender from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_deposit_auth(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Enable (or clear) asfDepositAuth on the account (AccountSet, SetFlag 9).
+
+        ``asfDepositAuth`` (ledger flag ``lsfDepositAuth``) makes the account
+        REJECT any unsolicited incoming Payment from a sender that is not
+        preauthorized, failing ``tecNO_PERMISSION``. It blocks Payments ONLY —
+        pull-style transactions the recipient itself initiates (CheckCash,
+        EscrowFinish, PaymentChannelClaim, OfferCreate) still work, and so does
+        the sub-reserve exemption documented on :meth:`submit_payment`.
+        ``enable=False`` clears the flag (the named compensator, symmetric with
+        :meth:`submit_require_dest`). ``wallet_address`` is the account's real
+        classic address, used by the dry-run transport to key per-account flag
+        state (every dry-run seed collapses to one synthetic address); the
+        testnet transport derives the account from the seed and ignores it.
+        """
+
+    @abstractmethod
+    async def submit_deposit_preauth(
+        self,
+        wallet_seed: str,
+        authorize: str = "",
+        unauthorize: str = "",
+        authorize_credentials: list[tuple[str, str]] | None = None,
+        unauthorize_credentials: list[tuple[str, str]] | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Preauthorize (or revoke) a sender for DepositAuth (DepositPreauth, XLS-70 extension).
+
+        Exactly ONE of ``authorize`` / ``unauthorize`` / ``authorize_credentials``
+        / ``unauthorize_credentials`` must be set — xrpl-py's model raises at
+        construction otherwise (surfaced as ``local_error``, mirrored by the
+        dry-run transport for parity).
+
+        ``authorize`` / ``unauthorize`` whitelist (or revoke) a SINGLE sender
+        ADDRESS: ``temCANNOT_PREAUTH_SELF`` if it names the account's own
+        address, ``tecDUPLICATE`` authorizing an address already authorized,
+        ``tecNO_ENTRY`` revoking one that was never authorized (or already
+        revoked). Each preauthorized address is its own ledger object (one
+        owner-reserve increment).
+
+        ``authorize_credentials`` / ``unauthorize_credentials`` are 1-8
+        ``(issuer, credential_type_hex)`` pairs describing which CREDENTIAL(S)
+        a sender may hold instead of being individually whitelisted — a
+        depositor satisfies the gate by holding just ONE currently valid
+        (accepted, unexpired) credential matching ANY ONE listed pair (OR
+        semantics, exactly like Permissioned Domains' ``AcceptedCredentials``).
+        The sender then attaches the credential's on-ledger id via
+        ``Payment.credential_ids`` (see :meth:`submit_payment`). Preauth-by-
+        credential is currency-agnostic, one-directional, and cannot
+        preauthorize the account itself.
+
+        ``wallet_address`` is a dry-run keying aid (every dry-run seed
+        collapses to one synthetic address); the testnet transport derives the
+        account from the seed and ignores it.
         """
 
     @abstractmethod

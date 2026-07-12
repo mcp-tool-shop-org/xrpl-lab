@@ -35,6 +35,14 @@ from .actions.custodial import (
     enable_require_dest,
     send_tagged_deposit,
 )
+from .actions.deposit_gate import (
+    authorize_deposit_address,
+    authorize_deposit_credential,
+    enable_deposit_auth,
+    get_credential_id,
+    send_gated_payment,
+    unauthorize_deposit_address,
+)
 from .actions.dex import (
     cancel_offer,
     create_offer,
@@ -4591,6 +4599,484 @@ async def handle_verify_permissioned_offer(
     return context
 
 
+# ---------------------------------------------------------------------------
+# Deposit Gate: DepositAuth + DepositPreauth (identity track, XLS-70 extension)
+# ---------------------------------------------------------------------------
+#
+# Completes the XLS-70 arc: composes with credentials_101 (reusing
+# CredentialCreate/CredentialAccept unchanged — no new credential machinery
+# here) to gate INBOUND value to a treasury, rather than a trading book
+# (permissioned_domains_101's DomainID rail). The learner's wallet plays BOTH
+# the protected treasury AND the credential issuer, exactly like
+# permissioned_domains_101's dual owner/issuer role.
+
+
+async def handle_enable_deposit_auth(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Enable asfDepositAuth on the treasury (AccountSet).
+
+    From this point the treasury REJECTS any unsolicited incoming Payment
+    from a non-preauthorized sender (tecNO_PERMISSION) — pull-style txns
+    (CheckCash / EscrowFinish / OfferCreate / PaymentChannelClaim) still work.
+    """
+    address = state.wallet_address or ""
+    console.print(
+        "  Enabling [cyan]asfDepositAuth[/] on the treasury — unsolicited "
+        "incoming Payments will now be rejected unless the sender is "
+        "preauthorized..."
+    )
+    result = await enable_deposit_auth(transport, wallet_seed, wallet_address=address)
+    if result.success:
+        console.print(
+            "  [green]Deposit Authorization enabled.[/] Only a preauthorized "
+            "sender — by address or by credential — can pay this account now."
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["deposit_auth_enabled"] = True
+    else:
+        console.print(f"  [red]Enabling Deposit Authorization failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_sender_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund the SENDER wallet — a random player, no preauthorization yet."""
+    console.print(
+        "  Creating the sender's wallet (a random player with no "
+        "preauthorization yet)..."
+    )
+    sender = create_wallet()
+    context["sender_seed"] = _SecretValue(sender.seed)
+    context["sender_address"] = sender.address
+    console.print(f"  Sender wallet: [cyan]{sender.address}[/]")
+    result = await transport.fund_from_faucet(sender.address)
+    if result.success:
+        console.print(f"  Sender funded! Balance: [green]{result.balance} XRP[/]")
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+        console.print(f"  [dim]{err.hint}[/]")
+    else:
+        console.print(f"  [yellow]Sender funding: {result.message}[/]")
+    return context
+
+
+async def handle_send_sender_payment_expect_blocked(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The sender's Payment is BLOCKED — expects tecNO_PERMISSION.
+
+    DepositAuth is on and the sender holds no preauthorization yet (neither
+    by address nor by credential) — the ledger refuses the unsolicited Payment.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("sender_seed", "")
+    sender_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    treasury = state.wallet_address or ""
+    if not sender_seed or not treasury:
+        console.print(
+            "  [red]Missing sender wallet or treasury address. Run the "
+            "wallet steps first.[/]"
+        )
+        return context
+    console.print(
+        f"  [yellow]Sender attempting to pay {amount} XRP into the treasury "
+        "(expecting tecNO_PERMISSION — no preauthorization yet)...[/]"
+    )
+    result = await send_gated_payment(
+        transport, sender_seed, treasury, amount, memo="XRPLLAB|DEPOSITGATE",
+        sender_address=context.get("sender_address", ""),
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the Payment landed despite no "
+            "preauthorization. Recording the tx.[/]"
+        )
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid, module_id=context.get("module_id", ""),
+                network=state.network, success=True,
+                explorer_url=result.explorer_url,
+            )
+            save_state(state)
+    else:
+        if result.result_code == "tecNO_PERMISSION":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]The treasury rejected the unsolicited Payment — "
+                "Deposit Authorization blocks anyone not preauthorized.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"tecNO_PERMISSION. The demonstration did not exercise the gate.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_preauthorize_self_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Treasury tries to preauthorize ITS OWN address — expects temCANNOT_PREAUTH_SELF."""
+    address = state.wallet_address or ""
+    console.print(
+        "  [yellow]Treasury attempting to preauthorize its OWN address "
+        "(expecting temCANNOT_PREAUTH_SELF)...[/]"
+    )
+    result = await authorize_deposit_address(
+        transport, wallet_seed, address, wallet_address=address
+    )
+    if result.success:
+        console.print("  [yellow]Unexpected success — recording the tx.[/]")
+        _record_submit(state, context, result)
+    else:
+        if result.result_code == "temCANNOT_PREAUTH_SELF":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]An account can never preauthorize itself — that's not "
+                "what the field is for.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"temCANNOT_PREAUTH_SELF.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_authorize_sender_address(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Treasury preauthorizes the sender BY ADDRESS (DepositPreauth Authorize)."""
+    address = state.wallet_address or ""
+    sender_address = context.get("sender_address", "")
+    if not sender_address:
+        console.print(
+            "  [red]No sender wallet in context. Run the sender-wallet step first.[/]"
+        )
+        return context
+    console.print(
+        f"  Preauthorizing sender [cyan]{sender_address[:12]}...[/] by "
+        "address (DepositPreauth Authorize)..."
+    )
+    result = await authorize_deposit_address(
+        transport, wallet_seed, sender_address, wallet_address=address
+    )
+    if result.success:
+        console.print(
+            "  [green]Sender preauthorized — its Payments will now be admitted.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Preauthorization failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_authorize_sender_address_duplicate(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Re-preauthorize the SAME sender address — expects tecDUPLICATE."""
+    address = state.wallet_address or ""
+    sender_address = context.get("sender_address", "")
+    console.print(
+        "  [yellow]Re-preauthorizing the SAME sender address (expecting "
+        "tecDUPLICATE)...[/]"
+    )
+    result = await authorize_deposit_address(
+        transport, wallet_seed, sender_address, wallet_address=address
+    )
+    if result.success:
+        console.print("  [yellow]Unexpected success — recording the tx.[/]")
+        _record_submit(state, context, result)
+    else:
+        if result.result_code == "tecDUPLICATE":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]This DepositPreauth object already exists — nothing "
+                "to add.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected tecDUPLICATE.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_send_sender_payment(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The now-preauthorized sender's Payment lands."""
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("sender_seed", "")
+    sender_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    treasury = state.wallet_address or ""
+    if not sender_seed or not treasury:
+        console.print(
+            "  [red]Missing sender wallet or treasury address. Run the "
+            "wallet steps first.[/]"
+        )
+        return context
+    console.print(f"  Preauthorized sender paying {amount} XRP into the treasury...")
+    result = await send_gated_payment(
+        transport, sender_seed, treasury, amount, memo="XRPLLAB|DEPOSITGATE",
+        sender_address=context.get("sender_address", ""),
+    )
+    if result.success:
+        console.print(
+            "  [green]Payment landed — the address preauthorization admitted it.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Payment failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_authorize_kyc_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Treasury preauthorizes BY CREDENTIAL (DepositPreauth AuthorizeCredentials).
+
+    Reuses the {issuer, credential_type} the FC-002 steps issued — any sender
+    holding a currently valid (accepted, unexpired) credential of this type
+    from this issuer may now deposit, without being individually whitelisted.
+    """
+    address = state.wallet_address or ""
+    credential_type = context.get("credential_type", "kyc-deposit")
+    issuer_address = context.get("credential_issuer", address)
+    console.print(
+        f"  Preauthorizing BY CREDENTIAL — any sender holding an accepted "
+        f"[cyan]{credential_type}[/] credential from "
+        f"[cyan]{issuer_address[:12]}...[/] may now deposit..."
+    )
+    result = await authorize_deposit_credential(
+        transport, wallet_seed, issuer_address, credential_type, wallet_address=address
+    )
+    if result.success:
+        console.print("  [green]Credential-based preauthorization installed.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Credential preauthorization failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_send_kyc_payment(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The KYC'd player attaches CredentialIDs and pays — succeeds.
+
+    Resolves the accepted credential's on-ledger CredentialID and attaches it
+    via Payment.CredentialIDs — the deposit-authorization rail, distinct from
+    Permissioned Domains' DomainID (trading) rail.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("subject_seed", "")
+    subject_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    subject_address = context.get("subject_address", "")
+    treasury = state.wallet_address or ""
+    credential_type = context.get("credential_type", "kyc-deposit")
+    issuer_address = context.get("credential_issuer", treasury)
+    if not subject_seed or not subject_address:
+        console.print(
+            "  [red]No KYC'd player wallet. Run the credential steps first.[/]"
+        )
+        return context
+    cred_id = await get_credential_id(
+        transport, subject_address, issuer_address, credential_type
+    )
+    if not cred_id:
+        console.print(
+            "  [red]Could not resolve the accepted credential's on-ledger "
+            "id. Run the create/accept-credential steps first.[/]"
+        )
+        return context
+    console.print(
+        f"  KYC'd player paying {amount} XRP, attaching "
+        f"CredentialIDs=[cyan]{cred_id[:16]}...[/]"
+    )
+    result = await send_gated_payment(
+        transport, subject_seed, treasury, amount,
+        credential_ids=[cred_id], memo="XRPLLAB|DEPOSITGATE-KYC",
+        sender_address=subject_address,
+    )
+    if result.success:
+        console.print(
+            "  [green]Payment landed — the credential satisfied the "
+            "treasury's AuthorizeCredentials policy.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Payment failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_send_outsider_payment_expect_blocked(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The outsider's Payment stays BLOCKED — expects tecNO_PERMISSION.
+
+    Holds no address preauthorization and no credential the treasury accepts
+    — proves the credential-based gate is not a general bypass.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("outsider_seed", "")
+    outsider_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    treasury = state.wallet_address or ""
+    if not outsider_seed:
+        console.print(
+            "  [red]No outsider wallet in context. Run the outsider-wallet "
+            "step first.[/]"
+        )
+        return context
+    console.print(
+        f"  [yellow]Outsider attempting to pay {amount} XRP — no address "
+        "preauthorization, no credential (expecting tecNO_PERMISSION)...[/]"
+    )
+    result = await send_gated_payment(
+        transport, outsider_seed, treasury, amount, memo="XRPLLAB|DEPOSITGATE-OUT",
+        sender_address=context.get("outsider_address", ""),
+    )
+    if result.success:
+        console.print("  [yellow]Unexpected success — recording the tx.[/]")
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid, module_id=context.get("module_id", ""),
+                network=state.network, success=True,
+                explorer_url=result.explorer_url,
+            )
+            save_state(state)
+    else:
+        if result.result_code == "tecNO_PERMISSION":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]No address preauth, no matching credential — the "
+                "gate holds for anyone outside both policies.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"tecNO_PERMISSION.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_unauthorize_sender_address(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Revoke the sender's address preauthorization — the named compensator."""
+    address = state.wallet_address or ""
+    sender_address = context.get("sender_address", "")
+    console.print(
+        "  Revoking the sender's address preauthorization (compensator)..."
+    )
+    result = await unauthorize_deposit_address(
+        transport, wallet_seed, sender_address, wallet_address=address
+    )
+    if result.success:
+        console.print("  [green]Preauthorization revoked — reserve freed.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+    else:
+        console.print(f"  [red]Revocation failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_unauthorize_sender_address_duplicate(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Revoke the SAME (already-revoked) preauthorization again — expects tecNO_ENTRY."""
+    address = state.wallet_address or ""
+    sender_address = context.get("sender_address", "")
+    console.print(
+        "  [yellow]Revoking the SAME preauthorization again (expecting "
+        "tecNO_ENTRY)...[/]"
+    )
+    result = await unauthorize_deposit_address(
+        transport, wallet_seed, sender_address, wallet_address=address
+    )
+    if result.success:
+        console.print("  [yellow]Unexpected success — recording the tx.[/]")
+        _record_submit(state, context, result)
+    else:
+        if result.result_code == "tecNO_ENTRY":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print("  [dim]Nothing to revoke — it's already gone.[/]")
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected tecNO_ENTRY.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
 async def handle_create_mpt_issuance(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -6207,6 +6693,92 @@ def _register_all() -> None:
             name="verify_permissioned_offer",
             handler=handle_verify_permissioned_offer,
             description="Verify the credentialed account's permissioned offer is resting",
+        ),
+        # ── Deposit Gate: DepositAuth + DepositPreauth (identity track, XLS-70 ext.) ──
+        ActionDef(
+            name="enable_deposit_auth",
+            handler=handle_enable_deposit_auth,
+            description=(
+                "Enable asfDepositAuth on the treasury (AccountSet) — "
+                "unsolicited deposits now bounce tecNO_PERMISSION"
+            ),
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="create_sender_wallet",
+            handler=handle_create_sender_wallet,
+            description="Create + fund a random sender wallet with no preauthorization yet",
+        ),
+        ActionDef(
+            name="send_sender_payment_expect_blocked",
+            handler=handle_send_sender_payment_expect_blocked,
+            description="Non-preauthorized sender's Payment is rejected (teaches tecNO_PERMISSION)",
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="preauthorize_self_expect_fail",
+            handler=handle_preauthorize_self_expect_fail,
+            description="Treasury tries to preauthorize itself (teaches temCANNOT_PREAUTH_SELF)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="authorize_sender_address",
+            handler=handle_authorize_sender_address,
+            description="Preauthorize the sender BY ADDRESS (DepositPreauth Authorize)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="authorize_sender_address_duplicate",
+            handler=handle_authorize_sender_address_duplicate,
+            description="Re-preauthorize the same address (teaches tecDUPLICATE)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="send_sender_payment",
+            handler=handle_send_sender_payment,
+            description="The address-preauthorized sender's Payment lands",
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="authorize_kyc_credential",
+            handler=handle_authorize_kyc_credential,
+            description="Preauthorize BY CREDENTIAL (DepositPreauth AuthorizeCredentials)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="send_kyc_payment",
+            handler=handle_send_kyc_payment,
+            description="KYC'd player attaches CredentialIDs and pays — succeeds",
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="send_outsider_payment_expect_blocked",
+            handler=handle_send_outsider_payment_expect_blocked,
+            description=(
+                "Non-credentialed, non-preauthorized outsider's Payment stays "
+                "blocked (tecNO_PERMISSION)"
+            ),
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="unauthorize_sender_address",
+            handler=handle_unauthorize_sender_address,
+            description="Revoke the sender's address preauthorization (compensator)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="unauthorize_sender_address_duplicate",
+            handler=handle_unauthorize_sender_address_duplicate,
+            description="Revoke the same preauthorization again (teaches tecNO_ENTRY)",
+            wallet_required=True,
         ),
         ActionDef(
             name="create_mpt_issuance",

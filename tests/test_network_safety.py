@@ -264,6 +264,17 @@ _MAINNET_REFUSAL_CALLS = {
             "sEdSEED", "LAB", "50", "rISSUER", "XRP", "10", "", "A" * 64
         )
     ),
+    # ── deposit_gate_101: DepositAuth + DepositPreauth (XLS-70 extension) ──
+    # AccountSet asfDepositAuth and DepositPreauth (address or credential)
+    # each sign a real tx (the treasury locks down inbound value / clears a
+    # sender), so the testnet-only invariant applies — each MUST call
+    # _network_guard() before Wallet.from_seed like every other signing method.
+    "submit_deposit_auth": (
+        lambda t: t.submit_deposit_auth("sEdSEED")
+    ),
+    "submit_deposit_preauth": (
+        lambda t: t.submit_deposit_preauth("sEdSEED", authorize="rDEST")
+    ),
 }
 
 # AMM submit_* methods are stubs that return result_code="notSupported"

@@ -37,6 +37,7 @@ from xrpl.models import (
     CredentialAccept,
     CredentialCreate,
     CredentialDelete,
+    DepositPreauth,
     DIDDelete,
     DIDSet,
     EscrowCancel,
@@ -74,6 +75,7 @@ from xrpl.models import (
     Tx,
 )
 from xrpl.models.amounts import MPTAmount
+from xrpl.models.transactions.deposit_preauth import Credential as DPCredential
 from xrpl.models.transactions.permissioned_domain_set import (
     Credential as PDCredential,
 )
@@ -875,7 +877,11 @@ class XRPLTestnetTransport(Transport):
         memo: str = "",
         destination_tag: int | None = None,
         source_tag: int | None = None,
+        credential_ids: list[str] | None = None,
+        wallet_address: str = "",
     ) -> SubmitResult:
+        # ``wallet_address`` is a dry-run keying aid (see base contract); the
+        # testnet path derives the sender from the seed and ignores it.
         guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
@@ -916,6 +922,11 @@ class XRPLTestnetTransport(Transport):
                 memos=_memo_field(memo) or None,
                 destination_tag=destination_tag,
                 source_tag=source_tag,
+                # deposit_gate_101: credential ids the sender presents to
+                # satisfy a DepositPreauth credential-based gate (XLS-70
+                # extension). xrpl-py validates the 1-8/no-duplicate rule at
+                # construction (raises below), mirrored by the dry-run transport.
+                credential_ids=credential_ids,
             )
         except Exception as exc:
             return SubmitResult(
@@ -1968,6 +1979,86 @@ class XRPLTestnetTransport(Transport):
             )
         return await self._submit_tx(tx, wallet, "AccountSet(require-dest)")
 
+    async def submit_deposit_auth(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # deposit_gate_101: AccountSet asfDepositAuth (ledger flag
+        # lsfDepositAuth) makes the account reject any unsolicited incoming
+        # Payment unless the sender is preauthorized (tecNO_PERMISSION).
+        # ``enable=False`` clears the flag. ``wallet_address`` is a dry-run
+        # keying aid; the testnet path derives the account from the seed and
+        # ignores it. Signs a real tx, so the testnet-only invariant applies —
+        # guard BEFORE Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            if enable:
+                tx = AccountSet(
+                    account=wallet.address,
+                    set_flag=AccountSetAsfFlag.ASF_DEPOSIT_AUTH,
+                )
+            else:
+                tx = AccountSet(
+                    account=wallet.address,
+                    clear_flag=AccountSetAsfFlag.ASF_DEPOSIT_AUTH,
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AccountSet(deposit-auth)")
+
+    async def submit_deposit_preauth(
+        self,
+        wallet_seed: str,
+        authorize: str = "",
+        unauthorize: str = "",
+        authorize_credentials: list[tuple[str, str]] | None = None,
+        unauthorize_credentials: list[tuple[str, str]] | None = None,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # deposit_gate_101: DepositPreauth whitelists a sender either by
+        # ADDRESS (authorize/unauthorize) or by CREDENTIAL
+        # (authorize_credentials/unauthorize_credentials — the XLS-70
+        # extension). xrpl-py's model validates "exactly one of the four"
+        # at construction (raises below, mirrored by the dry-run transport);
+        # temCANNOT_PREAUTH_SELF / tecDUPLICATE / tecNO_ENTRY are the
+        # network's own preclaim/claim results for the address path.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = DepositPreauth(
+                account=wallet.address,
+                authorize=authorize or None,
+                unauthorize=unauthorize or None,
+                authorize_credentials=(
+                    [
+                        DPCredential(issuer=iss, credential_type=ctype)
+                        for iss, ctype in authorize_credentials
+                    ]
+                    if authorize_credentials else None
+                ),
+                unauthorize_credentials=(
+                    [
+                        DPCredential(issuer=iss, credential_type=ctype)
+                        for iss, ctype in unauthorize_credentials
+                    ]
+                    if unauthorize_credentials else None
+                ),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "DepositPreauth")
+
     async def submit_allow_trustline_locking(
         self,
         issuer_seed: str,
@@ -2471,6 +2562,11 @@ class XRPLTestnetTransport(Transport):
                     accepted=accepted,
                     uri=_dec(o.get("URI", "")),
                     expiration=o.get("Expiration"),
+                    # deposit_gate_101: the Credential ledger object's own
+                    # index IS its CredentialID — the value a sender attaches
+                    # via Payment.credential_ids to satisfy a DepositPreauth
+                    # credential-based gate.
+                    credential_id=o.get("index", ""),
                 )
         return None
 
