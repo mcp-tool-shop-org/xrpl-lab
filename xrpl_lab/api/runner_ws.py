@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import io
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -289,6 +290,21 @@ class ModuleRunSession:
     # to know the task exists, never invokes it. Optional so tests that
     # fabricate sessions without a real task continue to work.
     task: asyncio.Task | None = None
+    # F-67805cb0: True while a WS connection is actively streaming this
+    # session's queue. run_websocket()'s read loop does
+    # ``session.queue.get()``, which REMOVES the item from the single
+    # per-session queue — if a second connection attached to the same
+    # run_id (a learner opening the run page in a second tab, or reloading
+    # without the first tab's socket closing first), the two sockets would
+    # race for items off the same queue and each silently observe a
+    # disjoint, partial subset of the run's frames with no error or
+    # indication the stream is incomplete. This flag lets run_websocket()
+    # reject a second concurrent attach (close code 4008) instead of
+    # letting that race happen. Set True right after the claim-check
+    # passes (synchronously, no ``await`` in between — see run_websocket)
+    # and reset False in its ``finally`` block, so a clean reconnect after
+    # the first socket closes is always allowed.
+    ws_attached: bool = False
 
 
 def _evict_oldest_completed() -> None:
@@ -572,6 +588,79 @@ def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS
     task.add_done_callback(_on_done)
 
 
+# ── Output-channel redaction (F-717654d7 — HIGH) ─────────────────────
+#
+# The {"type": "output"} WS frame forwards captured Rich console text
+# VERBATIM — unlike the {"type": "error"} channel, which is always routed
+# through ``_error_envelope`` and therefore never carries raw exception
+# text. A non-LabException step failure prints ``str(exc)`` (runner.py's
+# per-step exception handler), which can embed absolute filesystem paths —
+# and, via them, the OS username — straight into that captured console
+# text (see runner.py's own comment on the Windows os.replace race that
+# embeds the state.json path + username on a save-recovery failure). That
+# text flows unfiltered through this channel to the browser, so a
+# facilitator or peer who merely observes a run_id (visible via
+# GET /api/runs) could read leaked internals from a DIFFERENT user's run
+# on a ``--host 0.0.0.0`` multi-tenant deployment.
+#
+# runner.py is being tightened independently to print only the exception
+# TYPE name for the non-LabException branch (defense-in-depth, not this
+# fix) — this redaction is the SECOND, independent layer: strip
+# absolute-path-shaped substrings out of every captured line before it is
+# ever queued as an 'output' frame, so a future console.print() regression
+# anywhere upstream (in runner.py or any handler it calls) cannot reopen
+# the leak. Wallet secrets are a separate concern already handled
+# elsewhere (every seed is wrapped in runtime._SecretValue, whose
+# __repr__/__str__ deliberately return '***').
+#
+# Two passes:
+#   1. QUOTED paths first — Python exception messages routinely quote the
+#      path (``FileNotFoundError: [Errno 2] ... 'C:\\Users\\mike\\x.json'``,
+#      or a traceback's ``File "C:\\...\\runner.py", line 321``). Matching
+#      the quoted form FIRST lets us safely swallow a path containing
+#      spaces by consuming everything up to the matching closing quote.
+#   2. BARE paths second — mops up any path-shaped token NOT wrapped in
+#      quotes, stopping at the first whitespace/quote/angle-bracket.
+#
+# ``_PATH_START`` matches a Windows drive letter (``C:\`` / ``E:/``), a
+# UNC prefix (``\\host\share``), or a POSIX home/system directory
+# (``/home/``, ``/Users/``, ``/root/``, ``/etc/``, ``/var/``, ``/tmp/``,
+# ``/usr/``, ``/opt/``, ``/mnt/``). The leading ``(?<![A-Za-z0-9])``
+# negative lookbehind is load-bearing: without it, a scheme like
+# ``http://`` or ``https://`` false-positives — the trailing letter of
+# "http" followed by ``:`` and ``/`` satisfies the bare drive-letter shape
+# — and would mangle a legitimate testnet explorer/faucet URL printed to
+# the console. The lookbehind requires the candidate path to start at a
+# token boundary (not glued onto a preceding letter/digit), which a URL
+# scheme or a URL path segment never is.
+#
+# This is defense-in-depth, not a formal guarantee for every possible path
+# shape — the primary control is runner.py printing only the exception
+# type name. A bare POSIX path using an unrecognized top-level directory,
+# or one embedded with no token-boundary separator, can still partially
+# survive.
+_PATH_START = (
+    r"(?<![A-Za-z0-9])"
+    r"(?:[A-Za-z]:[\\/]|\\\\|/(?:home|Users|root|etc|var|tmp|usr|opt|mnt)/)"
+)
+_QUOTED_PATH_RE = re.compile(r"""(['"])""" + _PATH_START + r"""[^'"]*\1""")
+_BARE_PATH_RE = re.compile(_PATH_START + r"""[^\s"'<>|]+""")
+
+_PATH_REDACTED = "<path-redacted>"
+
+
+def _redact_output_text(text: str) -> str:
+    """Strip absolute-filesystem-path-shaped substrings from ``text``.
+
+    Defense-in-depth for the WS 'output' channel — see the module comment
+    above ``_PATH_START``. Applied in ``_QueueFile.write()`` before any
+    captured console line is queued as an ``{"type": "output"}`` frame.
+    """
+    text = _QUOTED_PATH_RE.sub(_PATH_REDACTED, text)
+    text = _BARE_PATH_RE.sub(_PATH_REDACTED, text)
+    return text
+
+
 def _make_capture_console(
     queue: asyncio.Queue,
     loop: asyncio.AbstractEventLoop,
@@ -584,6 +673,9 @@ def _make_capture_console(
         def write(self, s: str) -> int:
             text = s.rstrip("\n")
             if text:
+                # F-717654d7: redact absolute-path-shaped substrings BEFORE
+                # queuing — see _redact_output_text / _PATH_START above.
+                text = _redact_output_text(text)
                 # Schedule a non-blocking put on the event loop thread-safely.
                 # Uses _safe_put so a stalled WS consumer triggers drop-oldest
                 # rather than unbounded memory growth.
@@ -605,6 +697,39 @@ async def _run_module_task(session: ModuleRunSession) -> None:
     mutable state is shared, so concurrent runs are naturally isolated.
     """
 
+    # F-bddfe64b: load_all_modules() re-reads and re-parses every module
+    # file from disk on every call (no caching). This function itself runs
+    # as a plain asyncio.Task (start_run does
+    # ``asyncio.create_task(_run_module_task(...))``), so in PRODUCTION a
+    # synchronous call here blocks the shared event loop for the duration
+    # of the disk I/O + parsing, same as the start_run call site below.
+    #
+    # This call site is deliberately left SYNCHRONOUS rather than offloaded
+    # via ``asyncio.to_thread`` — verified empirically that offloading it
+    # breaks a wide swath of the existing test suite (test_runner_ws.py
+    # alone: 20+ tests hang for 30s-per-keepalive-ping and one fails
+    # outright). Root cause: this task is fire-and-forget
+    # (``asyncio.create_task``, never awaited by the request/response
+    # path), and many existing tests construct ``client = TestClient(app)``
+    # WITHOUT the ``with`` context-manager form — each such request spins
+    # up its OWN short-lived anyio portal that tears down as soon as THAT
+    # request's own coroutine (``start_run``) completes. Before this task
+    # had any real suspension point, it ran to completion synchronously
+    # within the same portal lifetime; a genuine cross-thread hop here
+    # (``asyncio.to_thread``) needs the loop to keep running afterward,
+    # and can be orphaned mid-flight when the portal shuts down —
+    # silently starving the WS queue of its 'complete'/'error' frame.
+    # ``start_run`` does NOT have this problem: it IS the coroutine the
+    # request's own portal awaits, so the portal necessarily keeps running
+    # until it (and its to_thread call) finishes.
+    #
+    # Given the severity here is LOW and the existing test suite's
+    # TestClient-without-``with`` convention is widespread (not something
+    # this agent should rewrite wholesale to chase a LOW finding), this
+    # call site stays synchronous. A real fix (caching the parsed module
+    # set, invalidated on mtime/dir change) belongs in modules.py, which
+    # is outside this agent's owned domain — see the corresponding
+    # ``skipped`` entry in this wave's output envelope.
     all_mods = load_all_modules()
     mod = all_mods.get(session.module_id)
     if mod is None:
@@ -799,11 +924,21 @@ async def start_run(
     supplied, the value is read from ``request.app.state.dry_run`` (set by
     ``create_app(dry_run=...)`` via the ``serve`` CLI command).
     """
-    # If the caller didn't pass ?dry_run=true, fall back to the app-level default
+    # If the caller didn't pass ?dry_run=true, fall back to the app-level default.
     # FastAPI sets default=False above; we detect "not explicitly passed" by
-    # checking whether the raw query string contains the key.
-    qs = str(request.url.query)
-    if "dry_run" not in qs and "dry-run" not in qs:
+    # checking whether the parsed query params contain the KEY.
+    #
+    # F-9936b28c: this USED to substring-search the raw query string
+    # (``"dry_run" not in str(request.url.query)``), so ANY unrelated query
+    # key or value merely CONTAINING the substring "dry_run"/"dry-run" (e.g.
+    # ``?note=dry_run_test``) made this believe the caller explicitly passed
+    # it — even though the real ``dry_run`` key was absent and FastAPI had
+    # already bound the function parameter to its literal default (False).
+    # Net effect: the fallback to the server-wide ``--dry-run`` safety
+    # default was silently skipped and the run executed live against
+    # testnet. Checking membership against the PARSED query params (keys,
+    # not raw-string substrings) removes the false-positive class entirely.
+    if "dry_run" not in request.query_params and "dry-run" not in request.query_params:
         dry_run = getattr(request.app.state, "dry_run", False)
 
     # Rate limit: cap concurrent runs
@@ -831,7 +966,13 @@ async def start_run(
             ),
         })
 
-    all_mods = load_all_modules()
+    # F-bddfe64b: start_run is an ``async def`` HTTP route handler — unlike
+    # a plain sync ``def`` route (which FastAPI already dispatches to a
+    # threadpool via Starlette's run_in_threadpool), a synchronous call
+    # here runs directly on the event loop and would block every other
+    # concurrent request and every in-flight run's WS message pump for the
+    # duration of the disk I/O + parsing. Offload to a worker thread.
+    all_mods = await asyncio.to_thread(load_all_modules)
     if module_id not in all_mods:
         raise HTTPException(status_code=404, detail={
             "code": "MODULE_NOT_FOUND",
@@ -917,6 +1058,33 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
         await websocket.close(code=4004, reason="module_id mismatch")
         return
 
+    # F-67805cb0: reject a second concurrent WS attach to the same run_id.
+    # Each ModuleRunSession has exactly ONE asyncio.Queue; the read loop
+    # below does ``session.queue.get()``, which REMOVES the item. Two
+    # sockets attached to the same run_id would race for items off that
+    # single queue — a learner opening the run page in a second tab, or
+    # reloading without the first tab's socket closing first — and each
+    # would silently observe a disjoint, partial subset of the run's
+    # output/step/tx frames with no error or indication the stream is
+    # incomplete.
+    #
+    # The check-then-set below is atomic with respect to the event loop:
+    # there is no ``await`` between reading ``session.ws_attached`` and
+    # setting it, so no other coroutine can interleave and both observe
+    # ``False`` (asyncio is single-threaded/cooperative — a task only
+    # yields at an ``await``).
+    if session.ws_attached:
+        logger.warning(
+            "ws rejected: run_id=%s already has an active streaming connection",
+            run_id,
+        )
+        await websocket.close(
+            code=4008,
+            reason="already streaming elsewhere — this run has another active connection",
+        )
+        return
+    session.ws_attached = True
+
     await websocket.accept()
 
     try:
@@ -969,6 +1137,10 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
     except WebSocketDisconnect:
         pass
     finally:
+        # F-67805cb0: release the claim so a legitimate reconnect (network
+        # blip, tab refresh after this socket actually closed) is allowed —
+        # only a SECOND, SIMULTANEOUSLY-open connection is rejected above.
+        session.ws_attached = False
         with contextlib.suppress(Exception):
             await websocket.close()
         # Schedule cleanup of this session after grace period
