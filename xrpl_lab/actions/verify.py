@@ -83,6 +83,17 @@ async def verify_tx(
         checks.append(f"Ledger index: {tx.ledger_index}")
     if tx.validated:
         checks.append("Validated: yes")
+    elif expected_success and tx.result_code == "tesSUCCESS":
+        # F-b5dcccb5: a tesSUCCESS from a NOT-YET-VALIDATED ledger version can
+        # still change — the same gate actions/partial_payment.py teaches
+        # ("Reading it before confirming both is itself a bug"). Passing on an
+        # unvalidated tesSUCCESS was the exact anti-pattern this codebase
+        # warns against, so it is a verification FAILURE, not an omitted check.
+        failures.append(
+            "Transaction is not validated yet — a tesSUCCESS from an "
+            "unvalidated ledger can still change; wait for validated:true "
+            "and retry verification."
+        )
 
     return VerifyResult(
         passed=len(failures) == 0,
