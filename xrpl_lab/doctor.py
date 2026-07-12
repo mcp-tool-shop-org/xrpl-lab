@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ._atomic import atomic_write_json
 from .state import get_home_dir, get_workspace_dir, load_state, state_path
 
 logger = logging.getLogger(__name__)
@@ -294,6 +295,44 @@ def _check_env_overrides() -> Check:
     )
 
 
+def _check_windows_dir_permissions() -> Check:
+    """Windows ACL awareness (F-eeddbf7f, MEDIUM).
+
+    ``state._ensure_dir_mode()`` (which backs ``ensure_home_dir()``'s 0o700
+    for ``~/.xrpl-lab/``, the directory holding both ``state.json`` and
+    ``wallet.json``) explicitly skips the ``os.chmod`` step on Windows —
+    POSIX modes don't map onto ACLs, so the wave-1 discipline of tightening
+    the home dir to single-user-private is a no-op there. Both
+    ``_ensure_dir_mode``'s and ``_atomic``'s docstrings say "the caller is
+    responsible for warning the user about that limitation" — until this
+    tool actually tightens the Windows ACL (pywin32 / ``icacls``), doctor
+    at least says so explicitly, instead of the previous silence that gave
+    a learner on a shared/multi-user Windows machine zero signal that their
+    wallet-seed-holding directory's permissions were never verified or
+    tightened by this tool.
+
+    Informational only (``passed=True``, ``severity="warn"``): the
+    environment isn't necessarily broken, and POSIX installs get a plain
+    pass with no noise.
+    """
+    if sys.platform != "win32":
+        return Check(
+            "Directory permissions", True, "POSIX 0o700 enforced on ~/.xrpl-lab",
+        )
+    home = get_home_dir()
+    return Check(
+        "Directory permissions",
+        True,
+        f"Windows ACLs not tightened by xrpl-lab for {_redact_path(home)}",
+        "xrpl-lab tightens directory permissions to owner-only on Linux/"
+        "macOS (chmod 0o700); on Windows it does not yet tighten the ACL. "
+        "If this machine is shared, consider restricting access yourself, "
+        "e.g.: icacls \"%USERPROFILE%\\.xrpl-lab\" /inheritance:r "
+        "/grant:r \"%USERNAME%\":F",
+        severity="warn",
+    )
+
+
 def _check_last_error() -> Check:
     """Check state for last failed transaction and give a hint."""
     state = load_state()
@@ -465,6 +504,20 @@ def _append_doctor_log(report: DoctorReport) -> None:
 
     Bounded to the last :data:`_DOCTOR_LOG_MAX_LINES` lines via a simple
     read-tail / truncate pattern (no log-rotation library; stdlib only).
+
+    F-be051e03 (LOW): the rewrite is routed through
+    ``_atomic.atomic_write_json`` (text mode, via a passthrough
+    ``serialize``) instead of a plain ``write_text()`` — this was the one
+    persisted file under ~/.xrpl-lab/ that didn't share the
+    write-tmp-then-rename crash-safety discipline used for state.json and
+    wallet.json, so a crash or power loss mid-write could truncate/corrupt
+    the log's tail. Still best-effort: failures are swallowed by the same
+    outer ``except OSError`` this function already had — a diagnostic
+    breadcrumb trail must never break the doctor command itself. This also
+    folds in the ``file_mode=0o600`` tightening at CREATE time (via
+    ``os.open``), so the separate post-write ``os.chmod`` this function
+    used to do — a TOCTOU window between write and chmod — is no longer
+    needed.
     """
     home = get_home_dir()
     if not home.exists():
@@ -505,14 +558,8 @@ def _append_doctor_log(report: DoctorReport) -> None:
         # Keep only the last N entries.
         if len(existing) > _DOCTOR_LOG_MAX_LINES:
             existing = existing[-_DOCTOR_LOG_MAX_LINES:]
-        log_path.write_text("\n".join(existing) + "\n", encoding="utf-8")
-        # DD-1: doctor.log lives in single-user-private home dir but
-        # write_text() defaults to 0o644. Tighten to 0o600 (matches the
-        # wallet.json + state.json discipline). The outer except OSError
-        # catches any chmod failure as well — best-effort logging must
-        # not break doctor itself.
-        if sys.platform != "win32":
-            os.chmod(log_path, 0o600)
+        text = "\n".join(existing) + "\n"
+        atomic_write_json(log_path, text, file_mode=0o600, serialize=lambda s: s)
     except OSError:
         # Best-effort log; perms or disk-full must not break doctor.
         pass
@@ -527,6 +574,7 @@ async def run_doctor() -> DoctorReport:
     report.checks.append(_check_state())
     report.checks.append(_check_workspace())
     report.checks.append(_check_env_overrides())
+    report.checks.append(_check_windows_dir_permissions())
 
     # Network checks (run in parallel)
     rpc_check, faucet_check = await asyncio.gather(_check_rpc(), _check_faucet())

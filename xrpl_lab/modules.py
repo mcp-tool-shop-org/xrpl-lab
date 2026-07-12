@@ -280,8 +280,20 @@ def load_all_modules(extra_dirs: list[Path] | None = None) -> dict[str, ModuleDe
 
     Modules are sorted by (order, id) so the returned dict preserves
     the intended curriculum sequence.
+
+    F-511dedbd: a later file whose frontmatter ``id:`` collides with an
+    earlier one is SKIPPED (first-loaded file wins) with a warning printed
+    to stderr — previously it silently overwrote the dict entry (`modules
+    [mod.id] = mod`) with no signal at all. Built-in modules load before
+    ``extra_dirs``, so this protects official curriculum content from
+    being silently shadowed by a contributor's or facilitator's custom
+    module that accidentally reuses a built-in id (a realistic path: the
+    community-contribution scaffolder in ``module init`` + the
+    ``extra_dirs`` mechanism both exist specifically to let external
+    modules load alongside the built-ins).
     """
     modules: dict[str, ModuleDef] = {}
+    module_sources: dict[str, Path] = {}
 
     dirs = [_builtin_modules_dir()]
     if extra_dirs:
@@ -293,10 +305,19 @@ def load_all_modules(extra_dirs: list[Path] | None = None) -> dict[str, ModuleDe
         for f in sorted(d.glob("*.md")):
             try:
                 mod = parse_module(f.read_text(encoding="utf-8"))
-                modules[mod.id] = mod
             except (ValueError, yaml.YAMLError) as e:
                 print(f"Warning: skipping malformed module {f.name}: {e}", file=sys.stderr)
                 continue
+            if mod.id in module_sources:
+                print(
+                    f"Warning: module id '{mod.id}' in {f} duplicates "
+                    f"{module_sources[mod.id]} — keeping the first-loaded "
+                    f"version; the later file is ignored for this id.",
+                    file=sys.stderr,
+                )
+                continue
+            modules[mod.id] = mod
+            module_sources[mod.id] = f
 
     # Sort by (order, id) so the dict iteration order matches curriculum
     sorted_items = sorted(modules.items(), key=lambda kv: (kv[1].order, kv[0]))

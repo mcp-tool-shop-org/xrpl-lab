@@ -100,6 +100,32 @@ def tx_failed(result_code: str, detail: str = "") -> LabError:
     )
 
 
+def state_locked() -> LabError:
+    """Could not acquire the cross-process state.json lock (F-5312c8ba).
+
+    Surfaced only when save_state()'s bounded wait for the advisory lock
+    (state.json.lock) is exhausted — the lock is normally held for a few
+    milliseconds per save (read + merge two short lists + atomic write),
+    so in practice this fires only under a genuinely stuck/very slow
+    concurrent writer, not routine contention. Retryable: the lock is
+    almost always released promptly by the other legitimate writer.
+    No path is embedded in the message/hint — matches the redaction
+    discipline used elsewhere (doctor.py's ``_redact_path``,
+    runner.py's step-failure branch) since this can surface through the
+    dashboard's WS-forwarding console.
+    """
+    return LabError(
+        code="STATE_LOCKED",
+        message="Could not save state — another xrpl-lab process is writing state.json.",
+        hint=(
+            "Wait a moment and retry. If this persists, check for another "
+            "running 'xrpl-lab' command or 'serve' dashboard session using "
+            "the same XRPL_LAB_HOME."
+        ),
+        retryable=True,
+    )
+
+
 def faucet_rate_limited() -> LabError:
     """Faucet 429 — distinct code so dashboards can route to a specific UI.
 
