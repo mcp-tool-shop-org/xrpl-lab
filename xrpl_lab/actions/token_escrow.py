@@ -65,13 +65,19 @@ async def create_token_escrow(
     Locks ``value`` of ``currency``/``issuer`` from the source account to
     ``destination`` until the escrow is finished or cancelled.
 
-    Two rules are enforced LOCALLY before submission (rippled would otherwise
+    Three rules are enforced LOCALLY before submission (rippled would otherwise
     return an opaque tec/tem, and the dry-run must reject them identically so a
     dry-run "pass" never masks a testnet failure):
 
     * **CancelAfter is mandatory.** ``cancel_after`` is required for a token
       escrow — a missing value is a structured local error, not a silent
       omission that reaches the ledger.
+
+    * **FinishAfter (or a crypto-condition) is mandatory** — fix1571, active
+      since 2017 and NOT relaxed by the TokenEscrow amendment: rippled's
+      preflight rejects any ``EscrowCreate`` with neither ``FinishAfter`` nor
+      ``Condition`` as ``temMALFORMED``. This action supports time-based
+      escrows, so ``finish_after`` is required (F-12f62ad2).
 
     * (The issuer-as-source and issuer-opt-in rules are enforced by the
       transport, which has the flag/identity state to check them.)
@@ -85,6 +91,22 @@ async def create_token_escrow(
                 "XLS-85 requires every issued-currency escrow to carry a "
                 "CancelAfter expiration — there is no open-ended token escrow. "
                 "Pass a CancelAfter (ripple-time) later than any FinishAfter."
+            ),
+        )
+    if finish_after is None:
+        # fix1571 (2017): EscrowCreate MUST carry FinishAfter or a Condition —
+        # XLS-85 only ADDS the mandatory-CancelAfter rule for token escrows, it
+        # does not relax this. Without the local gate the tx is signed,
+        # submitted, and rejected temMALFORMED on every real-network run.
+        return SubmitResult(
+            success=False,
+            result_code="local_error",
+            error=(
+                "FinishAfter (or a crypto-condition) is required for every "
+                "EscrowCreate — rippled's fix1571 preflight rejects an escrow "
+                "with neither as temMALFORMED, and the TokenEscrow amendment "
+                "does not relax it. Pass a FinishAfter (ripple-time) earlier "
+                "than the CancelAfter."
             ),
         )
     if (
