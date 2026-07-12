@@ -354,16 +354,21 @@ class TestTransportParity:
 
     @pytest.mark.asyncio
     async def test_testnet_methods_are_network_guarded(self):
-        # Each new testnet signing method must call _network_guard() in its
+        # Each new testnet signing method must call the write guard in its
         # source BEFORE building the wallet, so a mainnet override is refused
         # before the seed loads (pinned end-to-end by test_network_safety.py;
         # this is a fast source-level smoke check for the four new methods).
+        # F-4cf20cef: the guard is now the async _guard_write() wrapper (sync
+        # _network_guard host check + local chain-identity probe) — either
+        # spelling satisfies the invariant.
         for method in self._NEW_METHODS:
             src = inspect.getsource(getattr(XRPLTestnetTransport, method))
-            guard_pos = src.find("_network_guard")
+            guard_pos = src.find("_guard_write")
+            if guard_pos == -1:
+                guard_pos = src.find("_network_guard")
             wallet_pos = src.find("Wallet.from_seed")
-            assert guard_pos != -1, f"{method} must call _network_guard()"
+            assert guard_pos != -1, f"{method} must call the write guard"
             assert wallet_pos != -1, f"{method} must build a wallet"
             assert guard_pos < wallet_pos, (
-                f"{method}: _network_guard() must run BEFORE Wallet.from_seed"
+                f"{method}: the write guard must run BEFORE Wallet.from_seed"
             )

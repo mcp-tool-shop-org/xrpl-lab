@@ -362,10 +362,15 @@ class TestAmmLifecycle:
         await transport.submit_amm_withdraw(
             "sFAKE", "XRP", "", "LAB", "rISSUER",
         )
+        # F-3bdd6cfa: when the LAST LP withdraws, the network DELETES the AMM
+        # object — amm_info reports none (no zombie 0/0 pool), and the pair
+        # can be created again.
         info = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
-        # Pool should be empty (all LP burned)
-        assert float(info.pool_a) == 0 or float(info.pool_a) < 0.01
-        assert float(info.pool_b) == 0 or float(info.pool_b) < 0.01
+        assert info is None
+        recreate = await transport.submit_amm_create(
+            "sFAKE", "XRP", "50", "", "LAB", "50", "rISSUER",
+        )
+        assert recreate.success is True
 
     @pytest.mark.asyncio
     async def test_owner_count_amm(self, transport):
@@ -402,54 +407,47 @@ class TestAmmBoundaries:
 
     @pytest.mark.asyncio
     async def test_amm_zero_liquidity_pool_boundary(self, transport):
-        """Deposit and withdraw against a zero-liquidity pool must be well-defined.
+        """A zero-value AMMCreate leg is rejected with temBAD_AMOUNT.
 
-        Either the operations are rejected with a recognisable ``E_*`` /
-        ``tec*`` code, or they accept with documented zero-amount semantics.
-        Whatever the production code does TODAY, lock it in so future
-        regressions are caught.
+        CORRECTED CONTRACT (F-3bdd6cfa): this test previously CHARACTERISED
+        the old dry-run behavior — a 0/0 pool was created (sqrt(0*0)=0 LP) and
+        then permanently blocked re-creation via tecDUPLICATE. The network
+        rejects zero-value legs at create (temBAD_AMOUNT), and since the
+        testnet transport stubs AMM, the sim IS the lesson — so the sim now
+        rejects too, and no zombie pool ever exists.
         """
-        # Create a pool seeded with zero on both sides — this is the degenerate
-        # state we want to characterise.
         create = await transport.submit_amm_create(
             "sFAKE", "XRP", "0", "", "LAB", "0", "rISSUER",
         )
-        # Creation does succeed in the current dry-run; lock that in so a
-        # future change that decides to reject zero-asset creates becomes
-        # visible.
-        assert create.success is True
+        assert create.success is False
+        assert create.result_code == "temBAD_AMOUNT"
 
+        # No pool was created — the pair is untouched...
         info = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
-        assert info is not None
-        # Zero × zero ⇒ sqrt = 0 ⇒ no LP supply.
-        assert Decimal(info.lp_supply) == Decimal("0")
-        assert Decimal(info.pool_a) == Decimal("0")
-        assert Decimal(info.pool_b) == Decimal("0")
-
-        # Deposit into a zero-liquidity pool now follows the Uniswap V2
-        # first-LP formula: lp_minted = sqrt(deposit_a * deposit_b).
-        # A 10:10 deposit mints sqrt(100) = 10 LP, and the pool grows to
-        # (10, 10).  Depositor receives the LP that represents their
-        # ownership of the freshly-seeded pool.
+        assert info is None
+        # ...and a deposit against the nonexistent pool fails NOT_FOUND.
         dep = await transport.submit_amm_deposit(
             "sFAKE", "XRP", "10", "", "LAB", "10", "rISSUER",
         )
-        assert dep.success is True
-        info_after = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
-        assert Decimal(info_after.pool_a) == Decimal("10")
-        assert Decimal(info_after.pool_b) == Decimal("10")
-        # First-LP: sqrt(10 * 10) = 10 LP minted to the depositor.
-        assert Decimal(info_after.lp_supply) == Decimal("10")
+        assert dep.success is False
+        assert dep.result_code == "tecAMM_NOT_FOUND"
 
-        # Withdraw against the now-positive LP supply must succeed —
-        # depositor holds 10 LP (the full supply); burning 1 LP returns
-        # 1/10 of each side and leaves 9 LP outstanding.
-        wd = await transport.submit_amm_withdraw(
-            "sFAKE", "XRP", "", "LAB", "rISSUER", "1",
+        # A single zero leg (one side positive) is equally malformed.
+        one_leg = await transport.submit_amm_create(
+            "sFAKE", "XRP", "10", "", "LAB", "0", "rISSUER",
         )
-        assert wd.success is True
-        info_post_wd = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
-        assert Decimal(info_post_wd.lp_supply) == Decimal("9")
+        assert one_leg.success is False
+        assert one_leg.result_code == "temBAD_AMOUNT"
+
+        # And a VALID create for the same pair still succeeds — the rejected
+        # attempts left no tecDUPLICATE-triggering residue.
+        ok = await transport.submit_amm_create(
+            "sFAKE", "XRP", "10", "", "LAB", "10", "rISSUER",
+        )
+        assert ok.success is True
+        info_after = await transport.get_amm_info("XRP", "", "LAB", "rISSUER")
+        assert info_after is not None
+        assert Decimal(info_after.lp_supply) == Decimal("10")
 
     @pytest.mark.asyncio
     async def test_amm_max_xrp_drops_no_overflow(self, transport):
