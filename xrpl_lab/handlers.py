@@ -30,6 +30,11 @@ from .actions.credentials import (
     delete_credential,
     verify_credential,
 )
+from .actions.custodial import (
+    credit_player_deposit,
+    enable_require_dest,
+    send_tagged_deposit,
+)
 from .actions.dex import (
     cancel_offer,
     create_offer,
@@ -4823,6 +4828,311 @@ async def handle_verify_delivered_amount(
     return context
 
 
+# ---------------------------------------------------------------------------
+# Custodial player crediting (destination tags — payments track)
+# ---------------------------------------------------------------------------
+
+
+async def handle_enable_require_dest(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Enable asfRequireDest on the pooled treasury (AccountSet).
+
+    From this point the pool REJECTS any untagged incoming Payment with
+    tecDST_TAG_NEEDED — fail-closed custody hygiene, always on for a shared
+    hot wallet.
+    """
+    address = state.wallet_address or ""
+    console.print(
+        "  Enabling [cyan]asfRequireDest[/] on the pooled treasury — "
+        "untagged deposits will now bounce (tecDST_TAG_NEEDED)..."
+    )
+    result = await enable_require_dest(
+        transport, wallet_seed, wallet_address=address
+    )
+    if result.success:
+        console.print(
+            "  [green]RequireDest enabled — every incoming Payment must "
+            "carry a DestinationTag.[/]"
+        )
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["require_dest_enabled"] = True
+    else:
+        console.print(f"  [red]RequireDest enable failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_create_player_wallet(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Create + fund the PLAYER wallet — the depositor on the other side.
+
+    The player is a distinct account so the deposit is a real third-party
+    Payment into the pool, exactly like production traffic.
+    """
+    console.print("  Creating the player's wallet (the depositor)...")
+    player = create_wallet()
+    context["player_seed"] = _SecretValue(player.seed)
+    context["player_address"] = player.address
+    console.print(f"  Player wallet: [cyan]{player.address}[/]")
+
+    fund = await transport.fund_from_faucet(player.address)
+    if fund.success:
+        console.print(f"  Player funded! Balance: [green]{fund.balance} XRP[/]")
+    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        err = faucet_rate_limited()
+        console.print(f"  [yellow]{err.message}[/]")
+    else:
+        console.print(f"  [yellow]Player funding: {fund.message}[/]")
+    return context
+
+
+async def handle_assign_player_tag(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Assign the player a deposit tag in the backend's OFF-LEDGER registry.
+
+    No transaction here on purpose: the tag→player map has NO on-ledger
+    representation. It lives in the studio's database, it is load-bearing
+    (lose it and every pooled deposit becomes unattributable), and it must be
+    backed up like any other production table.
+    """
+    args = step.action_args
+    try:
+        tag = int(args.get("tag", "1001"))
+    except (TypeError, ValueError):
+        console.print("  [yellow]Invalid tag, using default (1001).[/]")
+        tag = 1001
+    player = args.get("player", "arya") or "arya"
+
+    registry = context.setdefault("tag_registry", {})
+    if tag in registry and registry[tag] != player:
+        console.print(
+            f"  [yellow]Tag {tag} is already assigned to "
+            f"'{registry[tag]}' — never reuse a live tag for a second "
+            f"player. Reassigning for this lesson.[/]"
+        )
+    registry[tag] = player
+    context["player_tag"] = tag
+    context["player_name"] = player
+    console.print(
+        f"  Backend registry entry: tag [cyan]{tag}[/] -> player "
+        f"[cyan]{player}[/]"
+    )
+    console.print(
+        "  [dim]Off-ledger only — the ledger never sees this map. It is "
+        "load-bearing: back it up.[/]"
+    )
+    return context
+
+
+async def handle_send_tagged_deposit(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The player deposits XRP into the pool WITH a DestinationTag."""
+    args = step.action_args
+    amount = args.get("amount", "25")
+    try:
+        tag = int(args.get("tag") or context.get("player_tag") or 1001)
+    except (TypeError, ValueError):
+        tag = 1001
+    source_tag: int | None = None
+    raw_source = args.get("source_tag", "")
+    if raw_source:
+        try:
+            source_tag = int(raw_source)
+        except (TypeError, ValueError):
+            console.print(
+                f"  [yellow]Invalid source_tag {raw_source!r}; omitting it.[/]"
+            )
+
+    _raw = context.get("player_seed", "")
+    player_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    pool = state.wallet_address or ""
+    if not player_seed or not pool:
+        console.print(
+            "  [red]Missing player wallet or pool address. Run the wallet / "
+            "player steps first.[/]"
+        )
+        return context
+
+    console.print(
+        f"  Player sending [cyan]{amount} XRP[/] to the pool with "
+        f"DestinationTag [cyan]{tag}[/]"
+        + (f" (SourceTag {source_tag})" if source_tag is not None else "")
+        + "..."
+    )
+    result = await send_tagged_deposit(
+        transport, player_seed, pool, amount,
+        destination_tag=tag, source_tag=source_tag, memo="XRPLLAB|DEPOSIT",
+    )
+    if result.success:
+        console.print("  [green]Tagged deposit validated.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        console.print(
+            "  [dim]The tag rode the transaction on-ledger — but it MEANS "
+            "nothing until the backend maps it. That attribution is next.[/]"
+        )
+        context["deposit_txid"] = result.txid
+        context["deposit_amount"] = amount
+        context["deposit_tag"] = tag
+    else:
+        console.print(f"  [red]Deposit failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
+async def handle_send_untagged_deposit_expect_fail(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """The player sends an UNTAGGED deposit — expects tecDST_TAG_NEEDED.
+
+    Submit-and-learn: with asfRequireDest on the pool, the ledger refuses the
+    payment rather than let it land unattributable. This is the wall a real
+    integration hits the first time a wallet omits the tag.
+    """
+    args = step.action_args
+    amount = args.get("amount", "10")
+    _raw = context.get("player_seed", "")
+    player_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    pool = state.wallet_address or ""
+    if not player_seed or not pool:
+        console.print(
+            "  [red]Missing player wallet or pool address. Run the wallet / "
+            "player steps first.[/]"
+        )
+        return context
+    if not context.get("require_dest_enabled"):
+        console.print(
+            "  [yellow]asfRequireDest was not enabled on this pool (run the "
+            "enable step first) — an untagged deposit will LAND, "
+            "unattributable, instead of bouncing.[/]"
+        )
+
+    console.print(
+        f"  [yellow]Player sending {amount} XRP with NO DestinationTag "
+        "(expecting tecDST_TAG_NEEDED)...[/]"
+    )
+    result = await send_tagged_deposit(
+        transport, player_seed, pool, amount,
+        destination_tag=None, memo="XRPLLAB|UNTAGGED",
+    )
+    if result.success:
+        console.print(
+            "  [yellow]Unexpected success — the untagged deposit LANDED. "
+            "Without RequireDest these funds would sit unattributable in "
+            "the pool.[/]"
+        )
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        # Record only a REAL txid on the unexpected-success branch (mirrors
+        # the F-d18b2348 rule — no {txid:"failed", success:true} records).
+        if result.txid:
+            context.setdefault("txids", []).append(result.txid)
+            state.record_tx(
+                txid=result.txid, module_id=context.get("module_id", ""),
+                network=state.network, success=True,
+                explorer_url=result.explorer_url,
+            )
+            save_state(state)
+    else:
+        # Name the code honestly — only tecDST_TAG_NEEDED is the taught
+        # missing-tag rejection; anything else is a DIFFERENT failure and must
+        # not be green-printed as the expected one (F-59ba7d9d discipline).
+        if result.result_code == "tecDST_TAG_NEEDED":
+            console.print(f"  [green]Expected failure:[/] {result.result_code}")
+            console.print(
+                "  [dim]The pool refused the deposit rather than accept "
+                "funds it cannot attribute. Fail-closed is the point.[/]"
+            )
+        else:
+            console.print(
+                f"  [yellow]Failed with {result.result_code} — expected "
+                f"tecDST_TAG_NEEDED (the missing-tag rejection). The "
+                f"demonstration did not exercise the RequireDest rule.[/]"
+            )
+        console.print(f"  {result.error}")
+        _explain_failure(console, result.result_code)
+        context.setdefault("failed_txids", []).append(
+            {"result_code": result.result_code, "error": result.error}
+        )
+    return context
+
+
+async def handle_credit_player_deposit(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Attribute the deposit via its DestinationTag and credit delivered_amount.
+
+    The custodial receiving discipline end-to-end: tesSUCCESS + validated
+    first, tag read from the tx, tag validated against the backend's OWN
+    registry (a tag is a routing hint, not authentication), and the credit
+    taken from delivered_amount — never the Amount field.
+    """
+    args = step.action_args
+    txid = context.get("deposit_txid", "")
+    registry = context.get("tag_registry", {}) or {}
+    if not txid:
+        console.print(
+            "  [red]No deposit to credit. Run the tagged-deposit step first.[/]"
+        )
+        # FT-001: the step that produces the txid never ran → honest FAILED
+        # verification, not an invisible skip.
+        _record_verification(
+            context, "credit_player_deposit", passed=False,
+            failures=["deposit_txid missing — the step that produces it did not run"],
+        )
+        return context
+
+    expected_xrp = args.get("expected") or context.get("deposit_amount")
+    expected_drops: str | None = None
+    if expected_xrp:
+        try:
+            expected_drops = str(int(Decimal(str(expected_xrp)) * 1_000_000))
+        except (InvalidOperation, ValueError):
+            console.print(
+                f"  [yellow]Could not parse expected amount "
+                f"{expected_xrp!r}; skipping the exact-amount assertion.[/]"
+            )
+
+    result = await credit_player_deposit(
+        transport, txid, registry, expected_drops=expected_drops
+    )
+    for check in result.checks:
+        console.print(f"  [green]✓[/] {check}")
+    for fail in result.failures:
+        console.print(f"  [red]✗[/] {fail}")
+
+    if result.passed:
+        console.print()
+        console.print(
+            f"  [bold green]CREDITED:[/] player [cyan]{result.player}[/] "
+            f"(tag {result.tag}) +[cyan]{result.credited_drops}[/] drops — "
+            "attributed by the tag, validated against the registry, credited "
+            "from delivered_amount."
+        )
+    context["last_player_credit"] = result
+    _record_verification(
+        context, "credit_player_deposit", result.passed, result.failures
+    )
+    return context
+
+
 async def handle_verify_mpt_issuance(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -6385,6 +6695,74 @@ def _register_all() -> None:
                 "Read delivered_amount off the validated tx and contrast it with "
                 "the Amount field — proves the partial-payment exploit"
             ),
+        ),
+        # ── custodial player crediting: destination tags (payments track) ──
+        ActionDef(
+            name="enable_require_dest",
+            handler=handle_enable_require_dest,
+            description=(
+                "Enable asfRequireDest on the pooled treasury (AccountSet) — "
+                "untagged deposits bounce tecDST_TAG_NEEDED"
+            ),
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="create_player_wallet",
+            handler=handle_create_player_wallet,
+            description="Create + fund the player (depositor) wallet",
+        ),
+        ActionDef(
+            name="assign_player_tag",
+            handler=handle_assign_player_tag,
+            description=(
+                "Assign the player a deposit tag in the OFF-LEDGER backend "
+                "registry (the load-bearing tag -> player map)"
+            ),
+            payload_fields=[
+                PayloadField(name="tag", type="int", default="1001",
+                             description="32-bit DestinationTag assigned to the player"),
+                PayloadField(name="player", default="arya",
+                             description="Player id the tag routes to"),
+            ],
+        ),
+        ActionDef(
+            name="send_tagged_deposit",
+            handler=handle_send_tagged_deposit,
+            description=(
+                "Player deposits XRP into the pool WITH a DestinationTag "
+                "(and optional SourceTag for refund routing)"
+            ),
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="25", description="XRP amount"),
+                PayloadField(name="tag", type="int",
+                             description="DestinationTag (defaults to the assigned player tag)"),
+                PayloadField(name="source_tag", type="int",
+                             description="Optional SourceTag — the sender's return/bounce hint"),
+            ],
+        ),
+        ActionDef(
+            name="send_untagged_deposit_expect_fail",
+            handler=handle_send_untagged_deposit_expect_fail,
+            description=(
+                "Player sends an UNTAGGED deposit to the RequireDest pool "
+                "(expects tecDST_TAG_NEEDED)"
+            ),
+            wallet_required=True,
+            payload_fields=[
+                PayloadField(name="amount", default="10", description="XRP amount"),
+            ],
+        ),
+        ActionDef(
+            name="credit_player_deposit",
+            handler=handle_credit_player_deposit,
+            description=(
+                "Attribute the deposit via its DestinationTag against the "
+                "registry and credit delivered_amount (never Amount)"
+            ),
+            payload_fields=[
+                PayloadField(name="expected", description="Expected credited amount in XRP"),
+            ],
         ),
         # ── v2.0.0 game-economy control: NFT marketplace (nfts track) ──
         ActionDef(

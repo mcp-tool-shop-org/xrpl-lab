@@ -873,6 +873,8 @@ class XRPLTestnetTransport(Transport):
         destination: str,
         amount: str,
         memo: str = "",
+        destination_tag: int | None = None,
+        source_tag: int | None = None,
     ) -> SubmitResult:
         guard = await self._guard_write()
         if guard is not None:
@@ -902,11 +904,18 @@ class XRPLTestnetTransport(Transport):
         # the object-rebuild half of the defect without disturbing that seam.
         try:
             wallet = Wallet.from_seed(wallet_seed)
+            # destination_tag / source_tag: optional 32-bit routing tags
+            # (custodial crediting). xrpl-py's model rejects an out-of-range
+            # tag at construction, surfaced below as local_error — the dry-run
+            # transport mirrors that ceiling. An untagged Payment to an
+            # asfRequireDest destination fails tecDST_TAG_NEEDED on-ledger.
             payment = Payment(
                 account=wallet.address,
                 destination=destination,
                 amount=xrp_to_drops(amount_f),  # xrp_to_drops accepts Decimal
                 memos=_memo_field(memo) or None,
+                destination_tag=destination_tag,
+                source_tag=source_tag,
             )
         except Exception as exc:
             return SubmitResult(
@@ -1924,6 +1933,40 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
         return await self._submit_tx(tx, wallet, "EscrowCreate")
+
+    async def submit_require_dest(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        # Custodial-pool hygiene: AccountSet asfRequireDest (ledger flag
+        # lsfRequireDestTag) makes the account reject any untagged incoming
+        # Payment with tecDST_TAG_NEEDED. ``enable=False`` clears the flag
+        # (the named compensator). ``wallet_address`` is a dry-run keying aid;
+        # the testnet path derives the account from the seed and ignores it.
+        # Signs a real tx, so the testnet-only invariant applies — guard
+        # BEFORE Wallet.from_seed.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            if enable:
+                tx = AccountSet(
+                    account=wallet.address,
+                    set_flag=AccountSetAsfFlag.ASF_REQUIRE_DEST,
+                )
+            else:
+                tx = AccountSet(
+                    account=wallet.address,
+                    clear_flag=AccountSetAsfFlag.ASF_REQUIRE_DEST,
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AccountSet(require-dest)")
 
     async def submit_allow_trustline_locking(
         self,
@@ -3028,6 +3071,12 @@ class XRPLTestnetTransport(Transport):
                 validated=result.get("validated", False),
                 raw=result,
                 delivered_amount=delivered_str,
+                # Custodial crediting: the 32-bit routing tags, read from the
+                # tx body (API v2 nests them under tx_json like every other tx
+                # field). None when absent — the credit path treats an absent
+                # DestinationTag as unattributable.
+                destination_tag=_int_or_none(tx.get("DestinationTag")),
+                source_tag=_int_or_none(tx.get("SourceTag")),
             )
         except TimeoutError:
             # TXBCD-002: a READ-BACK failure is NOT a tx failure. Populate the

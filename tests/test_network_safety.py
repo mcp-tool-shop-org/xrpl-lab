@@ -207,6 +207,14 @@ _MAINNET_REFUSAL_CALLS = {
             "sEdSEED", "GLD", "rISSUER", "50", "rDEST", 999999999
         )
     ),
+    # ── Custodial crediting (destination tags) signing method ──
+    # AccountSet asfRequireDest (pooled-treasury opt-in: reject untagged
+    # deposits with tecDST_TAG_NEEDED) signs a real tx, so the testnet-only
+    # invariant applies — MUST call _network_guard() before Wallet.from_seed.
+    # (The tagged Payment itself rides on submit_payment, already covered.)
+    "submit_require_dest": (
+        lambda t: t.submit_require_dest("sEdSEED")
+    ),
     # ── Multisig treasury signing methods (SignerListSet + multisig Payment) ──
     # SignerListSet signs with the owner's key; the multi-signed Payment signs
     # with EVERY co-signer's key (sign(multisign=True) per seed), so both move

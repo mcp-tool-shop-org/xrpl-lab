@@ -662,6 +662,20 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
             "then retry the transfer."
         ),
     },
+    "tecDST_TAG_NEEDED": {
+        "category": "claimed",
+        "meaning": (
+            "The destination requires a DestinationTag (asfRequireDest is "
+            "set) and this Payment carried none. Custodial/pooled accounts "
+            "use the tag to route each deposit to a specific player or "
+            "customer — an untagged deposit would land unattributable."
+        ),
+        "action": (
+            "Resend WITH the DestinationTag the recipient assigned you, or "
+            "use their X-address (it bundles address + tag into one string "
+            "so the tag can't be forgotten)."
+        ),
+    },
     # Failed (not applied)
     "tefBAD_AUTH": {
         "category": "failed",

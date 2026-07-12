@@ -103,6 +103,15 @@ class TxInfo:
     # "unavailable". Empty string means the field was absent (a non-partial tx
     # where delivered == Amount, or a transport that did not populate it).
     delivered_amount: str = ""
+    # Custodial crediting (destination tags): ``DestinationTag`` routes a
+    # payment to a sub-account/player behind ONE shared receiving address;
+    # ``SourceTag`` is the sender-side return/bounce routing hint. Both are
+    # OPTIONAL 32-bit unsigned ints with NO on-ledger meaning beyond the
+    # asfRequireDest presence gate — the tag→player map lives entirely in the
+    # receiving backend, and a tag is a ROUTING HINT, not authentication
+    # (anyone can send any tag). ``None`` means the field was absent.
+    destination_tag: int | None = None
+    source_tag: int | None = None
 
 
 @dataclass
@@ -346,8 +355,43 @@ class Transport(ABC):
         destination: str,
         amount: str,
         memo: str = "",
+        destination_tag: int | None = None,
+        source_tag: int | None = None,
     ) -> SubmitResult:
-        """Submit a payment transaction."""
+        """Submit a payment transaction.
+
+        ``destination_tag`` / ``source_tag`` are the optional 32-bit unsigned
+        routing tags (custodial crediting): the destination tag tells the
+        RECEIVING backend which player/sub-account to credit when many users
+        share one pooled address; the source tag is the sender's own
+        return/bounce routing hint. Both transports enforce the network's
+        RequireDest rule identically: an UNTAGGED payment to an account with
+        ``asfRequireDest`` set fails ``tecDST_TAG_NEEDED``. Out-of-range tags
+        (outside 0..2^32-1) are a local error — xrpl-py's model rejects them
+        at construction, and the dry-run mirrors that so a dry-run pass never
+        masks a testnet failure.
+        """
+
+    @abstractmethod
+    async def submit_require_dest(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        """Enable (or clear) asfRequireDest on the account (AccountSet).
+
+        ``asfRequireDest`` (ledger flag ``lsfRequireDestTag``) makes the
+        account REJECT any incoming Payment that lacks a ``DestinationTag``
+        with ``tecDST_TAG_NEEDED``. This is the operational-hygiene switch for
+        a custodial/pooled treasury: without it an untagged deposit lands
+        unattributable — funds arrive but the backend cannot tell whose they
+        are. ALWAYS enable it on a shared hot wallet. ``enable=False`` clears
+        the flag (the named compensator). ``wallet_address`` is the account's
+        real classic address, used by the dry-run transport to key per-account
+        flag state (every dry-run seed collapses to one synthetic address);
+        the testnet transport derives the account from the seed and ignores it.
+        """
 
     @abstractmethod
     async def submit_trust_set(

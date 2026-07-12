@@ -78,6 +78,13 @@ def _address_from_seed(wallet_seed: str) -> str:
 _MAX_XRP = Decimal("100000000000")  # 1e11 — xrpl-py's MAX_XRP ceiling
 _ONE_DROP_XRP = Decimal("0.000001")  # 1 drop = 1e-6 XRP
 
+# Destination/source tags are 32-bit unsigned ints on the wire. xrpl-py's
+# Payment model rejects an out-of-range tag at CONSTRUCTION (the testnet
+# transport surfaces that as a local_error before anything is signed), so the
+# dry-run enforces the identical ceiling — a dry-run pass never masks a
+# testnet failure.
+_MAX_TAG = 0xFFFF_FFFF  # 2^32 - 1 = 4294967295
+
 
 class DryRunAmountError(ValueError):
     """A dry-run XRP amount that the real network would reject.
@@ -262,6 +269,14 @@ class DryRunTransport(Transport):
         # (issuer, currency, holder) line; global freeze keys an issuer.
         self._frozen_lines: set[tuple[str, str, str]] = set()
         self._global_frozen: set[str] = set()
+        # Custodial-crediting state (destination tags): addresses that have
+        # enabled asfRequireDest (ledger flag lsfRequireDestTag). An UNTAGGED
+        # Payment to an address in this set fails tecDST_TAG_NEEDED, matching
+        # the network's engine result — the pooled-treasury hygiene rule the
+        # custodial module teaches. Keyed by the account's REAL address (the
+        # ``wallet_address`` keying aid, exactly like clawback/freeze/locking)
+        # because every dry-run seed collapses to one synthetic address.
+        self._require_dest: set[str] = set()
         # Token-escrow opt-in state (FC-001, XLS-85). An issuer address in this
         # set has enabled asfAllowTrustLineLocking, so its IOU can be escrowed.
         # A token EscrowCreate against an issuer NOT in this set fails
@@ -427,6 +442,8 @@ class DryRunTransport(Transport):
         destination: str,
         amount: str,
         memo: str = "",
+        destination_tag: int | None = None,
+        source_tag: int | None = None,
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -453,6 +470,42 @@ class DryRunTransport(Transport):
                 result_code=exc.result_code,
                 fee="0",
                 error=f"[dry-run] {exc}",
+            )
+
+        # Tag range parity: xrpl-py's Payment model raises at CONSTRUCTION for
+        # a tag outside the 32-bit unsigned range, which the testnet transport
+        # surfaces as a local_error before anything is signed. Mirror it here
+        # so the dry-run never green-lights a tag the network path would refuse.
+        for label, tag in (("DestinationTag", destination_tag),
+                           ("SourceTag", source_tag)):
+            if tag is not None and not 0 <= int(tag) <= _MAX_TAG:
+                return SubmitResult(
+                    success=False,
+                    txid="",
+                    result_code="local_error",
+                    fee="0",
+                    error=(
+                        f"[dry-run] {label} {tag} is out of range — tags are "
+                        f"32-bit unsigned integers (0..{_MAX_TAG})."
+                    ),
+                )
+
+        # RequireDest enforcement (custodial crediting): an UNTAGGED Payment
+        # to an account with asfRequireDest set fails tecDST_TAG_NEEDED on the
+        # network (checked in preclaim, BEFORE the funding check below). This
+        # is the wall the custodial module has the learner hit on purpose.
+        if destination in self._require_dest and destination_tag is None:
+            return SubmitResult(
+                success=False,
+                txid="",
+                result_code="tecDST_TAG_NEEDED",
+                fee="12",
+                error=(
+                    "[dry-run] The destination requires a DestinationTag "
+                    "(asfRequireDest is set) and this Payment carries none — "
+                    "an untagged deposit to a pooled account would be "
+                    "unattributable (tecDST_TAG_NEEDED)."
+                ),
             )
 
         # F-BRIDGE-B-DRY-NEG-BAL: pre-validate sender balance before debiting.
@@ -497,6 +550,31 @@ class DryRunTransport(Transport):
         txid = self._next_txid()
         self._balances[sender] = self._balances.get(sender, 0) - drops - fee_drops
         self._balances[destination] = self._balances.get(destination, 0) + drops
+
+        # Record a per-txid fixture when tags ride on the payment so fetch_tx
+        # can read them back — the custodial credit step attributes the deposit
+        # from the tx's DestinationTag and credits its delivered_amount (never
+        # the Amount field). Scoped to TAGGED payments only: untagged payments
+        # keep the legacy deterministic read-back shape existing tests pin.
+        if destination_tag is not None or source_tag is not None:
+            self._tx_fixtures[txid] = TxInfo(
+                txid=txid,
+                tx_type="Payment",
+                account=sender,
+                destination=destination,
+                amount=str(drops),
+                fee="12",
+                result_code="tesSUCCESS",
+                ledger_index=99999999,
+                memos=[memo] if memo else None,
+                validated=True,
+                delivered_amount=str(drops),  # what ACTUALLY moved (drops)
+                destination_tag=(
+                    int(destination_tag) if destination_tag is not None else None
+                ),
+                source_tag=int(source_tag) if source_tag is not None else None,
+            )
+
         return SubmitResult(
             success=True,
             txid=txid,
@@ -2160,6 +2238,34 @@ class DryRunTransport(Transport):
         # handlers can capture it directly from the submit response.
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="", sequence=seq)
+
+    # ── Custodial crediting (destination tags / RequireDest) ─────────
+
+    async def submit_require_dest(
+        self,
+        wallet_seed: str,
+        enable: bool = True,
+        wallet_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecOWNERS", fee="12",
+                error="[dry-run] Simulated failure: AccountSet require-dest",
+            )
+        # Key by the account's REAL address when supplied — every dry-run seed
+        # collapses to one synthetic address, so without the real address a
+        # RequireDest-protected pool would be indistinguishable from an open
+        # account and tecDST_TAG_NEEDED could never fire.
+        account = wallet_address or _address_from_seed(wallet_seed)
+        if enable:
+            self._require_dest.add(account)
+        else:
+            self._require_dest.discard(account)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
 
     # ── Token escrow (XLS-85 / FC-001) ───────────────────────────────
 
