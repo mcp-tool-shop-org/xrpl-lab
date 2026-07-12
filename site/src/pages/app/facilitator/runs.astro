@@ -28,17 +28,14 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
   </div>
 
   <script>
-    import { fetchWithTimeout } from '../../../lib/api';
-    import { icons, runBadge, openModal, announce, esc, fmtElapsed, fmtClock } from '../../../lib/dashboard-ui';
+    import { fetchRuns, cancelRun, isLocalOrigin } from '../../../lib/api';
+    import type { RunInfo, RunListResponse } from '../../../lib/api';
+    import { icons, runBadge, openModal, announce, esc, fmtElapsed, fmtClock, hostedPreviewMessage } from '../../../lib/dashboard-ui';
 
-    const API_BASE = 'http://localhost:8321';
+    // F-ec3beb79: use the shared, drift-checked RunInfo/RunListResponse
+    // interfaces from api.ts instead of hand-rolled local copies (they were
+    // already character-for-character identical to these).
     const POLL_INTERVAL_MS = 5000;
-
-    interface RunInfo {
-      run_id: string; module_id: string; status: string;
-      created_at: string; elapsed_seconds: number; queue_size: number; dry_run: boolean;
-    }
-    interface RunListResponse { runs: RunInfo[]; max_concurrent: number; active_count: number; }
 
     const root = document.getElementById('fac-root')!;
 
@@ -101,7 +98,11 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
       openModal({
         variant: 'danger', icon: icons.ban, returnTo: btn,
         title: 'Kill this run?',
-        body: `This cancels run <code class="mono">${esc(runId)}</code> (<code class="mono">${esc(moduleId)}</code>) and ends the learner's session immediately. <span class="mono faint">DELETE /api/runs/${esc(runId)}</span>`,
+        // F-914e57b3: openModal() now escapes `body` by default, so this
+        // deliberate <code>/<span> markup uses the bodyHtml opt-in instead —
+        // the interpolated runId/moduleId are still explicitly esc()'d since
+        // bodyHtml itself is trusted verbatim.
+        bodyHtml: `This cancels run <code class="mono">${esc(runId)}</code> (<code class="mono">${esc(moduleId)}</code>) and ends the learner's session immediately. <span class="mono faint">DELETE /api/runs/${esc(runId)}</span>`,
         confirmLabel: 'Kill run', cancelLabel: 'Keep running',
         onConfirm: () => doKill(runId, moduleId, btn),
       });
@@ -119,22 +120,28 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
       btn.disabled = true;
       btn.innerHTML = '<span class="mono">Cancelling…</span>';
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/runs/${encodeURIComponent(runId)}`, { method: 'DELETE' });
-        if (res.ok) {
+        const result = await cancelRun(runId);
+        if (result.ok) {
           announce(`Run ${moduleId} cancelled.`);
           await refresh();
-        } else if (res.status === 404) {
+        } else if (result.status === 404) {
           // Pre-DELETE state — endpoint not shipped, or the run already finished.
           resetKill(btn);
           errModal('Cancel not available', 'Either the run already finished, or the cancel endpoint is not available on this API. Refresh to see the latest state.');
         } else {
           resetKill(btn);
-          errModal('Cancel failed', `HTTP ${res.status} ${esc(res.statusText)}.`);
+          errModal('Cancel failed', `HTTP ${result.status} ${esc(result.statusText)}.`);
         }
       } catch (err: any) {
         resetKill(btn);
+        // F-cb775026: on the hosted GitHub Pages copy, this DELETE is
+        // CORS-blocked regardless of whether xrpl-lab serve is running
+        // locally right now — say so distinctly. errModal's body is always
+        // plain text in this file, so no <code> markup here.
         const msg = err?.name === 'AbortError'
           ? 'Cancel request timed out. The API may be slow or restarting.'
+          : !isLocalOrigin()
+          ? "This hosted preview (GitHub Pages) can't reach a local API. Open the dashboard at the localhost URL xrpl-lab serve prints instead of this page."
           : 'API is offline. Run xrpl-lab serve in a terminal, then try again.';
         errModal('Could not cancel', msg);
       }
@@ -143,8 +150,12 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
     // ── error / offline state ───────────────────────────────────────────
     function showError(err: any) {
       const timeout = err?.name === 'AbortError';
+      // F-cb775026: on the hosted GitHub Pages copy, refreshing THIS tab can
+      // never reach a local API (CORS blocks it) — say so distinctly.
       const msg = timeout
         ? 'Request timed out. The API may be slow or restarting. Auto-refresh will retry shortly.'
+        : !isLocalOrigin()
+        ? hostedPreviewMessage()
         : 'API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
       root.innerHTML = `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
         <div class="empty__t">Can't reach the API</div><div>${msg}</div></div></div>`;
@@ -152,9 +163,7 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 
     async function refresh() {
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/runs`);
-        if (!res.ok) throw new Error(`API returned ${res.status}: ${res.statusText}`);
-        render((await res.json()) as RunListResponse);
+        render(await fetchRuns());
       } catch (err) {
         showError(err);
       }

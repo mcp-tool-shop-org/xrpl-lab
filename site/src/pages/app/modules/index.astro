@@ -28,24 +28,15 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
   </div>
 
   <script>
-    import { fetchWithTimeout } from '../../../lib/api';
-    import { icons, healthIcon, esc } from '../../../lib/dashboard-ui';
+    import { fetchModules, isLocalOrigin } from '../../../lib/api';
+    import type { ModuleSummary } from '../../../lib/api';
+    import { icons, healthIcon, esc, hostedPreviewMessage } from '../../../lib/dashboard-ui';
 
-    const API_BASE = 'http://localhost:8321';
     const sk = (h: string, w = '100%') => `<div class="skeleton" style="height:${h};width:${w}"></div>`;
 
-    // API shape is dynamic; keep the field names the backend sends.
-    interface Module {
-      id: string;
-      title: string;
-      track?: string;
-      level: string;
-      time_estimate?: string;
-      mode?: string;
-      completed?: boolean;
-      is_next?: boolean;
-      verified?: boolean;
-    }
+    // F-ec3beb79: use the shared, drift-checked ModuleSummary interface from
+    // api.ts (mirrors the Python model) instead of a hand-rolled local copy.
+    type Module = ModuleSummary;
 
     let allModules: Module[] = [];
 
@@ -133,8 +124,12 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
       // TypeError (network/server down — `xrpl-lab serve` not running) so the
       // user gets an actionable hint per error class.
       const timeout = err?.name === 'AbortError';
+      // F-cb775026: on the hosted GitHub Pages copy, refreshing THIS tab can
+      // never reach a local API (CORS blocks it) — say so distinctly.
       const msg = timeout
         ? 'Request timed out. The API may be slow or restarting. Refresh to retry.'
+        : !isLocalOrigin()
+        ? hostedPreviewMessage()
         : 'API is offline. Run <code class="mono">xrpl-lab serve</code> in a terminal, then refresh.';
       return `<div class="card"><div class="empty"><span class="empty__ic">${icons.alert}</span>
         <div class="empty__t">Can't reach the API</div><div>${msg}</div></div></div>`;
@@ -152,9 +147,7 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
       if (!grid) return;
       grid.innerHTML = skeletonGrid();
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/modules`);
-        if (!res.ok) throw new Error(`API returned ${res.status}: ${res.statusText}`);
-        allModules = await res.json();
+        allModules = await fetchModules();
         setModuleCount(allModules.length);
         renderModules(allModules);
       } catch (err: any) {

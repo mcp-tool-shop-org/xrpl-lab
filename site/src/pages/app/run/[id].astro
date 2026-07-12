@@ -95,10 +95,8 @@ const { id } = Astro.params;
   </div>
 
   <script>
-    import { fetchWithTimeout } from '../../../lib/api';
-    import { icons, announce } from '../../../lib/dashboard-ui';
-
-    const API_BASE = 'http://localhost:8321';
+    import { fetchModule, startModuleRun, isLocalOrigin, API_BASE } from '../../../lib/api';
+    import { icons, announce, esc, hostedPreviewMessagePlain } from '../../../lib/dashboard-ui';
 
     // Reflect run state on the terminal frame (border + the "state" chip).
     function setTermState(state: string, label: string) {
@@ -108,15 +106,10 @@ const { id } = Astro.params;
       if (txt) txt.textContent = label;
     }
 
-    function escapeHtml(str: any): string {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
+    // F-45d01cd3: this used to be a local escapeHtml() duplicating
+    // dashboard-ui.ts's already-audited esc() character-for-character —
+    // import the shared one instead so future hardening there propagates
+    // here automatically.
 
     const container = document.getElementById('run-page');
     const moduleId = container?.dataset.moduleId || '';
@@ -196,8 +189,7 @@ const { id } = Astro.params;
     // Load module info
     async function loadModuleInfo() {
       try {
-        const modRes = await fetchWithTimeout(`${API_BASE}/api/modules/${moduleId}`);
-        const mod = await modRes.json();
+        const mod = await fetchModule(moduleId);
         const title = document.getElementById('run-title');
         if (title) title.textContent = mod.title || moduleId;
         const badge = document.getElementById('run-badge');
@@ -269,7 +261,7 @@ const { id } = Astro.params;
           : s.status === 'failed' ? '✗'
           : s.status === 'running' ? '●'
           : String(i + 1);
-        const action = escapeHtml(s.action);
+        const action = esc(s.action);
         return `<div class="step" data-state="${s.status}" aria-label="Step ${i + 1}: ${action}, ${s.status}">
           <span class="step__glyph" aria-hidden="true">${glyph}</span>
           <span class="step__name">${action}</span>
@@ -401,13 +393,21 @@ const { id } = Astro.params;
           return;
         }
 
-        // Origin rejection (4003): config error, retrying won't help.
+        // Origin rejection (4003): config error, retrying won't help. On the
+        // hosted GitHub Pages copy this is actually the EXPECTED outcome (the
+        // backend's Origin allow-list can never include that origin — see
+        // isLocalOrigin()/API_BASE in ../../../lib/api) rather than a one-off
+        // misconfiguration, so say so distinctly instead of "refresh after
+        // fixing", which implies retrying here can ever work.
         if (event.code === 4003) {
           setStatus('failed', 'Origin rejected');
+          const reason = !isLocalOrigin()
+            ? `Run disconnected: origin rejected. ${hostedPreviewMessagePlain()}`
+            : 'Run disconnected: origin rejected — server config issue. Refresh after fixing.';
           // FEBCD-002: terminal disconnect — route through the live region so
           // SR users hear it (the visible status pill alone isn't announced).
-          announce('Run disconnected: origin rejected — server config issue. Refresh after fixing.');
-          termAppend('\n[disconnected] Origin rejected — server config issue. Refresh after fixing.', 'text-red-400');
+          announce(reason);
+          termAppend(`\n[disconnected] ${reason}`, 'text-red-400');
           running = false;
           btnRun.disabled = false;
           btnDry.disabled = false;
@@ -516,11 +516,7 @@ const { id } = Astro.params;
       termAppend(`[${modeLabel}] Starting module: ${moduleId}`, 'text-slate-400');
 
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/run/${moduleId}?dry_run=${dryRun}`, { method: 'POST' });
-        if (!res.ok) {
-          throw new Error(`API returned ${res.status}`);
-        }
-        const result = await res.json();
+        const result = await startModuleRun(moduleId, dryRun);
         activeRunId = result.run_id;
 
         termAppend(`[${modeLabel}] Run ID: ${activeRunId}`, 'text-slate-500');
@@ -534,7 +530,11 @@ const { id } = Astro.params;
         if (err?.name === 'AbortError') {
           msg = 'Request timed out — check API server is responsive.';
         } else if (err instanceof TypeError) {
-          msg = 'Could not reach API server — is it running?';
+          // F-cb775026: on the hosted GitHub Pages copy, this fetch is
+          // CORS-blocked regardless of whether xrpl-lab serve is running
+          // locally right now — say so distinctly instead of implying the
+          // local server is the problem.
+          msg = !isLocalOrigin() ? hostedPreviewMessagePlain() : 'Could not reach API server — is it running?';
         } else {
           msg = err.message || 'Failed to start run';
         }
@@ -626,7 +626,7 @@ const { id } = Astro.params;
           const li = document.createElement('li');
           li.className = 'tx';
           const ok = msg.result_code === 'tesSUCCESS';
-          li.innerHTML = `<span class="tx__id">${escapeHtml(msg.txid)}</span><span class="tx__code tx__code--${ok ? 'ok' : 'err'}" title="result_code">${escapeHtml(msg.result_code)}</span>`;
+          li.innerHTML = `<span class="tx__id">${esc(msg.txid)}</span><span class="tx__code tx__code--${ok ? 'ok' : 'err'}" title="result_code">${esc(msg.result_code)}</span>`;
           txList.appendChild(li);
           termAppend(`  TX: ${msg.txid} [${msg.result_code}]`, 'text-cyan-400');
           // FEBCD-002: announce the transaction result_code — the load-bearing
