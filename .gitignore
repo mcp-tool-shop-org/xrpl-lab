@@ -45,3 +45,4 @@ node_modules/
 
 # Raw Claude Design export (reference; integrated copies live in site/src/styles)
 design/redesign/
+.swarm/
