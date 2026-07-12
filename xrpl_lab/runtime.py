@@ -63,6 +63,32 @@ async def ensure_wallet(
             state.wallet_path = str(default_wallet_path())
             save_state(state)
             return state, _SecretValue(wallet.seed)
+    elif wallet_path is not None:
+        # F-1e8c93d7: state.wallet_path WAS set (pointing at a custom or
+        # previously-recorded wallet location), but that file is gone
+        # (moved/renamed home dir, partial backup restore, manual delete)
+        # AND the default location has nothing either. Falling straight
+        # through to wallet creation below would silently mint a brand new
+        # address and overwrite state.wallet_address/wallet_path with no
+        # signal that this differs from the previously recorded identity —
+        # any funds already sent to the OLD address become invisible to
+        # this tool, and completed_modules history keeps accruing under
+        # the new, unrelated address. Name the old path + old address
+        # before falling through so the learner has a chance to notice and
+        # restore the original file instead.
+        old_address = state.wallet_address
+        console.print(
+            f"  [yellow]Warning: your previously configured wallet at "
+            f"{wallet_path} was not found"
+            + (f" (previously {old_address})" if old_address else "")
+            + ".[/]"
+        )
+        console.print(
+            "  [yellow]If you still have that file, restore it to the "
+            "path above before continuing. Otherwise, funds already sent "
+            "to the old address will be orphaned from this tool's "
+            "perspective — a NEW wallet/address will be created below.[/]"
+        )
 
     console.print("  No wallet found. Creating a new one...")
     wallet = create_wallet()

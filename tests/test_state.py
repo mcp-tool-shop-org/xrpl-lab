@@ -2,6 +2,7 @@
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -160,7 +161,9 @@ class TestStateAtomicWrite:
     """
 
     def test_save_state_creates_intermediate_tmp_file(self, tmp_path, monkeypatch):
-        """save_state opens state.json.tmp before atomically replacing state.json."""
+        """save_state opens a unique state.json.<pid>.<uuid> tmp file before
+        atomically replacing state.json (F-d6d7f5e8: unique per-writer tmp
+        names, no longer a fixed ``state.json.tmp`` literal)."""
         import os as _os
 
         monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
@@ -186,19 +189,28 @@ class TestStateAtomicWrite:
 
         save_state(LabState(wallet_address="rTEST"))
 
-        # The tmp path must be opened
-        tmp_target = str(tmp_path / "state.json.tmp")
         final_target = str(tmp_path / "state.json")
-        assert any(p == tmp_target for p in opened_paths), (
-            f"expected os.open of {tmp_target}, saw {opened_paths}"
-        )
+        # F-5312c8ba: save_state now also opens a sidecar state.json.lock
+        # for the cross-process advisory lock — filter down to the
+        # state.json tmp writer specifically (name starts with
+        # "state.json.", ends ".tmp"; excludes the .lock sidecar and the
+        # final path itself).
+        tmp_opens = [
+            p for p in opened_paths
+            if p != final_target
+            and Path(p).name.startswith("state.json.")
+            and Path(p).name.endswith(".tmp")
+        ]
+        assert len(tmp_opens) == 1, f"expected exactly one tmp open: {opened_paths}"
+        tmp_target = tmp_opens[0]
+
         # And os.replace must have moved tmp -> final
         assert (tmp_target, final_target) in replaced, (
             f"expected os.replace({tmp_target!r}, {final_target!r}), saw {replaced}"
         )
         # Final file exists, tmp is gone
         assert (tmp_path / "state.json").exists()
-        assert not (tmp_path / "state.json.tmp").exists()
+        assert not Path(tmp_target).exists()
 
     def test_save_state_recovers_from_partial_write_via_replace(
         self, tmp_path, monkeypatch
@@ -232,8 +244,9 @@ class TestStateAtomicWrite:
 
         # The previous good state.json must be untouched (no atomic replace ran)
         assert (tmp_path / "state.json").read_bytes() == original_bytes
-        # The orphan .tmp must be cleaned up
-        assert not (tmp_path / "state.json.tmp").exists()
+        # The orphan tmp must be cleaned up (unique-per-call naming means
+        # there's no single fixed literal to check — glob instead).
+        assert not list(tmp_path.glob("state.json.*.tmp"))
 
 
 class TestStatePartialWriteRecovery:
@@ -248,14 +261,19 @@ class TestStatePartialWriteRecovery:
     def test_save_state_recovers_from_stale_tmp_orphan(
         self, tmp_path, monkeypatch,
     ):
-        """A stale state.json.tmp from a previously-killed process is pre-cleaned.
+        """A stale tmp file occupying the exact name a save is about to use
+        (freak uuid4 collision, or a leftover from a process that crashed
+        between os.open and os.replace) is pre-cleaned, not left to block
+        the write with FileExistsError.
 
-        Simulates the kill-before-rename failure mode: previous process
-        opened state.json.tmp via O_EXCL, wrote partial bytes, then died
-        before os.replace ran. The next save must succeed (not block on
-        O_EXCL "file exists"), produce a valid state.json, and leave no
-        orphan .tmp behind.
+        F-d6d7f5e8: tmp names are now unique per call (pid + uuid4 suffix),
+        so a genuine collision with an INDEPENDENT writer's leftover is
+        vanishingly unlikely — this test pins the defensive pre-clean guard
+        that still protects the freak-collision case, using a deterministic
+        uuid4 so the exact tmp name is known ahead of time.
         """
+        import uuid as uuid_module
+
         monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
 
         from xrpl_lab.state import load_state, save_state
@@ -266,10 +284,13 @@ class TestStatePartialWriteRecovery:
         save_state(baseline)
         assert (tmp_path / "state.json").exists()
 
-        # Manually create a stale tmp (as if a previous process died after
-        # os.open / O_EXCL + before os.replace). Contents are partial /
-        # garbage by definition.
-        stale_tmp = tmp_path / "state.json.tmp"
+        # Force the NEXT save's generated tmp name to a known value, then
+        # pre-occupy that exact path with stale/garbage content —
+        # simulating a previous process that opened the tmp (O_EXCL
+        # succeeded) and died before os.replace ran.
+        fixed_uuid = uuid_module.UUID(int=0)
+        monkeypatch.setattr("xrpl_lab._atomic.uuid.uuid4", lambda: fixed_uuid)
+        stale_tmp = tmp_path / f"state.json.{os.getpid()}.{fixed_uuid.hex[:8]}.tmp"
         stale_tmp.write_text('{"version":"1.5.0","partial', encoding="utf-8")
         assert stale_tmp.exists()
 
@@ -279,8 +300,10 @@ class TestStatePartialWriteRecovery:
         new_state.complete_module("failure_literacy")
         save_state(new_state)  # must not raise
 
-        # The previously-stale tmp file must be gone (atomically replaced).
-        assert not (tmp_path / "state.json.tmp").exists()
+        # The stale tmp occupying the about-to-be-used name must be gone.
+        assert not stale_tmp.exists()
+        # And no OTHER orphan tmp is left behind either.
+        assert not list(tmp_path.glob("state.json.*.tmp"))
 
         # The new state.json contains the new content.
         loaded = load_state()

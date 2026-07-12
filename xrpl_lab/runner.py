@@ -318,9 +318,26 @@ async def run_module(
                     if exc.error.hint:
                         console.print(f"  [yellow]Hint:[/] {exc.error.hint}")
                 else:
+                    # F-ae597821: mirror the recovery-save except block's
+                    # redaction discipline just below — do NOT interpolate
+                    # str(exc) into the console. This branch fires for ANY
+                    # unhandled exception from ANY action handler (an
+                    # OSError writing a report, a lock/replace race, or
+                    # anything else that happens to embed an absolute path
+                    # + OS username). `console` is the same WS-forwarding
+                    # capture console in dashboard mode, and `serve` supports
+                    # binding to non-loopback hosts — so a raw str(exc) here
+                    # is reachable by anyone on the LAN who triggers a step
+                    # failure during a serve-hosted run. Full detail goes to
+                    # the server log only (WARNING), never the console.
+                    logger.warning(
+                        "step failed for module %s (action=%s): %s",
+                        module.id,
+                        step.action,
+                        exc,
+                    )
                     console.print(
-                        f"[red]Step failed:[/] "
-                        f"{type(exc).__name__}: {exc}"
+                        f"[red]Step failed:[/] {type(exc).__name__}"
                     )
                     console.print(
                         "[yellow]Hint: Run 'xrpl-lab doctor' "
