@@ -1,4 +1,24 @@
 # Changelog
+## Unreleased — fifth dogfood re-swarm, Stage B
+
+Proactive health. Seven domains. Not a version cut. Dashboard JS runner HIGH
+(`F-cdf586bf`) stays open — deferred to the feature pass.
+
+- **`verify_reserve_change` / `verify_position_delta` now assert (opt-in).**
+  Unconditional `_record_verification(..., True)` is gone. Modules that only
+  observe a delta had `checks:` reworded so they do not claim a fact the check
+  does not prove. `reserves_101` no longer claims owner-count decreased after
+  a removal the module never performs.
+- **Dry-run fee-debit mapping.** Ten write methods that reserved-for-fee but
+  never debited now call `_debit_fee`. Conservation tests assert the fees the
+  network actually charges.
+- **Credit banners no longer lie `drops`.** Issued-currency credits print
+  `credited_value` + currency; `credit_check_cash` no longer hardcodes drops
+  onto `delivered_amount`.
+- **Lint errors on zero-action `## Step` headings** (`len(found)==0`). Parser
+  still first-match, one action per heading. `<!-- narrative-only -->` opt-out
+  for prose steps.
+
 ## Unreleased — fifth dogfood re-swarm, Stage A reopening
 
 Stage B audit found six Stage A residuals still sitting on `main`. Four-domain
