@@ -1,4 +1,13 @@
 # Changelog
+## Unreleased — fifth dogfood re-swarm, Phase 7 wave 2
+
+Dashboard JS tests in CI. Not a version cut. `site/` stays private.
+
+- **vitest + jsdom** for `esc`, `openModal`, `runBadge`. Artifacts panels
+  read live proof/cert keys (`completed_modules` / `sha256` / `address`),
+  pinned in JS, not a Python grep. CI `site-test` job runs `npm test` in
+  `site/`.
+
 ## Unreleased — fifth dogfood re-swarm, Phase 7 wave 1
 
 Workshop + proof-loop. Not a version cut. Dashboard vitest (`F-cdf586bf`)
