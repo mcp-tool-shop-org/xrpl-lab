@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from .actions.wallet import (
     wallet_exists,
 )
 from .errors import LabException, faucet_rate_limited
+from .reporting import sanitize_endpoint
 from .state import LabState, save_state
 from .transport.base import Transport
 
@@ -115,6 +117,40 @@ async def ensure_wallet(
 # into a generic harness over time).
 _FAUCET_RETRY_DELAYS_S: tuple[float, ...] = (2.0, 4.0, 8.0)
 
+# F-9f0aa836: FundResult.message is operator-influenced prose that can
+# embed a raw endpoint URL verbatim. transport/xrpl_testnet.py's
+# CONFIG_NON_TESTNET branch (NOT owned by this module — see that file's
+# fund_from_faucet(), ~line 785) formats the literal, operator-configured
+# XRPL_LAB_FAUCET_URL into .message when it fails the network-safety
+# check — and that override can carry basic-auth userinfo or a
+# query-string token if the operator pointed it at a credential-protected
+# endpoint. Rather than inventing a second redaction scheme, this reuses
+# the SAME xrpl_lab.reporting.sanitize_endpoint() already trusted for the
+# identical threat class on the proof-pack/doctor/feedback surfaces
+# (RA-002/F-60b2df48, CHANGELOG v2.4.0) — per the wave-2 advisor contract.
+#
+# Unlike the WS output channel's generic, arbitrary-free-text redaction
+# pass (api/runner_ws.py:_redact_output_text, which must preserve
+# non-credential explorer/faucet CONTENT links byte-for-byte because their
+# PATH is the entire point of printing them), THIS message never carries a
+# legitimate path/query a learner needs to see — it only ever echoes a
+# misconfigured ENDPOINT. So every URL-shaped span found here is reduced
+# unconditionally to scheme://host[:port], exactly how audit.py/doctor.py/
+# feedback.py already treat endpoint values — no conditional "does this
+# look like a credential" heuristic is needed at this specific call site.
+_URL_SPAN_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s'\"()<>]+")
+
+
+def _sanitize_endpoint_urls(text: str) -> str:
+    """Reduce every URL-shaped span in ``text`` via sanitize_endpoint().
+
+    Used to scrub FundResult.message before it ever reaches console.print()
+    — see the F-9f0aa836 note above ``_URL_SPAN_RE``.
+    """
+    if not text:
+        return text
+    return _URL_SPAN_RE.sub(lambda m: sanitize_endpoint(m.group(0)), text)
+
 
 async def ensure_funded(
     state: LabState,
@@ -181,7 +217,9 @@ async def ensure_funded(
         "The testnet faucet may be under load."
     )
     if last_result is not None and getattr(last_result, "message", ""):
-        console.print(f"  Last response: {last_result.message}")
+        # F-9f0aa836: never interpolate the raw message — it may embed a
+        # credential-bearing endpoint URL. See _sanitize_endpoint_urls above.
+        console.print(f"  Last response: {_sanitize_endpoint_urls(last_result.message)}")
     console.print(
         "Try: [cyan]xrpl-lab fund[/] manually, or wait a few minutes and retry."
     )

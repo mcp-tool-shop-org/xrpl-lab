@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from ..modules import load_all_modules
+from ..reporting import sanitize_endpoint
 from ..runner import run_module
 from .schemas import RunStartResponse
 
@@ -648,14 +649,56 @@ _BARE_PATH_RE = re.compile(_PATH_START + r"""[^\s"'<>|]+""")
 
 _PATH_REDACTED = "<path-redacted>"
 
+# F-d4a0435c: the path-redaction above is BLIND BY DESIGN to a URL-shaped
+# credential — its own lookbehind exists specifically so a legitimate
+# ``http://``/``https://`` link is never mistaken for a path (see
+# test_does_not_mangle_urls in tests/test_reswarm4_api.py). A
+# credential-bearing endpoint URL (e.g. a user-configured
+# XRPL_LAB_FAUCET_URL/XRPL_LAB_RPC_URL with basic-auth) can reach this
+# channel verbatim via any console.print() call site — see F-9f0aa836's
+# runtime.py instance and the ~30 similar sites in handlers.py (a
+# different domain's file, not edited here).
+#
+# Per the wave-2 advisor contract this does NOT add a second, independent
+# URL-redaction scheme (that duplication is how the path-only gate went
+# unnoticed) — it reuses the SAME xrpl_lab.reporting.sanitize_endpoint()
+# already trusted for the identical threat on the proof-pack/doctor/
+# feedback surfaces (RA-002/F-60b2df48). The match is deliberately scoped
+# to the one UNAMBIGUOUS credential marker a URL can carry — embedded
+# userinfo (``user[:pass]@``) sitting between the scheme and the host, with
+# no ``/`` in between it and the ``://`` (so a ``@`` appearing later, inside
+# a path or query, can never satisfy this pattern). A URL with no userinfo
+# — including one with a meaningful path, like a txid explorer link — does
+# NOT match and is therefore left completely untouched, preserving
+# test_does_not_mangle_urls: this channel's whole purpose for those links
+# is the path, so truncating it on sight (as F-9f0aa836's narrower,
+# path-free runtime.py call site correctly does for ITS OWN message) would
+# trade one regression for another here.
+_URL_USERINFO_RE = re.compile(
+    r"[A-Za-z][A-Za-z0-9+.-]*://[^\s'\"()<>@/]+@[^\s'\"()<>]*"
+)
+
+
+def _redact_url_credentials(text: str) -> str:
+    """Rewrite only credential-bearing (userinfo) URLs via sanitize_endpoint().
+
+    See the F-d4a0435c note above ``_URL_USERINFO_RE``.
+    """
+    if not text:
+        return text
+    return _URL_USERINFO_RE.sub(lambda m: sanitize_endpoint(m.group(0)), text)
+
 
 def _redact_output_text(text: str) -> str:
-    """Strip absolute-filesystem-path-shaped substrings from ``text``.
+    """Strip absolute-filesystem-path-shaped substrings AND
+    credential-bearing (userinfo) URLs from ``text``.
 
     Defense-in-depth for the WS 'output' channel — see the module comment
-    above ``_PATH_START``. Applied in ``_QueueFile.write()`` before any
+    above ``_PATH_START`` (paths) and ``_URL_USERINFO_RE`` (URL
+    credentials, F-d4a0435c). Applied in ``_QueueFile.write()`` before any
     captured console line is queued as an ``{"type": "output"}`` frame.
     """
+    text = _redact_url_credentials(text)
     text = _QUOTED_PATH_RE.sub(_PATH_REDACTED, text)
     text = _BARE_PATH_RE.sub(_PATH_REDACTED, text)
     return text
@@ -913,6 +956,27 @@ async def _run_module_task(session: ModuleRunSession) -> None:
 
 # ── POST /api/run/{module_id} ────────────────────────────────────────
 
+# F-ab18b053: boolean tokens accepted for the ``dry-run`` (hyphen) alias.
+# Mirrors the token set FastAPI/pydantic itself accepts for a ``bool``
+# query parameter (case-insensitive), so the alias behaves the way a
+# caller would already expect the canonical ``dry_run`` key to behave.
+_TRUE_QUERY_TOKENS = frozenset({"1", "true", "yes", "on"})
+_FALSE_QUERY_TOKENS = frozenset({"0", "false", "no", "off"})
+
+
+def _parse_bool_query_value(raw: str) -> bool | None:
+    """Parse a query-string boolean token, or ``None`` if unrecognized.
+
+    Callers must fail closed (e.g. HTTP 400) on ``None`` rather than guess
+    — see F-ab18b053's use at the ``dry-run`` alias site below.
+    """
+    normalized = raw.strip().lower()
+    if normalized in _TRUE_QUERY_TOKENS:
+        return True
+    if normalized in _FALSE_QUERY_TOKENS:
+        return False
+    return None
+
 
 @router.post("/run/{module_id}")
 async def start_run(
@@ -938,8 +1002,42 @@ async def start_run(
     # default was silently skipped and the run executed live against
     # testnet. Checking membership against the PARSED query params (keys,
     # not raw-string substrings) removes the false-positive class entirely.
-    if "dry_run" not in request.query_params and "dry-run" not in request.query_params:
-        dry_run = getattr(request.app.state, "dry_run", False)
+    #
+    # F-ab18b053: THIS function's parameter is literally named ``dry_run``
+    # with no ``Query(alias=...)`` — ONLY that exact key ever binds to it.
+    # The fix above still treated mere PRESENCE of the unbound "dry-run"
+    # (hyphen) key as an "explicitly passed" signal on its own and used it
+    # to skip the app.state fallback — but that key's VALUE never reaches
+    # anywhere, so its presence could ONLY ever produce a FALSE "explicit"
+    # signal, reopening the exact hole F-9936b28c fixed via key-spelling
+    # instead of substring-matching (e.g. ``?dry-run=true`` — a natural
+    # mistake, since the CLI's own flag is spelled ``--dry-run`` — silently
+    # executed LIVE even against a True app-level safety default).
+    #
+    # Fixed: the hyphen key's presence no longer suppresses the fallback by
+    # itself. When the canonical key is absent, the hyphen key (if present)
+    # is read explicitly and folded in as a first-class alias of
+    # ``dry_run`` — honouring the caller's evident intent instead of
+    # silently discarding it — or the request fails closed with 400 if its
+    # value isn't a recognized boolean token. An explicit canonical
+    # ``dry_run`` key always takes precedence over the alias.
+    if "dry_run" not in request.query_params:
+        dry_run_hyphen_raw = request.query_params.get("dry-run")
+        if dry_run_hyphen_raw is not None:
+            parsed = _parse_bool_query_value(dry_run_hyphen_raw)
+            if parsed is None:
+                raise HTTPException(status_code=400, detail={
+                    "code": "INVALID_QUERY_PARAM",
+                    "message": (
+                        f"Invalid value {dry_run_hyphen_raw!r} for "
+                        "'dry-run'. Use 'true' or 'false' (or the "
+                        "canonical 'dry_run' query parameter)."
+                    ),
+                    "hint": "Example: ?dry-run=true or ?dry_run=true",
+                })
+            dry_run = parsed
+        else:
+            dry_run = getattr(request.app.state, "dry_run", False)
 
     # Rate limit: cap concurrent runs
     active = sum(1 for s in _sessions.values() if s.status in ("running", "started"))
