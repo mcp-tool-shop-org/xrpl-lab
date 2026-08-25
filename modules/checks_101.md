@@ -15,7 +15,7 @@ produces:
   - report
 checks:
   - "Check written (CheckCreate, SendMax authorizes up to the reward amount, txid + CheckID produced)"
-  - "Reserve delta observed after CheckCreate — contrast with Escrow's locking behavior (funds not reserved beyond the Check object)"
+  - "Funds NOT locked beyond the Check object after CheckCreate (owner_count +1; contrast with Escrow)"
   - "Player cashed the Check for the exact amount (CheckCash Amount, tesSUCCESS)"
   - "Credited from delivered_amount — never the Check's own Amount/SendMax fields"
   - "A second Check written and later cancelled (CheckCancel, reserve freed, nothing refunded)"
@@ -104,7 +104,7 @@ itself now costs a reserve slot — but your SPENDABLE BALANCE did not move.
 Escrow would have debited the full 50 XRP right here; a Check debits nothing
 until `CheckCash` actually runs.
 
-<!-- action: verify_reserve_change before=before_check after=after_check -->
+<!-- action: verify_reserve_change before=before_check after=after_check expected_owner_delta=1 expected_direction=up -->
 
 ## Step 8: The player cashes the Check
 

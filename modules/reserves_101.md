@@ -14,7 +14,7 @@ produces:
   - report
 checks:
   - "Account snapshot captured before and after"
-  - "Owner count increase observed after creating objects"
+  - "Owner count increased after creating objects"
   - "Reserve impact explained"
   - "Cleanup deferred to Account Hygiene (no removal in this module)"
 ---
@@ -91,7 +91,7 @@ Here's what changed between your "before" and "after" snapshots. The
 owner count delta shows how many objects you added, and the balance
 delta reflects fees paid.
 
-<!-- action: verify_reserve_change before=before after=after_create -->
+<!-- action: verify_reserve_change before=before after=after_create expected_owner_delta=1 expected_direction=up -->
 
 ## Checkpoint: What you proved
 

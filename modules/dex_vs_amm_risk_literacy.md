@@ -101,7 +101,7 @@ Confirm both offers are live on the ledger.
 
 See the cost of placing DEX offers: owner count +2, reserve locked.
 
-<!-- action: verify_position_delta before=baseline after=after_dex -->
+<!-- action: verify_position_delta before=baseline after=after_dex expected_offer_delta=2 -->
 
 ## Step 13: Cancel DEX offers
 

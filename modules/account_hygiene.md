@@ -14,10 +14,10 @@ produces:
   - report
 checks:
   - "Baseline snapshot captured (A)"
-  - "Owner count increase observed after creating objects (B)"
+  - "Owner count increased after creating objects (B)"
   - "Offer cancelled successfully"
   - "Trust line removed (limit 0, balance 0)"
-  - "Owner count return to baseline observed (C)"
+  - "Owner count returned to baseline (C)"
 ---
 
 You learned in Reserves 101 that owned objects lock reserve XRP.
@@ -93,7 +93,7 @@ higher than baseline.
 Compare baseline (A) to dirty state (B). You should see owner count
 increased by 2 (one trust line + one offer).
 
-<!-- action: verify_reserve_change before=baseline after=dirty -->
+<!-- action: verify_reserve_change before=baseline after=dirty expected_owner_delta=2 expected_direction=up -->
 
 ## Step 10: Cancel the offer
 
@@ -133,7 +133,7 @@ Compare dirty state (B) to clean state (C). Owner count should have
 decreased by 2 — one for the cancelled offer, one for the removed
 trust line.
 
-<!-- action: verify_reserve_change before=dirty after=clean -->
+<!-- action: verify_reserve_change before=dirty after=clean expected_owner_delta=-2 expected_direction=down -->
 
 ## Step 15: Full comparison — baseline to clean
 
@@ -141,7 +141,7 @@ Compare your original baseline (A) to your final clean state (C).
 Owner count should be the same. Balance will be slightly lower due
 to transaction fees, but all reserve XRP is freed.
 
-<!-- action: verify_reserve_change before=baseline after=clean -->
+<!-- action: verify_reserve_change before=baseline after=clean expected_owner_delta=0 expected_direction=unchanged -->
 
 ## Checkpoint: What you proved
 

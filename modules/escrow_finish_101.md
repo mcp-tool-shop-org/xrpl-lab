@@ -16,7 +16,7 @@ produces:
 checks:
   - "Escrow created with a short FinishAfter (txid produced)"
   - "EscrowFinish submitted after FinishAfter (txid produced)"
-  - "Escrow object gone from the ledger (verify_escrow_finished); baseline reserve delta observed"
+  - "Escrow object gone from the ledger (verify_escrow_finished); owner reserve freed (owner_count back to baseline)"
 ---
 
 In **Escrow 101** you *locked* XRP with an `EscrowCreate`. That is only half the story: a created
@@ -101,7 +101,7 @@ is gone, so `owner_count` returns to where it started.
 Compare snapshot A (before the escrow) to snapshot B (after the finish). Owner count should match;
 balance is only lower by the transaction fees.
 
-<!-- action: verify_reserve_change before=before_escrow after=after_finish -->
+<!-- action: verify_reserve_change before=before_escrow after=after_finish expected_owner_delta=0 expected_direction=unchanged -->
 
 ## Checkpoint: What you proved
 

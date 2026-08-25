@@ -18,7 +18,7 @@ checks:
   - "Ask offer placed on DEX"
   - "Both offers verified active"
   - "Both offers cancelled"
-  - "Owner count return to baseline observed"
+  - "Owner count returned to baseline"
 ---
 
 You've already built and torn down DEX offers in DEX Literacy. Now you
@@ -111,7 +111,7 @@ have increased by 2. Each locks 0.2 XRP in reserve.
 See the reserve impact of your open orders. Owner count should be
 +2, and your XRP spendable decreased by the reserve lock.
 
-<!-- action: verify_position_delta before=baseline after=after_offers -->
+<!-- action: verify_position_delta before=baseline after=after_offers expected_owner_delta=2 expected_direction=up expected_offer_delta=2 -->
 
 ## Step 13: Cancel both offers
 
@@ -137,7 +137,7 @@ Compare baseline to final. Owner count should be back to baseline.
 Balance will be slightly lower from transaction fees — that's the
 cost of doing business on-ledger.
 
-<!-- action: verify_position_delta before=baseline after=final -->
+<!-- action: verify_position_delta before=baseline after=final expected_owner_delta=0 expected_direction=unchanged expected_offer_delta=0 -->
 
 ## Step 17: Hygiene summary
 
