@@ -28,6 +28,32 @@ class TestLinterGood:
         errors = [i for i in issues if i.level == "error"]
         assert not errors
 
+    def test_zero_action_step_heading_fails(self):
+        """F-40a903e6 — construct a zero-action Step and assert lint fails.
+
+        ``test_minimal_module_passes`` / ``test_real_module_passes`` only
+        prove shipped-good shapes. Without this case, the len(found)==0
+        hole stays invisible to TestLinterGood.
+        """
+        text = (
+            "---\n"
+            "id: bare_step\n"
+            "title: Bare Step\n"
+            "time: 1 min\n"
+            "level: beginner\n"
+            "track: foundations\n"
+            "summary: zero-action gate\n"
+            "---\n\n"
+            "## Step 1: Supposedly does something\n\n"
+            "No action comment here.\n"
+        )
+        errors = [
+            i for i in lint_module_text(text, filename="bare_step.md")
+            if i.level == "error"
+        ]
+        assert errors, "zero-action Step heading must fail lint"
+        assert any("action" in i.message.lower() for i in errors)
+
     def test_real_module_passes(self):
         """At least one real bundled module should lint cleanly (no errors)."""
         modules_dir = Path(__file__).parent.parent / "modules"
