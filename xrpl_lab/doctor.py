@@ -70,6 +70,19 @@ class Check:
     severity: str = "fail"  # "fail" (hard, red ✗) | "warn" (informational, amber !)
 
 
+def public_check_icon(*, passed: bool, severity: str = "fail") -> str:
+    """Icon for shareable markdown (support bundle / feedback).
+
+    Warn-tier checks must never paste as public ``[FAIL]`` (F-dc21ac97 /
+    F-71d35d61). Passing checks stay ``PASS``; hard failures stay ``FAIL``.
+    """
+    if passed:
+        return "PASS"
+    if severity == "warn":
+        return "WARN"
+    return "FAIL"
+
+
 @dataclass
 class DoctorReport:
     """Full diagnostic report."""

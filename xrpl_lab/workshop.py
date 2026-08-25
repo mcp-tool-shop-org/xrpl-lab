@@ -342,16 +342,23 @@ class SupportBundle:
         lines.append(f"- Reports: {ls.report_count}")
         lines.append("")
 
-        # Doctor
+        # Doctor — severity-aware icons (F-dc21ac97 / F-71d35d61): warn-tier
+        # must not paste as public [FAIL].
+        from .doctor import public_check_icon
+
         lines.append("### Doctor")
         lines.append("")
         for check in self.doctor_checks:
-            icon = "PASS" if check.get("passed") else "FAIL"
+            icon = public_check_icon(
+                passed=bool(check.get("passed")),
+                severity=str(check.get("severity", "fail") or "fail"),
+            )
             line = f"- [{icon}] {check.get('name', '?')}"
             if check.get("detail"):
                 line += f": {check['detail']}"
             lines.append(line)
-            if check.get("hint") and not check.get("passed"):
+            severity = str(check.get("severity", "fail") or "fail")
+            if check.get("hint") and (severity == "warn" or not check.get("passed")):
                 lines.append(f"  - Hint: {check['hint']}")
         lines.append("")
 
@@ -390,7 +397,13 @@ def generate_support_bundle(state: LabState | None = None) -> SupportBundle:
     ]
 
     doctor_checks = [
-        {"name": c.name, "passed": c.passed, "detail": c.detail, "hint": c.hint}
+        {
+            "name": c.name,
+            "passed": c.passed,
+            "detail": c.detail,
+            "hint": c.hint,
+            "severity": getattr(c, "severity", "fail"),
+        }
         for c in report.checks
     ]
 

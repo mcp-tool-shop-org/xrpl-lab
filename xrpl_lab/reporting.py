@@ -481,6 +481,84 @@ def verify_certificate(cert: dict) -> tuple[bool, str]:
     return True, "Integrity verified"
 
 
+def verify_offline_artifact(body: dict) -> dict:
+    """Auto-detect proof pack / certificate / audit pack; offline hash only.
+
+    Library half of ``POST /api/verify`` and a future CLI verify-artifact
+    (F-ad988398 / F-c2d0587d). Lazy-imports :mod:`xrpl_lab.audit` so this
+    module never creates a reporting↔audit import cycle at load time.
+    """
+    if not isinstance(body, dict):
+        return {
+            "artifact_kind": "unknown",
+            "hash_valid": False,
+            "hash_message": "Not a valid JSON object",
+            "overall_passed": False,
+            "simulated": False,
+            "network": "",
+            "version": "",
+            "live_requested": False,
+            "live": None,
+            "all_verified": True,
+        }
+
+    if body.get("xrpl_lab_proof_pack") is True:
+        valid, message = verify_proof_pack(body)
+        network = str(body.get("network", "") or "")
+        simulated = network.lower() in ("dry-run", "dry_run", "mixed")
+        return {
+            "artifact_kind": "proof_pack",
+            "hash_valid": valid,
+            "hash_message": message,
+            "overall_passed": valid,
+            "simulated": simulated,
+            "network": network,
+            "version": str(body.get("version", "") or ""),
+            "live_requested": False,
+            "live": None,
+            "all_verified": bool(body.get("all_verified", True)),
+        }
+
+    if body.get("xrpl_lab_certificate") is True:
+        valid, message = verify_certificate(body)
+        network = str(body.get("network", "") or "")
+        simulated = network.lower() in ("dry-run", "dry_run", "mixed")
+        return {
+            "artifact_kind": "certificate",
+            "hash_valid": valid,
+            "hash_message": message,
+            "overall_passed": valid,
+            "simulated": simulated,
+            "network": network,
+            "version": str(body.get("version", "") or ""),
+            "live_requested": False,
+            "live": None,
+            "all_verified": True,
+        }
+
+    # Lazy import: audit.py imports reporting at module level.
+    from .audit import is_audit_pack, verify_audit_pack_surface
+
+    if is_audit_pack(body):
+        return verify_audit_pack_surface(body)
+
+    return {
+        "artifact_kind": "unknown",
+        "hash_valid": False,
+        "hash_message": (
+            "Body is not a recognized XRPL Lab artifact — missing "
+            "xrpl_lab_proof_pack / xrpl_lab_certificate / audit-pack markers."
+        ),
+        "overall_passed": False,
+        "simulated": False,
+        "network": "",
+        "version": "",
+        "live_requested": False,
+        "live": None,
+        "all_verified": True,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Ledger-anchored verification (v2.0.0 signature feature)
 # ---------------------------------------------------------------------------
