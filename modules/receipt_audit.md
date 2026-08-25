@@ -60,8 +60,6 @@ a verdict.
 
 ## Step 6: Understand the results
 
-<!-- narrative-only -->
-
 The audit produced three things:
 
 1. **Console summary** — total checked, pass, fail, not found
@@ -72,8 +70,6 @@ The audit pack is what you'd attach to an issue or hand to an auditor.
 It proves exactly what you checked and what the ledger said.
 
 ## Step 7: What about failures?
-
-<!-- narrative-only -->
 
 **Why audits matter.** Auditing turns raw transaction data into *evidence* — a stable artifact that pairs each txid with the expectation you had for it and the verdict the ledger actually returned. That triple (txid + expectation + verdict) is what a facilitator uses to verify a learner's batch run, what an operator uses to confirm a deploy went through cleanly, and what a compliance hand-off attaches to a case file. Crucially, expectations encode *intent*: "this txid SHOULD have failed with `tecPATH_DRY` because the pool was empty" is a much stronger claim than "this txid failed," and an expectations-aware audit can mark it as a pass. The failure vocabulary below is what those verdicts look like when reality and expectation diverge.
 
