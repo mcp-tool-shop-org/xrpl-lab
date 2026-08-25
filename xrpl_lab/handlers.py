@@ -147,6 +147,18 @@ from .transport.base import Transport
 logger = logging.getLogger(__name__)
 
 
+def _print_lab_error(console: Console, err: LabError) -> None:
+    """Print a structured LabError so the learner sees code + what to do next.
+
+    Matches the CLI / runner LabException render (code, message, Hint). Used
+    wherever handlers.py prints a LabError locally instead of raising
+    LabException (e.g. faucet 429 branches that continue the step).
+    """
+    console.print(f"  [yellow]{err.code}:[/] {err.message}")
+    if err.hint:
+        console.print(f"  [dim]Hint: {err.hint}[/]")
+
+
 def _require(
     args: dict,
     context: dict,
@@ -457,8 +469,7 @@ async def handle_fund_issuer(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
-        console.print(f"  [dim]{err.hint}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [red]Funding failed: {_sanitize_endpoint_urls(result.message)}[/]"
@@ -938,7 +949,7 @@ async def handle_create_channel_receiver(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [yellow]Receiver funding: {_sanitize_endpoint_urls(result.message)}[/]"
@@ -3182,7 +3193,7 @@ async def handle_create_token_recipient(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [yellow]Recipient funding: {_sanitize_endpoint_urls(fund.message)}[/]"
@@ -3228,7 +3239,7 @@ async def handle_create_noopt_issuer(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
+        _print_lab_error(console, err)
     context["noopt_issuer_seed"] = _SecretValue(issuer.seed)
     context["noopt_issuer_address"] = issuer.address
     context["noopt_currency"] = currency
@@ -4088,8 +4099,7 @@ async def handle_create_subject_wallet(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
-        console.print(f"  [dim]{err.hint}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [yellow]Subject funding: {_sanitize_endpoint_urls(result.message)}[/]"
@@ -4488,8 +4498,7 @@ async def handle_create_uncredentialed_wallet(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
-        console.print(f"  [dim]{err.hint}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [yellow]Outsider funding: {_sanitize_endpoint_urls(result.message)}[/]"
@@ -4817,8 +4826,7 @@ async def handle_create_sender_wallet(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
-        console.print(f"  [dim]{err.hint}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [yellow]Sender funding: {_sanitize_endpoint_urls(result.message)}[/]"
@@ -5533,7 +5541,7 @@ async def handle_create_player_wallet(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [yellow]Player funding: {_sanitize_endpoint_urls(fund.message)}[/]"
@@ -6017,7 +6025,7 @@ async def handle_create_noclaw_issuer(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
+        _print_lab_error(console, err)
     context["noclaw_issuer_seed"] = _SecretValue(issuer.seed)
     context["noclaw_issuer_address"] = issuer.address
     context["noclaw_currency"] = currency
@@ -6060,7 +6068,7 @@ async def handle_create_buyer_wallet(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [yellow]Buyer funding note: {_sanitize_endpoint_urls(fund.message)}[/]"
@@ -6497,8 +6505,7 @@ async def handle_create_recipient_wallet(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
-        console.print(f"  [dim]{err.hint}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [yellow]Player funding: {_sanitize_endpoint_urls(result.message)}[/]"
@@ -6667,7 +6674,7 @@ async def handle_create_outsider_wallet(
         from .errors import faucet_rate_limited
 
         err = faucet_rate_limited()
-        console.print(f"  [yellow]{err.message}[/]")
+        _print_lab_error(console, err)
     else:
         console.print(
             f"  [yellow]Outsider funding: {_sanitize_endpoint_urls(result.message)}[/]"
