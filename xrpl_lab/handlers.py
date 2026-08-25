@@ -351,10 +351,11 @@ def _record_verification(
 
     Entry shape (kept minimal — no secrets, JSON-serializable): each append is
     ``{"action": action, "passed": bool, "failures": list}``. ``passed`` is the
-    handler's real verdict (``len(failures) == 0`` for assertion handlers). The
-    two comparison-only handlers (verify_reserve_change / verify_position_delta)
-    have no pass/fail concept — they teach OBSERVATION, not assertion — so they
-    record ``passed=True`` (informational) and never fabricate a failure.
+    handler's real verdict (``len(failures) == 0`` for assertion handlers).
+    ``verify_reserve_change`` / ``verify_position_delta`` assert when the module
+    supplies ``expected_owner_delta`` / ``expected_direction`` /
+    ``expected_offer_delta``; without those opt-in facts they still record
+    ``passed=True`` (observation-only).
     """
     context.setdefault("verifications", []).append(
         {
@@ -1514,6 +1515,46 @@ async def handle_snapshot_account(
     return context
 
 
+def _parse_optional_int(raw: str | None, label: str, failures: list[str]) -> int | None:
+    """Parse an optional signed int action arg; append to *failures* on bad input."""
+    if raw is None or raw == "":
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        failures.append(f"invalid {label}: {raw!r} (expected an integer)")
+        return None
+
+
+def _assert_owner_direction(
+    observed: int, direction: str | None, failures: list[str]
+) -> None:
+    """Assert owner-count direction: up|down|unchanged (aliases accepted)."""
+    if not direction:
+        return
+    d = str(direction).strip().lower()
+    if d in ("up", "increased", "increase", "+"):
+        if observed <= 0:
+            failures.append(
+                f"expected_direction={direction!r} but owner_count_delta={observed}"
+            )
+    elif d in ("down", "decreased", "decrease", "-"):
+        if observed >= 0:
+            failures.append(
+                f"expected_direction={direction!r} but owner_count_delta={observed}"
+            )
+    elif d in ("unchanged", "flat", "zero", "0"):
+        if observed != 0:
+            failures.append(
+                f"expected_direction={direction!r} but owner_count_delta={observed}"
+            )
+    else:
+        failures.append(
+            f"unknown expected_direction={direction!r} "
+            "(use up, down, or unchanged)"
+        )
+
+
 async def handle_verify_reserve_change(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -1561,12 +1602,36 @@ async def handle_verify_reserve_change(
     console.print()
     console.print(f"  [yellow]{result.explanation}[/]")
 
+    # F-305bb7e8: assert when the module opts in via expected_* facts.
+    # Curriculum authors must pass expected_owner_delta and/or
+    # expected_direction (up|down|unchanged); optional expected_balance_delta.
+    failures: list[str] = []
+    expected_owner = _parse_optional_int(
+        args.get("expected_owner_delta"), "expected_owner_delta", failures
+    )
+    if expected_owner is not None and result.owner_count_delta != expected_owner:
+        failures.append(
+            f"owner_count_delta mismatch: expected {expected_owner:+d}, "
+            f"observed {result.owner_count_delta:+d}"
+        )
+    _assert_owner_direction(
+        result.owner_count_delta, args.get("expected_direction"), failures
+    )
+    expected_bal = _parse_optional_int(
+        args.get("expected_balance_delta"), "expected_balance_delta", failures
+    )
+    if expected_bal is not None and result.balance_delta_drops != expected_bal:
+        failures.append(
+            f"balance_delta_drops mismatch: expected {expected_bal:+d}, "
+            f"observed {result.balance_delta_drops:+d}"
+        )
+    for fail in failures:
+        console.print(f"  [red]\u2717[/] {fail}")
+
     context["last_reserve_comparison"] = result
-    # INFORMATIONAL: this is a COMPARISON handler — it teaches observation of a
-    # reserve delta, it does not assert a pass/fail condition. Record passed=True
-    # (never fabricate a failure verdict here) so it neither flips the module
-    # unverified nor claims a verification it didn't run.
-    _record_verification(context, "verify_reserve_change", True, [])
+    _record_verification(
+        context, "verify_reserve_change", len(failures) == 0, failures
+    )
     return context
 
 
@@ -2296,11 +2361,36 @@ async def handle_verify_position_delta(
     console.print()
     console.print(f"  [yellow]{result.explanation}[/]")
 
+    # F-305bb7e8: assert when the module opts in via expected_* facts.
+    # Curriculum authors must pass expected_owner_delta and/or
+    # expected_direction (up|down|unchanged); optional expected_offer_delta.
+    failures: list[str] = []
+    expected_owner = _parse_optional_int(
+        args.get("expected_owner_delta"), "expected_owner_delta", failures
+    )
+    if expected_owner is not None and result.owner_count_delta != expected_owner:
+        failures.append(
+            f"owner_count_delta mismatch: expected {expected_owner:+d}, "
+            f"observed {result.owner_count_delta:+d}"
+        )
+    _assert_owner_direction(
+        result.owner_count_delta, args.get("expected_direction"), failures
+    )
+    expected_offers = _parse_optional_int(
+        args.get("expected_offer_delta"), "expected_offer_delta", failures
+    )
+    if expected_offers is not None and result.offer_count_delta != expected_offers:
+        failures.append(
+            f"offer_count_delta mismatch: expected {expected_offers:+d}, "
+            f"observed {result.offer_count_delta:+d}"
+        )
+    for fail in failures:
+        console.print(f"  [red]\u2717[/] {fail}")
+
     context["last_position_comparison"] = result
-    # INFORMATIONAL: like verify_reserve_change, this COMPARISON handler teaches
-    # observation of a position delta rather than asserting pass/fail. Record
-    # passed=True (never fabricate a failure verdict for a comparison).
-    _record_verification(context, "verify_position_delta", True, [])
+    _record_verification(
+        context, "verify_position_delta", len(failures) == 0, failures
+    )
     return context
 
 
@@ -5675,10 +5765,19 @@ async def handle_credit_player_deposit(
         console.print(f"  [red]✗[/] {fail}")
 
     if result.passed:
+        # F-ebcf1f43: credited_drops is "" for issued currency — never hardcode
+        # "drops". Mirror custodial.py unit_desc via credited_value + currency.
+        amount = result.credited_value or result.credited_drops
+        if result.currency == "XRP":
+            unit = "drops"
+        elif result.issuer:
+            unit = f"{result.currency} (issuer {result.issuer[:12]}...)"
+        else:
+            unit = result.currency or "units"
         console.print()
         console.print(
             f"  [bold green]CREDITED:[/] player [cyan]{result.player}[/] "
-            f"(tag {result.tag}) +[cyan]{result.credited_drops}[/] drops — "
+            f"(tag {result.tag}) +[cyan]{amount}[/] {unit} — "
             "attributed by the tag, validated against the registry, credited "
             "from delivered_amount."
         )
@@ -6041,6 +6140,7 @@ async def handle_verify_nft_offer(
     if not nft_id:
         console.print("  [red]No NFTokenID in context.[/]")
         return context
+    args = step.action_args
     offers = await get_nft_offers(transport, nft_id, sell=True)
     if offers:
         for o in offers:
@@ -6052,11 +6152,22 @@ async def handle_verify_nft_offer(
     else:
         console.print("  [yellow]No open sell offers for this NFT.[/]")
     context["last_nft_offers"] = offers
-    # INFORMATIONAL: this handler READS the NFT's open offers back for
-    # observation — it prints a note when none exist rather than asserting a
-    # failure. Record passed=True (never fabricate a failure verdict); the
-    # trade's real pass/fail assertion lives in verify_nft_trade.
-    _record_verification(context, "verify_nft_offer", True, [])
+    # Sibling of F-305bb7e8: assert only when the module opts in via
+    # expected_min (minimum open sell offers). Without it, observation-only.
+    failures: list[str] = []
+    expected_min = _parse_optional_int(
+        args.get("expected_min"), "expected_min", failures
+    )
+    if expected_min is not None and len(offers) < expected_min:
+        failures.append(
+            f"expected_min={expected_min} open sell offer(s), "
+            f"observed {len(offers)}"
+        )
+        for fail in failures:
+            console.print(f"  [red]\u2717[/] {fail}")
+    _record_verification(
+        context, "verify_nft_offer", len(failures) == 0, failures
+    )
     return context
 
 
@@ -6522,8 +6633,11 @@ async def handle_credit_check_cash(
     for fail in result.failures:
         console.print(f"  [red]✗[/] {fail}")
     if result.passed:
+        # F-04a4915c: delivered_amount is XRP-or-issued polymorphic — print
+        # as-is (same idiom as handle_verify_delivered_amount), no hardcoded
+        # "drops" unit that would lie for an issued-currency CheckCash.
         console.print(
-            f"  [green]Credited the player {result.delivered_amount} drops "
+            f"  [green]Credited the player {result.delivered_amount} "
             "from delivered_amount[/] — never the Check's own "
             "Amount/SendMax fields."
         )
@@ -7280,6 +7394,18 @@ def _register_all() -> None:
             payload_fields=[
                 PayloadField(name="before", default="before"),
                 PayloadField(name="after", default="after"),
+                PayloadField(
+                    name="expected_owner_delta",
+                    description="Opt-in assert: required owner_count delta",
+                ),
+                PayloadField(
+                    name="expected_direction",
+                    description="Opt-in assert: up|down|unchanged for owner_count",
+                ),
+                PayloadField(
+                    name="expected_balance_delta",
+                    description="Opt-in assert: required balance_delta_drops",
+                ),
             ],
         ),
         ActionDef(
@@ -7404,6 +7530,18 @@ def _register_all() -> None:
             payload_fields=[
                 PayloadField(name="before", default="before"),
                 PayloadField(name="after", default="after"),
+                PayloadField(
+                    name="expected_owner_delta",
+                    description="Opt-in assert: required owner_count delta",
+                ),
+                PayloadField(
+                    name="expected_direction",
+                    description="Opt-in assert: up|down|unchanged for owner_count",
+                ),
+                PayloadField(
+                    name="expected_offer_delta",
+                    description="Opt-in assert: required offer_count delta",
+                ),
             ],
         ),
         ActionDef(
@@ -7727,6 +7865,12 @@ def _register_all() -> None:
             name="verify_nft_offer",
             handler=handle_verify_nft_offer,
             description="Read the NFT's open sell offers on-ledger",
+            payload_fields=[
+                PayloadField(
+                    name="expected_min",
+                    description="Opt-in assert: minimum open sell offers",
+                ),
+            ],
         ),
         ActionDef(
             name="accept_nft_offer",
