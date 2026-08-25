@@ -136,10 +136,29 @@ class PlayerCreditResult:
     """Result of attributing a pooled deposit to a player and crediting it.
 
     ``player`` is the registry entry the tag resolved to ("" when
-    unattributable). ``credited_drops`` is the figure a correct backend
-    credits — the tx's ``delivered_amount`` metadata, NEVER its ``Amount``
-    field. ``amount_field`` is what a naive backend would have credited (the
-    cap), kept for the contrast.
+    unattributable). ``amount_field`` is what a naive backend would have
+    credited (the cap), kept for the contrast.
+
+    F-c918543c (HIGH): ``delivered_amount`` is XRP-or-issued-currency
+    polymorphic — the transports' ``_format_amount`` renders XRP as a bare
+    drops integer string ("25000000") but an issued currency as
+    ``"value/currency/issuer"`` ("50/LAB/rIssuer12345678..."), NEVER a bare
+    integer. The pre-fix code read that string straight into
+    ``credited_drops`` and hard-coded "drops" in the check message
+    regardless of currency, so a non-XRP deposit produced a nonsensical
+    "Credited 50/LAB/rIssuer... drops" message. Credit is now derived from
+    the real delivered value WITH its correct currency/issuer:
+
+    * ``currency`` — "XRP" or the 3-40 char issued-currency code.
+    * ``issuer`` — "" for XRP, the issuer address for an issued currency.
+    * ``credited_value`` — the numeric value credited, in ITS OWN currency
+      (drops for XRP, the issued-currency's decimal value otherwise).
+      Currency-agnostic — always populated, always the right unit.
+    * ``credited_drops`` — kept for backward compatibility with existing
+      XRP-only callers/tests. Populated ONLY when ``currency == "XRP"``;
+      left "" for an issued currency so a non-drops value can never again
+      land in a field whose very name promises drops. New code should read
+      ``credited_value`` + ``currency`` instead.
     """
 
     player: str
@@ -148,10 +167,36 @@ class PlayerCreditResult:
     amount_field: str
     checks: list[str]
     failures: list[str]
+    currency: str = "XRP"
+    issuer: str = ""
+    credited_value: str = ""
 
     @property
     def passed(self) -> bool:
         return len(self.failures) == 0
+
+
+def _split_delivered_amount(delivered: str) -> tuple[str, str, str]:
+    """Split a ``delivered_amount`` display string into (value, currency, issuer).
+
+    Mirrors the shape ``Transport._format_amount`` produces on the read
+    side (xrpl_testnet.py / dry_run.py): XRP is a bare drops integer
+    string with no ``/`` — returned as ``(drops, "XRP", "")``. An issued
+    currency is formatted as ``"value/currency/issuer"`` — split into its
+    three parts. A delivered string that contains a ``/`` but doesn't
+    split into exactly 3 parts is not a shape either transport emits
+    today; it is returned as ``("", delivered, "")`` (the whole string
+    preserved as "currency") rather than raising, so a future transport
+    bug surfaces as an odd-looking-but-honest credit instead of an
+    unhandled exception in the crediting path.
+    """
+    if "/" not in delivered:
+        return delivered, "XRP", ""
+    parts = delivered.split("/", 2)
+    if len(parts) == 3:
+        value, currency, issuer = parts
+        return value, currency, issuer
+    return "", delivered, ""
 
 
 async def credit_player_deposit(
@@ -245,8 +290,18 @@ async def credit_player_deposit(
             "partial-payment exploit."
         )
         return PlayerCreditResult(player, tag, "", tx.amount, checks, failures)
+
+    # F-c918543c: delivered_amount is XRP-or-issued-currency polymorphic
+    # (see _split_delivered_amount / the PlayerCreditResult docstring). Do
+    # NOT assume drops — derive the real value with its correct
+    # currency/issuer, and only ever call it "drops" when it actually is.
+    value, currency, issuer = _split_delivered_amount(credited)
+    is_xrp = currency == "XRP"
+    unit_desc = "drops" if is_xrp else (
+        f"{currency} (issuer {issuer})" if issuer else currency
+    )
     checks.append(
-        f"Credited {credited} drops to '{player}' from delivered_amount "
+        f"Credited {value} {unit_desc} to '{player}' from delivered_amount "
         f"(the Amount field claimed {tx.amount} — equal here, but a correct "
         "backend reads delivered_amount every time, not just when they differ)"
     )
@@ -263,4 +318,14 @@ async def credit_player_deposit(
             f"delivered_amount says {credited}"
         )
 
-    return PlayerCreditResult(player, tag, credited, tx.amount, checks, failures)
+    return PlayerCreditResult(
+        player=player,
+        tag=tag,
+        credited_drops=value if is_xrp else "",
+        amount_field=tx.amount,
+        checks=checks,
+        failures=failures,
+        currency=currency,
+        issuer=issuer,
+        credited_value=value,
+    )

@@ -124,18 +124,35 @@ class TestWalletExists:
         assert wallet_exists(path=path) is False
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="POSIX file modes — Windows uses ACLs, not 0o600",
-)
 class TestSaveWalletFileMode:
     """Regression tests for the wave-1 TOCTOU fix.
 
     save_wallet now uses os.open(..., O_WRONLY|O_CREAT|O_TRUNC, 0o600) so
     the seed file is created with restrictive permissions atomically — no
     world-readable window between write_text() and chmod() as before.
+
+    F-5531ceb5 (HIGH, wave 2): this class used to carry a single blanket
+    ``skipif(sys.platform == "win32")`` at the CLASS level, which skipped
+    all six of its tests on Windows unconditionally — including two
+    (``test_os_open_is_called_with_0o600``, ``test_os_open_failure_propagates``)
+    that assert on ``os.open`` call arguments / exception propagation and
+    have nothing POSIX-specific about them; they pass on win32 today
+    unmodified. That blanket skip is exactly how F-5531ceb5 shipped
+    undetected: the win32-only gap in ``save_wallet``'s actual ACL
+    hardening (see ``_windows_icacls_lockdown`` in wallet.py) had zero
+    regression coverage on the one platform it mattered on. The skip is
+    now per-test and applied ONLY to the four tests below that assert
+    real POSIX mode bits (``st_mode``/``chmod``/umask), which have no
+    meaning on an NTFS ACL and are covered on win32 instead by
+    ``tests/test_w2_actions_wallet_win32_acl.py`` (real ``icacls``
+    assertions on this platform, not skipped).
     """
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX file mode bits — Windows equivalent (icacls ACL) is "
+        "asserted in tests/test_w2_actions_wallet_win32_acl.py",
+    )
     def test_file_mode_is_0o600_after_save(self, tmp_path: Path) -> None:
         """The file's mode bits MUST be exactly 0o600 after save_wallet."""
         wallet = create_wallet()
@@ -147,6 +164,10 @@ class TestSaveWalletFileMode:
             "atomic os.open(..., 0o600) regressed?"
         )
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX umask semantics — no equivalent on win32",
+    )
     def test_file_mode_is_0o600_even_with_permissive_umask(
         self, tmp_path: Path
     ) -> None:
@@ -170,6 +191,11 @@ class TestSaveWalletFileMode:
             f"Expected 0o600 under permissive umask 0o000 but got 0o{mode:o}"
         )
 
+    # Not skipped on win32: save_wallet's final content write always goes
+    # through atomic_write_json's os.open(..., 0o600) regardless of
+    # platform (the win32-only ACL lockdown runs BEFORE this, on an
+    # empty file — see wallet.py's save_wallet docstring), so this
+    # assertion holds on every platform.
     def test_os_open_is_called_with_0o600(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -205,6 +231,11 @@ class TestSaveWalletFileMode:
         assert flags & os.O_WRONLY, "expected O_WRONLY in flags"
         assert flags & os.O_TRUNC, "expected O_TRUNC in flags"
 
+    # Not skipped on win32: on this platform save_wallet calls os.open
+    # directly (to create the file empty, before the ACL lockdown — see
+    # wallet.py) in addition to atomic_write_json's own os.open, so a
+    # patched-to-raise os.open still propagates from the very first call
+    # save_wallet makes after _ensure_secure_parent.
     def test_os_open_failure_propagates(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -224,6 +255,11 @@ class TestSaveWalletFileMode:
         with pytest.raises(PermissionError, match="simulated EACCES"):
             save_wallet(wallet, path=path)
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX file mode bits — Windows equivalent (icacls ACL) is "
+        "asserted in tests/test_w2_actions_wallet_win32_acl.py",
+    )
     def test_save_wallet_parent_dir_mode_is_0o700(self, tmp_path: Path) -> None:
         """Parent directory of a freshly-created wallet must be 0o700.
 
@@ -242,6 +278,12 @@ class TestSaveWalletFileMode:
             "_ensure_secure_parent regressed?"
         )
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX file mode bits — Windows equivalent (icacls ACL "
+        "tightening of a pre-existing loose dir) is asserted in "
+        "tests/test_w2_actions_wallet_win32_acl.py",
+    )
     def test_save_wallet_tightens_existing_loose_parent_dir(
         self, tmp_path: Path
     ) -> None:
