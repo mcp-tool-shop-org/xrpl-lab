@@ -476,14 +476,13 @@ class DryRunTransport(Transport):
     ) -> SubmitResult | None:
         """Return a failing SubmitResult if *owner* can't cover this write, else None.
 
-        A write costs ``extra_drops`` (the amount it locks/sends/spends of
-        the OWNER's own XRP — 0 for a write that only creates/modifies a
-        ledger object without moving XRP beyond the fee, e.g. TrustSet,
-        SignerListSet, DIDSet, CredentialCreate) plus ``fee_drops`` (the
-        network fee — ``_DRY_FEE_DROPS`` unless the caller scales it, e.g.
-        multisig). It fails if that would take the balance below
-        ``base_reserve + owner_count*increment`` — the same floor
-        ``submit_payment`` already enforces.
+        A write costs ``extra_drops`` (locked/sent XRP, and — when the write
+        will ``_inc_owner`` — ``_OWNER_RESERVE_DROPS`` so the post-create
+        floor is checked before mutate; updates/removes pass 0 for the
+        increment) plus ``fee_drops`` (``_DRY_FEE_DROPS`` unless scaled).
+        Fails if that would take the balance below
+        ``base_reserve + owner_count*increment`` (current count; the +1 for
+        a new object is carried in ``extra_drops``, F-17e7f723).
 
         Does NOT mutate ``self._balances`` — the caller applies its own
         amount debit (if any) and calls ``_debit_fee`` for the network fee
@@ -804,24 +803,25 @@ class DryRunTransport(Transport):
         # old single-wallet behaviour.
         wallet_address = wallet_address or _address_from_seed(wallet_seed)
 
-        # F-0716549a: TrustSet moves no XRP of its own, but it still costs the
-        # network fee and (when creating a NEW line) adds one owner-reserve
-        # increment — either can push an account already at its reserve
-        # floor below it, which fails on the real ledger even though no XRP
-        # "amount" is involved.
-        guard = self._reserve_guard(wallet_address, code="tecINSUFFICIENT_RESERVE")
-        if guard is not None:
-            return guard
-
         txid = self._next_txid()
         addr_lines = self._trust_lines.setdefault(wallet_address, [])
 
-        # Find existing trust line for this currency + issuer
+        # Decide create vs update/remove BEFORE the reserve guard so only a
+        # NEW line folds ``_OWNER_RESERVE_DROPS`` (F-17e7f723). Updates and
+        # removes must not over-reserve.
         existing = None
         for tl in addr_lines:
             if tl.currency == currency and tl.peer == issuer:
                 existing = tl
                 break
+        creating = limit != "0" and existing is None
+        extra = _OWNER_RESERVE_DROPS if creating else 0
+        # F-0716549a + F-17e7f723: fee always; owner-increment only on create.
+        guard = self._reserve_guard(
+            wallet_address, extra, code="tecINSUFFICIENT_RESERVE",
+        )
+        if guard is not None:
+            return guard
 
         if limit == "0":
             # Removing a trust line
@@ -1240,12 +1240,12 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: unfunded offer",
             )
 
-        # F-0716549a: creating an Offer object does not itself debit the
-        # offered amount (that only happens if/when the offer later fills,
-        # which this transport doesn't model) — but it DOES cost the network
-        # fee and add one owner-reserve increment, matching real OfferCreate.
+        # F-0716549a / F-17e7f723: OfferCreate costs fee + one owner-reserve
+        # increment (offered amount is not locked here).
         offer_owner = _address_from_seed(wallet_seed)
-        guard = self._reserve_guard(offer_owner, code="tecINSUFFICIENT_RESERVE")
+        guard = self._reserve_guard(
+            offer_owner, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
 
@@ -1483,13 +1483,12 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: AMM creation failed",
             )
 
-        # F-0716549a: this transport does not model the XRP-leg amount
-        # actually moving into the pool (a pre-existing simplification,
-        # unrelated to this finding, out of scope to retrofit here) — but
-        # the fee + the new AMM-position owner-reserve increment are real
-        # XRP costs to the creator regardless of leg currency.
+        # F-0716549a / F-17e7f723: fee + AMM-position owner-reserve increment
+        # (XRP-leg pool debit still unmodeled — out of scope).
         amm_creator = wallet_address or _address_from_seed(wallet_seed)
-        guard = self._reserve_guard(amm_creator, code="tecINSUFFICIENT_RESERVE")
+        guard = self._reserve_guard(
+            amm_creator, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
 
@@ -1917,11 +1916,11 @@ class DryRunTransport(Transport):
             )
 
         owner = _address_from_seed(wallet_seed)
-        # F-0716549a: minting adds an NFTokenPage owner-reserve increment
-        # (amortized; modeled here as a flat +1 like every other object
-        # create) plus the network fee — no XRP amount moves for a mint
-        # itself.
-        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        # F-0716549a / F-17e7f723: mint → fee + flat +1 owner-reserve
+        # (NFTokenPage amortized as one object like every other create).
+        guard = self._reserve_guard(
+            owner, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
 
@@ -2048,10 +2047,12 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: NFTokenCreateOffer",
             )
 
-        # F-0716549a: creating the offer object costs the fee + one owner
-        # reserve increment; the priced amount doesn't move until accepted.
+        # F-0716549a / F-17e7f723: offer object → fee + one owner-reserve;
+        # priced amount moves only on accept.
         offer_creator = owner or _address_from_seed(wallet_seed)
-        guard = self._reserve_guard(offer_creator, code="tecINSUFFICIENT_RESERVE")
+        guard = self._reserve_guard(
+            offer_creator, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
 
@@ -2221,10 +2222,22 @@ class DryRunTransport(Transport):
         # but would land AT or below reserve fails tecINSUFFICIENT_FUNDS on
         # the real ledger too.
         if offer.get("currency", "XRP") == "XRP":
-            required_drops = int(price * Decimal("1000000"))
+            # F-17e7f723: buyer also gains an NFT owner-reserve slot.
+            required_drops = (
+                int(price * Decimal("1000000")) + _OWNER_RESERVE_DROPS
+            )
             guard = self._reserve_guard(
                 price_payer, required_drops,
                 code="tecINSUFFICIENT_FUNDS",
+                context="(NFT trade settlement)",
+            )
+            if guard is not None:
+                return guard
+        else:
+            # IOU price: no XRP amount lock here, but fee + NFT owner-slot.
+            guard = self._reserve_guard(
+                price_payer, _OWNER_RESERVE_DROPS,
+                code="tecINSUFFICIENT_RESERVE",
                 context="(NFT trade settlement)",
             )
             if guard is not None:
@@ -2549,14 +2562,11 @@ class DryRunTransport(Transport):
         # Same scope guard as submit_payment: reject only when the source has
         # a tracked balance that cannot cover the lock (tecUNFUNDED on-network).
         #
-        # F-0716549a: the original check here (``drops >
-        # self._balances[owner]``) had NO reserve term and never debited the
-        # fee — a source could be driven to (or below) its exact reserve
-        # floor via repeated EscrowCreate calls while this always reported
-        # tesSUCCESS, when the real ledger fails tecUNFUNDED /
-        # tecINSUFFICIENT_RESERVE. ``_reserve_guard`` folds the escrowed
-        # amount into the SAME floor check submit_payment already enforces.
-        guard = self._reserve_guard(owner, drops, code="tecUNFUNDED")
+        # F-0716549a / F-17e7f723: lock + fee + owner-reserve for the Escrow
+        # object (post-create floor checked before mutate).
+        guard = self._reserve_guard(
+            owner, drops + _OWNER_RESERVE_DROPS, code="tecUNFUNDED",
+        )
         if guard is not None:
             return guard
         txid = self._next_txid()
@@ -2726,9 +2736,8 @@ class DryRunTransport(Transport):
                 ),
             )
         account = wallet_address or _address_from_seed(wallet_seed)
-        guard = self._reserve_guard(account, code="tecINSUFFICIENT_RESERVE")
-        if guard is not None:
-            return guard
+        # F-17e7f723: authorize paths create an object (+owner reserve);
+        # unauthorize paths free one — decide before the guard.
 
         if authorize:
             if authorize == account:
@@ -2744,6 +2753,11 @@ class DryRunTransport(Transport):
                     error="[dry-run] This address is already preauthorized "
                           "(tecDUPLICATE).",
                 )
+            guard = self._reserve_guard(
+                account, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+            )
+            if guard is not None:
+                return guard
             bucket.add(authorize)
             self._inc_owner(account)
             self._debit_fee(account)
@@ -2759,6 +2773,9 @@ class DryRunTransport(Transport):
                     error="[dry-run] No such address preauthorization to "
                           "revoke (tecNO_ENTRY).",
                 )
+            guard = self._reserve_guard(account, code="tecINSUFFICIENT_RESERVE")
+            if guard is not None:
+                return guard
             bucket.discard(unauthorize)
             self._dec_owner(account)
             self._debit_fee(account)
@@ -2788,6 +2805,11 @@ class DryRunTransport(Transport):
                     error="[dry-run] This credential set is already "
                           "authorized (tecDUPLICATE).",
                 )
+            guard = self._reserve_guard(
+                account, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+            )
+            if guard is not None:
+                return guard
             bucket.update(authorize_credentials)
             self._inc_owner(account)
             self._debit_fee(account)
@@ -2804,6 +2826,9 @@ class DryRunTransport(Transport):
                 error="[dry-run] No such credential preauthorization to "
                       "revoke (tecNO_ENTRY).",
             )
+        guard = self._reserve_guard(account, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         bucket.difference_update(unauthorize_credentials)
         self._dec_owner(account)
         self._debit_fee(account)
@@ -2866,9 +2891,9 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: token escrow create",
             )
         source = source_address or _address_from_seed(source_seed)
-        # F-0716549a: the escrowed VALUE is an issued currency, not XRP — but
-        # the network fee is still XRP, debited from the source.
-        guard = self._reserve_guard(source)
+        # F-0716549a / F-17e7f723: IOU lock is not XRP, but fee + Escrow
+        # owner-reserve still apply.
+        guard = self._reserve_guard(source, _OWNER_RESERVE_DROPS)
         if guard is not None:
             return guard
 
@@ -3211,9 +3236,10 @@ class DryRunTransport(Transport):
         # CheckCreate only writes an authorization. The writer still pays the
         # network fee (F-21a14172); amount-move lessons stay separate.
         #
-        # F-0716549a: the owner-reserve increment can push an already-near-
-        # floor writer below it, so the reserve floor IS checked.
-        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        # F-0716549a / F-17e7f723: fee + Check object owner-reserve.
+        guard = self._reserve_guard(
+            owner, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
         check_id = self._next_check_id()
@@ -3405,10 +3431,15 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="temEMPTY_DID", fee="12",
                                 error="[dry-run] Simulated failure: DID set")
         owner = _address_from_seed(wallet_seed)
-        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        # F-17e7f723: only a NEW DID object charges the owner increment.
+        creating = owner not in self._dids
+        extra = _OWNER_RESERVE_DROPS if creating else 0
+        guard = self._reserve_guard(
+            owner, extra, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
-        if owner not in self._dids:
+        if creating:
             self._inc_owner(owner)
         self._dids[owner] = DIDInfo(account=owner, uri=uri, data=data)
         self._debit_fee(owner)
@@ -3470,7 +3501,10 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="temMALFORMED", fee="12",
                                 error="[dry-run] Simulated failure: credential create")
         issuer = issuer_address or _address_from_seed(issuer_seed)
-        guard = self._reserve_guard(issuer, code="tecINSUFFICIENT_RESERVE")
+        # F-17e7f723: provisional credential → issuer holds owner-reserve.
+        guard = self._reserve_guard(
+            issuer, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
         # F-2e2975aa: an expiration that is ALREADY in the past is rejected at
@@ -3532,7 +3566,10 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
                                 error="[dry-run] Simulated failure: credential accept")
         subject = subject_address or _address_from_seed(subject_seed)
-        guard = self._reserve_guard(subject, code="tecINSUFFICIENT_RESERVE")
+        # F-17e7f723: accept moves reserve issuer→subject; subject needs slot.
+        guard = self._reserve_guard(
+            subject, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
         key = (subject, issuer, credential_type)
@@ -3654,9 +3691,6 @@ class DryRunTransport(Transport):
                                 error="[dry-run] Simulated failure: PermissionedDomains "
                                       "amendment inactive (temDISABLED)")
         owner = owner_address or _address_from_seed(owner_seed)
-        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
-        if guard is not None:
-            return guard
         # AcceptedCredentials must be 1-10 entries, no duplicates (malformed).
         if not accepted_credentials or len(accepted_credentials) > 10:
             return SubmitResult(
@@ -3673,6 +3707,12 @@ class DryRunTransport(Transport):
 
         if not domain_id:
             # CREATE: a NEW distinct DomainID; owner pays a new reserve slot.
+            # F-17e7f723: fold owner-increment before mutate.
+            guard = self._reserve_guard(
+                owner, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+            )
+            if guard is not None:
+                return guard
             new_id = self._next_domain_id(owner)
             self._domains[new_id] = PermissionedDomainInfo(
                 domain_id=new_id, owner=owner,
@@ -3685,7 +3725,10 @@ class DryRunTransport(Transport):
                                 ledger_index=99999999, explorer_url="",
                                 domain_id=new_id)
 
-        # MODIFY: owner-only; full-replace of AcceptedCredentials.
+        # MODIFY: owner-only; full-replace of AcceptedCredentials (no new slot).
+        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         domain = self._domains.get(domain_id)
         if domain is None:
             return SubmitResult(
@@ -3770,7 +3813,10 @@ class DryRunTransport(Transport):
                                 error=f"[dry-run] {exc}")
 
         placer = wallet_address or _address_from_seed(wallet_seed)
-        guard = self._reserve_guard(placer, code="tecINSUFFICIENT_RESERVE")
+        # F-17e7f723: permissioned offer is a new Offer object (+owner reserve).
+        guard = self._reserve_guard(
+            placer, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
         domain = self._domains.get(domain_id)
@@ -3833,7 +3879,10 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="temMALFORMED", fee="12",
                                 error="[dry-run] Simulated failure: MPT issuance create")
         owner = _address_from_seed(wallet_seed)
-        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        # F-17e7f723: MPT issuance object → fee + owner-reserve.
+        guard = self._reserve_guard(
+            owner, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
+        )
         if guard is not None:
             return guard
         txid = self._next_txid()
@@ -3977,11 +4026,10 @@ class DryRunTransport(Transport):
         # from thin air. Same scope guard as submit_payment (tracked balances
         # only); the network fails an underfunded create with tecUNFUNDED.
         #
-        # F-0716549a: the original check here had NO reserve term — a source
-        # could be driven to (or below) its exact reserve floor via repeated
-        # channel opens while this always reported tesSUCCESS, when the real
-        # ledger fails tecUNFUNDED / tecINSUFFICIENT_RESERVE.
-        guard = self._reserve_guard(source, drops, code="tecUNFUNDED")
+        # F-0716549a / F-17e7f723: deposit + fee + PayChannel owner-reserve.
+        guard = self._reserve_guard(
+            source, drops + _OWNER_RESERVE_DROPS, code="tecUNFUNDED",
+        )
         if guard is not None:
             return guard
         cid = hashlib.sha256(
@@ -4204,12 +4252,6 @@ class DryRunTransport(Transport):
             )
         owner = owner_address or _address_from_seed(owner_seed)
         entries = list(entries or [])
-        # F-0716549a: fee-only reserve floor (a delete only ever RELEASES a
-        # reserve increment, but the fee still applies; a create/replace can
-        # ALSO add one — see the is_new branch below).
-        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
-        if guard is not None:
-            return guard
 
         # tem preflight gates run FIRST — on the network a malformed
         # SignerListSet is rejected in preflight (and xrpl-py's model raises at
@@ -4241,6 +4283,10 @@ class DryRunTransport(Transport):
             # Delete. rippled's removeSignersFromLedger: "If the signer list
             # doesn't exist we've already succeeded in deleting it" — an
             # idempotent tesSUCCESS, so mirror that (no reserve to free).
+            # F-0716549a: fee still applies; delete never charges owner-inc.
+            guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+            if guard is not None:
+                return guard
             existing = self._signer_lists.pop(owner, None)
             if existing is not None:
                 self._dec_owner(owner)
@@ -4306,7 +4352,14 @@ class DryRunTransport(Transport):
             )
 
         # Create or wholesale-replace (the ledger never patches a signer list).
+        # F-17e7f723: owner-increment only when creating a NEW SignerList.
         is_new = owner not in self._signer_lists
+        extra = _OWNER_RESERVE_DROPS if is_new else 0
+        guard = self._reserve_guard(
+            owner, extra, code="tecINSUFFICIENT_RESERVE",
+        )
+        if guard is not None:
+            return guard
         self._signer_lists[owner] = SignerListInfo(
             signer_quorum=quorum, entries=list(entries),
         )
