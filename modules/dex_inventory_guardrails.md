@@ -16,7 +16,7 @@ checks:
   - "Inventory check evaluated"
   - "Only safe sides were quoted"
   - "Offers cancelled and cleaned up"
-  - "Owner count returned to baseline"
+  - "Position delta after offers observed (cleanup verified via offer absence)"
 ---
 
 You learned to place both sides of a market in DEX Market Making 101.

@@ -16,7 +16,7 @@ produces:
 checks:
   - "Escrow created with a short FinishAfter (txid produced)"
   - "EscrowFinish submitted after FinishAfter (txid produced)"
-  - "Escrow object gone from the ledger — funds released, owner reserve freed"
+  - "Escrow object gone from the ledger (verify_escrow_finished); baseline reserve delta observed"
 ---
 
 In **Escrow 101** you *locked* XRP with an `EscrowCreate`. That is only half the story: a created

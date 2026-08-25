@@ -14,9 +14,9 @@ produces:
   - report
 checks:
   - "Account snapshot captured before and after"
-  - "Owner count increased after creating objects"
-  - "Owner count decreased after removing objects"
+  - "Owner count increase observed after creating objects"
   - "Reserve impact explained"
+  - "Cleanup deferred to Account Hygiene (no removal in this module)"
 ---
 
 This is the module that answers the #1 beginner question:
