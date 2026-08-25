@@ -649,53 +649,65 @@ _BARE_PATH_RE = re.compile(_PATH_START + r"""[^\s"'<>|]+""")
 
 _PATH_REDACTED = "<path-redacted>"
 
-# F-d4a0435c: the path-redaction above is BLIND BY DESIGN to a URL-shaped
-# credential — its own lookbehind exists specifically so a legitimate
+# F-d4a0435c / F-cbd44005: the path-redaction above is BLIND BY DESIGN to a
+# URL-shaped credential — its lookbehind exists so a legitimate
 # ``http://``/``https://`` link is never mistaken for a path (see
 # test_does_not_mangle_urls in tests/test_reswarm4_api.py). A
-# credential-bearing endpoint URL (e.g. a user-configured
-# XRPL_LAB_FAUCET_URL/XRPL_LAB_RPC_URL with basic-auth) can reach this
-# channel verbatim via any console.print() call site — see F-9f0aa836's
-# runtime.py instance and the ~30 similar sites in handlers.py (a
-# different domain's file, not edited here).
+# credential-bearing endpoint URL (user-configured XRPL_LAB_FAUCET_URL /
+# XRPL_LAB_RPC_URL) can reach this channel via any console.print() site.
 #
-# Per the wave-2 advisor contract this does NOT add a second, independent
-# URL-redaction scheme (that duplication is how the path-only gate went
-# unnoticed) — it reuses the SAME xrpl_lab.reporting.sanitize_endpoint()
-# already trusted for the identical threat on the proof-pack/doctor/
-# feedback surfaces (RA-002/F-60b2df48). The match is deliberately scoped
-# to the one UNAMBIGUOUS credential marker a URL can carry — embedded
-# userinfo (``user[:pass]@``) sitting between the scheme and the host, with
-# no ``/`` in between it and the ``://`` (so a ``@`` appearing later, inside
-# a path or query, can never satisfy this pattern). A URL with no userinfo
-# — including one with a meaningful path, like a txid explorer link — does
-# NOT match and is therefore left completely untouched, preserving
-# test_does_not_mangle_urls: this channel's whole purpose for those links
-# is the path, so truncating it on sight (as F-9f0aa836's narrower,
-# path-free runtime.py call site correctly does for ITS OWN message) would
-# trade one regression for another here.
-_URL_USERINFO_RE = re.compile(
-    r"[A-Za-z][A-Za-z0-9+.-]*://[^\s'\"()<>@/]+@[^\s'\"()<>]*"
+# One redactor only: locate URL spans that carry any of the three shapes
+# ``sanitize_endpoint`` strips (userinfo, QuickNode-style path token, query
+# API key) and hand each span to that function. Credential-free explorer /
+# faucet CONTENT links stay byte-identical — their path is the point of
+# printing them (unlike runtime.py's FundResult.message site, which never
+# carries a legitimate path and therefore reduces every URL span).
+_URL_SPAN_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s'\"()<>]+")
+_URL_USERINFO_MARKER_RE = re.compile(r"://[^/\s'@]+@")
+_URL_QUERY_CRED_RE = re.compile(
+    r"[?&](?:api_?key|token|secret|auth|password|access_token)=",
+    re.IGNORECASE,
+)
+# Single opaque path segment after the authority (QuikNode-style), not a
+# multi-segment explorer path like /transactions/<hash>.
+_URL_PATH_TOKEN_RE = re.compile(
+    r"://[^/\s?#]+/[A-Za-z0-9_-]{16,}/?(?:[?#]|$)",
 )
 
 
-def _redact_url_credentials(text: str) -> str:
-    """Rewrite only credential-bearing (userinfo) URLs via sanitize_endpoint().
+def _url_has_endpoint_credentials(url: str) -> bool:
+    """True when ``url`` carries a sanitize_endpoint credential shape."""
+    return bool(
+        _URL_USERINFO_MARKER_RE.search(url)
+        or _URL_QUERY_CRED_RE.search(url)
+        or _URL_PATH_TOKEN_RE.search(url)
+    )
 
-    See the F-d4a0435c note above ``_URL_USERINFO_RE``.
+
+def _redact_url_credentials(text: str) -> str:
+    """Hand credential-shaped URL spans to sanitize_endpoint(); leave others.
+
+    See the F-d4a0435c / F-cbd44005 note above ``_URL_SPAN_RE``.
     """
     if not text:
         return text
-    return _URL_USERINFO_RE.sub(lambda m: sanitize_endpoint(m.group(0)), text)
+
+    def _replace(match: re.Match[str]) -> str:
+        url = match.group(0)
+        if _url_has_endpoint_credentials(url):
+            return sanitize_endpoint(url)
+        return url
+
+    return _URL_SPAN_RE.sub(_replace, text)
 
 
 def _redact_output_text(text: str) -> str:
     """Strip absolute-filesystem-path-shaped substrings AND
-    credential-bearing (userinfo) URLs from ``text``.
+    credential-bearing endpoint URLs from ``text``.
 
     Defense-in-depth for the WS 'output' channel — see the module comment
-    above ``_PATH_START`` (paths) and ``_URL_USERINFO_RE`` (URL
-    credentials, F-d4a0435c). Applied in ``_QueueFile.write()`` before any
+    above ``_PATH_START`` (paths) and ``_URL_SPAN_RE`` (URL credentials,
+    F-d4a0435c / F-cbd44005). Applied in ``_QueueFile.write()`` before any
     captured console line is queued as an ``{"type": "output"}`` frame.
     """
     text = _redact_url_credentials(text)
