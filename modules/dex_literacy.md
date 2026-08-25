@@ -46,8 +46,15 @@ the reserve by 0.2 XRP on mainnet, free on testnet).
 
 ## Step 3: Prepare the issuer
 
-We need the issuer address from your Trust Lines 101 session. This step loads
-or re-creates the issuer wallet so the offer references a valid LAB issuer.
+We need the issuer address from your Trust Lines 101 session so the offer
+references a valid LAB issuer.
+
+**Issuer reuse:** this step loads `.xrpl-lab/issuer_wallet.json` when present
+and reuses that issuer — it does not mint a fresh wallet on resume or re-run.
+Minting a new issuer would orphan trust lines (and their owner reserve) against
+the previous address. Leftover lines from earlier currencies still lock reserve
+until balance is 0 and you remove them; run **Account Hygiene**
+(`account_hygiene`) for the taught cleanup loop.
 
 <!-- action: create_issuer_wallet -->
 

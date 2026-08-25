@@ -49,6 +49,13 @@ create a second wallet to act as the issuer.
 
 This wallet will issue a currency called **LAB** — your first issued token.
 
+**Issuer reuse:** this step loads `.xrpl-lab/issuer_wallet.json` when present
+and reuses that issuer — it does not mint a fresh wallet on resume or re-run.
+Minting a new issuer would orphan trust lines (and their owner reserve) against
+the previous address. Leftover lines from earlier currencies still lock reserve
+until balance is 0 and you remove them; run **Account Hygiene**
+(`account_hygiene`) for the taught cleanup loop.
+
 <!-- action: create_issuer_wallet -->
 
 ## Step 4: Fund the issuer
