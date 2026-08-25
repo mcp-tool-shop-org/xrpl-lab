@@ -32,16 +32,19 @@ def generate_feedback() -> str:
     lines.append("```")
     lines.append("")
 
-    # Doctor summary
+    # Doctor summary — severity-aware icons (F-dc21ac97 / F-71d35d61).
+    from .doctor import public_check_icon
+
     lines.append("### Doctor")
     lines.append("")
     for check in report.checks:
-        icon = "PASS" if check.passed else "FAIL"
+        severity = getattr(check, "severity", "fail")
+        icon = public_check_icon(passed=check.passed, severity=severity)
         line = f"- [{icon}] {check.name}"
         if check.detail:
             line += f": {check.detail}"
         lines.append(line)
-        if check.hint and not check.passed:
+        if check.hint and (severity == "warn" or not check.passed):
             lines.append(f"  - Hint: {check.hint}")
     lines.append("")
 

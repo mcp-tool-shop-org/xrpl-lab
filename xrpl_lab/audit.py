@@ -612,3 +612,61 @@ def verify_audit_pack(pack: dict) -> tuple[bool, str]:
         )
 
     return True, "Integrity verified"
+
+
+def is_audit_pack(pack: object) -> bool:
+    """True when ``pack`` carries audit-pack markers (tool + verdicts).
+
+    Used by ``reporting.verify_offline_artifact`` and api-cli ``/api/verify``
+    auto-detect. Distinct from proof-pack / certificate marker fields.
+    """
+    return (
+        isinstance(pack, dict)
+        and pack.get("tool") == "xrpl-lab"
+        and "verdicts" in pack
+    )
+
+
+def audit_pack_simulated(pack: dict) -> bool:
+    """SIMULATED banner parity with proof verify / cert-verify.
+
+    Dry-run packs seal ``dry_run=True`` and/or ``network`` in
+    {dry-run, dry_run, mixed}. A green integrity PASS is not on-ledger truth.
+    """
+    if pack.get("dry_run") is True:
+        return True
+    return str(pack.get("network", "") or "").lower() in (
+        "dry-run",
+        "dry_run",
+        "mixed",
+    )
+
+
+def verify_audit_pack_surface(pack: dict) -> dict:
+    """Product-facing audit-pack verify result (F-ad988398 / F-c2d0587d).
+
+    Calls :func:`verify_audit_pack` and returns a dict shaped for CLI /
+    ``POST /api/verify`` wiring: ``artifact_kind``, ``hash_valid``,
+    ``hash_message``, ``overall_passed``, ``simulated``, identity echoes.
+    Hash-only (no ``--live`` tx claims — audit packs are not proof packs).
+    """
+    valid, message = verify_audit_pack(pack)
+    network = ""
+    version = ""
+    simulated = False
+    if isinstance(pack, dict):
+        network = str(pack.get("network", "") or "")
+        version = str(pack.get("version", "") or "")
+        simulated = audit_pack_simulated(pack)
+    return {
+        "artifact_kind": "audit_pack",
+        "hash_valid": valid,
+        "hash_message": message,
+        "overall_passed": valid,
+        "simulated": simulated,
+        "network": network,
+        "version": version,
+        "live_requested": False,
+        "live": None,
+        "all_verified": True,
+    }
