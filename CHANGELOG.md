@@ -1,33 +1,28 @@
 # Changelog
-## Unreleased — fifth dogfood re-swarm, Phase 7 wave 2
+## 2.5.0 — 2026-08-25
 
-Dashboard JS tests in CI. Not a version cut. `site/` stays private.
+**Fifth dogfood re-swarm** — health pass (Stages A–C) plus two feature waves on
+the shipped v2.4.0 surface. **1663 → 1897 tests** (skipped 26 → 24), plus
+**17 vitest** in CI. Dashboard JS coverage is no longer a laptop-only gate.
+Every Stage A blocker was verified red against the unfixed tree.
 
-- **vitest + jsdom** for `esc`, `openModal`, `runBadge`. Artifacts panels
-  read live proof/cert keys (`completed_modules` / `sha256` / `address`),
-  pinned in JS, not a Python grep. CI `site-test` job runs `npm test` in
-  `site/`.
+The dominant defect class was not missing features — it was **fixes whose tests
+could not fail**, then incomplete generalization of the fix to every call site.
 
-## Unreleased — fifth dogfood re-swarm, Phase 7 wave 1
+### Feature
 
-Workshop + proof-loop. Not a version cut. Dashboard vitest (`F-cdf586bf`)
-waits for wave 2 after this lands + CI green.
-
-- **Issuer reuse is no longer silent.** Reuse prints a cleanup hint; 
+- **Issuer reuse is no longer silent.** Reuse prints a cleanup hint;
   `remove_trust_line` / `verify_trust_line_removed` take optional `issuer=`.
   All 14 `create_issuer_wallet` modules say reuse/orphan and point at
   account_hygiene (dex_literacy no longer says “re-creates”).
 - **`xrpl-lab audit-verify`** calls existing `verify_audit_pack` (non-zero
   on mismatch). Support-bundle doctor icons distinguish `[WARN]` vs `[FAIL]`.
   `cohort-status` exposes `all_verified`.
-- **Dry-run object-create reserve.** New ledger objects fold owner-increment
-  into `_reserve_guard` before create so mid-band accounts fail
-  `tecINSUFFICIENT_RESERVE` instead of false `tesSUCCESS`.
+- **vitest + jsdom** for `esc`, `openModal`, `runBadge`. Artifacts panels
+  read live proof/cert keys (`completed_modules` / `sha256` / `address`),
+  pinned in JS. CI `site-test` job runs `npm test` in `site/`.
 
-## Unreleased — fifth dogfood re-swarm, Stage C
-
-Humanization. Seven domains. Not a version cut. Dashboard JS runner HIGH
-(`F-cdf586bf`) stays open — deferred to the feature pass.
+### Humanization
 
 - **Shipped modules wire `expected_*` on asserting verify_*.** Lessons that
   claim a directional fact now pass `expected_owner_delta` /
@@ -42,10 +37,7 @@ Humanization. Seven domains. Not a version cut. Dashboard JS runner HIGH
   session restore without auto-start. LabException code/message/hint on WS
   and HTTP start failures. API `RunInfo` carries `mode` / connection signals.
 
-## Unreleased — fifth dogfood re-swarm, Stage B
-
-Proactive health. Seven domains. Not a version cut. Dashboard JS runner HIGH
-(`F-cdf586bf`) stays open — deferred to the feature pass.
+### Proactive health
 
 - **`verify_reserve_change` / `verify_position_delta` now assert (opt-in).**
   Unconditional `_record_verification(..., True)` is gone. Modules that only
@@ -62,11 +54,7 @@ Proactive health. Seven domains. Not a version cut. Dashboard JS runner HIGH
   still first-match, one action per heading. `<!-- narrative-only -->` opt-out
   for prose steps.
 
-## Unreleased — fifth dogfood re-swarm, Stage A reopening
-
-Stage B audit found six Stage A residuals still sitting on `main`. Four-domain
-reopen (`actions` · `handlers` · `transport` · `api-cli`). Same red-first gate.
-Not a version cut.
+### Stage A residuals (reopened and closed)
 
 - **Windows `icacls` self-lockout when `USERDOMAIN` is unset (CRITICAL).** Grant
   used the bare `USERNAME`; listing returns `DOMAIN\user`; `/remove:g` stripped
@@ -87,10 +75,7 @@ Not a version cut.
 - **`wallet_create` `save_state` unwrapped (HIGH).** Same miss as the CLI wrap
   inside the function `88c0a4e` just patched.
 
-## Unreleased — fifth dogfood re-swarm, Stage A
-
-Landed on `main`, **not released** — `package.json` and `pyproject.toml` stay at 2.4.0,
-which is what is published. Stage B onward and the release itself follow.
+### Security / correctness (Stage A)
 
 A health pass over the shipped v2.4.0 surface. Seven parallel domain agents audited
 31,759 lines of Python plus the 3,677-line facilitator dashboard — a surface that had
@@ -209,8 +194,8 @@ something it had never verified.
 
 ### Tests
 
-1663 → 1755 passing; skipped 26 → 24, because two win32 wallet tests hidden behind a
-blanket `skipif` now actually execute.
+1663 → 1897 passing; skipped 26 → 24 (two win32 wallet tests hidden behind a
+blanket `skipif` now actually execute). Plus 17 vitest in CI.
 
 ## 2.4.0 — 2026-07-12
 

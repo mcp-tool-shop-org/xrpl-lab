@@ -31,7 +31,7 @@ sidebar:
 
 | Command | Description |
 |---------|-------------|
-| `xrpl-lab cohort-status [--dir DIR] [--format FORMAT]` | Aggregate per-learner status across a cohort directory (one subdirectory per learner) |
+| `xrpl-lab cohort-status [--dir DIR] [--format FORMAT]` | Aggregate per-learner status across a cohort directory (one subdirectory per learner). JSON includes `all_verified` / `unverified` / `has_proof` / `has_cert` |
 | `xrpl-lab session-export [--dir DIR] [--format FORMAT] [--outfile FILE]` | Archive every learner's shareable artifacts (proofs, reports, audit packs, certificates) with a SHA-256 manifest — never includes wallet or state files |
 
 ## Module authoring
@@ -48,6 +48,7 @@ sidebar:
 | `xrpl-lab proof-pack` | Export a shareable proof pack (JSON with SHA-256 integrity) |
 | `xrpl-lab certificate` | Export a slim completion certificate |
 | `xrpl-lab audit --txids <file>` | Batch verify transactions against expectations |
+| `xrpl-lab audit-verify <file>` | Verify an audit pack's SHA-256 integrity (non-zero exit on mismatch) |
 
 ### Audit flags
 

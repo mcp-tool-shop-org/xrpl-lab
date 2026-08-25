@@ -36,7 +36,7 @@ export const config: SiteConfig = {
       features: [
         { title: 'Artifact-driven', desc: 'Every module produces a verifiable artifact — transaction IDs, audit packs, proof packs with SHA-256 integrity.' },
         { title: 'Offline-first', desc: 'Full dry-run mode with simulated transactions. Learn the workflow without touching the network.' },
-        { title: 'Thoroughly tested', desc: 'A comprehensive, deterministic test suite covers every module, action, and transport path — including NFT, token, escrow, and DID flows.' },
+        { title: 'Thoroughly tested', desc: '1897 pytest cases plus 17 vitest in CI — every module, action, and transport path, including NFT, token, escrow, and DID flows.' },
         { title: 'Web Dashboard', desc: 'Interactive browser UI with real-time module runner, artifact viewer, and health diagnostics. Run xrpl-lab serve to start.' },
       ],
     },

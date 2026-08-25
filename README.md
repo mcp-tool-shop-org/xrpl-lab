@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="README.ja.md">日本語</a> | <a href="README.zh.md">中文</a> | <a href="README.es.md">Español</a> | <a href="README.fr.md">Français</a> | <a href="README.hi.md">हिन्दी</a> | <a href="README.it.md">Italiano</a> | <a href="README.pt-BR.md">Português (BR)</a>
+  <a href="README.md">English</a> | <a href="README.ja.md">日本語</a> | <a href="README.zh.md">中文</a> | <a href="README.es.md">Español</a> | <a href="README.fr.md">Français</a> | <a href="README.hi.md">हिन्दी</a> | <a href="README.it.md">Italiano</a> | <a href="README.pt-BR.md">Português (BR)</a>
 </p>
 
 <p align="center">
@@ -8,6 +8,8 @@
 
 <p align="center">
   <a href="https://github.com/mcp-tool-shop-org/xrpl-lab/actions/workflows/ci.yml"><img src="https://github.com/mcp-tool-shop-org/xrpl-lab/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/xrpl-lab/"><img src="https://img.shields.io/pypi/v/xrpl-lab.svg" alt="PyPI"></a>
+  <a href="https://www.npmjs.com/package/@mcptoolshop/xrpl-lab"><img src="https://img.shields.io/npm/v/@mcptoolshop/xrpl-lab.svg" alt="npm"></a>
   <a href="https://github.com/mcp-tool-shop-org/xrpl-lab/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"></a>
   <a href="https://mcp-tool-shop-org.github.io/xrpl-lab/"><img src="https://img.shields.io/badge/Landing_Page-live-blue" alt="Landing Page"></a>
 </p>
@@ -148,6 +150,7 @@ xrpl-lab self-check         Alias for doctor
 xrpl-lab feedback           Generate support bundle (markdown)
 xrpl-lab support-bundle [--json] [--verify FILE]  Generate or verify support bundles
 xrpl-lab audit              Batch verify transactions
+xrpl-lab audit-verify <file>  Verify an audit pack's SHA-256 integrity
 xrpl-lab last-run           Show last module run + audit command
 xrpl-lab serve [--port N] [--host H] [--dry-run]  Start web dashboard and API server
 xrpl-lab reset [--module MODULE_ID]  Wipe local state OR reset a single module (requires confirmation)
@@ -225,7 +228,7 @@ transaction IDs, and explorer links. Includes a SHA-256 integrity hash. No secre
 ## Security and Trust Model
 
 **Data XRPL Lab touches:**
-- Wallet seed (stored locally in `~/.xrpl-lab/wallet.json` as plaintext JSON, protected by 0o600 file permissions and a 0o700 parent directory — not encrypted)
+- Wallet seed (stored locally in `~/.xrpl-lab/wallet.json` as plaintext JSON — POSIX mode `0o600` / `0o700` parent, or an owner-only ACL on Windows; not encrypted)
 - Module progress and transaction IDs (stored in `~/.xrpl-lab/state.json`, atomic writes via tmp + rename)
 - XRPL Testnet RPC (public endpoint, transactions signed locally before submission)
 - Testnet faucet (public HTTP, only your address is sent)
@@ -237,7 +240,7 @@ transaction IDs, and explorer links. Includes a SHA-256 integrity hash. No secre
 - No secrets in proof packs, certificates, reports, or support bundles — ever
 
 **Permissions and storage tiers:**
-- Home `~/.xrpl-lab/` — private secrets tier, 0o700 directory + 0o600 wallet file. Stores wallet seed, doctor log, audit packs.
+- Home `~/.xrpl-lab/` — private secrets tier (POSIX `0o700` / `0o600`, or an owner-only ACL on Windows). Stores wallet seed, doctor log, audit packs.
 - Workspace `./.xrpl-lab/` — designed-shareable tier, 0o755 directory. Stores module reports, proof packs, certificates. Facilitators can review without permission elevation.
 - Filesystem: reads/writes only the two locations above
 - Network: XRPL Testnet RPC + faucet only (both overridable via env vars, both optional with `--dry-run`)
