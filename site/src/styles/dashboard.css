@@ -198,6 +198,8 @@ a:hover { color: var(--accent-bright); }
   background: var(--neut-fill); border: 1px solid var(--neut-edge); color: var(--neutral-bright);
 }
 .chip--dry { background: var(--warn-fill); border-color: var(--warn-edge); color: var(--warn-bright); }
+.chip--live { background: var(--ok-fill); border-color: var(--ok-edge); color: var(--accent-bright); }
+.btn[aria-busy="true"] { cursor: progress; }
 
 @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)} 70%{box-shadow:0 0 0 7px rgba(52,211,153,0)} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0)} }
 

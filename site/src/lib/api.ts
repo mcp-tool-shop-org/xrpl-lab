@@ -313,12 +313,36 @@ export interface RunResult {
   status: string;
 }
 
+/**
+ * POST /api/run/{id}. On failure, attach LabException fields from the
+ * structured {code,message,hint} envelope (FastAPI `detail`) so the run
+ * page can show the code and fix hint — not only the HTTP status line.
+ */
 export async function startModuleRun(id: string, dryRun: boolean): Promise<RunResult> {
   const res = await fetchWithTimeout(`${API_BASE}/api/run/${id}?dry_run=${dryRun}`, {
     method: 'POST',
   });
   if (!res.ok) {
-    throw new Error(`Run API returned ${res.status}: ${res.statusText}`);
+    let code = '';
+    let message = '';
+    let hint = '';
+    try {
+      const body = await res.json();
+      const detail = body?.detail ?? body;
+      if (detail && typeof detail === 'object') {
+        code = typeof detail.code === 'string' ? detail.code : '';
+        message = typeof detail.message === 'string' ? detail.message : '';
+        hint = typeof detail.hint === 'string' ? detail.hint : '';
+      }
+    } catch { /* non-JSON error body */ }
+    const e = new Error(
+      message || `Run API returned ${res.status}: ${res.statusText}`
+    );
+    (e as any).httpStatus = res.status;
+    (e as any).code = code;
+    (e as any).hint = hint;
+    (e as any).labMessage = message;
+    throw e;
   }
   return res.json() as Promise<RunResult>;
 }

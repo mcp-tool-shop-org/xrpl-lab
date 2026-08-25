@@ -29,12 +29,16 @@ const { id } = Astro.params;
     <!-- Controls. F-FE-C-008: aria-label carries the meaning; the ▶/📋 glyphs
          are decorative (aria-hidden inside). -->
     <div class="section row" style="gap:12px;flex-wrap:wrap">
-      <button id="btn-run" class="btn btn--primary" aria-label="Run module live (real testnet transactions)">
+      <button id="btn-run" class="btn btn--primary" aria-label="Run module live (real testnet transactions)" aria-busy="false">
         <span aria-hidden="true">&#9654;</span> Run
       </button>
-      <button id="btn-dry" class="btn" aria-label="Run module in dry-run mode (offline simulated transactions)">
+      <button id="btn-dry" class="btn" aria-label="Run module in dry-run mode (offline simulated transactions)" aria-busy="false">
         <span aria-hidden="true">&#128203;</span> Dry Run
       </button>
+      <!-- SEED-C-run-state: persistent dry-run vs live chip — stays visible for
+           the whole run so a learner never has to re-read the terminal banner
+           to know which mode is active. Hidden until a run starts. -->
+      <span id="run-mode-chip" class="chip" hidden></span>
       <!-- FEBCD-004: calm-instrument .runstatus pill (data-state drives hue +
            the pulsing dot via dashboard.css) replaces the legacy text-*-400
            Tailwind classes. Hidden until a run starts. role="status" — the
@@ -95,7 +99,7 @@ const { id } = Astro.params;
   </div>
 
   <script>
-    import { fetchModule, startModuleRun, isLocalOrigin, API_BASE } from '../../../lib/api';
+    import { fetchModule, startModuleRun, fetchRun, isLocalOrigin, API_BASE } from '../../../lib/api';
     import { icons, announce, esc, hostedPreviewMessagePlain } from '../../../lib/dashboard-ui';
 
     // Reflect run state on the terminal frame (border + the "state" chip).
@@ -126,12 +130,15 @@ const { id } = Astro.params;
     // shared." There is now NO code path that reads window.location.search
     // to start a run — btnRun/btnDry's click handlers below are the only
     // way startRun() is ever invoked. Do not reintroduce URL-driven
-    // auto-start, gated or not.
+    // auto-start, gated or not. SEED-C session restore reconnects an
+    // EXISTING run_id via connectWS only — it never calls startRun.
 
     // State
     let ws: WebSocket | null = null;
     let running = false;
     let steps: Array<{ action: string; status: 'pending' | 'running' | 'done' | 'failed' }> = [];
+    // F-13101734: local txids feed the completion banner when the server's
+    // 'complete' frame omits txids (msg.txids?.length ?? txids.length).
     let txids: string[] = [];
     // B-FRONTEND-005: index of the step currently marked 'running'. The server's
     // 'step_complete' frame carries only {action, success} — NO index — but it is
@@ -144,6 +151,8 @@ const { id } = Astro.params;
     // GET /api/modules/{id}), used to label rows as soon as steps initialize —
     // before the matching 'step' frame arrives — instead of a bare "Step N".
     let moduleStepLabels: string[] = [];
+    // SEED-C-run-state: which mode the active (or restored) run is in.
+    let activeDryRun = false;
 
     // WS reconnect state (F-FE-B-004)
     const MAX_RECONNECT = 5;
@@ -153,6 +162,25 @@ const { id } = Astro.params;
     let lifetimeReconnects = 0;           // F-FE-B-006: never resets; total since page load
     let userInitiatedClose = false;
     let activeRunId: string | null = null;
+
+    // SEED-C-run-state: persist run_id + dry_run so a refresh can reconnect to
+    // a still-alive server session. Keyed per module. Cleared on terminal
+    // states. Never used to auto-start a NEW run.
+    const SESSION_KEY = `xrpl-lab:run:${moduleId}`;
+
+    function persistRunSession() {
+      if (!activeRunId) return;
+      try {
+        sessionStorage.setItem(
+          SESSION_KEY,
+          JSON.stringify({ runId: activeRunId, dryRun: activeDryRun, savedAt: Date.now() })
+        );
+      } catch { /* private mode / quota — non-fatal */ }
+    }
+
+    function clearRunSession() {
+      try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+    }
 
     // B-BRIDGE-NET-003: liveness watchdog. The server sends a {type:'ping'}
     // keepalive every ~30s when the run queue is idle (runner_ws.py). If NO
@@ -184,6 +212,7 @@ const { id } = Astro.params;
     const btnDry = document.getElementById('btn-dry') as HTMLButtonElement;
     const statusLabel = document.getElementById('run-status-label')!;
     const statusText = document.getElementById('run-status-text')!;
+    const modeChip = document.getElementById('run-mode-chip')!;
 
     // FEBCD-004: drive the calm-instrument .runstatus pill instead of swapping
     // legacy text-*-400 Tailwind classes. data-state maps to hue + the pulsing
@@ -194,6 +223,35 @@ const { id } = Astro.params;
       statusLabel.hidden = false;
       statusLabel.setAttribute('data-state', state);
       statusText.textContent = text;
+    }
+
+    // SEED-C-run-state: keep dry-run vs live obvious outside the terminal.
+    function setModeChip(dryRun: boolean) {
+      modeChip.hidden = false;
+      modeChip.textContent = dryRun ? 'dry-run' : 'live';
+      modeChip.className = dryRun ? 'chip chip--dry' : 'chip chip--live';
+      modeChip.setAttribute('aria-label', dryRun ? 'Mode: dry-run (offline)' : 'Mode: live (testnet)');
+      container?.setAttribute('data-mode', dryRun ? 'dry-run' : 'live');
+    }
+
+    function setBusy(busy: boolean) {
+      const v = busy ? 'true' : 'false';
+      container?.setAttribute('aria-busy', v);
+      btnRun.setAttribute('aria-busy', v);
+      btnDry.setAttribute('aria-busy', v);
+    }
+
+    // Format LabException / structured API error for terminal + announce.
+    function formatLabError(err: { code?: string; hint?: string; labMessage?: string; message?: string }): string {
+      const parts: string[] = [];
+      if (err.code) parts.push(`[${err.code}]`);
+      parts.push(err.labMessage || err.message || 'Failed to start run');
+      if (err.hint) parts.push(`Hint: ${err.hint}`);
+      return parts.join(' ');
+    }
+
+    function modeLabel(): string {
+      return activeDryRun ? 'DRY RUN' : 'LIVE RUN';
     }
 
     // Load module info
@@ -320,6 +378,8 @@ const { id } = Astro.params;
     function handleStalledConnection() {
       stopWatchdog();
       running = false;
+      setBusy(false);
+      clearRunSession();
       // Tear down the dead socket so its eventual late 'close' doesn't trigger
       // a reconnect cycle on top of the stalled state. userInitiatedClose
       // suppresses the reconnect path in the close handler.
@@ -329,6 +389,12 @@ const { id } = Astro.params;
       btnRun.disabled = false;
       btnDry.disabled = false;
       setStatus('stalled', 'Connection stalled');
+      // SEED-C-run-state: route stalled through the shared #announcer live
+      // region — the visible banner alone is not enough for SR users.
+      announce(
+        `Connection stalled for ${modeLabel()}. No response from the server for ` +
+          `${Math.round(WATCHDOG_TIMEOUT_MS / 1000)} seconds. Reload to reconnect.`
+      );
       termAppend(
         '\n[stalled] No response from the server for ' +
           Math.round(WATCHDOG_TIMEOUT_MS / 1000) +
@@ -345,7 +411,7 @@ const { id } = Astro.params;
         <span class="banner__ic" aria-hidden="true">${icons.alert}</span>
         <div>
           <p class="banner__t">Connection stalled — the server isn't responding.</p>
-          <p class="banner__s">No data or keepalive ping arrived for ${Math.round(WATCHDOG_TIMEOUT_MS / 1000)}s. Reload to reconnect.</p>
+          <p class="banner__s">No data or keepalive ping arrived for ${Math.round(WATCHDOG_TIMEOUT_MS / 1000)}s (${esc(modeLabel())}). Reload to reconnect.</p>
           <button id="stalled-reload" type="button" class="btn btn--danger btn--sm banner__cta">Reload page</button>
         </div>`;
       completionBanner.hidden = false;
@@ -376,6 +442,14 @@ const { id } = Astro.params;
         if (!firstMessageSeen) {
           firstMessageSeen = true;
           reconnectAttempts = 0;
+          // SEED-C: leave the "reconnecting" chrome once traffic resumes.
+          if (running) {
+            setTermState('running', 'running');
+            setStatus(
+              'running',
+              activeDryRun ? 'Running (dry-run)...' : 'Running (live)...'
+            );
+          }
         }
         try {
           const msg = JSON.parse(event.data);
@@ -398,6 +472,8 @@ const { id } = Astro.params;
           setStatus('done', 'Connection closed');
           termAppend('\n[run complete]', 'text-emerald-400');
           running = false;
+          setBusy(false);
+          clearRunSession();
           btnRun.disabled = false;
           btnDry.disabled = false;
           return;
@@ -419,6 +495,8 @@ const { id } = Astro.params;
           announce(reason);
           termAppend(`\n[disconnected] ${reason}`, 'text-red-400');
           running = false;
+          setBusy(false);
+          clearRunSession();
           btnRun.disabled = false;
           btnDry.disabled = false;
           return;
@@ -439,6 +517,8 @@ const { id } = Astro.params;
             'text-amber-400'
           );
           running = false;
+          setBusy(false);
+          clearRunSession();
           btnRun.disabled = false;
           btnDry.disabled = false;
           return;
@@ -458,6 +538,8 @@ const { id } = Astro.params;
             'text-red-400'
           );
           running = false;
+          setBusy(false);
+          clearRunSession();
           btnRun.disabled = false;
           btnDry.disabled = false;
           return;
@@ -469,6 +551,8 @@ const { id } = Astro.params;
           announce(`Run disconnected: maximum reconnect attempts reached. Refresh to retry.`);
           termAppend(`\n[disconnected] Max reconnect attempts (${MAX_RECONNECT}) reached. Refresh to retry.`, 'text-red-400');
           running = false;
+          setBusy(false);
+          clearRunSession();
           btnRun.disabled = false;
           btnDry.disabled = false;
           return;
@@ -477,6 +561,7 @@ const { id } = Astro.params;
         const delay = BASE_DELAY_MS * Math.pow(2, reconnectAttempts);
         const attemptNum = reconnectAttempts + 1;
         setStatus('stalled', `Reconnecting (${attemptNum}/${MAX_RECONNECT})...`);
+        setTermState('stalled', 'reconnecting');
         // FEBCD-002: reconnect notice — a key milestone SR users must hear.
         announce(`Connection dropped. Reconnecting, attempt ${attemptNum} of ${MAX_RECONNECT}.`);
         termAppend(
@@ -502,6 +587,7 @@ const { id } = Astro.params;
     async function startRun(dryRun: boolean) {
       if (running) return;
       running = true;
+      activeDryRun = dryRun;
       steps = [];
       txids = [];
       currentStepIndex = -1;  // B-FRONTEND-005: reset running-step tracker per run
@@ -512,6 +598,8 @@ const { id } = Astro.params;
 
       btnRun.disabled = true;
       btnDry.disabled = true;
+      setBusy(true);
+      setModeChip(dryRun);
       termClear();
       txSection.hidden = true;
       txList.innerHTML = '';
@@ -519,18 +607,19 @@ const { id } = Astro.params;
       setTermState('running', 'running');
       renderSteps();
 
-      const modeLabel = dryRun ? 'DRY RUN' : 'LIVE RUN';
-      setStatus('running', `Starting ${modeLabel}...`);
+      setStatus('running', `Starting ${modeLabel()}...`);
       // FEBCD-002: announce run start so SR users know the run is underway.
       announce(`${dryRun ? 'Dry run' : 'Live run'} started for ${moduleId}.`);
-      termAppend(`[${modeLabel}] Starting module: ${moduleId}`, 'text-slate-400');
+      termAppend(`[${modeLabel()}] Starting module: ${moduleId}`, 'text-slate-400');
 
       try {
         const result = await startModuleRun(moduleId, dryRun);
         activeRunId = result.run_id;
+        persistRunSession();
 
-        termAppend(`[${modeLabel}] Run ID: ${activeRunId}`, 'text-slate-500');
-        setStatus('running', 'Running...');
+        termAppend(`[${modeLabel()}] Run ID: ${activeRunId}`, 'text-slate-500');
+        // Keep mode in the status pill so dry-run vs live stays obvious.
+        setStatus('running', dryRun ? 'Running (dry-run)...' : 'Running (live)...');
 
         // Connect WebSocket (auto-reconnect on transient drop, F-FE-B-004)
         connectWS();
@@ -545,14 +634,31 @@ const { id } = Astro.params;
           // locally right now — say so distinctly instead of implying the
           // local server is the problem.
           msg = !isLocalOrigin() ? hostedPreviewMessagePlain() : 'Could not reach API server — is it running?';
+        } else if (err?.code || err?.labMessage || err?.hint) {
+          // SEED-C: LabException / structured {code,message,hint} from API.
+          msg = formatLabError(err);
         } else {
           msg = err.message || 'Failed to start run';
         }
         termAppend(`[error] ${msg}`, 'text-red-400');
         setStatus('failed', 'Failed to start');
+        setTermState('failed', 'failed');
         // FEBCD-002: failed-to-start is an error SR users must hear.
         announce(`Failed to start run: ${msg}`);
+        if (err?.code || err?.hint) {
+          completionBanner.className = 'banner banner--err';
+          completionBanner.setAttribute('role', 'alert');
+          completionBanner.innerHTML = `
+            <span class="banner__ic" aria-hidden="true">&#10007;</span>
+            <div>
+              <p class="banner__t">${esc(err.code ? `[${err.code}] Failed to start` : 'Failed to start')}</p>
+              <p class="banner__s">${esc(err.labMessage || err.message || msg)}${err.hint ? ` — ${esc(err.hint)}` : ''}</p>
+            </div>`;
+          completionBanner.hidden = false;
+        }
         running = false;
+        setBusy(false);
+        clearRunSession();
         btnRun.disabled = false;
         btnDry.disabled = false;
       }
@@ -646,22 +752,56 @@ const { id } = Astro.params;
         }
 
         case 'error': {
-          termAppend(`[ERROR] ${msg.message || 'Unknown error'}`, 'text-red-400');
+          // SEED-C: WS error frames carry LabException {code,message,hint}.
+          // Mark terminal before the socket's follow-up close(1000) so the
+          // close handler does not overwrite this banner with "Connection closed".
+          running = false;
+          userInitiatedClose = true;
+          setBusy(false);
+          clearRunSession();
+          btnRun.disabled = false;
+          btnDry.disabled = false;
+          stopWatchdog();
+          const codePrefix = msg.code ? `[${msg.code}] ` : '';
+          const hintLine = msg.hint ? `\n  Hint: ${msg.hint}` : '';
+          termAppend(`[ERROR] ${codePrefix}${msg.message || 'Unknown error'}${hintLine}`, 'text-red-400');
           // FEBCD-002: announce errors assertively-in-spirit via the live region
           // so SR users don't miss a failure buried in the output stream.
-          announce(`Error: ${msg.message || 'Unknown error'}`);
+          announce(
+            `Error${msg.code ? ' ' + msg.code : ''}: ${msg.message || 'Unknown error'}` +
+              (msg.hint ? `. ${msg.hint}` : '')
+          );
+          setStatus('failed', msg.code ? `Failed (${msg.code})` : 'Failed');
+          setTermState('failed', 'failed');
+          completionBanner.className = 'banner banner--err';
+          completionBanner.setAttribute('role', 'alert');
+          completionBanner.innerHTML = `
+            <span class="banner__ic" aria-hidden="true">&#10007;</span>
+            <div>
+              <p class="banner__t">${esc(msg.code ? `[${msg.code}] Run error` : 'Run error')}</p>
+              <p class="banner__s">${esc(msg.message || 'Unknown error')}${msg.hint ? ` — ${esc(msg.hint)}` : ''}</p>
+            </div>`;
+          completionBanner.hidden = false;
           break;
         }
 
         case 'complete': {
           running = false;
+          setBusy(false);
+          clearRunSession();
           btnRun.disabled = false;
           btnDry.disabled = false;
           stopWatchdog();  // B-BRIDGE-NET-003: run finished cleanly, no liveness check needed
           ws?.close();
 
           const success = msg.success;
-          setStatus(success ? 'done' : 'failed', success ? 'Completed' : 'Failed');
+          // Keep mode visible in the terminal status copy after completion.
+          setStatus(
+            success ? 'done' : 'failed',
+            success
+              ? (activeDryRun ? 'Completed (dry-run)' : 'Completed (live)')
+              : (activeDryRun ? 'Failed (dry-run)' : 'Failed (live)')
+          );
 
           // Mark remaining running steps
           steps.forEach(s => {
@@ -673,6 +813,9 @@ const { id } = Astro.params;
           // F-FE-C-008: decorative ✓/✗ glyphs marked aria-hidden — the
           // headline text ("Module completed successfully" / "Module run
           // failed") already names the outcome for screen readers.
+          // F-13101734: prefer server txids; fall back to the local accumulator
+          // when the complete frame omits them.
+          const txCount = msg.txids?.length ?? txids.length;
           setTermState(success ? 'done' : 'failed', success ? 'done' : 'failed');
           if (success) {
             completionBanner.className = 'banner banner--ok';
@@ -680,8 +823,8 @@ const { id } = Astro.params;
             completionBanner.innerHTML = `
               <span class="banner__ic" aria-hidden="true">&#10003;</span>
               <div>
-                <p class="banner__t">Module completed successfully</p>
-                <p class="banner__s">${msg.txids?.length || 0} transaction(s) submitted.${msg.report_path ? ` <a href="/xrpl-lab/app/artifacts/">View artifacts &rarr;</a>` : ''}</p>
+                <p class="banner__t">Module completed successfully (${esc(modeLabel())})</p>
+                <p class="banner__s">${txCount} transaction(s) submitted.${msg.report_path ? ` <a href="/xrpl-lab/app/artifacts/">View artifacts &rarr;</a>` : ''}</p>
               </div>`;
           } else {
             completionBanner.className = 'banner banner--err';
@@ -689,13 +832,13 @@ const { id } = Astro.params;
             completionBanner.innerHTML = `
               <span class="banner__ic" aria-hidden="true">&#10007;</span>
               <div>
-                <p class="banner__t">Module run failed</p>
+                <p class="banner__t">Module run failed (${esc(modeLabel())})</p>
                 <p class="banner__s">Check the output above for errors. You can retry the run.</p>
               </div>`;
           }
           completionBanner.hidden = false;
 
-          termAppend(`\n--- Run ${success ? 'PASSED' : 'FAILED'} ---`, success ? 'text-emerald-500' : 'text-red-500');
+          termAppend(`\n--- Run ${success ? 'PASSED' : 'FAILED'} (${modeLabel()}) ---`, success ? 'text-emerald-500' : 'text-red-500');
           break;
         }
       }
@@ -707,6 +850,52 @@ const { id } = Astro.params;
     btnRun.addEventListener('click', () => startRun(false));
     btnDry.addEventListener('click', () => startRun(true));
 
+    // SEED-C-run-state: if the learner refreshed mid-run and the server
+    // session still exists, reconnect the WebSocket — do NOT call startRun
+    // or startModuleRun (that would mint a new run / violate F-d1deca46).
+    async function tryRestoreSession() {
+      let raw: string | null = null;
+      try { raw = sessionStorage.getItem(SESSION_KEY); } catch { return; }
+      if (!raw) return;
+      let saved: { runId?: string; dryRun?: boolean } | null = null;
+      try { saved = JSON.parse(raw); } catch { clearRunSession(); return; }
+      if (!saved?.runId) { clearRunSession(); return; }
+
+      try {
+        const info = await fetchRun(saved.runId);
+        if (info.status !== 'running' || info.module_id !== moduleId) {
+          clearRunSession();
+          return;
+        }
+        activeRunId = saved.runId;
+        activeDryRun = !!info.dry_run;
+        running = true;
+        userInitiatedClose = false;
+        reconnectAttempts = 0;
+        btnRun.disabled = true;
+        btnDry.disabled = true;
+        setBusy(true);
+        setModeChip(activeDryRun);
+        completionBanner.hidden = true;
+        setTermState('stalled', 'reconnecting');
+        setStatus(
+          'stalled',
+          activeDryRun ? 'Reconnecting to dry-run...' : 'Reconnecting to live run...'
+        );
+        announce(
+          `Restoring ${activeDryRun ? 'dry-run' : 'live'} session ${activeRunId}. Reconnecting.`
+        );
+        termAppend(
+          `[restored] Reconnecting to run ${activeRunId} (${modeLabel()}) — session survived refresh.`,
+          'text-amber-400'
+        );
+        persistRunSession();
+        connectWS();
+      } catch {
+        clearRunSession();
+      }
+    }
+
     // Astro client-side navigation cleanup (B-FRONTEND-004). The facilitator
     // page already does this; the run page did NOT, leaving a latent socket +
     // timer leak if Astro's ClientRouter is ever enabled (a return visit would
@@ -717,13 +906,15 @@ const { id } = Astro.params;
     document.addEventListener('astro:before-swap', () => {
       userInitiatedClose = true;   // suppress the close handler's reconnect path
       running = false;
+      setBusy(false);
       stopWatchdog();
       try { ws?.close(); } catch { /* already closing */ }
       window.removeEventListener('beforeunload', beforeunloadHandler);
     }, { once: true });
 
-    // Init
+    // Init — load module metadata, then optionally reconnect an existing session.
     loadModuleInfo();
+    tryRestoreSession();
   </script>
 
 </DashboardLayout>
