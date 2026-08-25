@@ -45,15 +45,17 @@ def _windows_username() -> str:
 
     ``USERDOMAIN`` is set for both domain accounts and plain local
     accounts (it mirrors ``COMPUTERNAME`` for the latter), so the
-    qualified form resolves correctly in both cases. Falls back to the
-    bare ``USERNAME`` if ``USERDOMAIN`` is unset (an unusual/minimal
-    environment) so a missing domain var degrades to "still try to lock
-    the file to this account" rather than aborting hardening outright —
-    icacls itself is the backstop that turns an unresolvable name into a
-    surfaced failure (see :func:`_windows_icacls_lockdown`).
+    qualified form resolves correctly in both cases. When ``USERDOMAIN``
+    is unset (unusual/minimal environment), fall back to
+    ``COMPUTERNAME\\USERNAME`` — icacls always echoes grants back in
+    domain-qualified form, so a bare ``USERNAME`` grant would fail the
+    post-grant self-check and get stripped (F-e4d178f0). Only if both
+    domain sources are missing do we degrade to the bare username; the
+    last-grantee guard in :func:`_windows_icacls_lockdown` then refuses
+    to empty the ACL.
     """
     user = os.environ.get("USERNAME", "")
-    domain = os.environ.get("USERDOMAIN", "")
+    domain = os.environ.get("USERDOMAIN", "") or os.environ.get("COMPUTERNAME", "")
     if domain and user:
         return f"{domain}\\{user}"
     return user
@@ -83,6 +85,24 @@ def _icacls_grantee_names(icacls_stdout: str, path: Path) -> list[str]:
         if principal:
             names.append(principal)
     return names
+
+
+def _icacls_principal_is_self(principal: str, user: str) -> bool:
+    """Match an icacls-echoed principal against the lockdown target identity.
+
+    Compares on the qualified form icacls echoes. Also accepts a bare
+    username on one side against ``DOMAIN\\user`` on the other so a
+    residual bare-grant identity cannot self-strip (F-e4d178f0).
+    """
+    p = principal.lower()
+    u = user.lower()
+    if p == u:
+        return True
+    if "\\" not in u and "\\" in p:
+        return p.rsplit("\\", 1)[-1] == u
+    if "\\" not in p and "\\" in u:
+        return u.rsplit("\\", 1)[-1] == p
+    return False
 
 
 def _windows_icacls_lockdown(path: Path, *, is_dir: bool) -> None:
@@ -124,6 +144,12 @@ def _windows_icacls_lockdown(path: Path, *, is_dir: bool) -> None:
     cannot be verified fails loudly instead of shipping an unprotected
     seed file under a false sense of security — the exact "log and
     continue" defect this replaces.
+
+    F-e4d178f0: self-identification uses the qualified form icacls echoes
+    (see :func:`_windows_username` / :func:`_icacls_principal_is_self`).
+    If no listed principal matches the current user, this raises
+    ``PERM_WALLET_ACL_FAILED`` instead of ``/remove:g``-ing every ACE
+    into an empty DACL and returning normally.
     """
     user = _windows_username()
     perm = "(OI)(CI)F" if is_dir else "F"
@@ -175,9 +201,31 @@ def _windows_icacls_lockdown(path: Path, *, is_dir: bool) -> None:
     run(["icacls", str(path), "/grant:r", f"{user}:{perm}"])
 
     listing = run(["icacls", str(path)])
-    for principal in _icacls_grantee_names(listing.stdout, path):
-        if principal.lower() == user.lower():
-            continue
+    principals = _icacls_grantee_names(listing.stdout, path)
+    keep = [p for p in principals if _icacls_principal_is_self(p, user)]
+    remove = [p for p in principals if not _icacls_principal_is_self(p, user)]
+    if not keep:
+        raise LabException(
+            LabError(
+                code="PERM_WALLET_ACL_FAILED",
+                message=(
+                    f"Could not restrict permissions on {path.name} "
+                    "(Windows ACL lockdown)."
+                ),
+                hint=(
+                    "After granting the current user, icacls did not list "
+                    "that user as a remaining grantee. Refusing to strip "
+                    "the ACL to empty (self-lockout). Check USERDOMAIN / "
+                    "COMPUTERNAME / USERNAME and retry."
+                ),
+                cause=(
+                    f"no self principal matching {user!r} in icacls listing; "
+                    f"grantees={principals!r}"
+                ),
+            )
+        )
+    # keep is non-empty, so stripping *remove leaves the self ACE(s).
+    for principal in remove:
         run(["icacls", str(path), "/remove:g", principal])
 
 
