@@ -53,7 +53,8 @@ restore the fix. Real output (`--tb=line`), all 4 failing as predicted:
     AssertionError: startRun(...) invoked outside an explicit click handler:
     "      setTimeout(() => startRun(autoDryRun === 'true'), 300);". [...]
 
-    AssertionError: modules/[id].astro still builds a `.../run/${esc(mod.id)}/?dry_run=...` link. [...]
+    AssertionError: modules/[id].astro still builds a
+      `.../run/${esc(mod.id)}/?dry_run=...` link. [...]
       assert <re.Match object; span=(5485, 5513), match='run/${esc(mod.id)}/?dry_run='> is None
 
     4 failed in 0.02s
@@ -146,7 +147,8 @@ class TestRunPageNeverAutoStarts:
 
         # The precise original shape must never reappear anywhere in the
         # (comment-stripped) script.
-        assert re.search(r"setTimeout\s*\(\s*\(\)\s*=>\s*startRun", "\n".join(code_lines)) is None, (
+        script = "\n".join(code_lines)
+        assert re.search(r"setTimeout\s*\(\s*\(\)\s*=>\s*startRun", script) is None, (
             "found a setTimeout(...) wrapping a startRun(...) call — this is "
             "the literal F-d1deca46 auto-start pattern."
         )

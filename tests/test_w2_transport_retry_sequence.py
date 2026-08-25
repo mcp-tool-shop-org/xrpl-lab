@@ -45,10 +45,7 @@ failure this was verified to produce against the unfixed tree.
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-
 import pytest
-
 from xrpl.models.requests import AccountInfo
 
 from xrpl_lab.transport import xrpl_testnet as mod

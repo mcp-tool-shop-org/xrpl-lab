@@ -40,7 +40,6 @@ from rich.console import Console
 
 import xrpl_lab.handlers  # noqa: F401 -- import registers actions as a side effect
 from xrpl_lab.actions import wallet as wallet_mod
-from xrpl_lab.errors import LabException
 from xrpl_lab.modules import parse_module
 from xrpl_lab.runner import run_module
 from xrpl_lab.state import LabState, save_state
