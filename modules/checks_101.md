@@ -15,7 +15,7 @@ produces:
   - report
 checks:
   - "Check written (CheckCreate, SendMax authorizes up to the reward amount, txid + CheckID produced)"
-  - "Funds NOT locked at CheckCreate — the writer's spendable balance is unchanged (contrast Escrow)"
+  - "Reserve delta observed after CheckCreate — contrast with Escrow's locking behavior (funds not reserved beyond the Check object)"
   - "Player cashed the Check for the exact amount (CheckCash Amount, tesSUCCESS)"
   - "Credited from delivered_amount — never the Check's own Amount/SendMax fields"
   - "A second Check written and later cancelled (CheckCancel, reserve freed, nothing refunded)"

@@ -14,10 +14,10 @@ produces:
   - report
 checks:
   - "Baseline snapshot captured (A)"
-  - "Owner count increased after creating objects (B)"
+  - "Owner count increase observed after creating objects (B)"
   - "Offer cancelled successfully"
   - "Trust line removed (limit 0, balance 0)"
-  - "Owner count returned to baseline (C)"
+  - "Owner count return to baseline observed (C)"
 ---
 
 You learned in Reserves 101 that owned objects lock reserve XRP.

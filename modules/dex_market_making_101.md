@@ -18,7 +18,7 @@ checks:
   - "Ask offer placed on DEX"
   - "Both offers verified active"
   - "Both offers cancelled"
-  - "Owner count returned to baseline"
+  - "Owner count return to baseline observed"
 ---
 
 You've already built and torn down DEX offers in DEX Literacy. Now you
