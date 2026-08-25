@@ -1152,6 +1152,80 @@ def audit(txids_path: str, expect_path: str | None, csv_path: str | None,
         raise SystemExit(3)
 
 
+# ---------------------------------------------------------------------------
+# Audit pack verify (F-54b8db18 / F-ad988398)
+# ---------------------------------------------------------------------------
+# ``xrpl-lab audit`` already seals packs via write_audit_pack, and
+# verify_audit_pack exists in audit.py, but until this command there was no
+# product entry point — proof/cert families already close the trust loop.
+# Hash-only (no --live tx claims): audit packs are batch verdict seals, not
+# per-txid curriculum proofs.
+
+
+@main.command("audit-verify")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+def audit_verify(file: str, json_output: bool):
+    """Verify an audit pack's integrity_sha256 (tamper-evidence)."""
+    from .audit import verify_audit_pack
+
+    path = Path(file)
+    try:
+        pack = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError) as e:
+        if json_output:
+            print(json.dumps({"valid": False, "message": f"Invalid JSON: {e}"}))
+        else:
+            console.print(f"[red]Invalid JSON: {e}[/]")
+        sys.exit(1)
+
+    valid, message = verify_audit_pack(pack)
+
+    # Provenance banner parity with proof/cert verify + audit console.
+    simulated = bool(pack.get("dry_run")) or str(
+        pack.get("network", "")
+    ).lower() in ("dry-run", "dry_run", "mixed")
+
+    if json_output:
+        print(json.dumps({
+            "valid": valid,
+            "file": str(path),
+            "version": pack.get("version", ""),
+            "network": pack.get("network", ""),
+            "dry_run": bool(pack.get("dry_run", False)),
+            "simulated": simulated,
+            "summary": pack.get("summary", {}),
+            "integrity_sha256": pack.get("integrity_sha256", ""),
+            "message": message,
+        }, indent=2))
+    else:
+        if valid:
+            console.print("\n  [green]✅ PASS[/] — Audit pack integrity verified.\n")
+        else:
+            console.print(f"\n  [red]❌ FAIL[/] — {message}\n")
+
+        if simulated:
+            console.print(
+                "  [yellow]⚠ SIMULATED — this audit pack was generated in "
+                "--dry-run mode. A passing integrity check proves the file "
+                "is intact, NOT that anything was checked on the XRPL.[/]\n"
+            )
+
+        summary = pack.get("summary") or {}
+        console.print(f"  [bold]File:[/]         {path}")
+        console.print(f"  [bold]Version:[/]      {pack.get('version', '?')}")
+        console.print(f"  [bold]Network:[/]      {pack.get('network', '?')}")
+        console.print(f"  [bold]Checked:[/]      {summary.get('total', '?')}")
+        passed = summary.get("passed", "?")
+        failed = summary.get("failed", "?")
+        console.print(f"  [bold]Pass/Fail:[/]    {passed}/{failed}")
+        console.print(f"  [bold]SHA-256:[/]      {pack.get('integrity_sha256', 'none')}")
+        console.print()
+
+    if not valid:
+        sys.exit(1)
+
+
 @main.command("last-run")
 def last_run():
     """Show last module run info and the audit command to verify it."""
@@ -1413,6 +1487,14 @@ def cohort_status(cohort_dir: str, fmt: str):
         # Current module + blockers via workshop helper
         from .workshop import get_learner_status
         ls = get_learner_status(state)
+        # Artifact flags: get_learner_status uses the *current* workspace dir,
+        # which is wrong for per-learner cohort rows. Check the learner's own
+        # .xrpl-lab (same filenames status uses) so the roster is honest.
+        learner_ws = state_file.parent
+        has_proof_pack = (learner_ws / "proofs" / "xrpl_lab_proof_pack.json").exists()
+        has_certificate = (
+            learner_ws / "proofs" / "xrpl_lab_certificate.json"
+        ).exists()
         rows.append({
             "learner_id": learner_id,
             "wallet_address": state.wallet_address,
@@ -1422,6 +1504,12 @@ def cohort_status(cohort_dir: str, fmt: str):
             "current_module": ls.current_module,
             "blockers": ls.blockers,
             "last_activity": last_activity_iso,
+            # F-edd0c1d8 / F-a8c31e02: silence-green without all_verified —
+            # reuse LearnerStatus fields status already prints.
+            "all_verified": ls.all_verified,
+            "unverified_modules": list(ls.unverified_modules),
+            "has_proof_pack": has_proof_pack,
+            "has_certificate": has_certificate,
         })
 
     # Sort by learner-id alphabetically (deterministic)
@@ -1452,10 +1540,13 @@ def cohort_status(cohort_dir: str, fmt: str):
         fieldnames = [
             "learner_id", "wallet_address", "network", "completed_count",
             "total_modules", "current_module", "blockers", "last_activity",
+            "all_verified", "unverified_modules", "unverified_count",
+            "has_proof_pack", "has_certificate",
         ]
         writer = _csv.DictWriter(sys.stdout, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         for row in rows:
+            unverified = row.get("unverified_modules") or []
             writer.writerow({
                 "learner_id": row["learner_id"],
                 "wallet_address": row["wallet_address"] or "",
@@ -1465,6 +1556,11 @@ def cohort_status(cohort_dir: str, fmt: str):
                 "current_module": row["current_module"] or "",
                 "blockers": "; ".join(row["blockers"]) if row["blockers"] else "",
                 "last_activity": row["last_activity"] or "",
+                "all_verified": "true" if row.get("all_verified") else "false",
+                "unverified_modules": "; ".join(unverified),
+                "unverified_count": len(unverified),
+                "has_proof_pack": "true" if row.get("has_proof_pack") else "false",
+                "has_certificate": "true" if row.get("has_certificate") else "false",
             })
         for lid, err in warnings:
             print(f"warning: {lid}: {err}", file=sys.stderr)
@@ -1478,6 +1574,8 @@ def cohort_status(cohort_dir: str, fmt: str):
     table.add_column("Learner", style="bold")
     table.add_column("Progress")
     table.add_column("Current")
+    table.add_column("Verified")
+    table.add_column("Artifacts")
     table.add_column("Blockers")
     table.add_column("Last activity", style="dim")
 
@@ -1486,11 +1584,24 @@ def cohort_status(cohort_dir: str, fmt: str):
         current = row["current_module"] or "(complete)"
         blockers = "; ".join(row["blockers"]) if row["blockers"] else "-"
         last = row["last_activity"] or "-"
-        table.add_row(row["learner_id"], progress, current, blockers, last)
+        if row.get("all_verified", True):
+            verified_cell = "[green]✓ all verified[/]"
+        else:
+            n = len(row.get("unverified_modules") or [])
+            verified_cell = f"[yellow]⚠ {n} UNVERIFIED[/]"
+        arts = []
+        arts.append("proof" if row.get("has_proof_pack") else "no-proof")
+        arts.append("cert" if row.get("has_certificate") else "no-cert")
+        table.add_row(
+            row["learner_id"], progress, current, verified_cell,
+            " | ".join(arts), blockers, last,
+        )
 
     for lid, err in warnings:
         table.add_row(
             f"[yellow]{lid}[/]",
+            "[yellow]?[/]",
+            "[yellow]?[/]",
             "[yellow]?[/]",
             "[yellow]?[/]",
             f"[yellow]warning: {err[:60]}[/]",
