@@ -239,16 +239,18 @@ class TestCheckCashReserveFloor:
         t = DryRunTransport()
         writer = _DRY_RUN_WALLET_ADDRESS
         await t.fund_from_faucet(writer)
-        # 0.2 XRP of headroom — smaller than the 0.5 XRP check being cashed.
-        t._balances[writer] = _BASE_RESERVE_DROPS + 200_000
+        # Create while fully funded (F-17e7f723: CheckCreate needs owner-inc
+        # headroom), THEN clamp — 0.2 XRP headroom is smaller than the 0.5 XRP
+        # cash and must decline.
         create = await t.submit_check_create("sSEED", "rPLAYER", "10")
         assert create.success, create.error
+        t._balances[writer] = _BASE_RESERVE_DROPS + 200_000
         cash = await t.submit_check_cash(
             "sSEED", create.check_id, amount="0.5", wallet_address="rPLAYER",
         )
         _assert_declined(cash, "submit_check_cash")
-        # Declined cash must not move funds; create already charged its fee.
-        assert t._balances[writer] == _BASE_RESERVE_DROPS + 200_000 - _DRY_FEE_DROPS
+        # Declined cash must not move funds; clamp is post-create.
+        assert t._balances[writer] == _BASE_RESERVE_DROPS + 200_000
 
 
 # ── One representative "needs a pre-existing object" test per remaining
