@@ -1121,18 +1121,46 @@ def _collect_learner_artifacts(learner_dir: Path) -> list[tuple[Path, str]]:
     1. symlinks are never collected (``is_symlink`` before ``is_file``);
     2. exclusions match case-insensitive name PREFIXES (wallet.json*, ...);
     3. realpath containment — the resolved path must remain inside the
-       learner's own workspace, so a file reached through a symlinked
-       directory (or any other traversal) is dropped even when gate 1
-       cannot see a link on the final component.
+       learner's own SUBMISSION DIRECTORY, so a file reached through a
+       symlinked directory (or any other traversal) is dropped even when
+       gate 1 cannot see a link on the final component.
+
+    F-e0127180 — gate 3 previously computed its containment root from
+    ``workspace.resolve()`` (``workspace = learner_dir / ".xrpl-lab"``)
+    AFTER ``.is_dir()``/``.resolve()`` had already transparently followed a
+    symlink planted AT that position (``workspace.is_symlink()`` was never
+    checked). A submitted ``<learner>/.xrpl-lab`` that is itself a
+    DIRECTORY symlink to an arbitrary path made ``workspace_root`` become
+    the attacker-chosen TARGET, so gate 3 became tautological — everything
+    under ``<target>/{proofs,reports,audit_packs,certificates}`` "contained
+    itself" trivially. Fixed by two independent changes:
+
+    * the containment root is ``learner_dir.resolve()`` — the SUBMISSION
+      directory, which the caller controls and which cannot itself be
+      relocated by anything planted one level down at ``.xrpl-lab``;
+    * ``.xrpl-lab`` and every ``SESSION_EXPORT_INCLUDE_DIRS`` entry are
+      each checked with ``is_symlink()`` and SKIPPED (not followed, and not
+      matched by name) before ``.is_dir()``/``.rglob()`` ever touches them
+      — mirroring gate 1's existing per-file symlink check one level up.
     """
+    if learner_dir.is_symlink():
+        return []
     learner_id = learner_dir.name
+    learner_root = learner_dir.resolve()
     workspace = learner_dir / ".xrpl-lab"
+    # F-e0127180: reject a symlinked workspace BEFORE .is_dir() (which
+    # follows symlinks) can treat the attacker-chosen target as legitimate.
+    if workspace.is_symlink():
+        return []
     if not workspace.is_dir():
         return []
-    workspace_root = workspace.resolve()
     items: list[tuple[Path, str]] = []
     for subdir_name in SESSION_EXPORT_INCLUDE_DIRS:
         subdir = workspace / subdir_name
+        # F-e0127180: same reasoning as the workspace check above, applied
+        # to each shareable subdirectory individually.
+        if subdir.is_symlink():
+            continue
         if not subdir.is_dir():
             continue
         for file_path in sorted(subdir.rglob("*")):
@@ -1147,12 +1175,14 @@ def _collect_learner_artifacts(learner_dir: Path) -> list[tuple[Path, str]]:
             if file_path.name.lower().startswith(SESSION_EXPORT_EXCLUDE_FILES):
                 continue
             # Gate 3: realpath containment — the file's resolved location
-            # must stay inside THIS learner's workspace.
+            # must stay inside THIS learner's submission directory (NOT
+            # workspace.resolve() — see F-e0127180 above, that root can be
+            # relocated by a symlinked .xrpl-lab).
             try:
                 resolved = file_path.resolve(strict=True)
             except OSError:
                 continue
-            if not resolved.is_relative_to(workspace_root):
+            if not resolved.is_relative_to(learner_root):
                 continue
             rel = file_path.relative_to(workspace)
             archive_rel = f"{learner_id}/{rel.as_posix()}"
@@ -1237,6 +1267,13 @@ def write_session_export(
     # containing a .xrpl-lab/ workspace.
     learner_artifacts: dict[str, list[tuple[Path, str]]] = {}
     for sub in sorted(cohort_dir.iterdir()):
+        # F-e0127180: a symlinked LEARNER directory follows the same root
+        # cause as a symlinked .xrpl-lab — sub.is_dir() below would follow
+        # it transparently. _collect_learner_artifacts() independently
+        # rejects a symlinked learner_dir too, but skip it here so it is
+        # never even treated as a candidate learner.
+        if sub.is_symlink():
+            continue
         if not sub.is_dir():
             continue
         if not (sub / ".xrpl-lab").is_dir():
