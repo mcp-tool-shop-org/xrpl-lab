@@ -114,9 +114,19 @@ const { id } = Astro.params;
     const container = document.getElementById('run-page');
     const moduleId = container?.dataset.moduleId || '';
 
-    // Check URL params for auto-start
-    const urlParams = new URLSearchParams(window.location.search);
-    const autoDryRun = urlParams.get('dry_run');
+    // F-d1deca46: this page used to read `?dry_run=` off the URL and
+    // auto-start a run 300ms after load via setTimeout — and the boolean
+    // parse (`autoDryRun === 'true'`) failed OPEN to LIVE: any value other
+    // than the exact string 'true' (including 'false', '', or a typo) ran
+    // live. The module page's own PRIMARY "Run Module" CTA built exactly
+    // that URL (?dry_run=false), so clicking it — or reloading, sharing, or
+    // restoring the run page from history — silently fired a live run with
+    // zero clicks. Per contract: "a run begins because a human clicked —
+    // never because a URL was opened, reloaded, restored from history, or
+    // shared." There is now NO code path that reads window.location.search
+    // to start a run — btnRun/btnDry's click handlers below are the only
+    // way startRun() is ever invoked. Do not reintroduce URL-driven
+    // auto-start, gated or not.
 
     // State
     let ws: WebSocket | null = null;
@@ -691,7 +701,9 @@ const { id } = Astro.params;
       }
     }
 
-    // Wire buttons
+    // Wire buttons. F-d1deca46: these two click handlers are the ONLY way
+    // startRun() is ever called — see the note near urlParams' old home,
+    // above loadModuleInfo(), for why there is deliberately no other path.
     btnRun.addEventListener('click', () => startRun(false));
     btnDry.addEventListener('click', () => startRun(true));
 
@@ -712,11 +724,6 @@ const { id } = Astro.params;
 
     // Init
     loadModuleInfo();
-
-    // Auto-start if navigated with ?dry_run param
-    if (autoDryRun !== null) {
-      setTimeout(() => startRun(autoDryRun === 'true'), 300);
-    }
   </script>
 
 </DashboardLayout>
