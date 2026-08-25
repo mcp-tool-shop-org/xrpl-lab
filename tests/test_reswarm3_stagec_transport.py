@@ -335,9 +335,15 @@ async def test_submit_payment_non_timeout_retry_logs_duplicate_warning(caplog):
         async def __aexit__(self, *a):
             return False
 
+    async def _fake_next_seq(account, client, *a, **k):
+        # F-5eb1025c: unpin = no retry — pin must succeed for the
+        # post-broadcast retry (and its duplicate-risk warning) to run.
+        return 5_010_042
+
     with caplog.at_level(logging.WARNING, logger="xrpl_lab.transport.xrpl_testnet"), \
         patch.object(mod, "submit_and_wait", side_effect=fake_submit_and_wait), \
         patch.object(mod, "_rpc_client", lambda url: _Client()), \
+        patch.object(mod, "get_next_valid_seq_number", side_effect=_fake_next_seq), \
         patch.object(mod.asyncio, "sleep", new=AsyncMock()):
         res = await t.submit_payment(
             "sEdSFf3wT37Ygoa34RrJgNfbD7qe4MH", "rDEST", "10"

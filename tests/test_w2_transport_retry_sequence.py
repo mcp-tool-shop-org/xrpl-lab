@@ -231,21 +231,19 @@ async def test_submit_offer_create_pins_sequence_across_nontimeout_retry(
 
 
 @pytest.mark.asyncio
-async def test_pin_sequence_falls_back_silently_when_lookup_unavailable(
+async def test_pin_sequence_prefetch_failure_logs_warning(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """``_pin_sequence`` degrades to a no-op, not an exception, when the
-    account-info lookup can't be served (e.g. every other test's fully
-    network-mocked fixture, which fakes only the higher-level
-    ``client.request()`` convenience method rather than ``_request_impl``).
+    """F-5eb1025c: pin-lookup failure must be visible at WARNING (TXBCD-003).
 
-    This is what keeps the fix's blast radius at zero on the ~15 pre-existing
-    submit_and_wait-mocking tests across test_transport.py /
-    test_reswarm3_transport.py / test_reswarm3_stagec_transport.py /
-    test_reswarm4_transport.py: none of those fakes implement
-    ``_request_impl``, so the lookup raises AttributeError internally, which
-    ``_pin_sequence`` swallows and returns the tx UNCHANGED.
+    Previously this test asserted the *unsafe* contract — silent DEBUG + return
+    the unpinned tx unchanged — which re-opened F-ad982e08 on every subsequent
+    retry. Failure must now log at WARNING so a facilitator sees that
+    duplicate-submission protection degraded for this attempt.
     """
+    import logging
+
     from xrpl.models.transactions import Payment
     from xrpl.utils import xrp_to_drops
 
@@ -265,10 +263,23 @@ async def test_pin_sequence_falls_back_silently_when_lookup_unavailable(
     )
     assert tx.sequence is None
 
-    pinned = await mod._pin_sequence("https://example.invalid", tx, "Payment")
+    with caplog.at_level(logging.DEBUG, logger=mod.logger.name):
+        pinned = await mod._pin_sequence("https://example.invalid", tx, "Payment")
 
     assert pinned.sequence is None
     assert pinned is tx
+    warnings = [
+        r for r in caplog.records
+        if r.name == mod.logger.name and r.levelno >= logging.WARNING
+    ]
+    assert warnings, (
+        "pin-sequence prefetch failure must log at WARNING (not silent DEBUG); "
+        f"got levels={[r.levelname for r in caplog.records if r.name == mod.logger.name]}"
+    )
+    assert any("sequence pre-fetch failed" in r.getMessage().lower()
+               or "pre-fetch" in r.getMessage().lower()
+               or "prefetch" in r.getMessage().lower()
+               for r in warnings)
 
 
 @pytest.mark.asyncio
