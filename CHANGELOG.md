@@ -1,4 +1,29 @@
 # Changelog
+## Unreleased — fifth dogfood re-swarm, Stage A reopening
+
+Stage B audit found six Stage A residuals still sitting on `main`. Four-domain
+reopen (`actions` · `handlers` · `transport` · `api-cli`). Same red-first gate.
+Not a version cut.
+
+- **Windows `icacls` self-lockout when `USERDOMAIN` is unset (CRITICAL).** Grant
+  used the bare `USERNAME`; listing returns `DOMAIN\user`; `/remove:g` stripped
+  the only ACE and raised nothing. Compare on the qualified name icacls echoes;
+  never strip the last grantee — raise `PERM_WALLET_ACL_FAILED`.
+- **`create_issuer_wallet` always minted (CRITICAL).** Resume/re-run overwrote
+  `.xrpl-lab/issuer_wallet.json`, orphaned the learner's trust line, locked
+  reserve XRP (13/32 modules). Load-and-reuse if the file exists.
+- **`FundResult.message` still dumped a credentialed faucet URL at ~10 CLI
+  sites (HIGH).** Stage A had closed WS/runtime only. Every `fund_from_faucet`
+  print now goes through `sanitize_endpoint`.
+- **`_pin_sequence` silent revert (HIGH).** Exception path logged at debug and
+  returned the unpinned tx — F-ad982e08 restored. Unpin = no retry; warning
+  matches TXBCD-003. Tested the failure path, not only the happy pin.
+- **WS redactor covered 1 of 3 credential shapes (HIGH).** Path tokens and
+  query keys leaked; the test was userinfo-only. All three shapes now locate
+  and hand to `sanitize_endpoint`.
+- **`wallet_create` `save_state` unwrapped (HIGH).** Same miss as the CLI wrap
+  inside the function `88c0a4e` just patched.
+
 ## Unreleased — fifth dogfood re-swarm, Stage A
 
 Landed on `main`, **not released** — `package.json` and `pyproject.toml` stay at 2.4.0,
