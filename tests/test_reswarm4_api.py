@@ -511,24 +511,45 @@ class TestDryRunSubstringFalsePositive:
             "an explicit ?dry_run=false must override a True app-level default"
         )
 
-    def test_dash_spelled_key_is_checked_as_exact_key_not_substring(
+    def test_dash_spelled_key_is_treated_as_dry_run_alias(
         self, client_with_module: TestClient
     ) -> None:
-        # The dash-spelled key ("dry-run") is also checked as an EXACT key
-        # (not a substring) — presence of this key must still skip the
-        # app.state fallback. The FastAPI function parameter is literally
-        # named `dry_run` (underscore), so "dry-run=true" does NOT bind to
-        # it — the parameter keeps its own literal default (False). This
-        # test only pins that the app.state fallback is correctly skipped
-        # (not that the dash-key does anything else).
-        resp = client_with_module.post("/api/run/receipt_literacy?dry-run=true")
+        # F-ab18b053 (wave-2 AMEND): this test used to assert the BROKEN
+        # terminal behaviour. The FastAPI route parameter is literally
+        # named `dry_run` (underscore, no Query alias) — ONLY that exact
+        # key ever binds to it. The OLD code treated mere PRESENCE of the
+        # unbound "dry-run" (hyphen) key as proof the caller "explicitly
+        # specified a value" and used THAT to skip the app.state.dry_run
+        # fallback — but the key's VALUE never reached anywhere, so its
+        # presence could only ever produce a FALSE "explicit" signal. Net
+        # effect: an operator-configured True --dry-run safety default was
+        # silently defeated by a caller who spelled the flag the same way
+        # the CLI does (--dry-run) — reopening the exact hole F-9936b28c
+        # fixed, via key-spelling instead of substring-matching.
+        #
+        # Fixed: the hyphen key is now read explicitly and folded in as an
+        # alias of `dry_run` (or the request is rejected with 400) — see
+        # tests/test_w2_api_cli_dry_run.py for the full regression suite,
+        # including the dangerous True-default-defeated case this test
+        # used to get wrong.
+        from xrpl_lab.api import runner_ws
+
+        app = create_app(dry_run=True)
+        true_default_client = TestClient(app)
+
+        resp = true_default_client.post("/api/run/receipt_literacy?dry-run=true")
+
+        if resp.status_code == 400:
+            return  # fail-closed via rejection also satisfies the contract
         assert resp.status_code == 200
         run_id = resp.json()["run_id"]
 
-        from xrpl_lab.api import runner_ws
-
         session = runner_ws._sessions[run_id]
-        assert session.dry_run is False
+        assert session.dry_run is True, (
+            "?dry-run=true (hyphen) must not silently produce a LIVE run "
+            "when the app-level --dry-run safety default is True — either "
+            "honour it as a dry_run alias, or reject the request outright"
+        )
 
 
 # ── F-67805cb0 — concurrent WS clients on the same run_id ─────────────
