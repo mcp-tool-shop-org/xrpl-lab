@@ -135,12 +135,12 @@ from .actions.trust_line import (
     verify_trust_line_removed,
 )
 from .actions.verify import verify_tx
-from .actions.wallet import create_wallet, save_wallet
+from .actions.wallet import create_wallet, load_wallet, save_wallet
 from .audit import run_audit, write_audit_pack, write_audit_report_md
 from .errors import LabError, LabException
 from .modules import ModuleStep
 from .registry import ActionDef, PayloadField, register
-from .runtime import _SecretValue, ensure_funded, ensure_wallet
+from .runtime import _sanitize_endpoint_urls, _SecretValue, ensure_funded, ensure_wallet
 from .state import LabState, ensure_workspace, save_state
 from .transport.base import Transport
 
@@ -403,9 +403,22 @@ async def handle_create_issuer_wallet(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
+    issuer_path = Path(".xrpl-lab") / "issuer_wallet.json"
+    # F-c49d009d: resume/re-run must NOT mint a second issuer. A new
+    # address orphans the learner's existing trust line (and its
+    # owner-reserve) against the previous issuer. Load-and-reuse when
+    # the file is already present.
+    existing = load_wallet(issuer_path)
+    if existing is not None:
+        console.print(
+            f"  Reusing existing issuer wallet: [cyan]{existing.address}[/]"
+        )
+        context["issuer_seed"] = _SecretValue(existing.seed)
+        context["issuer_address"] = existing.address
+        return context
+
     console.print("  Creating issuer wallet...")
     issuer = create_wallet()
-    issuer_path = Path(".xrpl-lab") / "issuer_wallet.json"
     # DD-1: this is a workspace-rooted seed file. save_wallet() will
     # call _ensure_secure_parent which tightens the parent to 0o700 —
     # that's intentional because the issuer wallet IS a secret, even
@@ -446,7 +459,9 @@ async def handle_fund_issuer(
         console.print(f"  [yellow]{err.message}[/]")
         console.print(f"  [dim]{err.hint}[/]")
     else:
-        console.print(f"  [red]Funding failed: {result.message}[/]")
+        console.print(
+            f"  [red]Funding failed: {_sanitize_endpoint_urls(result.message)}[/]"
+        )
         console.print("  You can retry by re-running this module.")
     return context
 
@@ -924,7 +939,9 @@ async def handle_create_channel_receiver(
         err = faucet_rate_limited()
         console.print(f"  [yellow]{err.message}[/]")
     else:
-        console.print(f"  [yellow]Receiver funding: {result.message}[/]")
+        console.print(
+            f"  [yellow]Receiver funding: {_sanitize_endpoint_urls(result.message)}[/]"
+        )
     return context
 
 
@@ -3077,7 +3094,9 @@ async def handle_create_token_recipient(
         err = faucet_rate_limited()
         console.print(f"  [yellow]{err.message}[/]")
     else:
-        console.print(f"  [yellow]Recipient funding: {fund.message}[/]")
+        console.print(
+            f"  [yellow]Recipient funding: {_sanitize_endpoint_urls(fund.message)}[/]"
+        )
 
     console.print(f"  Recipient trusting the issuer for [cyan]{currency}[/]...")
     ts = await set_trust_line(
@@ -3982,7 +4001,9 @@ async def handle_create_subject_wallet(
         console.print(f"  [yellow]{err.message}[/]")
         console.print(f"  [dim]{err.hint}[/]")
     else:
-        console.print(f"  [yellow]Subject funding: {result.message}[/]")
+        console.print(
+            f"  [yellow]Subject funding: {_sanitize_endpoint_urls(result.message)}[/]"
+        )
     return context
 
 
@@ -4380,7 +4401,9 @@ async def handle_create_uncredentialed_wallet(
         console.print(f"  [yellow]{err.message}[/]")
         console.print(f"  [dim]{err.hint}[/]")
     else:
-        console.print(f"  [yellow]Outsider funding: {result.message}[/]")
+        console.print(
+            f"  [yellow]Outsider funding: {_sanitize_endpoint_urls(result.message)}[/]"
+        )
     return context
 
 
@@ -4707,7 +4730,9 @@ async def handle_create_sender_wallet(
         console.print(f"  [yellow]{err.message}[/]")
         console.print(f"  [dim]{err.hint}[/]")
     else:
-        console.print(f"  [yellow]Sender funding: {result.message}[/]")
+        console.print(
+            f"  [yellow]Sender funding: {_sanitize_endpoint_urls(result.message)}[/]"
+        )
     return context
 
 
@@ -5420,7 +5445,9 @@ async def handle_create_player_wallet(
         err = faucet_rate_limited()
         console.print(f"  [yellow]{err.message}[/]")
     else:
-        console.print(f"  [yellow]Player funding: {fund.message}[/]")
+        console.print(
+            f"  [yellow]Player funding: {_sanitize_endpoint_urls(fund.message)}[/]"
+        )
     return context
 
 
@@ -5936,7 +5963,9 @@ async def handle_create_buyer_wallet(
         err = faucet_rate_limited()
         console.print(f"  [yellow]{err.message}[/]")
     else:
-        console.print(f"  [yellow]Buyer funding note: {fund.message}[/]")
+        console.print(
+            f"  [yellow]Buyer funding note: {_sanitize_endpoint_urls(fund.message)}[/]"
+        )
     context["buyer_seed"] = _SecretValue(buyer.seed)
     context["buyer_address"] = buyer.address
     return context
@@ -6360,7 +6389,9 @@ async def handle_create_recipient_wallet(
         console.print(f"  [yellow]{err.message}[/]")
         console.print(f"  [dim]{err.hint}[/]")
     else:
-        console.print(f"  [yellow]Player funding: {result.message}[/]")
+        console.print(
+            f"  [yellow]Player funding: {_sanitize_endpoint_urls(result.message)}[/]"
+        )
     return context
 
 
@@ -6524,7 +6555,9 @@ async def handle_create_outsider_wallet(
         err = faucet_rate_limited()
         console.print(f"  [yellow]{err.message}[/]")
     else:
-        console.print(f"  [yellow]Outsider funding: {result.message}[/]")
+        console.print(
+            f"  [yellow]Outsider funding: {_sanitize_endpoint_urls(result.message)}[/]"
+        )
     return context
 
 
