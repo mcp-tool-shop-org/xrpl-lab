@@ -105,9 +105,19 @@ const { id } = Astro.params;
 
       ${prereqsHTML}
 
+      <!-- F-d1deca46: this used to be two links, "Run Module" (?dry_run=false)
+           and "Run in Dry Mode" (?dry_run=true) — a query-param contract the
+           run page's auto-start read to fire a run 300ms after load with no
+           confirmation, and which failed OPEN to LIVE for any non-'true'
+           value. The run page no longer reads that query string at all (see
+           run/[id].astro): the Run/Dry Run choice is made there, explicitly,
+           by clicking one of its own two buttons. So there is now a single
+           CTA here that just navigates to the run screen — it must not
+           construct a 'dry_run=' link of either value, since the
+           destination ignores it and a stale contract like that is exactly
+           what invites the auto-start behavior to come back. -->
       <div class="row section" style="gap:12px;flex-wrap:wrap">
-        <a class="btn btn--primary" href="/xrpl-lab/app/run/${esc(mod.id)}/?dry_run=false">${icons.play} Run Module</a>
-        <a class="btn" href="/xrpl-lab/app/run/${esc(mod.id)}/?dry_run=true">Run in Dry Mode</a>
+        <a class="btn btn--primary" href="/xrpl-lab/app/run/${esc(mod.id)}/">${icons.play} Run Module</a>
         ${mod.completed ? `<span class="row" style="gap:6px;margin-left:auto;color:var(--accent-bright);font-size:13.5px;font-weight:600">${healthIcon('pass')} Module completed</span>` : ''}
       </div>
       ${hasUnmetPrereq ? `<div class="row section" style="gap:8px;align-items:flex-start;color:var(--warn-bright);font-size:13px">${healthIcon('warn')}<span>Heads up: a prerequisite isn't complete yet — this module may fail partway. Finish the prerequisites above first, or run it in Dry Mode to practice the flow.</span></div>` : ''}`;
