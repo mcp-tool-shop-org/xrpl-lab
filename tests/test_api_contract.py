@@ -480,7 +480,9 @@ class TestApiContractSnapshots:
 
         Top-level: ``runs`` (list), ``max_concurrent`` (int), ``active_count`` (int).
         Each run dict: ``run_id``, ``module_id``, ``status``, ``created_at``,
-        ``elapsed_seconds``, ``queue_size``, ``dry_run``.
+        ``elapsed_seconds``, ``queue_size``, ``dry_run``, plus Stage C
+        SEED-C-run-state fields ``mode``, ``mode_banner``, ``connection``,
+        ``signals``.
 
         Schema must hold even when no runs are active (the empty-list case
         is the most common state for a fresh facilitator query).
@@ -526,6 +528,10 @@ class TestApiContractSnapshots:
                 "elapsed_seconds",
                 "queue_size",
                 "dry_run",
+                "mode",
+                "mode_banner",
+                "connection",
+                "signals",
             }
             for run in data2["runs"]:
                 assert set(run.keys()) == expected_run_keys, (

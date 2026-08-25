@@ -88,9 +88,14 @@ async def test_ensure_funded_does_not_leak_credential_bearing_faucet_url(
     buf = io.StringIO()
     console = Console(file=buf, no_color=True, markup=True, width=200)
 
-    ok = await ensure_funded(LabState(), StubTransport(), "rTestAddr", console)
+    # F-35d7a78c (wave 6): CONFIG_NON_TESTNET now raises LabException after
+    # one attempt (no 14s retry). Credential scrub must still hold on the
+    # printed path AND on the LabException.message that feeds _error_envelope.
+    from xrpl_lab.errors import LabException
 
-    assert ok is False
+    with pytest.raises(LabException) as excinfo:
+        await ensure_funded(LabState(), StubTransport(), "rTestAddr", console)
+
     printed = buf.getvalue()
     assert "hunter2" not in printed, (
         f"faucet basic-auth password leaked into console output:\n{printed}"
@@ -105,6 +110,10 @@ async def test_ensure_funded_does_not_leak_credential_bearing_faucet_url(
     assert "evil-mainnet.example.com" in printed, (
         f"sanitized output should still name the misconfigured host:\n{printed}"
     )
+    # Envelope path: exception message must also be scrubbed.
+    assert "hunter2" not in excinfo.value.error.message
+    assert "SUPERSECRETTOKEN" not in excinfo.value.error.message
+    assert excinfo.value.error.code == "CONFIG_NON_TESTNET"
 
 
 @pytest.mark.asyncio

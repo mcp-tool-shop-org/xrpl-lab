@@ -364,6 +364,54 @@ def _public_status(internal_status: str) -> str:
     return "running"
 
 
+# SEED-C-run-state: canonical learner-facing banners for the four run
+# signals the dashboard must be able to distinguish. api-cli owns the
+# strings; dashboard owns the pixels (data-state / live region / CSS).
+RUN_SIGNAL_BANNERS: dict[str, str] = {
+    "live": "LIVE — XRPL Testnet",
+    "dry-run": "DRY-RUN — offline sandbox (simulated)",
+    "stalled": (
+        "Connection stalled — the server isn't responding. Reload to reconnect."
+    ),
+    "reconnecting": "Reconnecting to run stream…",
+}
+
+
+def _run_mode(session: ModuleRunSession) -> str:
+    """Return ``dry-run`` or ``live`` for a session."""
+    return "dry-run" if session.dry_run else "live"
+
+
+def _connection_signal(session: ModuleRunSession) -> str:
+    """Server-visible connection signal: ``live`` while a WS is attached."""
+    return "live" if session.ws_attached else "detached"
+
+
+def _build_run_state_frame(session: ModuleRunSession) -> dict[str, Any]:
+    """WS frame that makes mode + connection + all four banners obvious."""
+    mode = _run_mode(session)
+    return {
+        "type": "run_state",
+        "mode": mode,
+        "mode_banner": RUN_SIGNAL_BANNERS[mode],
+        "connection": _connection_signal(session),
+        "status": _public_status(session.status),
+        "dry_run": session.dry_run,
+        "signals": dict(RUN_SIGNAL_BANNERS),
+    }
+
+
+def _build_ping_frame(session: ModuleRunSession) -> dict[str, Any]:
+    """Keepalive ping carrying mode so a quiet dry-run stays distinguishable."""
+    mode = _run_mode(session)
+    return {
+        "type": "ping",
+        "mode": mode,
+        "connection": "live",
+        "mode_banner": RUN_SIGNAL_BANNERS[mode],
+    }
+
+
 def _session_to_public_dict(session: ModuleRunSession) -> dict[str, Any]:
     """Project a ModuleRunSession to the safe-to-expose subset.
 
@@ -371,11 +419,16 @@ def _session_to_public_dict(session: ModuleRunSession) -> dict[str, Any]:
     and any internal flags — those require the WS connection (under the
     Origin allow-list) to read. Facilitators get enough to triage, not
     enough to leak step-level workshop state to a non-owner.
+
+    SEED-C-run-state: also exposes ``mode`` / ``mode_banner`` / ``connection``
+    / ``signals`` so a refresh can tell dry-run vs live (and has copy for
+    stalled/reconnecting) without inventing strings client-side.
     """
     started_iso = datetime.fromtimestamp(
         session.started_at_wall, tz=UTC
     ).isoformat()
     elapsed = max(0.0, time.monotonic() - session.created_at)
+    mode = _run_mode(session)
     return {
         "run_id": session.run_id,
         "module_id": session.module_id,
@@ -384,6 +437,10 @@ def _session_to_public_dict(session: ModuleRunSession) -> dict[str, Any]:
         "elapsed_seconds": round(elapsed, 3),
         "queue_size": session.queue.qsize(),
         "dry_run": session.dry_run,
+        "mode": mode,
+        "mode_banner": RUN_SIGNAL_BANNERS[mode],
+        "connection": _connection_signal(session),
+        "signals": dict(RUN_SIGNAL_BANNERS),
     }
 
 
@@ -1197,6 +1254,22 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
 
     await websocket.accept()
 
+    # SEED-C-run-state: first frame names dry-run vs live and ships the
+    # four canonical banners (incl. stalled/reconnecting copy) so the
+    # dashboard does not invent mode strings after a refresh/reconnect.
+    try:
+        await websocket.send_json(_build_run_state_frame(session))
+    except Exception:
+        logger.info(
+            "ws run_state send failed; closing stream: run_id=%s",
+            run_id,
+        )
+        session.ws_attached = False
+        with contextlib.suppress(Exception):
+            await websocket.close()
+        _schedule_session_cleanup(run_id)
+        return
+
     try:
         while True:
             try:
@@ -1204,7 +1277,7 @@ async def run_websocket(websocket: WebSocket, module_id: str, run_id: str) -> No
             except TimeoutError:
                 # Send a keepalive ping and continue waiting
                 try:
-                    await websocket.send_json({"type": "ping"})
+                    await websocket.send_json(_build_ping_frame(session))
                 except Exception:
                     # TXBCD-006: leave a server-side breadcrumb so a
                     # facilitator investigating a stuck dashboard can tell

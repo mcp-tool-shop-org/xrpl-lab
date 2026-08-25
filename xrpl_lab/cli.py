@@ -1857,6 +1857,18 @@ def fund(dry_run: bool):
         console.print(f"[yellow]{err.message}[/]")
         console.print(f"  [dim]{err.hint}[/]")
         raise SystemExit(LabException(err).exit_code)
+    # F-35d7a78c: CONFIG_NON_TESTNET is static env misconfig — name the
+    # XRPL_LAB_FAUCET_URL / XRPL_LAB_RPC_URL fix; do not pretend the faucet
+    # is merely busy.
+    if getattr(result, "code", "") == "CONFIG_NON_TESTNET":
+        from .runtime import _config_non_testnet_error, _sanitize_endpoint_urls
+
+        scrubbed = _sanitize_endpoint_urls(getattr(result, "message", "") or "")
+        err = _config_non_testnet_error(scrubbed)
+        console.print(f"[red]{err.code}:[/] {err.message}")
+        if err.hint:
+            console.print(f"  [yellow]Hint:[/] {err.hint}")
+        raise SystemExit(LabException(err).exit_code)
     # PC-003: a GENERIC (non-rate-limited) faucet failure must ALSO exit
     # non-zero — matching the rate-limited path above and the no-wallet guard.
     # Printing "Funding failed" then returning 0 let a cohort script's
