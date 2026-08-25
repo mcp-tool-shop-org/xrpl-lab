@@ -90,6 +90,14 @@ def _patch_no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(xt.asyncio, "sleep", _no_sleep)
 
+    # F-5eb1025c: unpin = no retry. Stub the Sequence prefetch so tests that
+    # exercise a legitimate retry path still get a pinned Sequence (the fake
+    # client has no ``_request_impl`` for the real AccountInfo lookup).
+    async def _fake_next_seq(account, client, *a, **k):
+        return 5_010_042
+
+    monkeypatch.setattr(xt, "get_next_valid_seq_number", _fake_next_seq)
+
 
 # A REAL captured rippled API-v2 tx response shape (tx fields under tx_json,
 # Payment Amount renamed DeliverMax, hash/ledger_index/meta/validated top-level).

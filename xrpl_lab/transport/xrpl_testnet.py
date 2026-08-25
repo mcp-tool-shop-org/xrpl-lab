@@ -485,19 +485,13 @@ async def _pin_sequence(rpc_url: str, tx, label: str):
     Fee/LastLedgerSequence window from submit_and_wait's normal autofill —
     only the Sequence is pinned.
 
-    Best-effort and silent on failure BY DESIGN: only a single-signer,
-    not-yet-signed, no-sequence-set *tx* is eligible (an already-signed
-    multisig combine has nothing to do here). If the lookup itself raises,
-    *tx* is returned UNCHANGED and every attempt falls back to
-    submit_and_wait's own per-attempt autofill — the exact pre-fix behavior.
-    This is deliberately not escalated to a hard failure: the finding's
-    actual exploit scenario is a failure DURING post-broadcast polling,
-    which implies the network was already reachable enough for this
-    read-only lookup to have succeeded moments earlier, so silently
-    degrading here is not expected to mask the real-world risk — and it
-    keeps this helper safe to call unconditionally (including against every
-    fully-mocked-network test in this suite, none of which implement the
-    low-level ``Client._request_impl`` this needs; they fall back cleanly).
+    Only a single-signer, not-yet-signed, no-sequence-set *tx* is eligible
+    (an already-signed multisig combine has nothing to do here). If the
+    lookup itself raises, *tx* is returned UNCHANGED and the failure is
+    logged at WARNING (F-5eb1025c / TXBCD-003 precedent): silent DEBUG made
+    the degraded path invisible, and returning unpinned while still entering
+    the retry loop restored F-ad982e08. Callers must treat an unpinned return
+    as **unpin = no retry** — see ``_submit_tx``.
     """
     if tx.is_signed() or tx.sequence is not None:
         return tx
@@ -508,10 +502,12 @@ async def _pin_sequence(rpc_url: str, tx, label: str):
                 timeout=RPC_TIMEOUT,
             )
     except Exception:
-        logger.debug(
-            "%s: sequence pre-fetch failed; a non-timeout retry (if any) "
-            "will fall back to autofilling a fresh Sequence per attempt "
-            "rather than reusing one pinned value",
+        # F-5eb1025c: promote from logger.debug (below default level) to
+        # WARNING, matching TXBCD-003 — a facilitator must see that
+        # duplicate-submission protection is unavailable for this attempt.
+        logger.warning(
+            "%s: sequence pre-fetch failed; refusing non-timeout retries "
+            "(duplicate-submission protection unavailable for this attempt)",
             label,
             exc_info=True,
         )
@@ -1477,13 +1473,15 @@ class XRPLTestnetTransport(Transport):
         to pull a created-object id out of the transaction metadata (e.g. the
         new MPTokenIssuanceID); the returned dict is splatted into SubmitResult.
 
-        F-ad982e08: *tx* has its Sequence pinned (best-effort, see
-        ``_pin_sequence``) ONCE here, before the retry loop, so a non-timeout
-        retry can never mint a fresh, independently-valid Sequence for what
-        might already be a landed transaction. See ``_pin_sequence`` for the
-        full mechanism and why this is safe to call unconditionally.
+        F-ad982e08: *tx* has its Sequence pinned (see ``_pin_sequence``) ONCE
+        here, before the retry loop, so a non-timeout retry can never mint a
+        fresh, independently-valid Sequence for what might already be a landed
+        transaction. F-5eb1025c: if the pin fails, *tx.sequence* stays None and
+        this helper refuses retries (unpin = no retry) rather than re-entering
+        the autofill-a-fresh-Sequence path that reopened the duplicate bug.
         """
         tx = await _pin_sequence(self._rpc_url, tx, label)
+        sequence_pinned = tx.sequence is not None
         last_error = ""
         for attempt in range(MAX_RETRIES + 1):
             try:
@@ -1527,6 +1525,14 @@ class XRPLTestnetTransport(Transport):
                     return failure
                 last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:
+                    if not sequence_pinned:
+                        # F-5eb1025c: unpin = no retry.
+                        logger.warning(
+                            "%s: not retrying — sequence was not pinned before "
+                            "submit (duplicate-submission protection unavailable)",
+                            label,
+                        )
+                        break
                     logger.info(
                         "Retry %d/%d after %ds",
                         attempt + 1, MAX_RETRIES, RETRY_DELAY,
@@ -1538,6 +1544,16 @@ class XRPLTestnetTransport(Transport):
                 if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
+                    if not sequence_pinned:
+                        # F-5eb1025c: unpin = no retry. A non-timeout retry
+                        # without a pinned Sequence would autofill a fresh one
+                        # and could land a second independent success.
+                        logger.warning(
+                            "%s: not retrying — sequence was not pinned before "
+                            "submit (duplicate-submission protection unavailable)",
+                            label,
+                        )
+                        break
                     # PT-004 (observability breadcrumb): a NON-TIMEOUT failure
                     # — if the first submission actually landed on-ledger
                     # before the error surfaced, this resubmit reuses the
