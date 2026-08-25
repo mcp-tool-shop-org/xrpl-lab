@@ -50,6 +50,8 @@ Let's trigger one now.
 
 ## Step 4: Read the error
 
+<!-- narrative-only -->
+
 Look at the result code above. Every XRPL result code has a prefix that tells
 you the category:
 
