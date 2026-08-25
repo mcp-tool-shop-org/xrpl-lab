@@ -1,4 +1,20 @@
 # Changelog
+## Unreleased — fifth dogfood re-swarm, Phase 7 wave 1
+
+Workshop + proof-loop. Not a version cut. Dashboard vitest (`F-cdf586bf`)
+waits for wave 2 after this lands + CI green.
+
+- **Issuer reuse is no longer silent.** Reuse prints a cleanup hint; 
+  `remove_trust_line` / `verify_trust_line_removed` take optional `issuer=`.
+  All 14 `create_issuer_wallet` modules say reuse/orphan and point at
+  account_hygiene (dex_literacy no longer says “re-creates”).
+- **`xrpl-lab audit-verify`** calls existing `verify_audit_pack` (non-zero
+  on mismatch). Support-bundle doctor icons distinguish `[WARN]` vs `[FAIL]`.
+  `cohort-status` exposes `all_verified`.
+- **Dry-run object-create reserve.** New ledger objects fold owner-increment
+  into `_reserve_guard` before create so mid-band accounts fail
+  `tecINSUFFICIENT_RESERVE` instead of false `tesSUCCESS`.
+
 ## Unreleased — fifth dogfood re-swarm, Stage C
 
 Humanization. Seven domains. Not a version cut. Dashboard JS runner HIGH
