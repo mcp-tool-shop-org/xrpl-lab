@@ -1,4 +1,22 @@
 # Changelog
+## Unreleased — fifth dogfood re-swarm, Stage C
+
+Humanization. Seven domains. Not a version cut. Dashboard JS runner HIGH
+(`F-cdf586bf`) stays open — deferred to the feature pass.
+
+- **Shipped modules wire `expected_*` on asserting verify_*.** Lessons that
+  claim a directional fact now pass `expected_owner_delta` /
+  `expected_direction` (and offer deltas where that is the lesson). Hedged
+  “may increase” sites stay observed-only, enumerated.
+- **Errors name the fix.** Faucet 429 prints `{code}: {message}` plus Hint.
+  CONFIG_NON_TESTNET no longer retries 14s — it names `XRPL_LAB_FAUCET_URL` /
+  `XRPL_LAB_RPC_URL` and stops. Recovery-save renders `STATE_LOCKED` instead
+  of a bare exception type.
+- **Run page: stalled, reconnect, dry-run vs live are visible.** Mode chip,
+  `aria-busy`, live-region stalled announce, reconnecting terminal state,
+  session restore without auto-start. LabException code/message/hint on WS
+  and HTTP start failures. API `RunInfo` carries `mode` / connection signals.
+
 ## Unreleased — fifth dogfood re-swarm, Stage B
 
 Proactive health. Seven domains. Not a version cut. Dashboard JS runner HIGH
