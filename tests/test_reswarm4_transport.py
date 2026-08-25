@@ -641,9 +641,9 @@ def _seed_line(t: DryRunTransport, address: str, balance: str, limit: str = "100
 class TestXrpConservation:
     @pytest.mark.asyncio
     async def test_escrow_create_debits_source_and_cancel_conserves(self) -> None:
-        """fund 1000 → escrow 100 locks it (spendable 900) → cancel returns it
-        (1000). The old sim left 1000 after create and MINTED to 1100 on
-        cancel."""
+        """fund 1000 → escrow 100 locks it (+fee) → cancel returns the lock
+        (−fee). Locked amount is conserved; each tx costs the network fee
+        (F-21a14172 — was a false zero-fee invariant)."""
         t = DryRunTransport()
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
 
@@ -651,13 +651,13 @@ class TestXrpConservation:
             "sSENDER", "100", "rESCROWDEST00000000000000000", finish_after=0
         )
         assert create.success
-        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 900_000_000
+        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 900_000_000 - 12
 
         seq = create.sequence
         cancel = await t.submit_escrow_cancel("sSENDER", _DRY_RUN_WALLET_ADDRESS, seq)
         assert cancel.success
-        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 1_000_000_000, (
-            "a create+cancel round trip must conserve XRP, not mint it"
+        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 1_000_000_000 - 24, (
+            "create+cancel returns the lock and charges two network fees"
         )
 
     @pytest.mark.asyncio
@@ -674,7 +674,7 @@ class TestXrpConservation:
         )
         assert fin.success
         total = t._balances[_DRY_RUN_WALLET_ADDRESS] + t._balances[dest]
-        assert total == 1_000_000_000
+        assert total == 1_000_000_000 - 24  # create fee + finish fee
         assert t._balances[dest] == 250_000_000
 
     @pytest.mark.asyncio
@@ -689,7 +689,8 @@ class TestXrpConservation:
     @pytest.mark.asyncio
     async def test_channel_lifecycle_conserves_xrp(self) -> None:
         """create 200 debits source; claim 150 credits destination; the
-        remainder returns to the source on close — total invariant."""
+        remainder returns to the source on close. Deposit amounts conserve;
+        each successful claim/create/close also costs the network fee."""
         t = DryRunTransport()
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         dest = "rCHANDEST0000000000000000000"
@@ -699,7 +700,7 @@ class TestXrpConservation:
         )
         assert create.success
         cid = create.channel_id
-        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 800_000_000, (
+        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 800_000_000 - 12, (
             "the channel deposit must leave the source's spendable balance"
         )
 
@@ -714,9 +715,12 @@ class TestXrpConservation:
         # settle_delay=0 → close is immediate; the 50 XRP remainder refunds.
         close = await t.submit_payment_channel_claim("sSENDER", cid, close=True)
         assert close.success
-        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 850_000_000
+        # create + claim + close = 3 fees (seeds collapse to the source).
+        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 850_000_000 - 36
         total = t._balances[_DRY_RUN_WALLET_ADDRESS] + t._balances[dest]
-        assert total == 1_000_000_000, "channel lifecycle must conserve XRP"
+        assert total == 1_000_000_000 - 36, (
+            "channel lifecycle conserves deposit XRP minus network fees"
+        )
 
     @pytest.mark.asyncio
     async def test_channel_fund_debits_source(self) -> None:
@@ -727,7 +731,7 @@ class TestXrpConservation:
         )
         fund = await t.submit_payment_channel_fund("sSENDER", create.channel_id, "50")
         assert fund.success
-        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 850_000_000
+        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 850_000_000 - 24
 
 
 # ── F-c0be844f / F-03f27a6c: negative & contradictory amounts ──────────────
@@ -1116,7 +1120,8 @@ class TestChannelClaimSignature:
         second_close = await t.submit_payment_channel_claim("sSENDER", cid, close=True)
         assert second_close.success
         assert await t.get_account_channels(_DRY_RUN_WALLET_ADDRESS) == []
-        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 1_000_000_000, (
+        # create + two close attempts = 3 network fees; deposit fully refunded.
+        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == 1_000_000_000 - 36, (
             "the unclaimed remainder must refund to the source on final close"
         )
 

@@ -128,8 +128,8 @@ class TestEscrowCancelHappyPath:
         assert await t.get_escrows(OWNER) == []
         owner_reserve_after = (await t.get_account_info(OWNER)).owner_count
         assert owner_reserve_after == owner_reserve_before - 1
-        # Reclaim: the locked XRP returns to the OWNER, not the destination.
-        assert self._bal(t, OWNER) == owner_bal_before + 10_000_000
+        # Reclaim: locked XRP returns to OWNER (not dest); cancel still costs fee.
+        assert self._bal(t, OWNER) == owner_bal_before + 10_000_000 - 12
 
     @staticmethod
     def _bal(t: DryRunTransport, addr: str) -> int:

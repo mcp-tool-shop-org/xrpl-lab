@@ -233,12 +233,13 @@ class TestNFTRoyaltyMath:
         )
         await accept_nft_offer(transport, BUYER_SEED, sell_offer=offer.nft_offer_index)
         # Seller (==issuer) received the FULL 100 XRP; royalty is 0 on first sale.
+        # Accept fee is paid by BUYER (price_payer), not the issuer.
         issuer_after = transport._balances.get(ISSUER, 0)
         assert issuer_after - issuer_before == 100_000_000
 
     @pytest.mark.asyncio
     async def test_resale_pays_exact_royalty_to_issuer(self, transport):
-        """Reseller (≠ issuer) pays the 5% fee; issuer nets exactly that."""
+        """Reseller (≠ issuer) pays the 5% fee; issuer nets royalty minus accept fee."""
         # Mint, first-sell to BUYER so BUYER holds it and is NOT the issuer.
         transport._balances[BUYER] = 1_000_000_000
         # F-233393c2: NFT settlement now requires the price payer to FUND the
@@ -270,10 +271,10 @@ class TestNFTRoyaltyMath:
 
         # Royalty = 200 XRP * 5000/100000 = 10 XRP → to the issuer.
         issuer_after = transport._balances.get(ISSUER, 0)
-        # Issuer paid 200 (as buyer) and received 10 royalty (as issuer): net -190.
+        # Issuer paid 200 (as buyer) + 12-drop accept fee, received 10 royalty.
         delta = issuer_after - issuer_before
-        assert delta == -190_000_000, (
-            f"issuer net should be -200 + 10 royalty = -190 XRP, got {delta} drops"
+        assert delta == -190_000_000 - 12, (
+            f"issuer net should be -200 + 10 royalty - 12 fee, got {delta} drops"
         )
         # Reseller (BUYER) netted 200 - 10 = 190.
         # (We assert the royalty itself is exactly 10 XRP via the math identity.)
@@ -301,8 +302,8 @@ class TestNFTRoyaltyMath:
         )
         await accept_nft_offer(transport, ISSUER_SEED, sell_offer=resale.nft_offer_index)
         issuer_after = transport._balances.get(ISSUER, 0)
-        # Issuer: -33 (buyer) + 0.825 (royalty) = -32.175 XRP = -32_175_000 drops.
-        assert issuer_after - issuer_before == -32_175_000
+        # Issuer: -33 (buyer) + 0.825 (royalty) - 12-drop accept fee.
+        assert issuer_after - issuer_before == -32_175_000 - 12
 
 
 class TestNFTMarketplaceFailurePaths:

@@ -2223,7 +2223,7 @@ class DryRunTransport(Transport):
         if offer.get("currency", "XRP") == "XRP":
             required_drops = int(price * Decimal("1000000"))
             guard = self._reserve_guard(
-                price_payer, required_drops, fee_drops=0,
+                price_payer, required_drops,
                 code="tecINSUFFICIENT_FUNDS",
                 context="(NFT trade settlement)",
             )
@@ -2258,20 +2258,10 @@ class DryRunTransport(Transport):
         del self._nft_offers[offer_index]
         self._dec_owner(offer["owner"])
 
-        # F-0716549a note: NOT debiting the network fee here (unlike every
-        # other write in this file) is a deliberate, narrow exception. This
-        # settlement's exact-drops math (price, royalty split, seller net)
-        # is pinned byte-for-byte by tests/test_v2_gameecon.py's
-        # TestNFTRoyaltyMath — the dry-run's collapsed-identity model often
-        # makes the acceptor, seller, and/or issuer the SAME tracked address,
-        # so an incidental 12-drop fee debit here lands on a balance those
-        # tests assert an EXACT settlement delta against, e.g. `issuer_after
-        # - issuer_before == 100_000_000` — a fee debit turns that into
-        # 99_999_988, breaking a test whose whole point is royalty-math
-        # exactness. The funding check just above already gained the
-        # reserve-floor term (the actual defect this finding is about); the
-        # fee-uniformity half is intentionally left off THIS ONE call site
-        # rather than risk silently corrupting the royalty-exactness lesson.
+        # F-21a14172: network fee is paid by the price payer (same account
+        # the reserve guard just checked). Royalty-math tests account for it
+        # when the issuer is also the acceptor.
+        self._debit_fee(price_payer)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2576,16 +2566,9 @@ class DryRunTransport(Transport):
         # and debiting them would fabricate a phantom negative balance.
         if owner in self._balances:
             self._balances[owner] -= drops
-        # F-0716549a note: NOT debiting the network fee here is a deliberate,
-        # narrow exception (same rationale as submit_nft_accept_offer above).
-        # tests/test_reswarm4_transport.py::TestXrpConservation asserts EXACT
-        # round-trip conservation for escrow create+cancel and create+finish
-        # (e.g. fund 1000 -> escrow 100 -> balance == EXACTLY 900_000_000); a
-        # 12-drop fee here would silently turn that into 899_999_988 and
-        # break a test whose entire point is proving the escrow lock/release
-        # model doesn't mint or burn XRP. The reserve-floor term just added
-        # above (the actual defect) does not depend on the fee also being
-        # debited to be effective.
+        # F-21a14172: fee was folded into _reserve_guard but never debited —
+        # EscrowCreate costs the locked amount PLUS the network fee.
+        self._debit_fee(owner)
         self._escrows.setdefault(owner, []).append(
             EscrowInfo(sequence=seq, amount=amount, destination=destination,
                        finish_after=finish_after, cancel_after=cancel_after)
@@ -3065,10 +3048,7 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
                                 error="[dry-run] Simulated failure: escrow finish")
         # F-0716549a: fee-only reserve floor on the FINISHER (the signer).
-        # Deliberately NOT debiting the fee itself on success — see the note
-        # in submit_escrow_create: tests/test_reswarm4_transport.py::
-        # TestXrpConservation asserts an EXACT create+finish round trip
-        # total, which a fee debit here would break.
+        # F-21a14172: also debit that fee on success (create+finish costs two).
         finisher = _address_from_seed(wallet_seed)
         guard = self._reserve_guard(finisher)
         if guard is not None:
@@ -3117,6 +3097,7 @@ class DryRunTransport(Transport):
             if target.destination:
                 self._credit_iou(target.destination, currency, issuer, value)
             self._remove_escrow(owner, target)
+            self._debit_fee(finisher)
             return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
                                 fee="12", ledger_index=99999999, explorer_url="")
         # Release the locked XRP to the destination, then remove the object.
@@ -3132,6 +3113,7 @@ class DryRunTransport(Transport):
                 self._balances.get(target.destination, 0) + drops
             )
         self._remove_escrow(owner, target)
+        self._debit_fee(finisher)
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="")
 
@@ -3146,10 +3128,7 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
                                 error="[dry-run] Simulated failure: escrow cancel")
         # F-0716549a: fee-only reserve floor on the CANCELLER (the signer).
-        # Deliberately NOT debiting the fee itself on success — see the note
-        # in submit_escrow_create: tests/test_reswarm4_transport.py::
-        # TestXrpConservation asserts an EXACT create+cancel round trip
-        # total, which a fee debit here would break.
+        # F-21a14172: also debit that fee on success (create+cancel costs two).
         canceller = _address_from_seed(wallet_seed)
         guard = self._reserve_guard(canceller)
         if guard is not None:
@@ -3173,6 +3152,7 @@ class DryRunTransport(Transport):
             currency, issuer, value, _src = token
             self._credit_iou(owner, currency, issuer, value)
             self._remove_escrow(owner, target)
+            self._debit_fee(canceller)
             return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
                                 fee="12", ledger_index=99999999, explorer_url="")
         # Cancel returns the locked XRP to the OWNER (reclaim path), then removes.
@@ -3183,6 +3163,7 @@ class DryRunTransport(Transport):
             drops = 0
         self._balances[owner] = self._balances.get(owner, 0) + drops
         self._remove_escrow(owner, target)
+        self._debit_fee(canceller)
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="")
 
@@ -3226,22 +3207,12 @@ class DryRunTransport(Transport):
                 ),
             )
         owner = wallet_address or _address_from_seed(wallet_seed)
-        # F-CHECKS-NOLOCK (the entire lesson): NO balance debit here — unlike
-        # submit_escrow_create, which locks the amount immediately, CheckCreate
-        # only WRITES an authorization. The writer's spendable balance is
-        # unchanged; only the owner-reserve slot for the Check object itself
-        # is new.
+        # F-CHECKS-NOLOCK: SendMax is NOT locked here — unlike EscrowCreate,
+        # CheckCreate only writes an authorization. The writer still pays the
+        # network fee (F-21a14172); amount-move lessons stay separate.
         #
-        # F-0716549a: this call site previously "never touche[d] balances/fee
-        # at all" (grep-verified in the finding) — the new owner-reserve
-        # increment can still push an already-near-floor writer below it,
-        # so the reserve floor IS checked. The fee is deliberately NOT
-        # debited here (unlike most other create methods): tests/
-        # test_checks.py::test_create_does_not_debit_balance and
-        # ::test_full_flow_through_handlers pin "funds are NOT locked/moved
-        # at CheckCreate time" as THE lesson's own explicit property (F-
-        # CHECKS-NOLOCK) — a 12-drop debit would falsify that assertion for
-        # the sake of fee uniformity.
+        # F-0716549a: the owner-reserve increment can push an already-near-
+        # floor writer below it, so the reserve floor IS checked.
         guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
         if guard is not None:
             return guard
@@ -3255,6 +3226,7 @@ class DryRunTransport(Transport):
             "invoice_id": invoice_id,
         }
         self._inc_owner(owner)
+        self._debit_fee(owner)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS", fee="12",
             ledger_index=99999999, explorer_url="", check_id=check_id,
@@ -3355,6 +3327,8 @@ class DryRunTransport(Transport):
         if owner in self._balances:
             self._balances[owner] -= deliver_drops
         self._balances[casher] = self._balances.get(casher, 0) + deliver_drops
+        # F-21a14172: fee was folded into the writer's reserve guard — debit it.
+        self._debit_fee(owner)
         del self._checks[check_id]
         self._dec_owner(owner)
         # delivered_amount (FC-003 discipline, reused): the ACTUAL amount
@@ -3397,12 +3371,9 @@ class DryRunTransport(Transport):
                 ),
             )
         canceller = wallet_address or _address_from_seed(wallet_seed)
-        # F-0716549a: fee-only reserve floor on the canceller. Not debiting
-        # the fee itself here for the same reason submit_check_create
-        # doesn't: cancelling never moved/locked funds either (see the "NO
-        # credit to anyone" note below), and this transport doesn't model a
-        # partial fee-only settlement distinct from the create/cash pair's
-        # own pinned balance-math tests.
+        # F-0716549a: fee-only reserve floor on the canceller.
+        # F-21a14172: debit the fee — Cancel still costs a network fee even
+        # though CheckCreate never locked SendMax (amount lesson unchanged).
         guard = self._reserve_guard(canceller)
         if guard is not None:
             return guard
@@ -3420,11 +3391,11 @@ class DryRunTransport(Transport):
                     "has not expired yet (tecNO_PERMISSION)."
                 ),
             )
-        # NO credit to anyone: CheckCreate never moved or locked funds, so
-        # CheckCancel has nothing to refund — contrast submit_escrow_cancel,
-        # which DOES credit the owner because Escrow actually locked the XRP.
+        # NO amount credit to anyone: CheckCreate never locked SendMax, so
+        # CheckCancel has nothing to refund — contrast submit_escrow_cancel.
         self._dec_owner(check["owner"])
         del self._checks[check_id]
+        self._debit_fee(canceller)
         return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
                             fee="12", ledger_index=99999999, explorer_url="")
 
@@ -4019,6 +3990,8 @@ class DryRunTransport(Transport):
         # Debit only TRACKED balances (same scope as submit_payment's guard).
         if source in self._balances:
             self._balances[source] -= drops
+        # F-21a14172: deposit + network fee (fee was checked, never debited).
+        self._debit_fee(source)
         self._channels[cid] = {
             "amount": drops, "claimed": 0, "source": source,
             "destination": destination, "settle_delay": settle_delay,
@@ -4061,6 +4034,8 @@ class DryRunTransport(Transport):
         # Debit only TRACKED balances (same scope as submit_payment's guard).
         if source in self._balances:
             self._balances[source] -= add_drops
+        # F-21a14172: top-up + network fee.
+        self._debit_fee(source)
         # F-95640306: honor the optional expiration instead of silently
         # dropping it (PaymentChannelFund can set/advance the mutable
         # expiration on the network).
@@ -4094,12 +4069,9 @@ class DryRunTransport(Transport):
         amount_xrp: str = "", signature: str = "", public_key: str = "",
         close: bool = False,
     ) -> SubmitResult:
-        # F-0716549a: fee-only reserve floor on the CLAIM's signer. Not
-        # debiting the fee itself here: the settle/refund math just below is
-        # explicitly conservation-tracked (F-7ec2c90d — "conservation, not
-        # evaporation"), and this transport has no test coverage isolating a
-        # fee-only delta from it, so a debit risks silently corrupting that
-        # conservation property the same way it did for escrow/NFT above.
+        # F-0716549a: fee-only reserve floor on the CLAIM's signer.
+        # F-21a14172: debit that fee on success — conservation tracks the
+        # channel deposit/claim/refund amounts; fees are separate.
         claim_signer = _address_from_seed(wallet_seed)
         guard = self._reserve_guard(claim_signer)
         if guard is not None:
@@ -4209,6 +4181,7 @@ class DryRunTransport(Transport):
                     self._balances[ch["source"]] += remaining
                 ch["closed"] = True
                 self._dec_owner(ch["source"])
+        self._debit_fee(claim_signer)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",

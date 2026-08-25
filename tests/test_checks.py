@@ -88,13 +88,14 @@ class TestCheckCreateTransport:
 
     @pytest.mark.asyncio
     async def test_create_does_not_debit_balance(self, transport):
-        # THE PROPERTY: funds are NOT locked at create time.
+        # THE PROPERTY: SendMax is NOT locked at create time — only the
+        # network fee (12 drops) leaves the writer (F-21a14172).
         await _fund(transport, _WRITER)
         before = transport._balances[_WRITER]
         await transport.submit_check_create(
             "sFAKE", _PLAYER, "50", wallet_address=_WRITER
         )
-        assert transport._balances[_WRITER] == before
+        assert transport._balances[_WRITER] == before - 12
 
     @pytest.mark.asyncio
     async def test_create_increments_writer_owner_count(self, transport):
@@ -169,7 +170,8 @@ class TestCheckCashTransport:
         await transport.submit_check_cash(
             "sFAKE", check_id, amount="50", wallet_address=_PLAYER
         )
-        assert transport._balances[_WRITER] == writer_before - 50_000_000
+        # Delivered amount + CheckCash network fee (guarded on the writer).
+        assert transport._balances[_WRITER] == writer_before - 50_000_000 - 12
         assert transport._balances.get(_PLAYER, 0) == 50_000_000
 
     @pytest.mark.asyncio
@@ -319,14 +321,14 @@ class TestCheckCancelTransport:
 
     @pytest.mark.asyncio
     async def test_cancel_credits_nobody(self, transport):
-        # THE CONTRAST: unlike EscrowCancel, nothing is refunded — nothing
-        # was ever taken.
+        # THE CONTRAST: unlike EscrowCancel, SendMax is not refunded — it was
+        # never locked. The canceller still pays the network fee.
         check_id = await _create(transport)
         writer_before = transport._balances[_WRITER]
         await transport.submit_check_cancel(
             "sFAKE", check_id, wallet_address=_WRITER
         )
-        assert transport._balances[_WRITER] == writer_before
+        assert transport._balances[_WRITER] == writer_before - 12
 
     @pytest.mark.asyncio
     async def test_cancel_frees_writer_reserve(self, transport):
@@ -488,7 +490,8 @@ class TestHandlersFullFlow:
             state, t, seed, ctx, console,
         )
         comparison = ctx["last_reserve_comparison"]
-        assert comparison.balance_delta_drops == 0
+        # SendMax is not locked; only the CheckCreate network fee leaves.
+        assert comparison.balance_delta_drops == -12
         assert comparison.owner_count_delta == 1
 
         # Step 8: the player cashes the Check.
@@ -528,13 +531,14 @@ class TestHandlersFullFlow:
         # The failed attempt must not have consumed the Check.
         assert second_check_id in t._checks
 
-        # Step 13: the studio cancels it — nothing refunded.
+        # Step 13: the studio cancels it — SendMax was never locked (nothing
+        # refunded); the cancel still costs the network fee.
         writer_balance_before_cancel = t._balances[_WRITER]
         ctx = await handle_cancel_check(
             step("cancel_check"), state, t, seed, ctx, console
         )
         assert second_check_id not in t._checks
-        assert t._balances[_WRITER] == writer_balance_before_cancel
+        assert t._balances[_WRITER] == writer_balance_before_cancel - 12
         assert ctx["check_id"] == ""
 
     @pytest.mark.asyncio

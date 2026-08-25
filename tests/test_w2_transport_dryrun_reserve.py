@@ -21,29 +21,13 @@ The contract offered two acceptable resolutions:
       assert success it has not modelled.
 
 This fix applies a SHARED helper (``DryRunTransport._reserve_guard`` /
-``._debit_fee``, in xrpl_lab/transport/dry_run.py) to EVERY write method —
-closer to (a) than a partial (b) — but the actual FEE DEBIT is deliberately
-withheld at a handful of call sites (documented individually, in code, at
-each site) where debiting it would falsify a DIFFERENT pre-existing,
-explicitly-pinned invariant this transport teaches:
+``._debit_fee``, in xrpl_lab/transport/dry_run.py) to EVERY write method.
 
-  - submit_check_create / submit_check_cash / submit_check_cancel: the
-    lesson IS that CheckCreate moves/locks nothing (F-CHECKS-NOLOCK) —
-    tests/test_checks.py pins an EXACT "balance unchanged" assertion.
-  - submit_escrow_create / submit_escrow_finish / submit_escrow_cancel /
-    submit_payment_channel_create/fund/claim: F-7ec2c90d's XRP-conservation
-    tests (tests/test_reswarm4_transport.py::TestXrpConservation) pin an
-    EXACT round-trip total.
-  - submit_nft_accept_offer: tests/test_v2_gameecon.py::TestNFTRoyaltyMath
-    pins EXACT royalty-split settlement deltas.
-
-At every one of those sites the RESERVE-FLOOR CHECK (the actual defect —
-false tesSUCCESS past the floor) is still applied in full; only the
-fee-uniformity half is narrowed, and each site says so in its own comment.
-This satisfies option (b) for those specific calls ("declines to assert
-success it has not modelled" — a floor breach is still caught) while
-delivering option (a) everywhere the fee debit does not collide with an
-existing pinned invariant.
+Wave-5 F-21a14172 closed the remaining fee-debit holes: the ten methods that
+previously checked the fee in ``_reserve_guard`` but never called
+``_debit_fee`` now debit it. Amount-move lessons (CheckCreate does not lock
+SendMax; escrow/channel deposits conserve) stay honest and separate from
+fee reality.
 
 ## What these tests prove
 
@@ -62,9 +46,8 @@ note), this file:
      object" method per remaining named category (Payment Channels, NFT,
      Credentials, Permissioned Domains, MPT, AMM, SignerListSet).
   3. Proves the fee IS actually debited (not just checked) at several
-     representative "guard+debit" sites, and that it is deliberately NOT
-     debited (while the reserve check still fires) at the documented
-     exception sites.
+     representative "guard+debit" sites, including the former exception
+     sites (check/escrow) that now debit while still enforcing the floor.
 
 Every test in this file was run against the unfixed tree (guard/helper
 absent, or the plain amount-only check with no reserve term) and failed
@@ -264,8 +247,8 @@ class TestCheckCashReserveFloor:
             "sSEED", create.check_id, amount="0.5", wallet_address="rPLAYER",
         )
         _assert_declined(cash, "submit_check_cash")
-        # Writer's balance is untouched by the declined cash.
-        assert t._balances[writer] == _BASE_RESERVE_DROPS + 200_000
+        # Declined cash must not move funds; create already charged its fee.
+        assert t._balances[writer] == _BASE_RESERVE_DROPS + 200_000 - _DRY_FEE_DROPS
 
 
 # ── One representative "needs a pre-existing object" test per remaining
@@ -389,36 +372,33 @@ class TestFeeActuallyDebited:
         assert t._balances[_DRY_RUN_WALLET_ADDRESS] == before - _DRY_FEE_DROPS
 
 
-class TestDocumentedFeeExceptionsStillCheckReserve:
-    """The handful of sites that deliberately do NOT debit the fee (to avoid
-    falsifying a pinned exact-conservation/no-lock test elsewhere) must
-    still ENFORCE the reserve floor — proving option (b)'s bar is met even
-    without the fee-uniformity half."""
+class TestFormerFeeExceptionsNowDebitAndStillCheckReserve:
+    """F-21a14172: former fee-exception sites now debit the network fee and
+    still enforce the reserve floor."""
 
     @pytest.mark.asyncio
-    async def test_check_create_does_not_debit_but_still_checks_reserve(self) -> None:
+    async def test_check_create_debits_fee_and_still_checks_reserve(self) -> None:
         t = DryRunTransport()
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         before = t._balances[_DRY_RUN_WALLET_ADDRESS]
         ok = await t.submit_check_create("sSEED", "rDEST", "10")
         assert ok.success
-        # F-CHECKS-NOLOCK: balance truly unchanged (no fee debit here).
-        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == before
+        # SendMax is not locked; only the network fee leaves the writer.
+        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == before - _DRY_FEE_DROPS
 
-        # But at the exact floor, CheckCreate still refuses (reserve check
-        # still active even though nothing would have been debited).
         t2 = DryRunTransport()
         await _at_floor(t2)
         declined = await t2.submit_check_create("sSEED", "rDEST", "10")
         _assert_declined(declined, "submit_check_create (at floor)")
 
     @pytest.mark.asyncio
-    async def test_escrow_create_does_not_debit_fee_but_still_checks_reserve(self) -> None:
+    async def test_escrow_create_debits_fee_and_still_checks_reserve(self) -> None:
         t = DryRunTransport()
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         before = t._balances[_DRY_RUN_WALLET_ADDRESS]
         ok = await t.submit_escrow_create("sSEED", "10", "rDEST", finish_after=0)
         assert ok.success
-        # Only the escrowed amount moves — no ADDITIONAL 12-drop fee delta
-        # (preserves TestXrpConservation's exact round-trip total).
-        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == before - 10_000_000
+        # Escrowed amount + network fee.
+        assert t._balances[_DRY_RUN_WALLET_ADDRESS] == (
+            before - 10_000_000 - _DRY_FEE_DROPS
+        )
