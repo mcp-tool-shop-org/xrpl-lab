@@ -98,6 +98,17 @@ def _try_import_camp_wallet(state: LabState) -> bool:
         state.wallet_path = str(path)
         save_state(state)
         return True
+    except LabException as e:
+        # F-5531ceb5 residual: save_wallet() now raises
+        # PERM_WALLET_ACL_FAILED when the Windows ACL lockdown cannot be
+        # verified. Neither degrading to "no camp wallet" nor letting it
+        # escape is acceptable — the first hides a security failure behind
+        # a normal-looking path, the second prints a raw traceback
+        # (SHIP_GATE B). Render it structured and exit non-zero.
+        console.print(f"[red]{e.error.code}:[/] {e.error.message}")
+        if e.error.hint:
+            console.print(f"  [yellow]Hint:[/] {e.error.hint}")
+        sys.exit(e.exit_code)
     except (json.JSONDecodeError, KeyError, ValueError):
         return False
 
@@ -1770,7 +1781,15 @@ def wallet_create(path: str | None):
         return
 
     w = create_wallet()
-    saved = save_wallet(w, p)
+    try:
+        saved = save_wallet(w, p)
+    except LabException as e:
+        # F-5531ceb5 residual: an unverifiable ACL lockdown must not reach
+        # the learner as a traceback (SHIP_GATE B). No seed was written.
+        console.print(f"[red]{e.error.code}:[/] {e.error.message}")
+        if e.error.hint:
+            console.print(f"  [yellow]Hint:[/] {e.error.hint}")
+        sys.exit(e.exit_code)
     console.print("[green]Wallet created![/]")
     console.print(f"  Address: [cyan]{w.address}[/]")
     console.print(f"  Saved to: {saved}")
