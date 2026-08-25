@@ -48,6 +48,7 @@ from rich.console import Console
 from xrpl_lab import handlers
 from xrpl_lab.actions.token_escrow import create_token_escrow
 from xrpl_lab.actions.verify import verify_tx
+from xrpl_lab.errors import LabException
 from xrpl_lab.modules import ModuleStep
 from xrpl_lab.registry import all_actions, is_registered
 from xrpl_lab.runtime import _SecretValue
@@ -519,21 +520,37 @@ class TestNooptIssuer:
         )
 
     @pytest.mark.asyncio
-    async def test_expect_fail_warns_when_noopt_issuer_missing(self):
-        """Without the setup step, the handler must SAY the demonstration is
-        degraded instead of silently reusing the opted-in issuer."""
+    async def test_expect_fail_raises_structured_error_when_noopt_issuer_missing(
+        self,
+    ):
+        """F-57c984e9: without the setup step, the handler must FAIL LOUD and
+        name the missing prerequisite — NOT print a yellow warning and then
+        silently fall back to the opted-in MAIN issuer. That fallback can
+        never produce tecNO_PERMISSION (the opt-in flag is account-wide) and
+        instead fails tecNO_LINE, which a real run_module pass over
+        modules/token_escrow_101.md reported as a "completed successfully"
+        module — silently teaching the wrong result code. This test used to
+        assert only that a console warning was printed (superseded: printing
+        a warning and then submitting anyway IS the defect, not the fix)."""
         t = DryRunTransport()
         await t.submit_allow_trustline_locking("sISSUER", ISSUER)
         state = _state()
         console = _console()
         context = _ctx(issuer_address=ISSUER)  # no noopt_issuer_address
-        await handlers.handle_create_token_escrow_expect_fail(
-            _step("create_token_escrow_expect_fail", currency="NOP"),
-            state, t, "", context, console,
-        )
+        with pytest.raises(LabException) as exc_info:
+            await handlers.handle_create_token_escrow_expect_fail(
+                _step("create_token_escrow_expect_fail", currency="NOP"),
+                state, t, "", context, console,
+            )
+        err = exc_info.value.error
+        assert err.code == "STATE_MISSING_NOOPT_ISSUER"
+        assert "noopt_issuer_address" in err.message
+        assert "create_noopt_issuer" in err.hint
+        # The handler must fail BEFORE ever submitting — no transaction, no
+        # tec code of any kind, should reach the console on this path.
         text = _out(console)
-        assert "create_noopt_issuer" in text
-        assert "cannot demonstrate" in text
+        assert "tecNO_LINE" not in text
+        assert "tecNO_PERMISSION" not in text
 
 
 # ── F-b1ebc369 (MEDIUM): royalty reporting on principal-issuer hops ─────────

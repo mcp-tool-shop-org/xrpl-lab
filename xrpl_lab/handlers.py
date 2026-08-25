@@ -3270,16 +3270,39 @@ async def handle_create_token_escrow_expect_fail(
     # F-59ba7d9d: the noopt issuer comes from the create_noopt_issuer setup
     # step. asfAllowTrustLineLocking is ACCOUNT-WIDE, so falling back to the
     # (opted-in) main issuer can never produce the taught tecNO_PERMISSION —
-    # surface that degradation honestly instead of silently reusing it.
+    # it silently submits against a currency (e.g. NOP) the main issuer never
+    # issued, which fails tecNO_LINE instead. A console warning was not
+    # enough: F-57c984e9 (HIGH) found that a real run of
+    # modules/token_escrow_101.md — whose only Step 10 action is this one,
+    # with no create_noopt_issuer step anywhere in the module — "completed
+    # successfully" (run_module returned True) while silently teaching the
+    # WRONG result code. A silent tecNO_LINE is forbidden either way: fail
+    # loud instead, with a structured LabException naming the missing
+    # prerequisite, so run_module halts the module with an explicit,
+    # actionable error (caught by runner.py's LabException branch, which
+    # prints the code/message/hint and saves progress) rather than pretending
+    # the demonstration worked.
     issuer_address = context.get("noopt_issuer_address", "")
     if not issuer_address:
-        console.print(
-            "  [yellow]No non-opted-in issuer in context (run the "
-            "create_noopt_issuer step first). Falling back to the MAIN issuer, "
-            "which HAS opted in — the failure below cannot demonstrate the "
-            "missing-opt-in tecNO_PERMISSION.[/]"
+        raise LabException(
+            LabError(
+                code="STATE_MISSING_NOOPT_ISSUER",
+                message=(
+                    "Cannot demonstrate the missing-opt-in tecNO_PERMISSION "
+                    "lesson: no non-opted-in issuer in context "
+                    "('noopt_issuer_address' is not set)."
+                ),
+                hint=(
+                    "Run the 'create_noopt_issuer' step before "
+                    "'create_token_escrow_expect_fail' so a second issuer "
+                    "that never sets asfAllowTrustLineLocking exists for "
+                    "this step to escrow against. Falling back to the "
+                    "opted-in MAIN issuer cannot produce tecNO_PERMISSION "
+                    "(the flag is account-wide) and would silently teach "
+                    "the wrong result code instead."
+                ),
+            )
         )
-        issuer_address = context.get("issuer_address", "")
     if "wallet_seed" not in context:
         console.print("  [red]No wallet in context. Run the wallet step first.[/]")
         return context
