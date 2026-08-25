@@ -426,6 +426,19 @@ async def handle_create_issuer_wallet(
         console.print(
             f"  Reusing existing issuer wallet: [cyan]{existing.address}[/]"
         )
+        # F-7f86ff25 / F-e8c41b7a: reuse alone is silent on leftover lines
+        # (LAB/RSV/GLD/… and pre-reuse orphaned peers). Point learners at
+        # account_hygiene and remove_trust_line issuer= (F-657a12cf).
+        console.print(
+            "  [yellow]Workshop hint:[/] This issuer is reused across modules. "
+            "Leftover trust lines from earlier currencies still lock owner "
+            "reserve until balance=0 and remove_trust_line runs. "
+            "Run module [cyan]account_hygiene[/] for the taught cleanup loop, "
+            "or re-run remove_trust_line with the leftover currency "
+            "(use [cyan]issuer=<peer>[/] for orphaned pre-reuse peers). "
+            "If owner_count stays high after hygiene, ask your facilitator "
+            "to inventory trust lines."
+        )
         context["issuer_seed"] = _SecretValue(existing.seed)
         context["issuer_address"] = existing.address
         return context
@@ -724,7 +737,10 @@ async def handle_remove_trust_line(
 ) -> dict:
     args = step.action_args
     currency = args.get("currency", "HYGIENE")
-    issuer_address = context.get("issuer_address", "")
+    # F-657a12cf / F-2f9d06c3: optional issuer= clears orphaned / foreign peers
+    # when context still points at the reused live issuer.
+    explicit_issuer = (args.get("issuer") or "").strip()
+    issuer_address = explicit_issuer or context.get("issuer_address", "")
 
     if not issuer_address:
         console.print("  [red]No issuer address in context. Run the issuer step first.[/]")
@@ -734,6 +750,10 @@ async def handle_remove_trust_line(
         f"  Removing trust line: [cyan]{currency}[/] "
         f"(setting limit to 0)"
     )
+    if explicit_issuer:
+        console.print(
+            f"  Peer (issuer override): [cyan]{issuer_address}[/]"
+        )
     result = await remove_trust_line(
         transport, context["wallet_seed"].get(), issuer_address, currency,
         wallet_address=state.wallet_address or "",
@@ -776,7 +796,9 @@ async def handle_verify_trust_line_removed(
     args = step.action_args
     currency = args.get("currency", "HYGIENE")
     holder_address = state.wallet_address or ""
-    issuer_address = context.get("issuer_address")
+    # F-657a12cf / F-2f9d06c3: same optional issuer= override as remove.
+    explicit_issuer = (args.get("issuer") or "").strip()
+    issuer_address = explicit_issuer or context.get("issuer_address")
 
     if not holder_address:
         console.print("  [red]No wallet address found.[/]")
@@ -786,6 +808,12 @@ async def handle_verify_trust_line_removed(
             failures=["wallet address missing — the step that produces it did not run"],
         )
         return context
+
+    if explicit_issuer:
+        console.print(
+            f"  Verifying removal against peer (issuer override): "
+            f"[cyan]{issuer_address}[/]"
+        )
 
     result = await verify_trust_line_removed(
         transport, holder_address, currency, expected_issuer=issuer_address
@@ -7348,6 +7376,14 @@ def _register_all() -> None:
             wallet_required=True,
             payload_fields=[
                 PayloadField(name="currency", default="HYGIENE"),
+                # F-657a12cf: optional peer override for orphaned / leftover lines.
+                PayloadField(
+                    name="issuer",
+                    description=(
+                        "Optional issuer/peer address (defaults to context "
+                        "issuer_address); use for orphaned pre-reuse peers"
+                    ),
+                ),
             ],
         ),
         ActionDef(
@@ -7356,6 +7392,13 @@ def _register_all() -> None:
             description="Verify a trust line was removed",
             payload_fields=[
                 PayloadField(name="currency", default="HYGIENE"),
+                PayloadField(
+                    name="issuer",
+                    description=(
+                        "Optional issuer/peer address (defaults to context "
+                        "issuer_address); pair with remove_trust_line issuer="
+                    ),
+                ),
             ],
         ),
         ActionDef(
