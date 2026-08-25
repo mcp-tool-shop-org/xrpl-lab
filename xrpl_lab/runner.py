@@ -380,21 +380,38 @@ async def run_module(
                     # across the WS boundary — leaking a filesystem path is a
                     # threat-model violation. The exception TYPE name is safe;
                     # full detail goes to the server log only.
+                    #
+                    # SEED-C-named-fix: when the failure is already a
+                    # LabException (e.g. STATE_LOCKED), render code/message/hint
+                    # (88c0a4e) instead of a bare type name.
                     logger.warning(
                         "recovery save_state failed for module %s: %s",
                         module.id,
                         save_exc,
                     )
-                    console.print(
-                        f"[red]Warning: progress for '{module.id}' could not be "
-                        f"saved ({type(save_exc).__name__}). Your previous saved "
-                        f"state is intact — re-run when ready: "
-                        f"xrpl-lab run {module.id}[/]"
-                    )
-                    console.print(
-                        f"[yellow]On-disk progress may be stale; you can "
-                        f"still retry with: xrpl-lab run {module.id}[/]"
-                    )
+                    if isinstance(save_exc, LabException):
+                        console.print(
+                            f"[red]{save_exc.error.code}:[/] {save_exc.error.message}"
+                        )
+                        if save_exc.error.hint:
+                            console.print(
+                                f"  [yellow]Hint:[/] {save_exc.error.hint}"
+                            )
+                        console.print(
+                            f"[yellow]On-disk progress may be stale; you can "
+                            f"still retry with: xrpl-lab run {module.id}[/]"
+                        )
+                    else:
+                        console.print(
+                            f"[red]Warning: progress for '{module.id}' could not be "
+                            f"saved ({type(save_exc).__name__}). Your previous saved "
+                            f"state is intact — re-run when ready: "
+                            f"xrpl-lab run {module.id}[/]"
+                        )
+                        console.print(
+                            f"[yellow]On-disk progress may be stale; you can "
+                            f"still retry with: xrpl-lab run {module.id}[/]"
+                        )
                 return False
 
             # Fire tx callback for any new transactions from this step.

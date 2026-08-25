@@ -16,10 +16,30 @@ from .actions.wallet import (
     save_wallet,
     wallet_exists,
 )
-from .errors import LabException, faucet_rate_limited
+from .errors import LabError, LabException, faucet_rate_limited
 from .reporting import sanitize_endpoint
 from .state import LabState, save_state
 from .transport.base import Transport
+
+
+def _config_non_testnet_error(message: str = "") -> LabError:
+    """Static faucet/RPC misconfiguration — name the env-var fix (F-35d7a78c)."""
+    detail = (message or "").strip()
+    return LabError(
+        code="CONFIG_NON_TESTNET",
+        message=(
+            detail
+            if detail
+            else (
+                "Faucet/RPC endpoint is not a safe testnet target "
+                "(CONFIG_NON_TESTNET)."
+            )
+        ),
+        hint=(
+            "Unset XRPL_LAB_FAUCET_URL and/or XRPL_LAB_RPC_URL to restore the "
+            "default testnet endpoints, or run with --dry-run offline."
+        ),
+    )
 
 
 class _SecretValue:
@@ -187,6 +207,21 @@ async def ensure_funded(
         if result.success and funded_bal > 0:
             console.print(f"  Funded! Balance: [green]{result.balance} XRP[/]")
             return True
+        # F-35d7a78c: CONFIG_NON_TESTNET is a pure function of static env
+        # (XRPL_LAB_FAUCET_URL / XRPL_LAB_RPC_URL). Retrying burns ~14s for
+        # zero chance of a different outcome — name the env-var fix and stop.
+        # Sanitize BEFORE building LabError: the transport message can embed
+        # a credential-bearing XRPL_LAB_FAUCET_URL (F-9f0aa836), and the
+        # LabException flows into WS ``_error_envelope`` as well as console.
+        if getattr(result, "code", "") == "CONFIG_NON_TESTNET":
+            scrubbed = _sanitize_endpoint_urls(
+                getattr(result, "message", "") or ""
+            )
+            err = _config_non_testnet_error(scrubbed)
+            console.print(f"[red]{err.code}:[/] {err.message}")
+            if err.hint:
+                console.print(f"  [yellow]Hint:[/] {err.hint}")
+            raise LabException(err)
         # Final attempt — fall through without further sleeping.
         if attempt >= len(_FAUCET_RETRY_DELAYS_S):
             break

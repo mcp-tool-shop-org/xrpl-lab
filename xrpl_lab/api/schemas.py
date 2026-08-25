@@ -252,6 +252,10 @@ class RunInfo(BaseModel):
     path — those require the WS connection (under its Origin allow-list)
     to read. Facilitators get enough to triage, not enough to leak
     step-level workshop state to a non-owner.
+
+    SEED-C-run-state: ``mode`` / ``mode_banner`` / ``connection`` / ``signals``
+    let a refresh tell dry-run vs live apart and carry canonical copy for
+    stalled/reconnecting (dashboard owns pixels).
     """
 
     run_id: str
@@ -261,6 +265,10 @@ class RunInfo(BaseModel):
     elapsed_seconds: float
     queue_size: int
     dry_run: bool
+    mode: str = "live"  # "dry-run" | "live"
+    mode_banner: str = ""
+    connection: str = "detached"  # "live" | "detached"
+    signals: dict[str, str] = Field(default_factory=dict)
 
 
 class RunListResponse(BaseModel):
