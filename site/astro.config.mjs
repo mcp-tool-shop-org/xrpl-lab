@@ -25,5 +25,10 @@ export default defineConfig({
   ],
   vite: {
     plugins: [tailwindcss()],
+    // Vitest picks this up via Vite (F-162ff030) — no separate vitest.config.
+    test: {
+      environment: 'jsdom',
+      include: ['src/**/*.test.ts'],
+    },
   },
 });

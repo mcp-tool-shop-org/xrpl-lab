@@ -175,22 +175,59 @@ export interface DoctorResult {
   }>;
 }
 
-export interface ProofPack {
-  version: string;
-  generated: string;
-  modules: Array<{
-    id: string;
-    completed: boolean;
-    txids: string[];
-  }>;
-  integrity: string;
+/**
+ * One completed module entry inside a proof pack — mirrors
+ * xrpl_lab.reporting.generate_proof_pack completed_modules[] items.
+ */
+export interface ProofModule {
+  module_id: string;
+  completed_at: string;
+  txids: string[];
+  verified: boolean;
+  kb_source: string;
+  explorer_urls: string[];
 }
 
+/**
+ * Live generate_proof_pack JSON (F-db854b39). Field names must match
+ * reporting.generate_proof_pack — not the stale modules/generated/integrity
+ * shape the Artifacts page used to expect.
+ */
+export interface ProofPack {
+  xrpl_lab_proof_pack: boolean;
+  version: string;
+  network: string;
+  endpoint: string;
+  address: string;
+  generated_at: string;
+  completed_modules: ProofModule[];
+  capstone: boolean;
+  all_verified: boolean;
+  transactions: unknown[];
+  receipt_table: unknown[];
+  total_transactions: number;
+  successful_transactions: number;
+  failed_transactions: number;
+  sha256: string;
+}
+
+/**
+ * Live generate_certificate JSON (F-db854b39). Uses address/generated_at/sha256
+ * — not the stale holder/issued/hash shape that forced a permanent empty-state.
+ */
 export interface Certificate {
-  holder: string;
-  issued: string;
+  xrpl_lab_certificate: boolean;
+  version: string;
+  network: string;
+  address: string;
+  generated_at: string;
   modules_completed: string[];
-  hash: string;
+  module_titles: Record<string, string>;
+  total_modules: number;
+  total_transactions: number;
+  successful_transactions: number;
+  summary_line: string;
+  sha256: string;
 }
 
 export interface Report {

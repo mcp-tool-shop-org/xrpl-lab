@@ -17,7 +17,12 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
   <script>
     import { fetchProofPack, fetchCertificate, fetchReports, isLocalOrigin } from '../../lib/api';
-    import { icons, healthIcon, esc, downloadFile, hostedPreviewMessage } from '../../lib/dashboard-ui';
+    import { icons, esc, downloadFile, hostedPreviewMessage } from '../../lib/dashboard-ui';
+    import {
+      emptyArtifactHTML,
+      renderCertPanel,
+      renderProofPanel,
+    } from '../../lib/artifacts-panels';
 
     // FT-PROOF-002: retain the already-fetched raw objects so the Download
     // buttons can serialize them to a Blob with NO extra backend call. Keyed by
@@ -54,20 +59,6 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
         <div class="empty__t">Can't reach the API</div><div>${msg}</div></div>`;
     }
 
-    function emptyHTML(icon: string, title: string, help: string) {
-      return `<div class="empty"><span class="empty__ic">${icon}</span>
-        <div class="empty__t">${title}</div><div>${help}</div></div>`;
-    }
-
-    // A hashbox with an inline copy button + transient "Copied!" feedback.
-    function hashboxHTML(hash: string) {
-      return `<div class="row" style="gap:10px;align-items:flex-start">
-        <div class="hashbox" style="flex:1">${esc(hash)}</div>
-        <button class="btn btn--sm copy-hash" type="button" data-hash="${esc(hash)}" style="flex:none">
-          ${II(icons.clip)}<span>Copy</span></button>
-      </div>`;
-    }
-
     // FT-PROOF-002: a Download button bound to a retained raw object by id.
     // wireDownloads() reads the `downloads[id]` record on click and serializes
     // it to a Blob — no backend round-trip (the data is already in the browser).
@@ -84,69 +75,20 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
         ${Array(3).fill(`<div class="proofmod">${sk('20px', '20px')}${sk('13px', '40%')}</div>`).join('')}`;
     }
 
-    /* ---------- proof pack panel ---------- */
+    /* ---------- proof / cert panels (live generate_* keys via lib helper) ---------- */
     function proofHTML(p: any) {
-      if (!p || !p.version) {
-        return emptyHTML(icons.seal, 'No proof pack yet',
-          'Complete modules to generate a verifiable proof pack.');
-      }
-      const modules = Array.isArray(p.modules) ? p.modules : [];
-      const generated = p.generated ? new Date(p.generated).toLocaleString() : 'unknown';
-
       // FT-PROOF-002: retain the raw object for the Download button.
-      downloads['proof'] = { data: p, filename: 'xrpl_lab_proof_pack.json', mime: 'application/json' };
-
-      const integrity = p.integrity
-        ? `<p class="eyebrow" style="margin-top:18px">Integrity · SHA-256</p>${hashboxHTML(p.integrity)}`
-        : '';
-
-      const mods = modules.length
-        ? `<p class="eyebrow" style="margin-top:18px">Modules</p>${modules.map((m: any) => {
-            const txCount = Array.isArray(m.txids) ? m.txids.length : 0;
-            return `<div class="proofmod">${healthIcon(m.completed ? 'pass' : 'fail')}
-              <span class="proofmod__id">${esc(m.id)}</span>
-              <span class="proofmod__tx">${txCount} tx${txCount === 1 ? '' : 's'}</span></div>`;
-          }).join('')}`
-        : `<p class="muted" style="margin-top:18px">No modules recorded in this proof pack.</p>`;
-
-      return `<div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
-          <p class="eyebrow" style="margin:0">Proof pack · v${esc(p.version)}</p>
-          ${downloadBtnHTML('proof')}
-        </div>
-        <dl class="kv" style="margin-top:12px"><dt>Generated</dt><dd class="mono">${esc(generated)}</dd></dl>
-        ${integrity}
-        ${mods}`;
+      if (p) {
+        downloads['proof'] = { data: p, filename: 'xrpl_lab_proof_pack.json', mime: 'application/json' };
+      }
+      return renderProofPanel(p, { downloadBtnHtml: downloadBtnHTML('proof') });
     }
 
-    /* ---------- certificate panel ---------- */
     function certHTML(c: any) {
-      if (!c || !c.holder) {
-        return emptyHTML(icons.award, 'No certificate yet',
-          'Finish the workbook to earn a completion certificate.');
+      if (c) {
+        downloads['cert'] = { data: c, filename: 'xrpl_lab_certificate.json', mime: 'application/json' };
       }
-      const issued = c.issued ? new Date(c.issued).toLocaleString() : 'unknown';
-      const mods = Array.isArray(c.modules_completed) ? c.modules_completed : [];
-      const chips = mods.length
-        ? mods.map((m: any) => `<span class="chip">${esc(m)}</span>`).join(' ')
-        : '<span class="muted">none</span>';
-
-      // FT-PROOF-002: retain the raw object for the Download button.
-      downloads['cert'] = { data: c, filename: 'xrpl_lab_certificate.json', mime: 'application/json' };
-
-      const hashbox = c.hash
-        ? `<p class="eyebrow" style="margin-top:18px">Certificate hash</p>${hashboxHTML(c.hash)}`
-        : '';
-
-      return `<div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
-          <p class="eyebrow" style="margin:0">Certificate of completion</p>
-          ${downloadBtnHTML('cert')}
-        </div>
-        <dl class="kv" style="margin-top:12px">
-          <dt>${II(icons.award)} Holder</dt><dd>${esc(c.holder)}</dd>
-          <dt>Issued</dt><dd class="mono">${esc(issued)}</dd>
-          <dt>Modules completed</dt><dd>${chips}</dd>
-        </dl>
-        ${hashbox}`;
+      return renderCertPanel(c, { downloadBtnHtml: downloadBtnHTML('cert') });
     }
 
     /* ---------- reports panel ---------- */
@@ -162,7 +104,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
     function reportsHTML(reports: any) {
       if (!Array.isArray(reports) || reports.length === 0) {
-        return emptyHTML(icons.file, 'No reports yet',
+        return emptyArtifactHTML(icons.file, 'No reports yet',
           'No reports generated yet. Complete a module to generate reports.');
       }
       return reports.map((r: any, idx: number) => {
@@ -294,7 +236,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       } catch (err: any) {
         proof = err instanceof TypeError || err?.name === 'AbortError'
           ? offlineHTML(err)
-          : emptyHTML(icons.alert, 'Could not load proof pack',
+          : emptyArtifactHTML(icons.alert, 'Could not load proof pack',
               describeFetchError(err, 'Could not load proof pack. Is the API running?'));
       }
 
@@ -305,7 +247,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       } catch (err: any) {
         cert = err instanceof TypeError || err?.name === 'AbortError'
           ? offlineHTML(err)
-          : emptyHTML(icons.alert, 'Could not load certificate',
+          : emptyArtifactHTML(icons.alert, 'Could not load certificate',
               describeFetchError(err, 'Could not load certificate. Is the API running?'));
       }
 
@@ -316,7 +258,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       } catch (err: any) {
         reports = err instanceof TypeError || err?.name === 'AbortError'
           ? offlineHTML(err)
-          : emptyHTML(icons.alert, 'Could not load reports',
+          : emptyArtifactHTML(icons.alert, 'Could not load reports',
               describeFetchError(err, 'Could not load reports. Is the API running?'));
       }
 

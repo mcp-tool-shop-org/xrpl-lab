@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "test": "vitest run --environment jsdom src/lib/dashboard-ui.test.ts src/lib/artifacts-panels.test.ts"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.37.6",
@@ -14,5 +15,9 @@
     "@tailwindcss/vite": "^4.2.0",
     "astro": "^5.17.0",
     "tailwindcss": "^4.2.0"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "vitest": "^3.2.4"
   }
 }
