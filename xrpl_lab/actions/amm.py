@@ -18,10 +18,18 @@ async def ensure_amm_pair(
     asset_b_value: str,
     asset_b_issuer: str,
     trading_fee: int = 500,
+    wallet_address: str = "",
 ) -> tuple[AmmInfo, SubmitResult | None]:
     """Ensure an AMM exists for the pair. Creates one if missing.
 
     Returns (amm_info, submit_result_or_None).
+
+    ``wallet_address`` is the creator's real account, forwarded for the
+    dry-run transport's per-account LP-token store (the testnet path
+    ignores it and derives the account from the seed). Pass it whenever
+    the LP balance will be read back by address — without it the minted
+    LP lands in the collapsed offline bucket and every later
+    ``get_lp_token_balance`` on the real address reads 0.
     """
     info = await transport.get_amm_info(
         asset_a_currency, asset_a_issuer,
@@ -39,6 +47,7 @@ async def ensure_amm_pair(
         asset_b_value=asset_b_value,
         asset_b_issuer=asset_b_issuer,
         trading_fee=trading_fee,
+        wallet_address=wallet_address,
     )
 
     if not result.success:
@@ -60,8 +69,13 @@ async def amm_deposit(
     asset_b_currency: str,
     asset_b_value: str,
     asset_b_issuer: str,
+    wallet_address: str = "",
 ) -> SubmitResult:
-    """Deposit both assets into an AMM pool."""
+    """Deposit both assets into an AMM pool.
+
+    ``wallet_address`` is the depositor's real account — see
+    :func:`ensure_amm_pair` for why the dry-run transport needs it.
+    """
     return await transport.submit_amm_deposit(
         wallet_seed=wallet_seed,
         asset_a_currency=asset_a_currency,
@@ -70,6 +84,7 @@ async def amm_deposit(
         asset_b_currency=asset_b_currency,
         asset_b_value=asset_b_value,
         asset_b_issuer=asset_b_issuer,
+        wallet_address=wallet_address,
     )
 
 
@@ -81,8 +96,14 @@ async def amm_withdraw(
     asset_b_currency: str,
     asset_b_issuer: str,
     lp_token_value: str = "",
+    wallet_address: str = "",
 ) -> SubmitResult:
-    """Withdraw from an AMM pool by returning LP tokens."""
+    """Withdraw from an AMM pool by returning LP tokens.
+
+    ``wallet_address`` must match whatever :func:`ensure_amm_pair` /
+    :func:`amm_deposit` were given, so the burn debits the bucket the
+    LP tokens actually live in.
+    """
     return await transport.submit_amm_withdraw(
         wallet_seed=wallet_seed,
         asset_a_currency=asset_a_currency,
@@ -90,6 +111,7 @@ async def amm_withdraw(
         asset_b_currency=asset_b_currency,
         asset_b_issuer=asset_b_issuer,
         lp_token_value=lp_token_value,
+        wallet_address=wallet_address,
     )
 
 

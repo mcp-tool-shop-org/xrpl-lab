@@ -1027,7 +1027,11 @@ class XRPLTestnetTransport(Transport):
         issuer: str,
         currency: str,
         limit: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
+        # ``wallet_address`` is a dry-run-only storage hint — on a real network
+        # the TrustSet's Account is derived from the signing seed, so it is
+        # accepted for signature parity and deliberately ignored here.
         guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
@@ -2719,7 +2723,11 @@ class XRPLTestnetTransport(Transport):
         holder_seed: str,
         issuance_id: str,
         unauthorize: bool = False,
+        holder_address: str = "",
     ) -> SubmitResult:
+        # ``holder_address`` is a dry-run-only storage hint — on a real
+        # network the MPTokenAuthorize's Account is derived from the signing
+        # seed, so it is accepted for signature parity and ignored here.
         guard = await self._guard_write()
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
@@ -3043,7 +3051,11 @@ class XRPLTestnetTransport(Transport):
         asset_b_value: str,
         asset_b_issuer: str,
         trading_fee: int = 500,
+        wallet_address: str = "",
     ) -> SubmitResult:
+        # ``wallet_address`` is a dry-run-only storage hint — on a real network
+        # the account is derived from the signing seed, so it is accepted for
+        # signature parity and deliberately ignored here.
         return SubmitResult(
             success=False,
             result_code="notSupported",
@@ -3059,7 +3071,11 @@ class XRPLTestnetTransport(Transport):
         asset_b_currency: str,
         asset_b_value: str,
         asset_b_issuer: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
+        # ``wallet_address`` is a dry-run-only storage hint — on a real network
+        # the account is derived from the signing seed, so it is accepted for
+        # signature parity and deliberately ignored here.
         return SubmitResult(
             success=False,
             result_code="notSupported",
@@ -3074,7 +3090,11 @@ class XRPLTestnetTransport(Transport):
         asset_b_currency: str,
         asset_b_issuer: str,
         lp_token_value: str = "",
+        wallet_address: str = "",
     ) -> SubmitResult:
+        # ``wallet_address`` is a dry-run-only storage hint — on a real network
+        # the account is derived from the signing seed, so it is accepted for
+        # signature parity and deliberately ignored here.
         return SubmitResult(
             success=False,
             result_code="notSupported",

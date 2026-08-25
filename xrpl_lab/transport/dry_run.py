@@ -781,6 +781,7 @@ class DryRunTransport(Transport):
         issuer: str,
         currency: str,
         limit: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -791,7 +792,17 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: issuer not found",
             )
 
-        wallet_address = _address_from_seed(wallet_seed)
+        # F-TOKENESC-DRYRUN: key the line under the caller's REAL address when
+        # it is known. _address_from_seed collapses every seed to one synthetic
+        # address, so a seed-only key merged the holder's and the recipient's
+        # lines into a single bucket — token_escrow_101 then escrowed 50 GLD
+        # out of that bucket and credited the same bucket at EscrowFinish, so
+        # the recipient's balance "changed by 0" and the module's closing
+        # checkpoint failed on every --dry-run. Same address-hint pattern as
+        # submit_token_escrow_create's ``source_address`` / submit_clawback's
+        # ``issuer_address``; fixture callers that pass no address keep the
+        # old single-wallet behaviour.
+        wallet_address = wallet_address or _address_from_seed(wallet_seed)
 
         # F-0716549a: TrustSet moves no XRP of its own, but it still costs the
         # network fee and (when creating a NEW line) adds one owner-reserve
@@ -1461,6 +1472,7 @@ class DryRunTransport(Transport):
         asset_b_value: str,
         asset_b_issuer: str,
         trading_fee: int = 500,
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -1476,7 +1488,7 @@ class DryRunTransport(Transport):
         # unrelated to this finding, out of scope to retrofit here) — but
         # the fee + the new AMM-position owner-reserve increment are real
         # XRP costs to the creator regardless of leg currency.
-        amm_creator = _address_from_seed(wallet_seed)
+        amm_creator = wallet_address or _address_from_seed(wallet_seed)
         guard = self._reserve_guard(amm_creator, code="tecINSUFFICIENT_RESERVE")
         if guard is not None:
             return guard
@@ -1566,7 +1578,18 @@ class DryRunTransport(Transport):
             "b_issuer": asset_b_issuer,
         }
 
-        # Creator gets all initial LP tokens
+        # Creator gets all initial LP tokens.
+        #
+        # F-AMMLP-DRYRUN: key the position under the caller's REAL address
+        # when it is known. _address_from_seed collapses every seed to one
+        # synthetic address, but get_lp_token_balance is called with
+        # state.wallet_address — the learner's actual address — so a
+        # seed-only key wrote LP that the verify step could never read back.
+        # amm_liquidity_101 and dex_vs_amm_risk_literacy both deposited
+        # successfully and still printed "No LP tokens received" on every
+        # --dry-run. Same address-hint pattern as submit_trust_set's
+        # ``wallet_address``; fixture callers that pass no address keep the
+        # old single-wallet behaviour.
         lp_key = f"{lp_currency}/{amm_account}"
         creator_address = amm_creator
         self._lp_balances.setdefault(creator_address, {})[lp_key] = initial_lp
@@ -1592,6 +1615,7 @@ class DryRunTransport(Transport):
         asset_b_currency: str,
         asset_b_value: str,
         asset_b_issuer: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -1604,7 +1628,7 @@ class DryRunTransport(Transport):
 
         # F-0716549a: fee-only reserve floor (see submit_amm_create for the
         # amount-modeling scope note).
-        depositor_address = _address_from_seed(wallet_seed)
+        depositor_address = wallet_address or _address_from_seed(wallet_seed)
         guard = self._reserve_guard(depositor_address)
         if guard is not None:
             return guard
@@ -1724,6 +1748,7 @@ class DryRunTransport(Transport):
         asset_b_currency: str,
         asset_b_issuer: str,
         lp_token_value: str = "",
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -1736,7 +1761,7 @@ class DryRunTransport(Transport):
 
         # F-0716549a: fee-only reserve floor (see submit_amm_create for the
         # amount-modeling scope note).
-        withdrawer_address = _address_from_seed(wallet_seed)
+        withdrawer_address = wallet_address or _address_from_seed(wallet_seed)
         guard = self._reserve_guard(withdrawer_address)
         if guard is not None:
             return guard
@@ -3856,6 +3881,7 @@ class DryRunTransport(Transport):
 
     async def submit_mpt_authorize(
         self, holder_seed: str, issuance_id: str, unauthorize: bool = False,
+        holder_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -3863,7 +3889,18 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecNO_PERMISSION", fee="12",
                 error="[dry-run] Simulated failure: MPTokenAuthorize",
             )
-        holder = _address_from_seed(holder_seed)
+        # F-MPTAUTH-DRYRUN: key the opt-in under the holder's REAL address
+        # when it is known. submit_mpt_payment keys _mpt_auths/_mpt_balances
+        # by the real ``destination`` and get_mpt_balance by the real
+        # ``holder``, but this method keyed them by _address_from_seed —
+        # which collapses every dry-run seed to one synthetic address. The
+        # authorization therefore landed under a different key than the
+        # payment looked up, so mpt_distribution_101's distribution step
+        # failed tecNO_AUTH against a holder who HAD authorized and the
+        # closing balance check read 0. Same address-hint pattern as
+        # submit_trust_set's ``wallet_address``; fixture callers that pass
+        # no address keep the old single-wallet behaviour.
+        holder = holder_address or _address_from_seed(holder_seed)
         guard = self._reserve_guard(holder, code="tecINSUFFICIENT_RESERVE")
         if guard is not None:
             return guard

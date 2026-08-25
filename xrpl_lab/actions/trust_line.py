@@ -13,13 +13,22 @@ async def set_trust_line(
     issuer: str,
     currency: str,
     limit: str,
+    wallet_address: str = "",
 ) -> SubmitResult:
-    """Set a trust line from the wallet holder to an issuer."""
+    """Set a trust line from the wallet holder to an issuer.
+
+    ``wallet_address`` is the line's owning account, forwarded for the dry-run
+    transport's per-account trust-line store (the testnet path ignores it and
+    derives the account from the seed). Pass it whenever a module has more than
+    one token-holding party — without it every party's lines collapse into one
+    offline bucket and transfers between them net to zero.
+    """
     return await transport.submit_trust_set(
         wallet_seed=wallet_seed,
         issuer=issuer,
         currency=currency,
         limit=limit,
+        wallet_address=wallet_address,
     )
 
 
@@ -48,13 +57,19 @@ async def remove_trust_line(
     wallet_seed: str,
     issuer: str,
     currency: str,
+    wallet_address: str = "",
 ) -> SubmitResult:
-    """Remove a trust line by setting limit to 0 (balance must be 0)."""
+    """Remove a trust line by setting limit to 0 (balance must be 0).
+
+    ``wallet_address`` must match whatever :func:`set_trust_line` was given for
+    the same line, so the removal finds the bucket the line actually lives in.
+    """
     return await transport.submit_trust_set(
         wallet_seed=wallet_seed,
         issuer=issuer,
         currency=currency,
         limit="0",
+        wallet_address=wallet_address,
     )
 
 

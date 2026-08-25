@@ -1,7 +1,10 @@
 """Tests for DEX transport and actions."""
 
+from pathlib import Path
+
 import pytest
 
+from tests._shipped_module import assert_no_failed_checks, run_shipped_module
 from xrpl_lab.actions.dex import (
     cancel_offer,
     create_offer,
@@ -215,3 +218,49 @@ class TestDEXLifecycle:
         absent = await verify_offer_absent(transport, "rANY", seq)
         assert absent.passed is True
         assert absent.found is False
+
+
+# ── Shipped module runs clean in --dry-run ────────────────────────────────
+
+
+class TestShippedDexVsAmmModule:
+    """``modules/dex_vs_amm_risk_literacy.md`` must not false-fail its LP checks.
+
+    This module's AMM half shared amm_liquidity_101's defect: the deposit
+    credited LP under the seed-collapsed offline address
+    (``_address_from_seed``) while ``handle_verify_lp_received`` read it back
+    under the learner's real ``state.wallet_address``, so both LP checkpoints
+    went red on a module whose every step returned tesSUCCESS.
+
+    Worth pinning separately from test_amm.py's copy: this module reaches the
+    AMM through a longer path (DEX offers, cancels and position snapshots run
+    first), so a future regression could break one module's LP accounting
+    without touching the other's.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_failed_checks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out, _ = await run_shipped_module(
+            "dex_vs_amm_risk_literacy.md", tmp_path, monkeypatch
+        )
+
+        assert "No LP tokens received" not in out, (
+            "the LP checkpoint false-failed: the deposit credited LP under the "
+            "seed-collapsed address the verify step cannot read"
+        )
+        assert "no withdrawal detected" not in out
+
+        assert_no_failed_checks(out, "dex_vs_amm_risk_literacy.md")
+
+    @pytest.mark.asyncio
+    async def test_lp_actually_moved(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The LP checkpoints pass on real movement, not a weakened assertion."""
+        out, _ = await run_shipped_module(
+            "dex_vs_amm_risk_literacy.md", tmp_path, monkeypatch
+        )
+        assert "LP token balance: 110" in out
+        assert "LP tokens decreased: 110.000000 -> 0" in out

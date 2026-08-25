@@ -492,8 +492,20 @@ class Transport(ABC):
         issuer: str,
         currency: str,
         limit: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
-        """Submit a TrustSet transaction."""
+        """Submit a TrustSet transaction.
+
+        ``wallet_address`` is the trust line's OWNING account — the real
+        classic address whose ledger the line hangs off. The dry-run transport
+        keys its per-account trust-line store by it (every dry-run seed
+        collapses to one synthetic address, so seed-keyed storage merges
+        distinct parties into a single line bucket); the testnet transport
+        derives the account from the seed and ignores it. Any module with two
+        token-holding parties — a holder escrowing an IOU to a third-party
+        recipient, say — must pass it, or both lines land in one bucket and
+        transfers between them net to zero offline.
+        """
 
     @abstractmethod
     async def submit_issued_payment(
@@ -595,8 +607,18 @@ class Transport(ABC):
         asset_b_value: str,
         asset_b_issuer: str,
         trading_fee: int = 500,
+        wallet_address: str = "",
     ) -> SubmitResult:
-        """Create an AMM pool for an asset pair (AMMCreate)."""
+        """Create an AMM pool for an asset pair (AMMCreate).
+
+        ``wallet_address`` is the LP position's owning account — the real
+        classic address whose ledger the LP trust line hangs off. The
+        dry-run transport keys its per-account LP-token store by it (every
+        dry-run seed collapses to one synthetic address, so a seed-keyed
+        write cannot be read back by the address the verify step actually
+        holds); the testnet transport derives the account from the seed
+        and ignores it.
+        """
 
     @abstractmethod
     async def submit_amm_deposit(
@@ -608,8 +630,14 @@ class Transport(ABC):
         asset_b_currency: str,
         asset_b_value: str,
         asset_b_issuer: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
-        """Deposit both assets into an AMM pool (AMMDeposit)."""
+        """Deposit both assets into an AMM pool (AMMDeposit).
+
+        ``wallet_address`` is the depositor's real classic address — the
+        account the minted LP tokens are credited to. See
+        :meth:`submit_amm_create` for why the dry-run transport needs it.
+        """
 
     @abstractmethod
     async def submit_amm_withdraw(
@@ -620,8 +648,14 @@ class Transport(ABC):
         asset_b_currency: str,
         asset_b_issuer: str,
         lp_token_value: str = "",
+        wallet_address: str = "",
     ) -> SubmitResult:
-        """Withdraw from an AMM pool by returning LP tokens (AMMWithdraw)."""
+        """Withdraw from an AMM pool by returning LP tokens (AMMWithdraw).
+
+        ``wallet_address`` must match whatever :meth:`submit_amm_create` /
+        :meth:`submit_amm_deposit` were given, so the burn debits the
+        bucket the LP tokens actually live in.
+        """
 
     @abstractmethod
     async def get_lp_token_balance(
@@ -1114,12 +1148,21 @@ class Transport(ABC):
         holder_seed: str,
         issuance_id: str,
         unauthorize: bool = False,
+        holder_address: str = "",
     ) -> SubmitResult:
         """Holder opts in to hold an MPT issuance (MPTokenAuthorize, XLS-33).
 
         The MPT analog of a trust line: a holder must authorize an issuance
         before it can receive that token. ``unauthorize=True`` opts back out
         (tfMPTUnauthorize), allowed only at a zero balance.
+
+        ``holder_address`` is the opting-in account's real classic address.
+        The dry-run transport keys its authorization set by it, matching how
+        :meth:`submit_mpt_payment` and :meth:`get_mpt_balance` key the same
+        holder by ``destination`` / ``holder`` — without it the opt-in lands
+        under the seed-collapsed synthetic address and the later payment
+        fails ``tecNO_AUTH`` against a holder who did authorize. The testnet
+        transport derives the account from the seed and ignores it.
         """
 
     @abstractmethod

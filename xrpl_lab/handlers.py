@@ -487,7 +487,8 @@ async def handle_set_trust_line(
     )
     console.print(f"  Limit: {limit}")
     result = await set_trust_line(
-        transport, context["wallet_seed"].get(), issuer_address, currency, limit
+        transport, context["wallet_seed"].get(), issuer_address, currency, limit,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -707,7 +708,8 @@ async def handle_remove_trust_line(
         f"(setting limit to 0)"
     )
     result = await remove_trust_line(
-        transport, context["wallet_seed"].get(), issuer_address, currency
+        transport, context["wallet_seed"].get(), issuer_address, currency,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -1631,6 +1633,7 @@ async def handle_ensure_amm_pair(
         transport, context["wallet_seed"].get(),
         a_currency, a_value, a_issuer,
         b_currency, b_value, b_issuer,
+        wallet_address=state.wallet_address or "",
     )
 
     if create_result is None:
@@ -1735,6 +1738,7 @@ async def handle_amm_deposit(
         transport, context["wallet_seed"].get(),
         a_currency, a_value, a_issuer,
         b_currency, b_value, b_issuer,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -1833,6 +1837,7 @@ async def handle_amm_withdraw(
         a_currency, a_issuer,
         b_currency, b_issuer,
         lp_token_value=lp_value,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -3076,7 +3081,8 @@ async def handle_create_token_recipient(
 
     console.print(f"  Recipient trusting the issuer for [cyan]{currency}[/]...")
     ts = await set_trust_line(
-        transport, recipient.seed, issuer_address, currency, limit
+        transport, recipient.seed, issuer_address, currency, limit,
+        wallet_address=recipient.address,
     )
     if ts.success:
         console.print("  [green]Recipient trust line set.[/]")
@@ -3120,7 +3126,10 @@ async def handle_create_noopt_issuer(
     # Holder trusts this issuer, then it issues tokens (opt-in NEVER set) so
     # the later escrow attempt fails on the opt-in rule, not on tecNO_LINE.
     holder_seed = context["wallet_seed"].get()
-    await set_trust_line(transport, holder_seed, issuer.address, currency, "1000")
+    await set_trust_line(
+        transport, holder_seed, issuer.address, currency, "1000",
+        wallet_address=state.wallet_address or "",
+    )
     issue = await issue_token(
         transport, issuer.seed, state.wallet_address or "",
         currency, issuer.address, amount,
@@ -4569,6 +4578,12 @@ async def handle_verify_domain(
     domain_id = context.get("domain_id", "")
     expect_issuer = context.get("domain_issuer", "")
     expect_type = context.get("domain_credential_type", "")
+    # A module that teaches the full-replace revocation gotcha reads the
+    # domain back AFTER deliberately dropping a credential; there the
+    # lesson passing means the credential is GONE. Without this the step
+    # asserts the positive form against a set it just dropped the entry
+    # from, and the working lesson prints a red ✗ on its last check.
+    expect_absent = _parse_bool_arg(step.action_args.get("expect_absent")) or False
     if not domain_id or not owner_address:
         console.print("  [red]No domain in context. Create the domain first.[/]")
         # FT-001: prerequisites missing → the on-ledger assertion could not run.
@@ -4580,6 +4595,7 @@ async def handle_verify_domain(
     result = await verify_domain(
         transport, owner_address, domain_id,
         expect_issuer=expect_issuer, expect_credential_type=expect_type,
+        expect_absent=expect_absent,
     )
     for c in result.checks:
         console.print(f"  [green]✓[/] {c}")
@@ -5158,7 +5174,10 @@ async def handle_mpt_authorize(
         console.print("  [red]No holder wallet in context. Run the wallet step first.[/]")
         return context
     console.print("  Authorizing this wallet to hold the MPT (MPTokenAuthorize)...")
-    result = await authorize_mpt(transport, context["wallet_seed"].get(), issuance_id)
+    result = await authorize_mpt(
+        transport, context["wallet_seed"].get(), issuance_id,
+        holder_address=state.wallet_address or "",
+    )
     if result.success:
         console.print("  [green]Authorized — the holder can now receive this MPT.[/]")
         console.print(f"  TXID: [cyan]{result.txid}[/]")
@@ -5878,7 +5897,10 @@ async def handle_create_noclaw_issuer(
     context["noclaw_currency"] = currency
     # Holder trusts this issuer, then it issues tokens (no clawback flag set).
     holder_seed = context["wallet_seed"].get()
-    await set_trust_line(transport, holder_seed, issuer.address, currency, "1000")
+    await set_trust_line(
+        transport, holder_seed, issuer.address, currency, "1000",
+        wallet_address=state.wallet_address or "",
+    )
     issue = await issue_token(
         transport, issuer.seed, state.wallet_address or "",
         currency, issuer.address, amount,
