@@ -38,9 +38,13 @@ from xrpl_lab.api.runner_ws import _redact_output_text
 
 
 def test_strips_userinfo_and_query_credentials_from_embedded_url() -> None:
-    """A URL with basic-auth userinfo AND a query-string token, embedded
-    in free console text (mirrors F-9f0aa836's runtime.py message shape),
-    must have both stripped before reaching the WS 'output' channel."""
+    """Userinfo-bearing URL (query may ride along on the same span).
+
+    F-cbd44005: this fixture alone does NOT prove query-key detection —
+    the query token was previously stripped only because the userinfo
+    match spanned the whole URL. Independent path-token and query-key
+    fixtures live in tests/test_w4_api_cli_ws_redaction_shapes.py.
+    """
     text = (
         "  Last response: Refusing to contact faucet: XRPL_LAB_FAUCET_URL "
         "points at a 'mainnet' endpoint "

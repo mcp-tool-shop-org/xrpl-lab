@@ -99,12 +99,10 @@ def _try_import_camp_wallet(state: LabState) -> bool:
         save_state(state)
         return True
     except LabException as e:
-        # F-5531ceb5 residual: save_wallet() now raises
-        # PERM_WALLET_ACL_FAILED when the Windows ACL lockdown cannot be
-        # verified. Neither degrading to "no camp wallet" nor letting it
-        # escape is acceptable — the first hides a security failure behind
-        # a normal-looking path, the second prints a raw traceback
-        # (SHIP_GATE B). Render it structured and exit non-zero.
+        # F-5531ceb5 / F-86f2f989: save_wallet (PERM_WALLET_ACL_FAILED) and
+        # save_state (STATE_LOCKED) both raise LabException. Neither
+        # degrading to "no camp wallet" nor a raw traceback is acceptable
+        # (SHIP_GATE B). Render structured and exit non-zero.
         console.print(f"[red]{e.error.code}:[/] {e.error.message}")
         if e.error.hint:
             console.print(f"  [yellow]Hint:[/] {e.error.hint}")
@@ -1800,7 +1798,16 @@ def wallet_create(path: str | None):
     state = load_state()
     state.wallet_address = w.address
     state.wallet_path = str(saved)
-    save_state(state)
+    try:
+        save_state(state)
+    except LabException as e:
+        # F-86f2f989: save_state can raise STATE_LOCKED under advisory-lock
+        # contention — same structured render as save_wallet above / reset
+        # (~1650). Do not let it escape as a raw traceback (SHIP_GATE B).
+        console.print(f"[red]{e.error.code}:[/] {e.error.message}")
+        if e.error.hint:
+            console.print(f"  [yellow]Hint:[/] {e.error.hint}")
+        sys.exit(e.exit_code)
 
 
 @wallet.command("show")
