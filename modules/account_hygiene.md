@@ -61,6 +61,13 @@ We need an issuer to create objects against. This issuer creates a currency
 called HYGIENE — chosen specifically because we won't issue any tokens,
 which means the trust line can be cleanly removed later.
 
+**Issuer reuse:** this step loads `.xrpl-lab/issuer_wallet.json` when present
+and reuses that issuer — it does not mint a fresh wallet on resume or re-run.
+Minting a new issuer would orphan trust lines (and their owner reserve) against
+the previous address. Leftover lines from earlier currencies still lock reserve
+until balance is 0 and you remove them — this module (`account_hygiene`) teaches
+that cleanup loop.
+
 <!-- action: create_issuer_wallet -->
 
 ## Step 5: Fund the issuer

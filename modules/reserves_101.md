@@ -63,6 +63,13 @@ which should increase the owner count and lock more reserve.
 
 We need an issuer wallet to reference LAB tokens in the offer.
 
+**Issuer reuse:** this step loads `.xrpl-lab/issuer_wallet.json` when present
+and reuses that issuer — it does not mint a fresh wallet on resume or re-run.
+Minting a new issuer would orphan trust lines (and their owner reserve) against
+the previous address. Leftover lines from earlier currencies still lock reserve
+until balance is 0 and you remove them; run **Account Hygiene**
+(`account_hygiene`) for the taught cleanup loop.
+
 <!-- action: create_issuer_wallet -->
 
 ## Step 5: Fund the issuer and create the offer
