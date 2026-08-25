@@ -5,13 +5,13 @@
 | File | Location | Contains |
 |------|----------|----------|
 | `state.json` | `~/.xrpl-lab/` | Module progress, txids, wallet address, timestamps |
-| `wallet.json` | `~/.xrpl-lab/` | Wallet seed (plaintext, protected by file permissions) |
+| `wallet.json` | `~/.xrpl-lab/` | Wallet seed (plaintext; POSIX mode `0o600`, or an owner-only ACL on Windows) |
 | Reports | `./.xrpl-lab/reports/` | Human-readable markdown summaries |
 | Proofs | `./.xrpl-lab/proofs/` | Shareable JSON (no secrets) |
 
 ## Secrets hygiene
 
-- **Wallet seeds** are stored in `wallet.json` with restrictive file permissions (owner-only read/write)
+- **Wallet seeds** are stored in `wallet.json`, restricted to the owning user — POSIX mode `0o600`, or an owner-only ACL on Windows. See [Wallet file protection by platform](#wallet-file-protection-by-platform) for what each platform actually guarantees, and what it does not
 - **Proof packs and certificates never contain seeds** — they only include public addresses and txids
 - **Reports never contain seeds** — only public transaction data
 - The CLI warns users not to share wallet files or paste seeds
@@ -40,10 +40,11 @@ The `--dry-run` mode bypasses the network entirely and is the recommended path f
 XRPL Lab uses a two-tier directory model designed for workshop facilitator handoff:
 
 ### Single-user private (`~/.xrpl-lab/`)
-Created at mode `0o700` (owner-only). Contains:
-- `wallet.json` — wallet seed (mode `0o600`)
-- `state.json` — module progress, txid history (mode `0o600`)
-- `doctor.log` — diagnostic log (mode `0o600`)
+Created owner-only: mode `0o700` on POSIX, an owner-only ACL on Windows — see
+[Wallet file protection by platform](#wallet-file-protection-by-platform). Contains:
+- `wallet.json` — wallet seed (POSIX mode `0o600`)
+- `state.json` — module progress, txid history (POSIX mode `0o600`)
+- `doctor.log` — diagnostic log (POSIX mode `0o600`)
 
 These files are personal to the learner and never intended to be shared.
 
@@ -62,7 +63,48 @@ For workshops on a shared machine where each learner has a distinct OS user:
 - Default behavior is correct: `~/<learner>/.xrpl-lab/` is owner-private; `./<learner>/.xrpl-lab/` (relative to learner's working dir) is shareable.
 
 For workshops on a shared machine where multiple learners share an OS user (e.g., training labs with kiosk users):
-- Set `XRPL_LAB_HOME` to a per-learner path: `XRPL_LAB_HOME=/tmp/learner-N xrpl-lab start`. The home dir's `0o700` mode prevents cross-learner reads even on the shared user.
+- Set `XRPL_LAB_HOME` to a per-learner path: `XRPL_LAB_HOME=/tmp/learner-N xrpl-lab start`. The home directory is owner-only, which prevents cross-learner reads even on a shared user — by mode `0o700` on POSIX, and by an owner-only ACL on Windows. Note that on a shared *OS user* every learner is the same principal, so this separates learners by path and habit, not by an OS permission boundary; use distinct OS users when you need a real one.
+
+### Wallet file protection by platform
+
+`~/.xrpl-lab/` and its contents are restricted to the owning user, but the mechanism
+and the strength of the guarantee differ by platform.
+
+**POSIX (Linux, macOS).** The directory is created at mode `0o700` and `wallet.json`
+at `0o600`. A `chmod` failure raises rather than being logged and stepped over.
+
+**Windows.** There are no POSIX mode bits, so `os.chmod` has no equivalent effect and
+the `0o600`/`0o700` discipline above does not apply. Earlier releases logged a warning
+here and continued, which meant the protection this document promised was never
+actually applied on Windows. It is now enforced with real ACLs via `icacls`:
+
+1. `icacls <path> /inheritance:r` — drop every inherited ACE.
+2. `icacls <path> /grant:r <user>:<perm>` — grant the current user, replacing any
+   existing grant for them.
+3. Re-read `icacls <path>` and explicitly `/remove:g` each surviving principal. This
+   third step is load-bearing: a newly created directory seeds `SYSTEM`,
+   `Administrators` and `OWNER RIGHTS` as **explicit** ACEs, which step 1 does not
+   remove.
+
+The end state — verified by re-reading `icacls` output, not inferred from an exit
+code — is that **the wallet file and its parent directory each carry exactly one ACL
+grantee, the current user, with zero inherited entries.** If `icacls` is unavailable,
+times out, or reports a failure, `xrpl-lab` raises `PERM_WALLET_ACL_FAILED` and does
+not write the seed. It does not warn and continue.
+
+**What file permissions do not protect against, on either platform:**
+
+- **A privileged account on the same machine.** An Administrator can take ownership
+  and re-grant access; `root` can read a `0o600` file. This is the same class of
+  exposure on both platforms, and permissions are not a defence against it.
+- **A brief window at file creation on Windows.** Windows has no atomic
+  create-file-with-ACL primitive, so the file is created, locked down, and only then
+  written. During that window the file exists but is **empty** — the seed has not
+  been written yet. The window exposes a zero-byte file, not a readable secret. It is
+  minimized, not eliminated.
+- **Raw disk or backup access.** Neither mode bits nor ACLs survive someone reading
+  the underlying disk, a snapshot, or a backup. Use full-disk encryption if that is
+  in your threat model.
 
 ### Threat model summary
 - Local private files (`~/.xrpl-lab/`) protect learner secrets from other OS users.
