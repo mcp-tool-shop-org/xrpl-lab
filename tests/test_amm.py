@@ -1,9 +1,11 @@
 """Tests for AMM liquidity — create, deposit, withdraw, verify, lifecycle."""
 
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
+from tests._shipped_module import assert_no_failed_checks, run_shipped_module
 from xrpl_lab.actions.amm import (
     amm_deposit,
     amm_withdraw,
@@ -615,3 +617,58 @@ class TestAmmBoundaries:
         assert Decimal(info_after.lp_supply) == Decimal("100")
         assert Decimal(info_after.pool_a) == Decimal("100")
         assert Decimal(info_after.pool_b) == Decimal("100")
+
+
+# ── Shipped module runs clean in --dry-run ────────────────────────────────
+
+
+class TestShippedAmmLiquidityModule:
+    """``modules/amm_liquidity_101.md`` must not false-fail its LP checkpoints.
+
+    Every step of this module succeeded in ``--dry-run`` — the pool was
+    created, the deposit returned tesSUCCESS, the withdrawal returned
+    tesSUCCESS — and the learner still got two red ✗ ("No LP tokens received",
+    "LP balance was 0 before and after"), which reads as "the lesson failed".
+
+    The cause was not the lesson. ``submit_amm_create`` / ``submit_amm_deposit``
+    credited the minted LP under ``_address_from_seed(wallet_seed)``, which
+    collapses every dry-run seed to one synthetic address, while
+    ``handle_verify_lp_received`` reads the balance back with
+    ``get_lp_token_balance(state.wallet_address, ...)`` — the learner's REAL
+    address. The write and the read used different keys, so the deposit landed
+    in a bucket the verify step could never see.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_failed_checks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out, _ = await run_shipped_module(
+            "amm_liquidity_101.md", tmp_path, monkeypatch
+        )
+
+        # The two precise false failures this guards against.
+        assert "No LP tokens received" not in out, (
+            "the LP checkpoint false-failed: the deposit credited LP under the "
+            "seed-collapsed address the verify step cannot read"
+        )
+        assert "no withdrawal detected" not in out
+
+        # No checkpoint failure of ANY shape, anywhere in the module.
+        assert_no_failed_checks(out, "amm_liquidity_101.md")
+
+    @pytest.mark.asyncio
+    async def test_lp_actually_moved(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The checkpoints pass because LP really moved — not because the
+        module stopped asserting."""
+        out, _ = await run_shipped_module(
+            "amm_liquidity_101.md", tmp_path, monkeypatch
+        )
+        assert "LP token balance: 110" in out, (
+            "deposit did not credit LP to the learner's address"
+        )
+        assert "LP tokens decreased: 110.000000 -> 0" in out, (
+            "withdrawal did not debit the learner's LP"
+        )

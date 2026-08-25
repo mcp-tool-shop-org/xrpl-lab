@@ -167,6 +167,7 @@ async def verify_domain(
     domain_id: str,
     expect_issuer: str = "",
     expect_credential_type: str = "",
+    expect_absent: bool = False,
 ) -> DomainVerifyResult:
     """Verify a Permissioned Domain exists and lists the expected credential.
 
@@ -174,6 +175,14 @@ async def verify_domain(
     asserts the domain's accepted set includes ``(expect_issuer,
     expect_credential_type)`` — the check a gate would run to confirm a domain
     still admits a given credential BEFORE relying on a quote in it.
+
+    With ``expect_absent=True`` that assertion INVERTS: the credential must
+    be GONE from the accepted set. This is the read-back after a deliberate
+    full-replace revocation — the domain still exists and is still owned by
+    the same account, but the named credential no longer admits its holders.
+    Without the inverse mode a module that TEACHES the full-replace gotcha
+    has to assert the positive form against a set it just intentionally
+    dropped the entry from, and the successful lesson reads as a red ✗.
     """
     checks: list[str] = []
     failures: list[str] = []
@@ -204,7 +213,20 @@ async def verify_domain(
         listed = [
             (iss, ctype) for iss, ctype in match.accepted_credentials
         ]
-        if want in listed:
+        if expect_absent:
+            if want in listed:
+                failures.append(
+                    f"Domain STILL accepts {{{expect_issuer[:12]}..., "
+                    f"{expect_credential_type}}} — the modify did not replace "
+                    f"the accepted set, so access was never revoked"
+                )
+            else:
+                checks.append(
+                    f"No longer accepts {{{expect_issuer[:12]}..., "
+                    f"{expect_credential_type}}} — the full-replace modify "
+                    f"dropped it, revoking access for its holders"
+                )
+        elif want in listed:
             checks.append(
                 f"Accepts credential {{{expect_issuer[:12]}..., "
                 f"{expect_credential_type}}} — eligible holders can trade"

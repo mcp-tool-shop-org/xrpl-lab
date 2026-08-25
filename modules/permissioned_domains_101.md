@@ -153,7 +153,10 @@ Read the domain back. It no longer lists `region-EU` — the previously-eligible
 excluded. A resting permissioned offer can be invalidated post-placement exactly this way
 (accepted-set change), alongside credential expiry/revocation and domain deletion.
 
-<!-- action: verify_domain -->
+`expect_absent=true` inverts the check: here a PASS means the credential is gone. Step 7 ran the
+same action in its positive form, against the same domain, before the modify.
+
+<!-- action: verify_domain expect_absent=true -->
 
 ## Step 15: Delete the domain (compensator, reclaim reserve)
 

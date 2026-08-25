@@ -83,16 +83,22 @@ decides whether its token can be locked in escrow at all.
 
 <!-- action: set_allow_trustline_locking -->
 
-## Step 6: Trust the issuer and receive GLD
+## Step 6: Trust the issuer
 
-Opt in to hold GLD (a `TrustSet`), then the issuer sends you 100 GLD. You are now
-the holder with a real balance — the thing you will escrow.
+Opt in to hold GLD (a `TrustSet`). The trust line is the *holder's* half of the
+consent: you decide whose token you are willing to hold, and up to what limit.
+Until it exists, the issuer cannot send you a single GLD.
 
 <!-- action: set_trust_line currency=GLD limit=1000 -->
 
+## Step 7: Receive GLD from the issuer
+
+Now the issuer sends 100 GLD down that trust line. You are now the holder with a
+real balance — the thing you will escrow.
+
 <!-- action: issue_token currency=GLD amount=100 -->
 
-## Step 7: Create the recipient
+## Step 8: Create the recipient
 
 A **third-party** wallet is the escrow's destination. It sets its own trust line
 for GLD so the released token has a line to land on. (The token's issuer can
@@ -101,14 +107,14 @@ flow is the only valid shape.)
 
 <!-- action: create_token_recipient currency=GLD limit=1000 -->
 
-## Step 8: Snapshot the recipient's balance (before)
+## Step 9: Snapshot the recipient's balance (before)
 
 Capture the recipient's GLD balance now — it should be 0. We compare against it
 at the end to prove the escrowed token actually moved.
 
 <!-- action: snapshot_recipient_balance currency=GLD label=before -->
 
-## Step 9: Escrow the token to the recipient (with a mandatory CancelAfter)
+## Step 10: Escrow the token to the recipient (with a mandatory CancelAfter)
 
 You (the holder) escrow **50 GLD** to the recipient. Because this is a *token*
 escrow, a `CancelAfter` is **required** — we set one a day out. The 50 GLD leaves
@@ -122,7 +128,7 @@ cancelled.
 
 <!-- action: create_token_escrow currency=GLD amount=50 cancel_seconds=86400 -->
 
-## Step 10: See the failure — a token escrow WITHOUT opt-in
+## Step 11: See the failure — a token escrow WITHOUT opt-in
 
 Learn by hitting the wall. Here we attempt to escrow a *different* currency whose
 issuer never set `asfAllowTrustLineLocking`. The network refuses it with
@@ -132,7 +138,7 @@ mistake.
 
 <!-- action: create_token_escrow_expect_fail currency=NOP amount=50 -->
 
-## Step 11: Recipient finishes the escrow
+## Step 12: Recipient finishes the escrow
 
 The recipient submits `EscrowFinish`, releasing the locked GLD to itself. (For a
 time-based escrow, either party may finish it after the release time — the funds
@@ -141,7 +147,7 @@ release time is simulated as already elapsed, so it succeeds immediately.)
 
 <!-- action: finish_token_escrow -->
 
-## Step 12: Snapshot the recipient's balance (after)
+## Step 13: Snapshot the recipient's balance (after)
 
 <!-- action: snapshot_recipient_balance currency=GLD label=after -->
 

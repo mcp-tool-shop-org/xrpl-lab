@@ -26,6 +26,7 @@ from pathlib import Path
 
 import pytest
 
+from tests._shipped_module import assert_no_failed_checks, run_shipped_module
 from xrpl_lab.actions.credentials import accept_credential, create_credential
 from xrpl_lab.actions.permissioned_domains import (
     create_permissioned_offer,
@@ -472,3 +473,61 @@ class TestVerifyHandlersRecord:
         assert recs[0]["action"] == "verify_permissioned_offer"
         assert recs[0]["passed"] is True
         assert recs[0]["failures"] == []
+
+
+# ── Shipped module runs clean in --dry-run ────────────────────────────────
+
+
+class TestShippedPermissionedDomainsModule:
+    """``modules/permissioned_domains_101.md`` must not false-fail step 14.
+
+    Step 13 TEACHES the full-replace revocation gotcha: it modifies the domain
+    with a decoy credential, deliberately dropping ``region-EU``. Step 14 reads
+    the domain back to show the drop took effect — so at step 14 the credential
+    being GONE is the lesson working. But step 14 re-ran ``verify_domain`` in
+    its default positive form, asserting the domain still accepts the entry
+    step 13 had just removed on purpose, and the successful lesson closed on a
+    red ✗ telling the learner a "modify may have dropped it, silently revoking
+    access".
+
+    Unlike the AMM and MPT false-failures this was not a transport keying bug —
+    nothing in the ledger sim was wrong. The module asserted the opposite of
+    what it taught. ``expect_absent=true`` inverts the check.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_failed_checks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out, _ = await run_shipped_module(
+            "permissioned_domains_101.md", tmp_path, monkeypatch
+        )
+
+        assert "Domain does NOT accept" not in out, (
+            "step 14 false-failed: it asserts the positive form against the "
+            "credential step 13 deliberately dropped"
+        )
+
+        assert_no_failed_checks(out, "permissioned_domains_101.md")
+
+    @pytest.mark.asyncio
+    async def test_revocation_is_still_asserted_both_ways(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Step 14 passing must mean the credential is GONE, not unchecked.
+
+        The inverse mode has to keep real teeth: step 7 asserts the domain
+        ACCEPTS region-EU before the modify, step 14 asserts it no longer does
+        after. Deleting the assertion would also have turned the ✗ green, and
+        would have silently stopped testing the gotcha the module exists to
+        teach.
+        """
+        out, _ = await run_shipped_module(
+            "permissioned_domains_101.md", tmp_path, monkeypatch
+        )
+        assert "region-EU} — eligible holders can trade" in out, (
+            "step 7 no longer asserts the credential IS accepted pre-modify"
+        )
+        assert "No longer accepts" in out, (
+            "step 14 no longer asserts the credential was revoked post-modify"
+        )

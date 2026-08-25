@@ -692,6 +692,7 @@ class DryRunTransport(Transport):
         issuer: str,
         currency: str,
         limit: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -703,7 +704,17 @@ class DryRunTransport(Transport):
             )
 
         txid = self._next_txid()
-        wallet_address = _address_from_seed(wallet_seed)
+        # F-TOKENESC-DRYRUN: key the line under the caller's REAL address when
+        # it is known. _address_from_seed collapses every seed to one synthetic
+        # address, so a seed-only key merged the holder's and the recipient's
+        # lines into a single bucket — token_escrow_101 then escrowed 50 GLD
+        # out of that bucket and credited the same bucket at EscrowFinish, so
+        # the recipient's balance "changed by 0" and the module's closing
+        # checkpoint failed on every --dry-run. Same address-hint pattern as
+        # submit_token_escrow_create's ``source_address`` / submit_clawback's
+        # ``issuer_address``; fixture callers that pass no address keep the
+        # old single-wallet behaviour.
+        wallet_address = wallet_address or _address_from_seed(wallet_seed)
         addr_lines = self._trust_lines.setdefault(wallet_address, [])
 
         # Find existing trust line for this currency + issuer
@@ -1324,6 +1335,7 @@ class DryRunTransport(Transport):
         asset_b_value: str,
         asset_b_issuer: str,
         trading_fee: int = 500,
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -1419,9 +1431,20 @@ class DryRunTransport(Transport):
             "b_issuer": asset_b_issuer,
         }
 
-        # Creator gets all initial LP tokens
+        # Creator gets all initial LP tokens.
+        #
+        # F-AMMLP-DRYRUN: key the position under the caller's REAL address
+        # when it is known. _address_from_seed collapses every seed to one
+        # synthetic address, but get_lp_token_balance is called with
+        # state.wallet_address — the learner's actual address — so a
+        # seed-only key wrote LP that the verify step could never read back.
+        # amm_liquidity_101 and dex_vs_amm_risk_literacy both deposited
+        # successfully and still printed "No LP tokens received" on every
+        # --dry-run. Same address-hint pattern as submit_trust_set's
+        # ``wallet_address``; fixture callers that pass no address keep the
+        # old single-wallet behaviour.
         lp_key = f"{lp_currency}/{amm_account}"
-        creator_address = _address_from_seed(wallet_seed)
+        creator_address = wallet_address or _address_from_seed(wallet_seed)
         self._lp_balances.setdefault(creator_address, {})[lp_key] = initial_lp
 
         self._inc_owner(creator_address)  # AMM position
@@ -1444,6 +1467,7 @@ class DryRunTransport(Transport):
         asset_b_currency: str,
         asset_b_value: str,
         asset_b_issuer: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -1547,7 +1571,7 @@ class DryRunTransport(Transport):
 
         # Credit LP tokens to depositor
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
-        depositor_address = _address_from_seed(wallet_seed)
+        depositor_address = wallet_address or _address_from_seed(wallet_seed)
         balances = self._lp_balances.setdefault(depositor_address, {})
         current = Decimal(balances.get(lp_key, "0"))
         balances[lp_key] = str((current + lp_minted).quantize(_six, rounding=ROUND_HALF_UP))
@@ -1569,6 +1593,7 @@ class DryRunTransport(Transport):
         asset_b_currency: str,
         asset_b_issuer: str,
         lp_token_value: str = "",
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -1606,7 +1631,7 @@ class DryRunTransport(Transport):
                                     fee="12", error=f"[dry-run] {exc}")
 
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
-        withdrawer_address = _address_from_seed(wallet_seed)
+        withdrawer_address = wallet_address or _address_from_seed(wallet_seed)
         balances = self._lp_balances.get(withdrawer_address, {})
         current_lp = Decimal(balances.get(lp_key, "0"))
 
@@ -3518,6 +3543,7 @@ class DryRunTransport(Transport):
 
     async def submit_mpt_authorize(
         self, holder_seed: str, issuance_id: str, unauthorize: bool = False,
+        holder_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -3525,7 +3551,18 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecNO_PERMISSION", fee="12",
                 error="[dry-run] Simulated failure: MPTokenAuthorize",
             )
-        holder = _address_from_seed(holder_seed)
+        # F-MPTAUTH-DRYRUN: key the opt-in under the holder's REAL address
+        # when it is known. submit_mpt_payment keys _mpt_auths/_mpt_balances
+        # by the real ``destination`` and get_mpt_balance by the real
+        # ``holder``, but this method keyed them by _address_from_seed —
+        # which collapses every dry-run seed to one synthetic address. The
+        # authorization therefore landed under a different key than the
+        # payment looked up, so mpt_distribution_101's distribution step
+        # failed tecNO_AUTH against a holder who HAD authorized and the
+        # closing balance check read 0. Same address-hint pattern as
+        # submit_trust_set's ``wallet_address``; fixture callers that pass
+        # no address keep the old single-wallet behaviour.
+        holder = holder_address or _address_from_seed(holder_seed)
         key = (holder, issuance_id)
         if unauthorize:
             if Decimal(str(self._mpt_balances.get(key, 0))) != 0:

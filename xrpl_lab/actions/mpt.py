@@ -71,9 +71,20 @@ async def authorize_mpt(
     holder_seed: str,
     issuance_id: str,
     unauthorize: bool = False,
+    holder_address: str = "",
 ) -> SubmitResult:
-    """Holder opts in to (or out of) holding an MPT issuance (MPTokenAuthorize)."""
-    return await transport.submit_mpt_authorize(holder_seed, issuance_id, unauthorize)
+    """Holder opts in to (or out of) holding an MPT issuance (MPTokenAuthorize).
+
+    ``holder_address`` is the opting-in account, forwarded for the
+    dry-run transport's per-holder authorization set (the testnet path
+    ignores it and derives the account from the seed). Pass it whenever
+    the holder is addressed by real address later — :func:`send_mpt` and
+    :func:`verify_mpt_balance` both are, so without it the opt-in and the
+    payment key different holders and the payment fails tecNO_AUTH.
+    """
+    return await transport.submit_mpt_authorize(
+        holder_seed, issuance_id, unauthorize, holder_address=holder_address,
+    )
 
 
 async def send_mpt(

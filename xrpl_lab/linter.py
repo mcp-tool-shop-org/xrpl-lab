@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .modules import parse_module
+from .modules import _ACTION_RE, _STEP_RE, parse_module
 from .registry import PayloadError, PayloadSchema, is_registered, resolve
 
 # Tracks whose modules are sourced from the XRPL knowledge base (KB). A module
@@ -267,6 +267,48 @@ def lint_module_text(
                     "module would be silently dropped at KB ingest "
                     "(ingest_proofs.py gates on SELECT 1 FROM capabilities "
                     "WHERE slug=?)"
+                ),
+            ))
+
+    # 8. One action per step heading.
+    #
+    # ``parse_module`` binds a step to its action with ``_ACTION_RE.search()``,
+    # which returns only the FIRST ``<!-- action: ... -->`` in a heading's body.
+    # A second action comment under the same heading is therefore parsed away
+    # and NEVER executes — silently, with no warning and no runtime error. That
+    # is exactly how token_escrow_101 shipped a Step 6 carrying both
+    # ``set_trust_line`` and ``issue_token``: only the trust line ran, the
+    # holder never received the token the lesson promised, and the module's own
+    # happy path failed ``tecUNFUNDED`` on every run.
+    #
+    # The curriculum convention is ONE action per heading (see clawback_101's
+    # Step 11/12 split), so a second action is an authoring error, not a
+    # supported form. This is an ERROR by the same logic as "Unknown action"
+    # above: both describe a step that cannot do what its author wrote.
+    #
+    # Scanned from ``raw_body`` rather than ``mod.steps`` — by the time parsing
+    # is done the extra actions are already gone, so the parsed steps cannot
+    # see the defect they are the symptom of.
+    raw_parts = _STEP_RE.split(mod.raw_body)
+    # Mirror parse_module's indexing so the reported step number matches the
+    # one used everywhere else: an intro before the first heading occupies
+    # step 1, shifting every heading down by one.
+    heading_offset = 2 if raw_parts[0].strip() else 1
+    for j, i in enumerate(range(1, len(raw_parts), 2)):
+        step_body = raw_parts[i + 1] if i + 1 < len(raw_parts) else ""
+        found = _ACTION_RE.findall(step_body)
+        if len(found) > 1:
+            names = [name for name, _args in found]
+            dropped = ", ".join(f"'{n}'" for n in names[1:])
+            issues.append(LintIssue(
+                level="error",
+                module=module_name,
+                location=f"step {j + heading_offset}",
+                message=(
+                    f"Step declares {len(names)} actions ({', '.join(names)}) "
+                    f"but only the first ('{names[0]}') will run — {dropped} "
+                    "would be silently dropped at parse time. Split each "
+                    "action into its own '## Step N:' heading."
                 ),
             ))
 

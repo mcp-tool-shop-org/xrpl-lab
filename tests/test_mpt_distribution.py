@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from tests._shipped_module import assert_no_failed_checks, run_shipped_module
 from xrpl_lab.actions.mpt import (
     authorize_mpt,
     create_mpt_issuance,
@@ -73,3 +74,56 @@ def test_mpt_distribution_module_lints_clean():
         Path(__file__).parent.parent / "modules" / "mpt_distribution_101.md"
     )
     assert not [i for i in issues if i.level == "error"]
+
+
+# ── Shipped module runs clean in --dry-run ────────────────────────────────
+
+
+class TestShippedMptDistributionModule:
+    """``modules/mpt_distribution_101.md`` must not false-fail its balance check.
+
+    The learner opted in (MPTokenAuthorize returned tesSUCCESS, the module
+    printed "Authorized — the holder can now receive this MPT"), and the very
+    next step failed ``tecNO_AUTH`` — "the destination has not authorized this
+    MPT issuance" — against the holder who had just authorized it. The closing
+    balance check then read 0 and went red.
+
+    The cause: ``submit_mpt_authorize`` keyed ``_mpt_auths`` by
+    ``_address_from_seed(holder_seed)``, which collapses every dry-run seed to
+    one synthetic address, while ``submit_mpt_payment`` and
+    ``get_mpt_balance`` key the same dicts by the real ``destination`` /
+    ``holder``. The opt-in landed under one key and the payment looked up
+    another.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_failed_checks(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out, _ = await run_shipped_module(
+            "mpt_distribution_101.md", tmp_path, monkeypatch
+        )
+
+        # The distribution step must not fail against a holder that authorized.
+        # Matched on the failure line, not the bare result code — the module's
+        # prose teaches tecNO_AUTH by name, so the code itself is expected in
+        # the output of a HEALTHY run.
+        assert "MPT payment failed" not in out, (
+            "the payment hit tecNO_AUTH: the opt-in was stored under the "
+            "seed-collapsed address, not the destination the payment addresses"
+        )
+        assert "MPT balance mismatch" not in out
+
+        assert_no_failed_checks(out, "mpt_distribution_101.md")
+
+    @pytest.mark.asyncio
+    async def test_holder_actually_received_the_mpt(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The balance check passes because the 500 units arrived."""
+        out, _ = await run_shipped_module(
+            "mpt_distribution_101.md", tmp_path, monkeypatch
+        )
+        assert "Holder MPT balance: 500" in out, (
+            "the holder did not end up with the 500 units the issuer sent"
+        )

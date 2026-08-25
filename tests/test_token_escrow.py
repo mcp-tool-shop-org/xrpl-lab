@@ -31,7 +31,8 @@ from xrpl_lab.actions.token_escrow import (
     set_allow_trustline_locking,
     verify_token_moved,
 )
-from xrpl_lab.linter import lint_module_file
+from xrpl_lab.linter import lint_module_file, lint_module_text
+from xrpl_lab.modules import _ACTION_RE, _STEP_RE, parse_module
 from xrpl_lab.transport.base import TrustLineInfo
 from xrpl_lab.transport.dry_run import DryRunTransport
 
@@ -52,6 +53,42 @@ def _seed_holding(transport: DryRunTransport, address: str, value: str) -> None:
     transport._trust_lines.setdefault(address, []).append(
         TrustLineInfo(account=address, peer=ISSUER, currency=CUR, balance=value, limit="1000")
     )
+
+
+async def _run_shipped_module(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[str, DryRunTransport]:
+    """Run ``modules/token_escrow_101.md`` end-to-end offline through the runner.
+
+    Returns the captured console text and the transport, so a caller can assert
+    on what the learner SAW as well as on the resulting ledger state.
+    """
+    import io
+
+    import xrpl_lab.runner as runner_mod
+    import xrpl_lab.state as state_mod
+    from xrpl_lab.state import LabState
+
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    monkeypatch.setattr(state_mod, "DEFAULT_HOME_DIR", tmp_path)
+    monkeypatch.setattr(state_mod, "DEFAULT_WORKSPACE_DIR", ws)
+    monkeypatch.setattr(runner_mod, "load_state", lambda: LabState())
+
+    text = (
+        Path(__file__).parent.parent / "modules" / "token_escrow_101.md"
+    ).read_text(encoding="utf-8")
+
+    buf = io.StringIO()
+    console = Console(file=buf, no_color=True, width=120)
+    monkeypatch.setattr(console, "input", lambda _p="": "")
+
+    transport = DryRunTransport()
+    ok = await runner_mod.run_module(
+        parse_module(text), transport, dry_run=True, console=console
+    )
+    assert ok is True
+    return buf.getvalue(), transport
 
 
 class TestIssuerOptInMandatory:
@@ -252,3 +289,175 @@ class TestVerifyHandlerRecords:
         assert rec is not None, "verify handler must record even when it cannot run"
         assert rec["passed"] is False
         assert rec["failures"], "a could-not-run verification must carry a failure reason"
+
+
+class TestOneActionPerStep:
+    """(g) Regression guard for the silently-dropped-action defect.
+
+    ``parse_module`` binds a step's action with ``_ACTION_RE.search()`` — the
+    FIRST match in a heading's body wins and any later action comment under the
+    same heading is discarded with no warning. token_escrow_101 shipped a
+    Step 6 that declared BOTH ``set_trust_line`` and ``issue_token``; only the
+    trust line ran, so the holder never received the 100 GLD the lesson text
+    promises and the module's OWN happy path failed ``tecUNFUNDED`` at
+    EscrowCreate ("Cannot escrow 50 GLD — the source holds only 0") on every
+    run. The fix splits the step in two, matching the curriculum's
+    one-action-per-heading convention (cf. clawback_101 Step 11/12).
+    """
+
+    def test_module_parses_both_trust_line_and_issue_token(self):
+        """Both actions survive parsing as separate steps.
+
+        This is the direct structural assertion: before the split, no step in
+        the parsed module carried ``issue_token`` at all.
+        """
+        text = (
+            Path(__file__).parent.parent / "modules" / "token_escrow_101.md"
+        ).read_text(encoding="utf-8")
+        actions = [s.action for s in parse_module(text).steps if s.action]
+
+        assert "issue_token" in actions, (
+            "issue_token was parsed away — the holder never receives GLD"
+        )
+        assert "set_trust_line" in actions
+        # Order matters: the trust line must exist before the issuer can send.
+        assert actions.index("set_trust_line") < actions.index("issue_token")
+        # And the holder must be funded before the escrow is attempted.
+        assert actions.index("issue_token") < actions.index("create_token_escrow")
+
+    def test_no_curriculum_step_declares_two_actions(self):
+        """No module in the curriculum hides a second action under one heading.
+
+        This is the defect-class guard: token_escrow_101 was the only instance
+        across all 32 modules, and this keeps it that way.
+        """
+        modules_dir = Path(__file__).parent.parent / "modules"
+        offenders: list[str] = []
+        for md in sorted(modules_dir.glob("*.md")):
+            parts = _STEP_RE.split(md.read_text(encoding="utf-8"))
+            for i in range(1, len(parts), 2):
+                body = parts[i + 1] if i + 1 < len(parts) else ""
+                names = [n for n, _ in _ACTION_RE.findall(body)]
+                if len(names) > 1:
+                    offenders.append(f"{md.name} '{parts[i].strip()}': {names}")
+        assert not offenders, f"steps with multiple actions: {offenders}"
+
+    def test_linter_flags_a_two_action_step(self):
+        """The linter now catches this shape instead of passing it silently.
+
+        Before this rule, a module with two actions under one heading linted
+        completely clean — which is why the defect shipped.
+        """
+        text = (
+            "---\n"
+            "id: two_action\ntitle: Two Action\ntime: 1 min\nlevel: beginner\n"
+            "track: tokens\nsummary: fixture\n"
+            "---\n\n"
+            "## Step 1: Do two things\n\n"
+            "<!-- action: set_trust_line currency=GLD limit=1000 -->\n\n"
+            "<!-- action: issue_token currency=GLD amount=100 -->\n"
+        )
+        errors = [i for i in lint_module_text(text, filename="two_action.md")
+                  if i.level == "error"]
+        assert len(errors) == 1, f"expected one error, got {[str(e) for e in errors]}"
+        assert "issue_token" in errors[0].message
+        assert "only the first" in errors[0].message
+
+    def test_linter_accepts_one_action_per_step(self):
+        """The same two actions, split across two headings, lint clean."""
+        text = (
+            "---\n"
+            "id: one_action\ntitle: One Action\ntime: 1 min\nlevel: beginner\n"
+            "track: tokens\nsummary: fixture\n"
+            "---\n\n"
+            "## Step 1: Trust\n\n"
+            "<!-- action: set_trust_line currency=GLD limit=1000 -->\n\n"
+            "## Step 2: Receive\n\n"
+            "<!-- action: issue_token currency=GLD amount=100 -->\n"
+        )
+        errors = [i for i in lint_module_text(text, filename="one_action.md")
+                  if i.level == "error"]
+        assert not errors, f"unexpected errors: {[str(e) for e in errors]}"
+
+
+class TestModuleEndToEnd:
+    """(h) Drive the SHIPPED module through the runner, not a hand-built one.
+
+    The unit tests in :class:`TestHappyPath` pass distinct HOLDER/RECIPIENT
+    addresses straight to the action functions, so they never exercised the
+    authored markdown — which is why the dropped ``issue_token`` went unnoticed.
+    This drives ``modules/token_escrow_101.md`` itself.
+
+    Scope note (superseded): this class used to document the module's closing
+    "recipient balance rose by 50" check as unassertable offline, because
+    ``submit_trust_set`` keyed every line by ``_address_from_seed`` — which
+    collapses all seeds to ``_DRY_RUN_WALLET_ADDRESS`` — so the holder and the
+    recipient shared ONE trust-line bucket, and escrowing 50 GLD out of it and
+    crediting it back at EscrowFinish netted zero. ``submit_trust_set`` now
+    takes the same ``wallet_address`` hint the rest of the transport already
+    used (cf. ``submit_token_escrow_create``'s ``source_address``), so the two
+    parties are distinct accounts offline and the checkpoint is a real
+    assertion here — see :meth:`test_shipped_module_checkpoint_passes`.
+    """
+
+    @pytest.mark.asyncio
+    async def test_shipped_module_escrow_is_funded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out, _ = await _run_shipped_module(tmp_path, monkeypatch)
+
+        # The dropped step actually ran.
+        assert "Issuing 100 GLD" in out, "issue_token never executed"
+
+        # The escrow is funded — this is the exact failure the defect caused.
+        assert "tecUNFUNDED" not in out, (
+            "EscrowCreate hit tecUNFUNDED — the holder was never issued the token"
+        )
+        assert "the source holds only 0" not in out
+        assert "Token escrow created" in out, "EscrowCreate did not succeed"
+        assert "Token escrow finished" in out, "EscrowFinish did not succeed"
+
+    @pytest.mark.asyncio
+    async def test_shipped_module_checkpoint_passes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The closing ``verify_token_moved`` checkpoint does not FALSE-FAIL offline.
+
+        Every step of this module succeeded in ``--dry-run`` (EscrowCreate and
+        EscrowFinish both returned tesSUCCESS) and the learner still got a red
+        ✗ on the last line, which reads as "the lesson failed". The cause was
+        not the lesson: ``submit_trust_set`` keyed the holder's line and the
+        recipient's line by the seed-collapsed address, so both parties shared
+        one bucket, and escrowing 50 GLD out of it then crediting it back on
+        finish left the balance exactly where it started.
+        """
+        out, transport = await _run_shipped_module(tmp_path, monkeypatch)
+
+        # The precise false failure this guards against.
+        assert "changed by 0, expected" not in out, (
+            "the closing checkpoint false-failed: the recipient's balance did "
+            "not move because holder and recipient share one trust-line bucket"
+        )
+        # No checkpoint failure of ANY shape on the closing verify.
+        assert "✗" not in out, (
+            f"module reported a failed check in dry-run: "
+            f"{[ln for ln in out.splitlines() if '✗' in ln]}"
+        )
+        assert "Recipient received 50 GLD (balance 0 -> 50)" in out
+        assert "Token moved — the escrowed IOU is now the recipient's." in out
+
+        # Root cause, asserted structurally rather than through the console:
+        # the holder and the recipient are DISTINCT accounts offline, each
+        # holding 50 GLD of the same issuer after the escrow is finished.
+        buckets = {
+            addr: [tl for tl in lines if tl.currency == "GLD"]
+            for addr, lines in transport._trust_lines.items()
+        }
+        gld_holders = {addr: ls[0].balance for addr, ls in buckets.items() if ls}
+        assert len(gld_holders) == 2, (
+            f"expected two distinct GLD accounts (holder + recipient), got "
+            f"{gld_holders}"
+        )
+        assert sorted(gld_holders.values()) == ["50", "50"], (
+            f"the escrowed 50 GLD did not split holder/recipient: {gld_holders}"
+        )
