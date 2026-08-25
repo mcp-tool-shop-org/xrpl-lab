@@ -23,11 +23,12 @@ the missing prerequisite instead of degrading quietly. This test drives the
 REAL shipped modules/token_escrow_101.md end-to-end through run_module()
 (offline DryRunTransport, dry_run=True, zero network calls, zero writes
 outside tmp_path) to prove the actual shipped module now fails LOUD instead
-of teaching the wrong lesson quietly. modules/token_escrow_101.md itself is
-NOT modified by this wave (out of the handlers domain's scope) — until the
-coordinator adds a create_noopt_issuer step before Step 10, this test
-documents that the module halts with a named, actionable error rather than
-silently mis-teaching.
+of teaching the wrong lesson quietly. The coordinator has since landed the curriculum
+half: modules/token_escrow_101.md
+now calls create_noopt_issuer in its own step before the expect-fail step, so
+the shipped module delivers the real tecNO_PERMISSION lesson. Both halves are
+covered below — the working lesson, and the guard that still fires when the
+prerequisite is absent.
 """
 
 from __future__ import annotations
@@ -53,12 +54,12 @@ def _load_token_escrow_module():
 
 
 @pytest.mark.asyncio
-async def test_shipped_module_fails_loud_instead_of_silent_tecno_line(
-    tmp_path, monkeypatch,
-):
-    """F-57c984e9: an end-to-end dry-run of the SHIPPED token_escrow_101
-    module must not report success while silently recording tecNO_LINE in
-    place of the advertised tecNO_PERMISSION lesson."""
+async def test_shipped_module_teaches_real_tecno_permission(tmp_path, monkeypatch):
+    """F-57c984e9, coordinator half: the SHIPPED modules/token_escrow_101.md now
+    wires create_noopt_issuer before the expect-fail step, so an end-to-end
+    dry-run must actually deliver the tecNO_PERMISSION lesson its own frontmatter
+    `checks:` advertises — not a structured abort, and not a silent tecNO_LINE.
+    """
     monkeypatch.setenv("XRPL_LAB_HOME", str(tmp_path / ".xrpl-lab-home"))
     monkeypatch.chdir(tmp_path)
 
@@ -70,37 +71,66 @@ async def test_shipped_module_fails_loud_instead_of_silent_tecno_line(
     transport = DryRunTransport()
     out = io.StringIO()
     console = Console(file=out, no_color=True, width=200)
-    # Patch console.input so the between-step pause doesn't read real stdin
-    # (established pattern — see test_reswarm3_backend.py).
     console.input = lambda _p="": ""  # type: ignore[assignment]
 
     ok = await run_module(module, transport, dry_run=True, console=console)
     text = out.getvalue()
 
-    # A "successful" run of this shipped module is a defect: Step 10 cannot
-    # possibly exercise its advertised tecNO_PERMISSION lesson (the module
-    # never runs create_noopt_issuer), so a True return here means the wrong
-    # lesson (tecNO_LINE) was taught silently.
-    assert ok is False, (
-        "run_module reported success (ok=True) for the shipped "
-        "token_escrow_101 module even though Step 10's prerequisite "
-        "(create_noopt_issuer) never ran — this means the tecNO_PERMISSION "
-        "lesson was silently replaced by a different, unreported failure. "
-        f"Console output was:\n{text}"
+    assert ok is True, (
+        "the shipped token_escrow_101 module did not run to completion; the "
+        f"create_noopt_issuer wiring should make the lesson reachable.\n{text}"
     )
-    # The failure must be STRUCTURED and must NAME the missing prerequisite —
-    # a learner (or CI) reading the output must be able to tell exactly what
-    # to do, not just that "something" tec-failed.
-    assert "create_noopt_issuer" in text, (
-        f"failure output does not name the missing prerequisite step; "
-        f"console output was:\n{text}"
+    assert "tecNO_PERMISSION" in text, (
+        "the shipped module completed but never produced the tecNO_PERMISSION "
+        f"lesson it advertises in its checks: frontmatter.\n{text}"
     )
-    # The wrong result code must never reach the console at all post-fix —
-    # the step must fail BEFORE attempting the submit, not after.
     assert "tecNO_LINE" not in text, (
-        f"the wrong-lesson result code leaked into the console even though "
-        f"the step should fail before ever submitting the transaction; "
-        f"console output was:\n{text}"
+        f"the wrong-lesson result code reached the learner's console.\n{text}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_missing_prerequisite_still_fails_loud(tmp_path, monkeypatch):
+    """The guard must survive the module being fixed.
+
+    Drives the SHIPPED module with its create_noopt_issuer step surgically
+    removed. That is the exact condition the handler guards, so it must still
+    halt with a named, actionable error rather than falling back to the MAIN
+    (already opted-in) issuer and teaching tecNO_LINE quietly.
+    """
+    monkeypatch.setenv("XRPL_LAB_HOME", str(tmp_path / ".xrpl-lab-home"))
+    monkeypatch.chdir(tmp_path)
+
+    w = wallet_mod.create_wallet()
+    wallet_mod.save_wallet(w)
+    save_state(LabState(network="dry-run", wallet_address=w.address))
+
+    module = _load_token_escrow_module()
+    kept = [s for s in module.steps if s.action != "create_noopt_issuer"]
+    assert len(kept) == len(module.steps) - 1, (
+        "expected exactly one create_noopt_issuer step in the shipped module; "
+        "if this fires, the module wiring changed and this test needs revisiting"
+    )
+    module.steps = kept
+
+    transport = DryRunTransport()
+    out = io.StringIO()
+    console = Console(file=out, no_color=True, width=200)
+    console.input = lambda _p="": ""  # type: ignore[assignment]
+
+    ok = await run_module(module, transport, dry_run=True, console=console)
+    text = out.getvalue()
+
+    assert ok is False, (
+        "with create_noopt_issuer removed, run_module reported success — the "
+        f"silent-fallback defect has regressed.\n{text}"
+    )
+    assert "create_noopt_issuer" in text, (
+        f"the failure does not name the missing prerequisite.\n{text}"
+    )
+    assert "tecNO_LINE" not in text, (
+        "the step must fail BEFORE submitting, so the wrong result code should "
+        f"never reach the console.\n{text}"
     )
 
 

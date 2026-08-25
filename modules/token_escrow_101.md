@@ -128,17 +128,33 @@ cancelled.
 
 <!-- action: create_token_escrow currency=GLD amount=50 cancel_seconds=86400 -->
 
-## Step 11: See the failure — a token escrow WITHOUT opt-in
+## Step 11: Create an issuer that never opted in
 
-Learn by hitting the wall. Here we attempt to escrow a *different* currency whose
-issuer never set `asfAllowTrustLineLocking`. The network refuses it with
-**`tecNO_PERMISSION`** — exactly the error you get if you forget the issuer
-opt-in. Read the explanation; this is the single most common token-escrow
-mistake.
+`asfAllowTrustLineLocking` is an **account-wide** flag, not a per-currency one. The
+moment the issuer in Step 5 opted in, *every* token it issues became escrowable — so
+the "I forgot the opt-in" wall can never appear against that issuer, no matter which
+currency you try.
+
+To meet the real failure you need a *different* issuer that never set the flag. This
+step creates and funds one, then issues you **NOP** from it: a token whose issuer
+holds no escrow permission at all.
+
+<!-- action: create_noopt_issuer currency=NOP amount=50 -->
+
+## Step 12: See the failure — a token escrow WITHOUT opt-in
+
+Learn by hitting the wall. Now escrow the **NOP** you just received, whose issuer
+never set `asfAllowTrustLineLocking`. The network refuses with
+**`tecNO_PERMISSION`** — exactly the error you get when you forget the issuer
+opt-in, and the single most common token-escrow mistake.
+
+Note what changed between this step and Step 10: not the currency, and not your
+account — the *issuer's* account flag. Escrow permission for an IOU lives with
+whoever issued it, not with whoever holds it.
 
 <!-- action: create_token_escrow_expect_fail currency=NOP amount=50 -->
 
-## Step 12: Recipient finishes the escrow
+## Step 13: Recipient finishes the escrow
 
 The recipient submits `EscrowFinish`, releasing the locked GLD to itself. (For a
 time-based escrow, either party may finish it after the release time — the funds
@@ -147,7 +163,7 @@ release time is simulated as already elapsed, so it succeeds immediately.)
 
 <!-- action: finish_token_escrow -->
 
-## Step 13: Snapshot the recipient's balance (after)
+## Step 14: Snapshot the recipient's balance (after)
 
 <!-- action: snapshot_recipient_balance currency=GLD label=after -->
 
