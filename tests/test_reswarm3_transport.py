@@ -317,25 +317,48 @@ def test_mptamount_dead_fallback_collapsed():
     )
 
 
-# ── TR-004: testnet retry idempotency (build+sign once) ───────────────────
+# ── TR-004 / F-ad982e08: testnet retry idempotency (build once + pinned Sequence) ──
 
 
 @pytest.mark.asyncio
 async def test_payment_retry_resubmits_same_tx_object_not_a_rebuilt_one():
-    """A non-timeout retry resubmits the SAME tx object (built once).
+    """A non-timeout retry resubmits the SAME tx object, carrying the SAME
+    real, fetched Sequence — not just "the same Python object."
 
-    The wallet + Payment model must be constructed ONCE outside the retry loop.
-    Previously they were rebuilt on every attempt, so a post-broadcast failure
-    could re-enter the loop and construct a DISTINCT transaction (a
-    double-broadcast risk). We patch submit_and_wait (the network seam) to fail
-    retryably on the first call and succeed on the second, and assert the SAME
-    tx object is handed to submit_and_wait both times.
+    CORRECTED CONTRACT (F-ad982e08, wave-2 amend): this test previously
+    asserted ONLY Python object identity (``submitted[0] is submitted[1]``)
+    against a fake client that didn't even implement ``_request_impl``. That
+    is NOT the property at risk and the assertion was vacuous: ``Transaction``
+    is a frozen dataclass, and xrpl-py's real ``autofill()`` (invoked inside
+    the REAL ``submit_and_wait`` for any unsigned tx) calls
+    ``get_next_valid_seq_number()`` fresh whenever the model has no
+    ``sequence`` set — on EVERY call, regardless of whether the very same
+    Python object is handed back in on a retry. So "the same object" could
+    (and did, pre-fix) still get re-autofilled a brand-new Sequence on each
+    attempt once real ``submit_and_wait`` internals ran — identity alone
+    cannot detect that, because THIS test mocked ``submit_and_wait`` away
+    entirely, so no autofill ever ran, real or fake, and the assertion
+    trivially held either way.
 
-    NOTE (idempotency residual, TR-004): full Sequence-level idempotency needs
-    autofill_and_sign-once + submit_and_wait(autofill=False); that seam-moving
-    refactor is deferred (it would require re-mocking the sibling-owned retry
-    tests). This test pins the object-rebuild half that IS fixed here.
+    The fix (``xrpl_lab/transport/xrpl_testnet.py::_pin_sequence``, called
+    from ``_submit_tx`` — which ``submit_payment`` now delegates to) fetches
+    the account's next Sequence via the REAL
+    ``xrpl.asyncio.account.get_next_valid_seq_number`` exactly ONCE, before
+    the retry loop, and bakes it into the tx. This test now drives that real
+    lookup (faking only the raw ``Client._request_impl`` transport, the
+    actual network seam) and asserts the SAME, REAL, fetched Sequence reaches
+    every attempt — not merely that the Python object reference matches.
+
+    Before the fix, this test failed with::
+
+        AssertionError: expected the SAME real fetched Sequence on both
+        attempts, got [None, None] (never pinned) — assert [None, None] == [5010042, 5010042]
+
+    (and separately, ``account_info_requests`` stayed at 0 — the lookup this
+    test installs was never reached at all on the unfixed tree).
     """
+    from xrpl.models.requests import AccountInfo
+
     from xrpl_lab.transport import xrpl_testnet as mod
     from xrpl_lab.transport.xrpl_testnet import XRPLTestnetTransport
 
@@ -343,6 +366,8 @@ async def test_payment_retry_resubmits_same_tx_object_not_a_rebuilt_one():
 
     submitted = []
     submit_calls = {"n": 0}
+    account_info_requests = []
+    pinned_sequence = 5_010_042
 
     class _OkResp:
         result = {
@@ -360,7 +385,26 @@ async def test_payment_retry_resubmits_same_tx_object_not_a_rebuilt_one():
             raise ConnectionError("temporary network blip")
         return _OkResp()
 
+    class _AccountInfoResp:
+        def __init__(self, sequence):
+            self.result = {"account_data": {"Sequence": sequence}}
+
+        def is_successful(self):
+            return True
+
     class _Client:
+        """Answers the REAL low-level ``_request_impl`` (what
+        ``get_next_valid_seq_number`` -> ``get_account_root`` actually
+        calls) so ``_pin_sequence``'s lookup genuinely runs, instead of a
+        fake that only implements the higher-level ``.request()`` wrapper
+        and would silently make the fix's fallback path a no-op here."""
+
+        async def _request_impl(self, request, *, timeout=None):
+            account_info_requests.append(request)
+            if isinstance(request, AccountInfo):
+                return _AccountInfoResp(pinned_sequence)
+            raise AssertionError(f"unexpected RPC request: {request!r}")
+
         async def __aenter__(self):
             return self
 
@@ -376,9 +420,21 @@ async def test_payment_retry_resubmits_same_tx_object_not_a_rebuilt_one():
 
     # Two submit attempts happened (one retry after the transient failure)...
     assert submit_calls["n"] == 2, f"expected one retry, got {submit_calls['n']} attempts"
-    # ...with the IDENTICAL tx object each time (built once outside the loop).
+    # ...with the IDENTICAL tx object each time (built once outside the loop
+    # — still true and still worth guarding, but NECESSARY, not SUFFICIENT).
     assert submitted[0] is submitted[1], (
         "retry rebuilt the tx (distinct object) — the tx must be built once "
         "outside the loop so a retry cannot broadcast a second, distinct tx"
+    )
+    # ...AND both attempts carried the SAME real, fetched Sequence, pinned
+    # exactly ONCE — the property that actually prevents a retry from
+    # landing an independent, valid, DUPLICATE transaction.
+    assert len(account_info_requests) == 1, (
+        "the Sequence must be fetched ONCE before the retry loop, not per "
+        f"attempt — saw {len(account_info_requests)} AccountInfo lookups"
+    )
+    assert [tx.sequence for tx in submitted] == [pinned_sequence, pinned_sequence], (
+        f"expected both attempts to reuse the pinned Sequence {pinned_sequence}, "
+        f"got {[tx.sequence for tx in submitted]}"
     )
     assert res.success and res.txid == "DEADBEEF"

@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 
+from xrpl.asyncio.account import get_next_valid_seq_number
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
 from xrpl.asyncio.transaction import (
@@ -446,6 +447,76 @@ def _timeout_no_resubmit(label: str) -> SubmitResult:
             "landed."
         ),
     )
+
+
+async def _pin_sequence(rpc_url: str, tx, label: str):
+    """Best-effort: bake a fixed ``Sequence`` into *tx* BEFORE any retry loop
+    runs, so a non-timeout retry reuses the SAME Sequence instead of getting
+    a brand-new one from ``submit_and_wait``'s own per-call autofill.
+
+    F-ad982e08: ``submit_and_wait`` autofills an UNSIGNED tx internally
+    (xrpl-py 4.5's ``xrpl/asyncio/transaction/main.py::autofill``, ~line 288)
+    and that autofill fetches ``get_next_valid_seq_number()`` fresh whenever
+    the model has no ``sequence`` set — on EVERY call, regardless of whether
+    the very same Python object is handed back in on a retry (``Transaction``
+    is a frozen dataclass; autofill never mutates its input, it always
+    returns a distinct object). So a retry that resubmits an unsigned tx
+    re-autofills a brand-new Sequence every attempt. If the FIRST broadcast
+    actually validated while the client failed for an unrelated reason
+    during ``submit_and_wait``'s post-broadcast polling (e.g. a dropped
+    connection on one of its repeated Tx-by-hash lookups — entirely
+    plausible on a flaky testnet, which is exactly why retry logic exists
+    here), a non-timeout retry would then carry a genuinely fresh, valid
+    Sequence and could land a SECOND, independent, fully-successful
+    transaction — a real double payment / double mint / double escrow, not
+    merely a wasted fee. (The now-fixed regression test in
+    tests/test_reswarm3_transport.py only ever proved Python object
+    IDENTITY, which is irrelevant here — autofill doesn't care whether it's
+    handed "the same" object, only whether ``sequence`` is already set.)
+
+    Pre-setting ``sequence`` here closes that gap WITHOUT pre-signing the
+    whole transaction: XRPL enforces strictly monotonic, single-use Sequence
+    numbers per account, so reusing the SAME Sequence on a retry can NEVER
+    produce a second independent success — if the original landed, rippled
+    either recognizes the identical hash (a ledger-side no-op) or, if the
+    retry's Fee/LastLedgerSequence happen to differ (a different hash, same
+    Sequence), rejects it outright with tefPAST_SEQ. Either way the
+    duplicate cannot land, and every attempt still gets its OWN fresh
+    Fee/LastLedgerSequence window from submit_and_wait's normal autofill —
+    only the Sequence is pinned.
+
+    Best-effort and silent on failure BY DESIGN: only a single-signer,
+    not-yet-signed, no-sequence-set *tx* is eligible (an already-signed
+    multisig combine has nothing to do here). If the lookup itself raises,
+    *tx* is returned UNCHANGED and every attempt falls back to
+    submit_and_wait's own per-attempt autofill — the exact pre-fix behavior.
+    This is deliberately not escalated to a hard failure: the finding's
+    actual exploit scenario is a failure DURING post-broadcast polling,
+    which implies the network was already reachable enough for this
+    read-only lookup to have succeeded moments earlier, so silently
+    degrading here is not expected to mask the real-world risk — and it
+    keeps this helper safe to call unconditionally (including against every
+    fully-mocked-network test in this suite, none of which implement the
+    low-level ``Client._request_impl`` this needs; they fall back cleanly).
+    """
+    if tx.is_signed() or tx.sequence is not None:
+        return tx
+    try:
+        async with _rpc_client(rpc_url) as client:
+            seq = await asyncio.wait_for(
+                get_next_valid_seq_number(tx.account, client),
+                timeout=RPC_TIMEOUT,
+            )
+    except Exception:
+        logger.debug(
+            "%s: sequence pre-fetch failed; a non-timeout retry (if any) "
+            "will fall back to autofilling a fresh Sequence per attempt "
+            "rather than reusing one pinned value",
+            label,
+            exc_info=True,
+        )
+        return tx
+    return type(tx).from_dict({**tx.to_dict(), "sequence": seq})
 
 
 def _parse_submit_fields(result: dict) -> tuple[str, str, str, int | None, int | None]:
@@ -918,13 +989,11 @@ class XRPLTestnetTransport(Transport):
         # loop and build a DISTINCT transaction — a double-broadcast risk.
         # Building once means every attempt resubmits the same logical tx.
         #
-        # Idempotency contract (residual — see report): submit_and_wait still
-        # autofills internally, so it picks a fresh Sequence per call. TRUE
-        # sequence-level idempotency needs autofill_and_sign ONCE followed by
-        # submit_and_wait(signed_tx, autofill=False); that refactor is deferred
-        # because it moves the network seam and would require re-mocking the
-        # retry tests (test_transport.py, sibling-owned). The change here closes
-        # the object-rebuild half of the defect without disturbing that seam.
+        # F-ad982e08 (resolved): submitting is delegated to ``_submit_tx``,
+        # which pins the Sequence ONCE (``_pin_sequence``) before its retry
+        # loop — the previously-deferred fix. See ``_pin_sequence`` for the
+        # full mechanism (why fixing just the Sequence, not the whole signed
+        # blob, is sufficient and safe).
         try:
             wallet = Wallet.from_seed(wallet_seed)
             # destination_tag / source_tag: optional 32-bit routing tags
@@ -950,94 +1019,7 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
 
-        last_error = ""
-
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                async with _rpc_client(self._rpc_url) as client:
-                    response = await asyncio.wait_for(
-                        submit_and_wait(payment, client, wallet),
-                        timeout=SUBMIT_TIMEOUT,
-                    )
-
-                result = response.result
-                (result_code, txid, fee,
-                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
-
-                success = result_code == "tesSUCCESS"
-
-                # Build error message with guidance
-                error_msg = ""
-                if not success:
-                    from ..doctor import explain_result_code
-
-                    info = explain_result_code(result_code)
-                    error_msg = f"{info['meaning']}. {info['action']}"
-
-                return SubmitResult(
-                    success=success,
-                    txid=txid,
-                    result_code=result_code,
-                    fee=fee,
-                    ledger_index=ledger_idx,
-                    explorer_url=self._explorer_url(txid),
-                    error=error_msg,
-                    sequence=tx_sequence,
-                )
-
-            except TimeoutError:
-                # F-0cbd05ef: NEVER resubmit after a client timeout — the first
-                # broadcast may still be inside its LastLedgerSequence window
-                # and a resubmit autofills a FRESH Sequence, so BOTH payments
-                # could validate. Verify-then-retry is the learner's job.
-                return _timeout_no_resubmit("Payment")
-            except XRPLReliableSubmissionException as exc:
-                # F-1947a03d: xrpl-py RAISES on a validated non-tesSUCCESS
-                # ("Transaction failed: tecXXX" — fee + sequence consumed,
-                # never resubmit) and on tem prelim rejections. Map to the
-                # structured failure with the REAL result code.
-                failure = _map_reliable_submission_failure(exc)
-                if failure is not None:
-                    return failure
-                # Expired validity window — the tx can never land; a retry
-                # with a fresh autofill is safe.
-                last_error = _friendly_error(exc)
-                if attempt < MAX_RETRIES:
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-            except Exception as exc:
-                last_error = _friendly_error(exc)
-                # Don't retry on malformed tx errors
-                if _is_no_retry_error(last_error):
-                    break
-                if attempt < MAX_RETRIES:
-                    # PT-004 (observability breadcrumb): this is a NON-TIMEOUT
-                    # failure — distinct from the timeout no-resubmit above. If
-                    # the first submission actually landed on-ledger before the
-                    # error surfaced, the resubmit here is a possible DUPLICATE
-                    # tx (the documented idempotency residual — submit_and_wait
-                    # autofills a fresh Sequence per call). Log a warning so a
-                    # facilitator can spot a double-submit in the logs.
-                    logger.warning(
-                        "resubmitting after post-broadcast failure — "
-                        "possible duplicate if the first landed"
-                    )
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-
-        return SubmitResult(
-            success=False,
-            result_code="local_error",
-            error=last_error,
-        )
+        return await self._submit_tx(payment, wallet, "Payment")
 
     async def submit_trust_set(
         self,
@@ -1050,83 +1032,27 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
-        last_error = ""
+        # F-ad982e08: build the wallet + tx model ONCE outside the retry loop
+        # (matching submit_payment's TR-004 fix) — this used to rebuild BOTH
+        # on every attempt, which is the object-rebuild half of the same
+        # duplicate-submit defect. Submitting now delegates to _submit_tx,
+        # which also pins the Sequence once (_pin_sequence) before retrying.
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            trust_set = TrustSet(
+                account=wallet.address,
+                limit_amount=IssuedCurrencyAmount(
+                    currency=currency,
+                    issuer=issuer,
+                    value=limit,
+                ),
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
 
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                wallet = Wallet.from_seed(wallet_seed)
-                trust_set = TrustSet(
-                    account=wallet.address,
-                    limit_amount=IssuedCurrencyAmount(
-                        currency=currency,
-                        issuer=issuer,
-                        value=limit,
-                    ),
-                )
-                async with _rpc_client(self._rpc_url) as client:
-                    response = await asyncio.wait_for(
-                        submit_and_wait(trust_set, client, wallet),
-                        timeout=SUBMIT_TIMEOUT,
-                    )
-
-                result = response.result
-                (result_code, txid, fee,
-                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
-
-                success = result_code == "tesSUCCESS"
-                error_msg = ""
-                if not success:
-                    from ..doctor import explain_result_code
-
-                    info = explain_result_code(result_code)
-                    error_msg = f"{info['meaning']}. {info['action']}"
-
-                return SubmitResult(
-                    success=success,
-                    txid=txid,
-                    result_code=result_code,
-                    fee=fee,
-                    ledger_index=ledger_idx,
-                    explorer_url=self._explorer_url(txid),
-                    error=error_msg,
-                    sequence=tx_sequence,
-                )
-
-            except TimeoutError:
-                # F-0cbd05ef: never resubmit after a client timeout (see
-                # _timeout_no_resubmit).
-                return _timeout_no_resubmit("TrustSet")
-            except XRPLReliableSubmissionException as exc:
-                # F-1947a03d: validated tec / prelim tem raise — map to the
-                # structured failure; never retry a validated failure.
-                failure = _map_reliable_submission_failure(exc)
-                if failure is not None:
-                    return failure
-                last_error = _friendly_error(exc)
-                if attempt < MAX_RETRIES:
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-            except Exception as exc:
-                last_error = _friendly_error(exc)
-                if _is_no_retry_error(last_error):
-                    break
-                if attempt < MAX_RETRIES:
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-
-        return SubmitResult(
-            success=False,
-            result_code="local_error",
-            error=last_error,
-        )
+        return await self._submit_tx(trust_set, wallet, "TrustSet")
 
     async def submit_issued_payment(
         self,
@@ -1141,85 +1067,31 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
-        last_error = ""
+        # F-ad982e08: build the wallet + tx model ONCE outside the retry loop
+        # (matching submit_payment's TR-004 fix) — this used to rebuild BOTH
+        # on every attempt, which is the object-rebuild half of the same
+        # duplicate-submit defect (and this IS a Payment — the exact same
+        # double-spend risk as submit_payment). Submitting now delegates to
+        # _submit_tx, which also pins the Sequence once (_pin_sequence)
+        # before retrying.
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            payment = Payment(
+                account=wallet.address,
+                destination=destination,
+                amount=IssuedCurrencyAmount(
+                    currency=currency,
+                    issuer=issuer,
+                    value=amount,
+                ),
+                memos=_memo_field(memo) or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
 
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                wallet = Wallet.from_seed(wallet_seed)
-                payment = Payment(
-                    account=wallet.address,
-                    destination=destination,
-                    amount=IssuedCurrencyAmount(
-                        currency=currency,
-                        issuer=issuer,
-                        value=amount,
-                    ),
-                    memos=_memo_field(memo) or None,
-                )
-                async with _rpc_client(self._rpc_url) as client:
-                    response = await asyncio.wait_for(
-                        submit_and_wait(payment, client, wallet),
-                        timeout=SUBMIT_TIMEOUT,
-                    )
-
-                result = response.result
-                (result_code, txid, fee,
-                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
-
-                success = result_code == "tesSUCCESS"
-                error_msg = ""
-                if not success:
-                    from ..doctor import explain_result_code
-
-                    info = explain_result_code(result_code)
-                    error_msg = f"{info['meaning']}. {info['action']}"
-
-                return SubmitResult(
-                    success=success,
-                    txid=txid,
-                    result_code=result_code,
-                    fee=fee,
-                    ledger_index=ledger_idx,
-                    explorer_url=self._explorer_url(txid),
-                    error=error_msg,
-                    sequence=tx_sequence,
-                )
-
-            except TimeoutError:
-                # F-0cbd05ef: never resubmit after a client timeout (see
-                # _timeout_no_resubmit).
-                return _timeout_no_resubmit("Issued payment")
-            except XRPLReliableSubmissionException as exc:
-                # F-1947a03d: validated tec / prelim tem raise — map to the
-                # structured failure; never retry a validated failure.
-                failure = _map_reliable_submission_failure(exc)
-                if failure is not None:
-                    return failure
-                last_error = _friendly_error(exc)
-                if attempt < MAX_RETRIES:
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-            except Exception as exc:
-                last_error = _friendly_error(exc)
-                if _is_no_retry_error(last_error):
-                    break
-                if attempt < MAX_RETRIES:
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-
-        return SubmitResult(
-            success=False,
-            result_code="local_error",
-            error=last_error,
-        )
+        return await self._submit_tx(payment, wallet, "Issued payment")
 
     async def submit_partial_payment(
         self,
@@ -1308,84 +1180,37 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return SubmitResult(success=False, result_code="local_error", error=guard)
 
-        last_error = ""
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                wallet = Wallet.from_seed(wallet_seed)
-                # tfTransferable=0x8, tfMutable=0x10 (XLS-46). A royalty
-                # (TransferFee) only takes effect on a transferable NFT.
-                flags = 0
-                if transferable:
-                    flags |= NFTokenMintFlag.TF_TRANSFERABLE
-                if mutable:
-                    flags |= NFTokenMintFlag.TF_MUTABLE
-                mint = NFTokenMint(
-                    account=wallet.address,
-                    nftoken_taxon=taxon,
-                    uri=str_to_hex(uri) if uri else None,
-                    transfer_fee=transfer_fee or None,
-                    flags=flags or None,
-                )
-                async with _rpc_client(self._rpc_url) as client:
-                    response = await asyncio.wait_for(
-                        submit_and_wait(mint, client, wallet),
-                        timeout=SUBMIT_TIMEOUT,
-                    )
+        # F-ad982e08: build the wallet + tx model ONCE outside the retry loop
+        # (matching submit_payment's TR-004 fix) — this used to rebuild BOTH
+        # on every attempt. Submitting now delegates to _submit_tx, which
+        # also pins the Sequence once (_pin_sequence) before retrying; the
+        # nft_id extraction moves into an ``extract`` callback so the
+        # success-path shape stays identical to before.
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            # tfTransferable=0x8, tfMutable=0x10 (XLS-46). A royalty
+            # (TransferFee) only takes effect on a transferable NFT.
+            flags = 0
+            if transferable:
+                flags |= NFTokenMintFlag.TF_TRANSFERABLE
+            if mutable:
+                flags |= NFTokenMintFlag.TF_MUTABLE
+            mint = NFTokenMint(
+                account=wallet.address,
+                nftoken_taxon=taxon,
+                uri=str_to_hex(uri) if uri else None,
+                transfer_fee=transfer_fee or None,
+                flags=flags or None,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
 
-                result = response.result
-                meta = result.get("meta", {})
-                (result_code, txid, fee,
-                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
-
-                success = result_code == "tesSUCCESS"
-                nft_id = ""
-                error_msg = ""
-                if success:
-                    try:
-                        nft_id = get_nftoken_id(meta)
-                    except Exception:
-                        nft_id = ""
-                else:
-                    from ..doctor import explain_result_code
-
-                    info = explain_result_code(result_code)
-                    error_msg = f"{info['meaning']}. {info['action']}"
-
-                return SubmitResult(
-                    success=success,
-                    txid=txid,
-                    result_code=result_code,
-                    fee=fee,
-                    ledger_index=ledger_idx,
-                    explorer_url=self._explorer_url(txid),
-                    error=error_msg,
-                    nft_id=nft_id,
-                    sequence=tx_sequence,
-                )
-
-            except TimeoutError:
-                # F-0cbd05ef: never resubmit after a client timeout (see
-                # _timeout_no_resubmit).
-                return _timeout_no_resubmit("NFTokenMint")
-            except XRPLReliableSubmissionException as exc:
-                # F-1947a03d: validated tec / prelim tem raise — map to the
-                # structured failure; never retry a validated failure.
-                failure = _map_reliable_submission_failure(exc)
-                if failure is not None:
-                    return failure
-                last_error = _friendly_error(exc)
-                if attempt < MAX_RETRIES:
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-            except Exception as exc:
-                last_error = _friendly_error(exc)
-                if _is_no_retry_error(last_error):
-                    break
-                if attempt < MAX_RETRIES:
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-
-        return SubmitResult(success=False, result_code="local_error", error=last_error)
+        return await self._submit_tx(
+            mint, wallet, "NFTokenMint",
+            extract=lambda meta: {"nft_id": get_nftoken_id(meta)},
+        )
 
     async def get_account_nfts(self, address: str) -> list[NFTInfo]:
         try:
@@ -1647,7 +1472,14 @@ class XRPLTestnetTransport(Transport):
         ``extract`` is an optional ``meta -> dict`` callback applied on success
         to pull a created-object id out of the transaction metadata (e.g. the
         new MPTokenIssuanceID); the returned dict is splatted into SubmitResult.
+
+        F-ad982e08: *tx* has its Sequence pinned (best-effort, see
+        ``_pin_sequence``) ONCE here, before the retry loop, so a non-timeout
+        retry can never mint a fresh, independently-valid Sequence for what
+        might already be a landed transaction. See ``_pin_sequence`` for the
+        full mechanism and why this is safe to call unconditionally.
         """
+        tx = await _pin_sequence(self._rpc_url, tx, label)
         last_error = ""
         for attempt in range(MAX_RETRIES + 1):
             try:
@@ -1691,6 +1523,10 @@ class XRPLTestnetTransport(Transport):
                     return failure
                 last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except Exception as exc:
@@ -1698,6 +1534,22 @@ class XRPLTestnetTransport(Transport):
                 if _is_no_retry_error(last_error):
                     break
                 if attempt < MAX_RETRIES:
+                    # PT-004 (observability breadcrumb): a NON-TIMEOUT failure
+                    # — if the first submission actually landed on-ledger
+                    # before the error surfaced, this resubmit reuses the
+                    # SAME pinned Sequence (F-ad982e08), so it cannot mint an
+                    # independent second success — worst case rippled
+                    # recognizes the identical hash (no-op) or rejects the
+                    # reused Sequence outright. Logged so a facilitator can
+                    # still spot a flaky-network resubmit in the logs.
+                    logger.warning(
+                        "resubmitting after post-broadcast failure — "
+                        "possible duplicate if the first landed"
+                    )
+                    logger.info(
+                        "Retry %d/%d after %ds",
+                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
+                    )
                     await asyncio.sleep(RETRY_DELAY)
                     continue
         return SubmitResult(success=False, result_code="local_error", error=last_error)
@@ -2999,83 +2851,7 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
 
-        last_error = ""
-
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                async with _rpc_client(self._rpc_url) as client:
-                    response = await asyncio.wait_for(
-                        submit_and_wait(offer, client, wallet),
-                        timeout=SUBMIT_TIMEOUT,
-                    )
-
-                result = response.result
-                (result_code, txid, fee,
-                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
-
-                success = result_code == "tesSUCCESS"
-                error_msg = ""
-                if not success:
-                    from ..doctor import explain_result_code
-
-                    info = explain_result_code(result_code)
-                    error_msg = f"{info['meaning']}. {info['action']}"
-
-                return SubmitResult(
-                    success=success,
-                    txid=txid,
-                    result_code=result_code,
-                    fee=fee,
-                    ledger_index=ledger_idx,
-                    explorer_url=self._explorer_url(txid),
-                    error=error_msg,
-                    sequence=tx_sequence,
-                )
-
-            except TimeoutError:
-                # F-0cbd05ef: never resubmit after a client timeout (see
-                # _timeout_no_resubmit).
-                return _timeout_no_resubmit("OfferCreate")
-            except XRPLReliableSubmissionException as exc:
-                # F-1947a03d: validated tec / prelim tem raise — map to the
-                # structured failure; never retry a validated failure.
-                failure = _map_reliable_submission_failure(exc)
-                if failure is not None:
-                    return failure
-                last_error = _friendly_error(exc)
-                if attempt < MAX_RETRIES:
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-            except Exception as exc:
-                last_error = _friendly_error(exc)
-                if _is_no_retry_error(last_error):
-                    break
-                if attempt < MAX_RETRIES:
-                    # PT-004 (observability breadcrumb): NON-TIMEOUT failure —
-                    # if the first submission landed on-ledger before the error
-                    # surfaced, this resubmit is a possible DUPLICATE tx (the
-                    # documented idempotency residual). Log a warning so a
-                    # facilitator can spot a double-submit in the logs.
-                    logger.warning(
-                        "resubmitting after post-broadcast failure — "
-                        "possible duplicate if the first landed"
-                    )
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-
-        return SubmitResult(
-            success=False,
-            result_code="local_error",
-            error=last_error,
-        )
+        return await self._submit_tx(offer, wallet, "OfferCreate")
 
     async def submit_offer_cancel(
         self,
@@ -3100,83 +2876,7 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
 
-        last_error = ""
-
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                async with _rpc_client(self._rpc_url) as client:
-                    response = await asyncio.wait_for(
-                        submit_and_wait(cancel, client, wallet),
-                        timeout=SUBMIT_TIMEOUT,
-                    )
-
-                result = response.result
-                (result_code, txid, fee,
-                 ledger_idx, tx_sequence) = _parse_submit_fields(result)
-
-                success = result_code == "tesSUCCESS"
-                error_msg = ""
-                if not success:
-                    from ..doctor import explain_result_code
-
-                    info = explain_result_code(result_code)
-                    error_msg = f"{info['meaning']}. {info['action']}"
-
-                return SubmitResult(
-                    success=success,
-                    txid=txid,
-                    result_code=result_code,
-                    fee=fee,
-                    ledger_index=ledger_idx,
-                    explorer_url=self._explorer_url(txid),
-                    error=error_msg,
-                    sequence=tx_sequence,
-                )
-
-            except TimeoutError:
-                # F-0cbd05ef: never resubmit after a client timeout (see
-                # _timeout_no_resubmit).
-                return _timeout_no_resubmit("OfferCancel")
-            except XRPLReliableSubmissionException as exc:
-                # F-1947a03d: validated tec / prelim tem raise — map to the
-                # structured failure; never retry a validated failure.
-                failure = _map_reliable_submission_failure(exc)
-                if failure is not None:
-                    return failure
-                last_error = _friendly_error(exc)
-                if attempt < MAX_RETRIES:
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-            except Exception as exc:
-                last_error = _friendly_error(exc)
-                if _is_no_retry_error(last_error):
-                    break
-                if attempt < MAX_RETRIES:
-                    # PT-004 (observability breadcrumb): NON-TIMEOUT failure —
-                    # if the first submission landed on-ledger before the error
-                    # surfaced, this resubmit is a possible DUPLICATE tx (the
-                    # documented idempotency residual). Log a warning so a
-                    # facilitator can spot a double-submit in the logs.
-                    logger.warning(
-                        "resubmitting after post-broadcast failure — "
-                        "possible duplicate if the first landed"
-                    )
-                    logger.info(
-                        "Retry %d/%d after %ds",
-                        attempt + 1, MAX_RETRIES, RETRY_DELAY,
-                    )
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-
-        return SubmitResult(
-            success=False,
-            result_code="local_error",
-            error=last_error,
-        )
+        return await self._submit_tx(cancel, wallet, "OfferCancel")
 
     async def get_account_offers(self, address: str) -> list[OfferInfo]:
         try:

@@ -449,6 +449,95 @@ class DryRunTransport(Transport):
     def _dec_owner(self, address: str) -> None:
         self._owner_counts[address] = max(0, self._owner_counts.get(address, 0) - 1)
 
+    # ── Reserve-floor + fee discipline (F-0716549a) ───────────────────────
+    #
+    # F-ebadec19 established the pattern in submit_payment (and
+    # submit_multisig_payment repeats it inline for its scaled fee): a write
+    # that would take the acting account below base_reserve +
+    # owner_count*increment fails on the real network (tecUNFUNDED_PAYMENT /
+    # tecUNFUNDED / tecINSUFFICIENT_RESERVE, depending on shape), and the
+    # 12-drop (or scaled) fee is ALWAYS debited on success so offline
+    # balances track testnet. F-0716549a found that discipline applied to
+    # exactly 2 of ~32 write methods — every other one reported tesSUCCESS
+    # unconditionally, a false positive an all-dry-run test suite cannot see
+    # for the ~30 uncovered methods (a learner draining an account via
+    # TrustSet/CheckCreate/EscrowCreate/NFT mint/etc. would sail past a wall
+    # the real ledger enforces). ``_reserve_guard``/``_debit_fee`` extract
+    # that ONE pattern so every write method can share it instead of
+    # re-deriving (or, as found, omitting) the same arithmetic.
+    def _reserve_guard(
+        self,
+        owner: str,
+        extra_drops: int = 0,
+        *,
+        fee_drops: int = _DRY_FEE_DROPS,
+        code: str = "tecUNFUNDED_PAYMENT",
+        context: str = "",
+    ) -> SubmitResult | None:
+        """Return a failing SubmitResult if *owner* can't cover this write, else None.
+
+        A write costs ``extra_drops`` (the amount it locks/sends/spends of
+        the OWNER's own XRP — 0 for a write that only creates/modifies a
+        ledger object without moving XRP beyond the fee, e.g. TrustSet,
+        SignerListSet, DIDSet, CredentialCreate) plus ``fee_drops`` (the
+        network fee — ``_DRY_FEE_DROPS`` unless the caller scales it, e.g.
+        multisig). It fails if that would take the balance below
+        ``base_reserve + owner_count*increment`` — the same floor
+        ``submit_payment`` already enforces.
+
+        Does NOT mutate ``self._balances`` — the caller applies its own
+        amount debit (if any) and calls ``_debit_fee`` for the network fee
+        only after this returns ``None``, exactly as ``submit_payment``
+        already does.
+
+        Scope guard (unchanged from submit_payment/submit_multisig_payment):
+        only an owner with a TRACKED balance (funded, or previously
+        transacted) is checked. An address the dry-run session has never
+        funded is not held to this floor — deliberate, and it preserves
+        every existing test fixture that calls a submit_* method without
+        ``fund_from_faucet`` first.
+        """
+        if owner not in self._balances:
+            return None
+        current_balance = self._balances[owner]
+        reserve = (
+            _BASE_RESERVE_DROPS
+            + self._owner_counts.get(owner, 0) * _OWNER_RESERVE_DROPS
+        )
+        if extra_drops + fee_drops > current_balance - reserve:
+            suffix = f" {context}" if context else ""
+            return SubmitResult(
+                success=False,
+                txid="",
+                result_code=code,
+                fee=str(fee_drops),
+                error=(
+                    f"[dry-run] insufficient XRP balance: have {current_balance} "
+                    f"drops, need {extra_drops} + {fee_drops} fee while keeping "
+                    f"the {reserve}-drop reserve (base reserve + owner reserve "
+                    f"— see the reserves module).{suffix}"
+                ),
+            )
+        return None
+
+    def _debit_fee(self, owner: str, fee_drops: int = _DRY_FEE_DROPS) -> None:
+        """Debit the network fee from *owner*, IF *owner* already has a
+        tracked balance.
+
+        Deliberately scope-guarded (unlike ``submit_payment``'s own, older,
+        unconditional inline debit — left as-is, out of scope here): a fee
+        debit that CREATES a new (negative) balance entry for a
+        never-funded owner would retroactively pull that address into
+        ``_reserve_guard``'s "tracked" set, so a LATER write from the same
+        untracked seed (e.g. cancel an offer just created, without ever
+        funding it — a pattern several existing fixtures use) would suddenly
+        start failing the reserve floor it was always meant to be exempt
+        from. Matching ``_reserve_guard``'s own scope guard here keeps
+        "never funded, never checked" true for BOTH halves of the gate.
+        """
+        if owner in self._balances:
+            self._balances[owner] -= fee_drops
+
     @property
     def network_name(self) -> str:
         return "dry-run"
@@ -702,8 +791,18 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: issuer not found",
             )
 
-        txid = self._next_txid()
         wallet_address = _address_from_seed(wallet_seed)
+
+        # F-0716549a: TrustSet moves no XRP of its own, but it still costs the
+        # network fee and (when creating a NEW line) adds one owner-reserve
+        # increment — either can push an account already at its reserve
+        # floor below it, which fails on the real ledger even though no XRP
+        # "amount" is involved.
+        guard = self._reserve_guard(wallet_address, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
+
+        txid = self._next_txid()
         addr_lines = self._trust_lines.setdefault(wallet_address, [])
 
         # Find existing trust line for this currency + issuer
@@ -716,7 +815,9 @@ class DryRunTransport(Transport):
         if limit == "0":
             # Removing a trust line
             if existing is None:
-                # No trust line to remove — success (no-op)
+                # No trust line to remove — success (no-op), but the network
+                # still charges the fee for a submitted, engine-accepted tx.
+                self._debit_fee(wallet_address)
                 return SubmitResult(
                     success=True,
                     txid=txid,
@@ -755,6 +856,7 @@ class DryRunTransport(Transport):
             )
             self._inc_owner(wallet_address)
 
+        self._debit_fee(wallet_address)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -818,6 +920,15 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] Simulated failure: no trust line",
             )
+
+        # F-0716549a: the issued VALUE moves on the trust line, not the
+        # sender's XRP balance — but the network fee is still XRP, debited
+        # from the sender, and can take an already-near-floor sender below
+        # reserve even though this tx moves no XRP "amount" of its own.
+        sender = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(sender)
+        if guard is not None:
+            return guard
 
         # F-c0be844f (transport-008): validate the amount BEFORE any state read
         # or mutation. A negative issued payment previously returned tesSUCCESS
@@ -906,6 +1017,7 @@ class DryRunTransport(Transport):
         matching_tl.balance = (
             str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
         )
+        self._debit_fee(sender)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -942,6 +1054,13 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecPATH_DRY", fee="12",
                 error="[dry-run] Simulated failure: partial payment",
             )
+
+        # F-0716549a: the issued VALUE moves on the trust line, not XRP — but
+        # the network fee is still XRP, debited from the issuer/sender.
+        issuer_addr = _address_from_seed(issuer_seed)
+        guard = self._reserve_guard(issuer_addr)
+        if guard is not None:
+            return guard
 
         # Parity: the ledger refuses XRP→XRP partial payments outright.
         if currency == "XRP":
@@ -1053,6 +1172,7 @@ class DryRunTransport(Transport):
             delivered_amount=_fmt(delivered),  # what ACTUALLY moved
         )
 
+        self._debit_fee(issuer_addr)
         return SubmitResult(
             success=True, txid=txid, result_code="tesSUCCESS", fee="12",
             ledger_index=99999999, explorer_url="",
@@ -1109,6 +1229,15 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: unfunded offer",
             )
 
+        # F-0716549a: creating an Offer object does not itself debit the
+        # offered amount (that only happens if/when the offer later fills,
+        # which this transport doesn't model) — but it DOES cost the network
+        # fee and add one owner-reserve increment, matching real OfferCreate.
+        offer_owner = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(offer_owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
+
         # Parity with testnet: an XRP offer leg goes through xrp_to_drops there,
         # so reject the same bad XRP amounts (negative / sub-drop / too-large)
         # the network rejects. Issued-currency legs are validated by the ledger,
@@ -1125,7 +1254,7 @@ class DryRunTransport(Transport):
         txid = self._next_txid()
         seq = self._offer_seq
         self._offer_seq += 1
-        wallet_address = _address_from_seed(wallet_seed)
+        wallet_address = offer_owner
 
         # Format taker_pays / taker_gets for display
         if taker_pays_currency == "XRP":
@@ -1151,6 +1280,7 @@ class DryRunTransport(Transport):
             )
         )
         self._inc_owner(wallet_address)
+        self._debit_fee(wallet_address)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -1175,8 +1305,14 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: offer not found",
             )
 
-        txid = self._next_txid()
         wallet_address = _address_from_seed(wallet_seed)
+        # F-0716549a: cancelling only RELEASES a reserve increment, never
+        # consumes one, but the network fee still applies.
+        guard = self._reserve_guard(wallet_address, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
+
+        txid = self._next_txid()
         addr_offers = self._offers.get(wallet_address, [])
         # Remove the offer from tracked list and decrement owner count
         before = len(addr_offers)
@@ -1184,6 +1320,7 @@ class DryRunTransport(Transport):
         if len(addr_offers) < before:
             self._dec_owner(wallet_address)
         self._offers[wallet_address] = addr_offers
+        self._debit_fee(wallet_address)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -1334,6 +1471,16 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: AMM creation failed",
             )
 
+        # F-0716549a: this transport does not model the XRP-leg amount
+        # actually moving into the pool (a pre-existing simplification,
+        # unrelated to this finding, out of scope to retrofit here) — but
+        # the fee + the new AMM-position owner-reserve increment are real
+        # XRP costs to the creator regardless of leg currency.
+        amm_creator = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(amm_creator, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
+
         # PT-001: validate BOTH legs before any Decimal math. A negative product
         # crashes ``(a * b).sqrt()`` with an uncaught InvalidOperation (opaque
         # "Step failed: InvalidOperation"); a non-numeric leg crashes with
@@ -1421,10 +1568,11 @@ class DryRunTransport(Transport):
 
         # Creator gets all initial LP tokens
         lp_key = f"{lp_currency}/{amm_account}"
-        creator_address = _address_from_seed(wallet_seed)
+        creator_address = amm_creator
         self._lp_balances.setdefault(creator_address, {})[lp_key] = initial_lp
 
         self._inc_owner(creator_address)  # AMM position
+        self._debit_fee(creator_address)
 
         return SubmitResult(
             success=True,
@@ -1453,6 +1601,13 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] Simulated failure: AMM deposit failed",
             )
+
+        # F-0716549a: fee-only reserve floor (see submit_amm_create for the
+        # amount-modeling scope note).
+        depositor_address = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(depositor_address)
+        if guard is not None:
+            return guard
 
         key = self._amm_pair_key(
             asset_a_currency, asset_a_issuer,
@@ -1547,11 +1702,11 @@ class DryRunTransport(Transport):
 
         # Credit LP tokens to depositor
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
-        depositor_address = _address_from_seed(wallet_seed)
         balances = self._lp_balances.setdefault(depositor_address, {})
         current = Decimal(balances.get(lp_key, "0"))
         balances[lp_key] = str((current + lp_minted).quantize(_six, rounding=ROUND_HALF_UP))
 
+        self._debit_fee(depositor_address)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -1578,6 +1733,13 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] Simulated failure: AMM withdraw failed",
             )
+
+        # F-0716549a: fee-only reserve floor (see submit_amm_create for the
+        # amount-modeling scope note).
+        withdrawer_address = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(withdrawer_address)
+        if guard is not None:
+            return guard
 
         key = self._amm_pair_key(
             asset_a_currency, asset_a_issuer,
@@ -1606,7 +1768,6 @@ class DryRunTransport(Transport):
                                     fee="12", error=f"[dry-run] {exc}")
 
         lp_key = f"{pool['lp_currency']}/{pool['lp_issuer']}"
-        withdrawer_address = _address_from_seed(wallet_seed)
         balances = self._lp_balances.get(withdrawer_address, {})
         current_lp = Decimal(balances.get(lp_key, "0"))
 
@@ -1676,6 +1837,7 @@ class DryRunTransport(Transport):
             self._amm_pools.pop(key, None)
             self._dec_owner(withdrawer_address)
 
+        self._debit_fee(withdrawer_address)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -1730,6 +1892,14 @@ class DryRunTransport(Transport):
             )
 
         owner = _address_from_seed(wallet_seed)
+        # F-0716549a: minting adds an NFTokenPage owner-reserve increment
+        # (amortized; modeled here as a flat +1 like every other object
+        # create) plus the network fee — no XRP amount moves for a mint
+        # itself.
+        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
+
         txid = self._next_txid()
         nft_id = hashlib.sha256(
             f"{owner}-{uri}-{taxon}-{self._counter}".encode()
@@ -1749,6 +1919,7 @@ class DryRunTransport(Transport):
             )
         )
         self._inc_owner(owner)
+        self._debit_fee(owner)
         return SubmitResult(
             success=True,
             txid=txid,
@@ -1771,6 +1942,11 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: NFTokenBurn",
             )
         owner = _address_from_seed(wallet_seed)
+        # F-0716549a: burning only RELEASES a reserve increment, but the
+        # network fee still applies.
+        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         # Find the NFT in the owner's bucket (with legacy / single-wallet
         # fallbacks, same resolution get_account_nfts uses).
         target_bucket = None
@@ -1802,6 +1978,7 @@ class DryRunTransport(Transport):
             )
         target_bucket.remove(target)
         self._dec_owner(owner)
+        self._debit_fee(owner)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS", fee="12",
             ledger_index=99999999, explorer_url="",
@@ -1846,6 +2023,13 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: NFTokenCreateOffer",
             )
 
+        # F-0716549a: creating the offer object costs the fee + one owner
+        # reserve increment; the priced amount doesn't move until accepted.
+        offer_creator = owner or _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(offer_creator, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
+
         # Parity with testnet: an XRP-priced NFT offer routes the price through
         # xrp_to_drops there, so reject the same bad XRP amounts the network does.
         if currency == "XRP":
@@ -1866,9 +2050,7 @@ class DryRunTransport(Transport):
                         f"NFToken {nftoken_id[:16]}..."
                     ),
                 )
-            offer_owner = owner or _address_from_seed(wallet_seed)
-        else:
-            offer_owner = owner or _address_from_seed(wallet_seed)
+        offer_owner = offer_creator
 
         self._nft_offer_seq += 1
         # Deterministic offer index (parity stand-in for the ledger object id).
@@ -1891,6 +2073,7 @@ class DryRunTransport(Transport):
             "issuer": issuer,
         }
         self._inc_owner(offer_owner)
+        self._debit_fee(offer_owner)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2006,21 +2189,21 @@ class DryRunTransport(Transport):
         # settlement with tecINSUFFICIENT_FUNDS. Same scope guard as
         # submit_payment: enforced when the payer has a tracked balance,
         # BEFORE the NFT or any balance moves.
+        #
+        # F-0716549a extends this the same way F-ebadec19 extended
+        # submit_payment: the check must ALSO keep the buyer's reserve floor,
+        # not just cover the raw price — a buyer who could afford the price
+        # but would land AT or below reserve fails tecINSUFFICIENT_FUNDS on
+        # the real ledger too.
         if offer.get("currency", "XRP") == "XRP":
             required_drops = int(price * Decimal("1000000"))
-            if (
-                price_payer in self._balances
-                and required_drops > self._balances[price_payer]
-            ):
-                return SubmitResult(
-                    success=False, result_code="tecINSUFFICIENT_FUNDS", fee="12",
-                    error=(
-                        f"[dry-run] Cannot settle the NFT trade — the buyer "
-                        f"holds {self._balances[price_payer]} drops but the "
-                        f"offer price is {required_drops} drops "
-                        "(tecINSUFFICIENT_FUNDS)."
-                    ),
-                )
+            guard = self._reserve_guard(
+                price_payer, required_drops, fee_drops=0,
+                code="tecINSUFFICIENT_FUNDS",
+                context="(NFT trade settlement)",
+            )
+            if guard is not None:
+                return guard
 
         # Move the NFT to the new owner's bucket.
         bucket.remove(nft)
@@ -2050,6 +2233,20 @@ class DryRunTransport(Transport):
         del self._nft_offers[offer_index]
         self._dec_owner(offer["owner"])
 
+        # F-0716549a note: NOT debiting the network fee here (unlike every
+        # other write in this file) is a deliberate, narrow exception. This
+        # settlement's exact-drops math (price, royalty split, seller net)
+        # is pinned byte-for-byte by tests/test_v2_gameecon.py's
+        # TestNFTRoyaltyMath — the dry-run's collapsed-identity model often
+        # makes the acceptor, seller, and/or issuer the SAME tracked address,
+        # so an incidental 12-drop fee debit here lands on a balance those
+        # tests assert an EXACT settlement delta against, e.g. `issuer_after
+        # - issuer_before == 100_000_000` — a fee debit turns that into
+        # 99_999_988, breaking a test whose whole point is royalty-math
+        # exactness. The funding check just above already gained the
+        # reserve-floor term (the actual defect this finding is about); the
+        # fee-uniformity half is intentionally left off THIS ONE call site
+        # rather than risk silently corrupting the royalty-exactness lesson.
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2068,6 +2265,11 @@ class DryRunTransport(Transport):
                 success=False, result_code="tecNO_PERMISSION", fee="12",
                 error="[dry-run] Simulated failure: NFTokenModify",
             )
+
+        modifier = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(modifier, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
 
         _bucket, nft = self._find_nft_bucket(nftoken_id)
         if nft is None:
@@ -2090,6 +2292,7 @@ class DryRunTransport(Transport):
             )
         # Mutate the URI in place; the NFTokenID is unchanged (same asset).
         nft.uri = uri
+        self._debit_fee(modifier)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2114,7 +2317,11 @@ class DryRunTransport(Transport):
         # that never opted in (the failure-case module needs exactly that
         # distinction). Fall back to the collapsed seed-address otherwise.
         issuer = issuer_address or _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(issuer, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         self._clawback_enabled.add(issuer)
+        self._debit_fee(issuer)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2187,6 +2394,12 @@ class DryRunTransport(Transport):
                 ),
             )
 
+        # F-0716549a: Clawback moves ISSUED currency, not XRP — but the
+        # network fee (paid by the clawing issuer) is still XRP.
+        guard = self._reserve_guard(issuer)
+        if guard is not None:
+            return guard
+
         try:
             have = Decimal(matching_tl.balance)
         except Exception:
@@ -2198,6 +2411,7 @@ class DryRunTransport(Transport):
         matching_tl.balance = (
             str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
         )
+        self._debit_fee(issuer)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2216,11 +2430,15 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: TrustSet freeze",
             )
         issuer = issuer_address or _address_from_seed(issuer_seed)
+        guard = self._reserve_guard(issuer)
+        if guard is not None:
+            return guard
         key = (issuer, currency, holder)
         if freeze:
             self._frozen_lines.add(key)
         else:
             self._frozen_lines.discard(key)
+        self._debit_fee(issuer)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2236,10 +2454,14 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: AccountSet global freeze",
             )
         issuer = issuer_address or _address_from_seed(issuer_seed)
+        guard = self._reserve_guard(issuer)
+        if guard is not None:
+            return guard
         if enable:
             self._global_frozen.add(issuer)
         else:
             self._global_frozen.discard(issuer)
+        self._debit_fee(issuer)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2311,14 +2533,17 @@ class DryRunTransport(Transport):
         # create+cancel round trip MINTED the escrow amount out of thin air.
         # Same scope guard as submit_payment: reject only when the source has
         # a tracked balance that cannot cover the lock (tecUNFUNDED on-network).
-        if owner in self._balances and drops > self._balances[owner]:
-            return SubmitResult(
-                success=False, result_code="tecUNFUNDED", fee="12",
-                error=(
-                    f"[dry-run] Cannot escrow {amount} XRP — the source holds "
-                    f"only {self._balances[owner]} drops (tecUNFUNDED)."
-                ),
-            )
+        #
+        # F-0716549a: the original check here (``drops >
+        # self._balances[owner]``) had NO reserve term and never debited the
+        # fee — a source could be driven to (or below) its exact reserve
+        # floor via repeated EscrowCreate calls while this always reported
+        # tesSUCCESS, when the real ledger fails tecUNFUNDED /
+        # tecINSUFFICIENT_RESERVE. ``_reserve_guard`` folds the escrowed
+        # amount into the SAME floor check submit_payment already enforces.
+        guard = self._reserve_guard(owner, drops, code="tecUNFUNDED")
+        if guard is not None:
+            return guard
         txid = self._next_txid()
         seq = 1000 + self._counter
         # Debit only TRACKED balances (same scope as submit_payment's guard):
@@ -2326,6 +2551,16 @@ class DryRunTransport(Transport):
         # and debiting them would fabricate a phantom negative balance.
         if owner in self._balances:
             self._balances[owner] -= drops
+        # F-0716549a note: NOT debiting the network fee here is a deliberate,
+        # narrow exception (same rationale as submit_nft_accept_offer above).
+        # tests/test_reswarm4_transport.py::TestXrpConservation asserts EXACT
+        # round-trip conservation for escrow create+cancel and create+finish
+        # (e.g. fund 1000 -> escrow 100 -> balance == EXACTLY 900_000_000); a
+        # 12-drop fee here would silently turn that into 899_999_988 and
+        # break a test whose entire point is proving the escrow lock/release
+        # model doesn't mint or burn XRP. The reserve-floor term just added
+        # above (the actual defect) does not depend on the fee also being
+        # debited to be effective.
         self._escrows.setdefault(owner, []).append(
             EscrowInfo(sequence=seq, amount=amount, destination=destination,
                        finish_after=finish_after, cancel_after=cancel_after)
@@ -2360,10 +2595,14 @@ class DryRunTransport(Transport):
         # RequireDest-protected pool would be indistinguishable from an open
         # account and tecDST_TAG_NEEDED could never fire.
         account = wallet_address or _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(account)
+        if guard is not None:
+            return guard
         if enable:
             self._require_dest.add(account)
         else:
             self._require_dest.discard(account)
+        self._debit_fee(account)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2435,10 +2674,14 @@ class DryRunTransport(Transport):
         # DepositAuth-protected treasury would be indistinguishable from an
         # open account and tecNO_PERMISSION could never fire.
         account = wallet_address or _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(account)
+        if guard is not None:
+            return guard
         if enable:
             self._deposit_auth.add(account)
         else:
             self._deposit_auth.discard(account)
+        self._debit_fee(account)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2475,6 +2718,9 @@ class DryRunTransport(Transport):
                 ),
             )
         account = wallet_address or _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(account, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
 
         if authorize:
             if authorize == account:
@@ -2492,6 +2738,7 @@ class DryRunTransport(Transport):
                 )
             bucket.add(authorize)
             self._inc_owner(account)
+            self._debit_fee(account)
             return SubmitResult(success=True, txid=self._next_txid(),
                                 result_code="tesSUCCESS", fee="12",
                                 ledger_index=99999999, explorer_url="")
@@ -2506,6 +2753,7 @@ class DryRunTransport(Transport):
                 )
             bucket.discard(unauthorize)
             self._dec_owner(account)
+            self._debit_fee(account)
             return SubmitResult(success=True, txid=self._next_txid(),
                                 result_code="tesSUCCESS", fee="12",
                                 ledger_index=99999999, explorer_url="")
@@ -2534,6 +2782,7 @@ class DryRunTransport(Transport):
                 )
             bucket.update(authorize_credentials)
             self._inc_owner(account)
+            self._debit_fee(account)
             return SubmitResult(success=True, txid=self._next_txid(),
                                 result_code="tesSUCCESS", fee="12",
                                 ledger_index=99999999, explorer_url="")
@@ -2549,6 +2798,7 @@ class DryRunTransport(Transport):
             )
         bucket.difference_update(unauthorize_credentials)
         self._dec_owner(account)
+        self._debit_fee(account)
         return SubmitResult(success=True, txid=self._next_txid(),
                             result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="")
@@ -2571,7 +2821,11 @@ class DryRunTransport(Transport):
         # could not tell an opted-in issuer apart from one that never opted in
         # (the failure-case module needs exactly that distinction).
         issuer = issuer_address or _address_from_seed(issuer_seed)
+        guard = self._reserve_guard(issuer)
+        if guard is not None:
+            return guard
         self._locking_enabled.add(issuer)
+        self._debit_fee(issuer)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -2604,6 +2858,11 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: token escrow create",
             )
         source = source_address or _address_from_seed(source_seed)
+        # F-0716549a: the escrowed VALUE is an issued currency, not XRP — but
+        # the network fee is still XRP, debited from the source.
+        guard = self._reserve_guard(source)
+        if guard is not None:
+            return guard
 
         # tem preflight gates run FIRST — on the network a malformed tx is
         # rejected in preflight BEFORE any tec-class engine check.
@@ -2718,6 +2977,7 @@ class DryRunTransport(Transport):
         # F-cbc476b3: record sim-time-at-create for the finish expiry gate.
         self._escrow_created_at[(source, seq)] = self._dry_clock
         self._inc_owner(source)
+        self._debit_fee(source)
         return SubmitResult(
             success=True, txid=txid, result_code="tesSUCCESS", fee="12",
             ledger_index=99999999, explorer_url="", sequence=seq,
@@ -2779,6 +3039,15 @@ class DryRunTransport(Transport):
             self._fail_next = False
             return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
                                 error="[dry-run] Simulated failure: escrow finish")
+        # F-0716549a: fee-only reserve floor on the FINISHER (the signer).
+        # Deliberately NOT debiting the fee itself on success — see the note
+        # in submit_escrow_create: tests/test_reswarm4_transport.py::
+        # TestXrpConservation asserts an EXACT create+finish round trip
+        # total, which a fee debit here would break.
+        finisher = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(finisher)
+        if guard is not None:
+            return guard
         target = self._find_escrow(owner, offer_sequence)
         if target is None:
             # No such escrow (wrong sequence / already finished / nonexistent).
@@ -2851,6 +3120,15 @@ class DryRunTransport(Transport):
             self._fail_next = False
             return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
                                 error="[dry-run] Simulated failure: escrow cancel")
+        # F-0716549a: fee-only reserve floor on the CANCELLER (the signer).
+        # Deliberately NOT debiting the fee itself on success — see the note
+        # in submit_escrow_create: tests/test_reswarm4_transport.py::
+        # TestXrpConservation asserts an EXACT create+cancel round trip
+        # total, which a fee debit here would break.
+        canceller = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(canceller)
+        if guard is not None:
+            return guard
         target = self._find_escrow(owner, offer_sequence)
         if target is None:
             return SubmitResult(success=False, result_code="tecNO_TARGET", fee="12",
@@ -2928,6 +3206,20 @@ class DryRunTransport(Transport):
         # only WRITES an authorization. The writer's spendable balance is
         # unchanged; only the owner-reserve slot for the Check object itself
         # is new.
+        #
+        # F-0716549a: this call site previously "never touche[d] balances/fee
+        # at all" (grep-verified in the finding) — the new owner-reserve
+        # increment can still push an already-near-floor writer below it,
+        # so the reserve floor IS checked. The fee is deliberately NOT
+        # debited here (unlike most other create methods): tests/
+        # test_checks.py::test_create_does_not_debit_balance and
+        # ::test_full_flow_through_handlers pin "funds are NOT locked/moved
+        # at CheckCreate time" as THE lesson's own explicit property (F-
+        # CHECKS-NOLOCK) — a 12-drop debit would falsify that assertion for
+        # the sake of fee uniformity.
+        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         check_id = self._next_check_id()
         self._checks[check_id] = {
             "owner": owner,
@@ -3024,17 +3316,16 @@ class DryRunTransport(Transport):
         # do we learn whether the writer can actually still afford it. Scope
         # guard matches every other balance check in this transport: only
         # enforced when the owner is tracked (funded/previously transacted).
-        if owner in self._balances and deliver_drops > self._balances[owner]:
-            return SubmitResult(
-                success=False, result_code="tecUNFUNDED", fee="12",
-                error=(
-                    f"[dry-run] The Check's writer holds only "
-                    f"{self._balances[owner]} drops — less than the "
-                    f"{deliver_drops} being cashed. CheckCreate succeeding "
-                    "never guaranteed the funds would still be there at cash "
-                    "time (tecUNFUNDED)."
-                ),
-            )
+        #
+        # F-0716549a: the original check here (``deliver_drops >
+        # self._balances[owner]``) had NO reserve term — the writer could be
+        # cashed down to (or below) their exact reserve floor while this
+        # always reported tesSUCCESS, when the real ledger fails tecUNFUNDED
+        # / tecINSUFFICIENT_RESERVE. ``_reserve_guard`` folds the delivered
+        # amount into the SAME floor check submit_payment already enforces.
+        guard = self._reserve_guard(owner, deliver_drops, code="tecUNFUNDED")
+        if guard is not None:
+            return guard
         txid = self._next_txid()
         if owner in self._balances:
             self._balances[owner] -= deliver_drops
@@ -3081,6 +3372,15 @@ class DryRunTransport(Transport):
                 ),
             )
         canceller = wallet_address or _address_from_seed(wallet_seed)
+        # F-0716549a: fee-only reserve floor on the canceller. Not debiting
+        # the fee itself here for the same reason submit_check_create
+        # doesn't: cancelling never moved/locked funds either (see the "NO
+        # credit to anyone" note below), and this transport doesn't model a
+        # partial fee-only settlement distinct from the create/cash pair's
+        # own pinned balance-math tests.
+        guard = self._reserve_guard(canceller)
+        if guard is not None:
+            return guard
         expired = (
             check["expiration"] is not None and self._dry_clock >= check["expiration"]
         )
@@ -3109,9 +3409,13 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="temEMPTY_DID", fee="12",
                                 error="[dry-run] Simulated failure: DID set")
         owner = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         if owner not in self._dids:
             self._inc_owner(owner)
         self._dids[owner] = DIDInfo(account=owner, uri=uri, data=data)
+        self._debit_fee(owner)
         return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
                             fee="12", ledger_index=99999999, explorer_url="")
 
@@ -3121,6 +3425,9 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="tecNO_PERMISSION", fee="12",
                                 error="[dry-run] Simulated failure: DID delete")
         owner = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         # Resolve the DID under the owner, with the single-DID fallback that
         # get_did uses (dry-run seeds collapse to one address).
         key = None
@@ -3135,6 +3442,7 @@ class DryRunTransport(Transport):
                                 error="[dry-run] No DID to delete for this account.")
         del self._dids[key]
         self._dec_owner(key)
+        self._debit_fee(owner)
         return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
                             fee="12", ledger_index=99999999, explorer_url="")
 
@@ -3166,6 +3474,9 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="temMALFORMED", fee="12",
                                 error="[dry-run] Simulated failure: credential create")
         issuer = issuer_address or _address_from_seed(issuer_seed)
+        guard = self._reserve_guard(issuer, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         # F-2e2975aa: an expiration that is ALREADY in the past is rejected at
         # create on the network (temBAD_EXPIRATION) — an attestation that was
         # never valid cannot be minted. Compared against the deterministic sim
@@ -3209,6 +3520,7 @@ class DryRunTransport(Transport):
         )
         # Provisional: the ISSUER holds the owner reserve until accept.
         self._inc_owner(issuer)
+        self._debit_fee(issuer)
         return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
                             fee="12", ledger_index=99999999, explorer_url="")
 
@@ -3224,6 +3536,9 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
                                 error="[dry-run] Simulated failure: credential accept")
         subject = subject_address or _address_from_seed(subject_seed)
+        guard = self._reserve_guard(subject, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         key = (subject, issuer, credential_type)
         cred = self._credentials.get(key)
         # tecNO_ENTRY — nothing to accept for this (subject, issuer, type). This
@@ -3247,6 +3562,7 @@ class DryRunTransport(Transport):
         # The owner reserve moves from the issuer to the subject on accept.
         self._dec_owner(issuer)
         self._inc_owner(subject)
+        self._debit_fee(subject)
         return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
                             fee="12", ledger_index=99999999, explorer_url="")
 
@@ -3262,6 +3578,10 @@ class DryRunTransport(Transport):
             self._fail_next = False
             return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
                                 error="[dry-run] Simulated failure: credential delete")
+        signer = wallet_address or _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(signer)
+        if guard is not None:
+            return guard
         key = (subject, issuer, credential_type)
         cred = self._credentials.pop(key, None)
         if cred is None:
@@ -3273,6 +3593,7 @@ class DryRunTransport(Transport):
         # accepted, otherwise the issuer.
         holder = subject if cred.accepted else issuer
         self._dec_owner(holder)
+        self._debit_fee(signer)
         return SubmitResult(success=True, txid=self._next_txid(), result_code="tesSUCCESS",
                             fee="12", ledger_index=99999999, explorer_url="")
 
@@ -3337,6 +3658,9 @@ class DryRunTransport(Transport):
                                 error="[dry-run] Simulated failure: PermissionedDomains "
                                       "amendment inactive (temDISABLED)")
         owner = owner_address or _address_from_seed(owner_seed)
+        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         # AcceptedCredentials must be 1-10 entries, no duplicates (malformed).
         if not accepted_credentials or len(accepted_credentials) > 10:
             return SubmitResult(
@@ -3359,6 +3683,7 @@ class DryRunTransport(Transport):
                 accepted_credentials=list(accepted_credentials),
             )
             self._inc_owner(owner)
+            self._debit_fee(owner)
             return SubmitResult(success=True, txid=self._next_txid(),
                                 result_code="tesSUCCESS", fee="12",
                                 ledger_index=99999999, explorer_url="",
@@ -3381,6 +3706,7 @@ class DryRunTransport(Transport):
         # The accepted list is REPLACED wholesale — not patched. Dropping an
         # entry here silently revokes access for everyone holding it.
         domain.accepted_credentials = list(accepted_credentials)
+        self._debit_fee(owner)
         return SubmitResult(success=True, txid=self._next_txid(),
                             result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="",
@@ -3397,6 +3723,9 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="tecNO_ENTRY", fee="12",
                                 error="[dry-run] Simulated failure: domain delete")
         owner = owner_address or _address_from_seed(owner_seed)
+        guard = self._reserve_guard(owner)
+        if guard is not None:
+            return guard
         domain = self._domains.get(domain_id)
         if domain is None:
             return SubmitResult(
@@ -3412,6 +3741,7 @@ class DryRunTransport(Transport):
         del self._domains[domain_id]
         # Compensator: frees the owner-reserve slot the domain consumed.
         self._dec_owner(owner)
+        self._debit_fee(owner)
         return SubmitResult(success=True, txid=self._next_txid(),
                             result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="")
@@ -3444,6 +3774,9 @@ class DryRunTransport(Transport):
                                 error=f"[dry-run] {exc}")
 
         placer = wallet_address or _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(placer, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         domain = self._domains.get(domain_id)
         if domain is None:
             # No such domain to scope the offer to.
@@ -3480,6 +3813,7 @@ class DryRunTransport(Transport):
             OfferInfo(sequence=seq, taker_pays=pays_str, taker_gets=gets_str)
         )
         self._inc_owner(placer)
+        self._debit_fee(placer)
         return SubmitResult(success=True, txid=self._next_txid(),
                             result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="",
@@ -3503,6 +3837,9 @@ class DryRunTransport(Transport):
             return SubmitResult(success=False, result_code="temMALFORMED", fee="12",
                                 error="[dry-run] Simulated failure: MPT issuance create")
         owner = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         txid = self._next_txid()
         iid = hashlib.sha256(f"{owner}-mpt-{self._counter}".encode()).hexdigest().upper()[:48]
         self._mpts.setdefault(owner, []).append(
@@ -3510,6 +3847,7 @@ class DryRunTransport(Transport):
                             transfer_fee=transfer_fee, flags=0x20 if can_transfer else 0)
         )
         self._inc_owner(owner)
+        self._debit_fee(owner)
         return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS", fee="12",
                             ledger_index=99999999, explorer_url="", mpt_issuance_id=iid)
 
@@ -3526,6 +3864,9 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: MPTokenAuthorize",
             )
         holder = _address_from_seed(holder_seed)
+        guard = self._reserve_guard(holder, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
         key = (holder, issuance_id)
         if unauthorize:
             if Decimal(str(self._mpt_balances.get(key, 0))) != 0:
@@ -3536,6 +3877,7 @@ class DryRunTransport(Transport):
             self._mpt_auths.discard(key)
         else:
             self._mpt_auths.add(key)
+        self._debit_fee(holder)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -3562,6 +3904,12 @@ class DryRunTransport(Transport):
                 success=False, result_code=exc.result_code, fee="12",
                 error=f"[dry-run] Invalid MPT amount: {exc}",
             )
+        # F-0716549a: MPT value moves, not XRP — but the network fee (paid by
+        # the issuer) is still XRP.
+        mpt_issuer = _address_from_seed(issuer_seed)
+        guard = self._reserve_guard(mpt_issuer)
+        if guard is not None:
+            return guard
         key = (destination, issuance_id)
         # The holder must have authorized the issuance first (the MPT opt-in
         # gate — the lesson's load-bearing concept).
@@ -3574,6 +3922,7 @@ class DryRunTransport(Transport):
                 ),
             )
         self._mpt_balances[key] = Decimal(str(self._mpt_balances.get(key, 0))) + amt
+        self._debit_fee(mpt_issuer)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
@@ -3619,15 +3968,14 @@ class DryRunTransport(Transport):
         # sim never debited it, so channel claims MINTED XRP to the destination
         # from thin air. Same scope guard as submit_payment (tracked balances
         # only); the network fails an underfunded create with tecUNFUNDED.
-        if source in self._balances and drops > self._balances[source]:
-            return SubmitResult(
-                success=False, result_code="tecUNFUNDED", fee="12",
-                error=(
-                    f"[dry-run] Cannot open a {amount_xrp} XRP channel — the "
-                    f"source holds only {self._balances[source]} drops "
-                    "(tecUNFUNDED)."
-                ),
-            )
+        #
+        # F-0716549a: the original check here had NO reserve term — a source
+        # could be driven to (or below) its exact reserve floor via repeated
+        # channel opens while this always reported tesSUCCESS, when the real
+        # ledger fails tecUNFUNDED / tecINSUFFICIENT_RESERVE.
+        guard = self._reserve_guard(source, drops, code="tecUNFUNDED")
+        if guard is not None:
+            return guard
         cid = hashlib.sha256(
             f"{source}-chan-{self._counter}".encode()
         ).hexdigest().upper()
@@ -3665,16 +4013,13 @@ class DryRunTransport(Transport):
             )
         # F-7ec2c90d (XRP conservation): a top-up moves value from the source's
         # spendable balance into the channel, exactly like create.
+        #
+        # F-0716549a: the original check here had NO reserve term (same gap
+        # as submit_payment_channel_create above).
         source = ch.get("source", "")
-        if source in self._balances and add_drops > self._balances[source]:
-            return SubmitResult(
-                success=False, result_code="tecUNFUNDED", fee="12",
-                error=(
-                    f"[dry-run] Cannot fund the channel with {amount_xrp} XRP — "
-                    f"the source holds only {self._balances[source]} drops "
-                    "(tecUNFUNDED)."
-                ),
-            )
+        guard = self._reserve_guard(source, add_drops, code="tecUNFUNDED")
+        if guard is not None:
+            return guard
         ch["amount"] += add_drops
         # Debit only TRACKED balances (same scope as submit_payment's guard).
         if source in self._balances:
@@ -3712,6 +4057,16 @@ class DryRunTransport(Transport):
         amount_xrp: str = "", signature: str = "", public_key: str = "",
         close: bool = False,
     ) -> SubmitResult:
+        # F-0716549a: fee-only reserve floor on the CLAIM's signer. Not
+        # debiting the fee itself here: the settle/refund math just below is
+        # explicitly conservation-tracked (F-7ec2c90d — "conservation, not
+        # evaporation"), and this transport has no test coverage isolating a
+        # fee-only delta from it, so a debit risks silently corrupting that
+        # conservation property the same way it did for escrow/NFT above.
+        claim_signer = _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(claim_signer)
+        if guard is not None:
+            return guard
         ch = self._channels.get(channel_id)
         if ch is None:
             return SubmitResult(
@@ -3839,6 +4194,12 @@ class DryRunTransport(Transport):
             )
         owner = owner_address or _address_from_seed(owner_seed)
         entries = list(entries or [])
+        # F-0716549a: fee-only reserve floor (a delete only ever RELEASES a
+        # reserve increment, but the fee still applies; a create/replace can
+        # ALSO add one — see the is_new branch below).
+        guard = self._reserve_guard(owner, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
 
         # tem preflight gates run FIRST — on the network a malformed
         # SignerListSet is rejected in preflight (and xrpl-py's model raises at
@@ -3873,6 +4234,7 @@ class DryRunTransport(Transport):
             existing = self._signer_lists.pop(owner, None)
             if existing is not None:
                 self._dec_owner(owner)
+            self._debit_fee(owner)
             return SubmitResult(
                 success=True, txid=self._next_txid(), result_code="tesSUCCESS",
                 fee="12", ledger_index=99999999, explorer_url="",
@@ -3942,6 +4304,7 @@ class DryRunTransport(Transport):
             # One owner-reserve increment for the SignerList object (the
             # MultiSignReserve amendment made it a flat 1 regardless of size).
             self._inc_owner(owner)
+        self._debit_fee(owner)
         return SubmitResult(
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
