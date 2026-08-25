@@ -1,4 +1,129 @@
 # Changelog
+## Unreleased — fifth dogfood re-swarm, Stage A
+
+Landed on `main`, **not released** — `package.json` and `pyproject.toml` stay at 2.4.0,
+which is what is published. Stage B onward and the release itself follow.
+
+A health pass over the shipped v2.4.0 surface. Seven parallel domain agents audited
+31,759 lines of Python plus the 3,677-line facilitator dashboard — a surface that had
+never been audited before, because it had always sat inside the coordinator-owned docs
+domain. 41 findings. Severities were re-rated by a five-seat, family-diverse OpenRouter
+panel (deepseek-v3.2, qwen3.7-plus, llama-3.3-70b, command-a-03-2025,
+nemotron-3-super-120b) with authorship and self-assigned severity stripped; the panel
+moved 11 findings up and 2 down. Every fix below has a regression test that was
+**verified red against the unfixed tree**, individually, by reverting its fix file.
+
+**The dominant defect class was not unfixed bugs — it was fixes whose tests could not
+fail.** Six previously-shipped remediations had regression tests that mocked around the
+mechanism they claimed to protect: a symlink test one directory too shallow that passed
+only via a Python 3.13 stdlib default, a sanitizer provably blind by design to the data
+class it guarded, a duplicate-submit test asserting object identity instead of sequence
+safety, a reserve-floor discipline applied to 2 of ~32 call sites, a drift gate covering
+5 of N interfaces while advertised as blanket, and a test asserting a false library
+behaviour to justify skipping coverage.
+
+### Fixed / Security
+
+- **`session-export` could exfiltrate another learner's secrets (CRITICAL).** The
+  realpath containment gate rooted itself at `workspace.resolve()`, computed *after*
+  `.is_dir()`/`.resolve()` had already followed a symlink planted at `.xrpl-lab` itself
+  — making the check tautological. A directory symlink walked straight past it and a
+  secret file was confirmed riding into a produced `.tar.gz`. The containment root is
+  now the learner submission directory, and symlinked directories are **skipped, not
+  followed**. Not fixed by adding names to a denylist: a name denylist is not a
+  containment control.
+- **`support-bundle` and `feedback` leaked RPC/faucet credentials (CRITICAL).**
+  `generate_support_bundle()` sealed `rpc_url`/`faucet_url` verbatim into a shareable
+  artifact — while the same bundle's doctor-check fields showed the correctly redacted
+  URL right beside the raw one. The v2.4.0 fix for this exact data class had been
+  applied everywhere except this one sibling, and the function had no test at all.
+- **A credential-bearing faucet URL reached the console and the WebSocket stream
+  (CRITICAL).** `ensure_funded()` printed `FundResult.message` verbatim; the non-testnet
+  faucet refusal interpolates the operator's raw `XRPL_LAB_FAUCET_URL`, which can embed
+  basic-auth userinfo or a query token.
+- **The WebSocket output sanitizer could not see the leak (HIGH).**
+  `_redact_output_text` was the sole sanitizer on that channel and is path-only by
+  construction — its own regression test asserts URLs pass through untouched. It now
+  also strips embedded userinfo, delegating to the same `sanitize_endpoint` the rest of
+  the codebase uses. Credential-free explorer links still pass through byte-for-byte.
+- **Wallet-seed file protection was never applied on Windows (HIGH).** `SECURITY.md`
+  promised owner-only permissions unconditionally; on win32 the code logged a warning
+  and continued, and all seven regression tests for the property were skipped on that
+  platform. Now enforced with real ACLs via `icacls` — inherited ACEs stripped, current
+  user granted, surviving explicit principals removed — verified against real `icacls`
+  output, raising `PERM_WALLET_ACL_FAILED` rather than continuing. `SECURITY.md` now
+  states what each platform actually guarantees, and what it does not.
+
+### Fixed — safety defaults that failed open
+
+- **`--dry-run` could be defeated by a hyphen (HIGH).** `start_run()` treated the mere
+  *presence* of a `dry-run` query key as "the caller was explicit" and skipped the
+  server-wide safety default — but only `dry_run` ever binds to the route parameter, so
+  the value was silently discarded. `create_app(dry_run=True)` plus `?dry-run=true`
+  produced a **live** run. The key is now read explicitly and aliased, or the request
+  is rejected.
+- **The dashboard auto-started runs from a URL, and failed open to live (HIGH).**
+  `run/[id].astro` began a run on page load from a query param with no confirmation, and
+  every value other than the literal `'true'` meant live — while the module page's own
+  primary button constructed exactly that URL. It re-fired on every reload, restore, or
+  shared link. Auto-start is removed: a run now begins only from an explicit click.
+
+### Fixed — correctness
+
+- **A retry could still land a duplicate transaction (HIGH).** `Transaction` is a frozen
+  dataclass and `autofill()` re-fetches a fresh `Sequence` regardless of object
+  identity, so the prior fix — and its identity-only test — never covered the real
+  mechanism. The Sequence is now pinned once before the retry loop.
+- **Non-XRP `delivered_amount` was credited as drops (HIGH).** `credit_player_deposit()`
+  labelled any issued-currency delivery as drops; credit is now derived from the real
+  delivered value with its currency and issuer.
+
+### Fixed — dry-run fidelity and curriculum honesty
+
+Several shipped lessons failed their own closing checkpoint on every `--dry-run`, for
+reasons no test covered. These are the same class as the above: the product asserting
+something it had never verified.
+
+- **The dry-run reserve floor reached 2 of ~32 write methods (HIGH).** Escrow, Checks,
+  Payment Channels, NFT, DID, Credentials, Permissioned Domains, MPT, Freeze,
+  SignerListSet and AMM could all report `tesSUCCESS` for operations the real ledger
+  rejects with `tecUNFUNDED`/`tecINSUFFICIENT_RESERVE`. For a training product that is
+  not a fidelity gap but a false lesson. The reserve check now applies to every write
+  method.
+- **The dry-run transport collapsed every seed to one synthetic address**, so ledger
+  state written under one identity was read back under another. Trust lines merged the
+  holder's and recipient's buckets (`token_escrow_101` escrowed and credited the same
+  bucket, so the recipient's balance "changed by 0"); AMM LP tokens were keyed where the
+  verify step could never read them (`amm_liquidity_101` and `dex_vs_amm_risk_literacy`
+  both printed "No LP tokens received" after a successful deposit); MPT authorizations
+  landed under a different key than the payment looked up
+  (`mpt_distribution_101` failed `tecNO_AUTH` against a holder who *had* authorized).
+  Callers now pass the real address; fixture callers keep the old behaviour.
+- **`token_escrow_101` could never teach its own advertised lesson (HIGH).** Step 10
+  promised `tecNO_PERMISSION`, but `asfAllowTrustLineLocking` is account-wide, so once
+  the module's issuer opted in no token it issued could ever produce that error. The
+  required setup action existed but no step called it, so learners hit `tecNO_LINE`
+  every time while the run reported success. The handler now fails loud and named when
+  the prerequisite is absent, and the module wires the missing step so the real lesson
+  fires.
+- **A step carrying two actions silently ran only the first.** The module parser takes
+  the first action comment per heading, so `token_escrow_101`'s combined
+  trust-and-receive step never issued the token — breaking its own later escrow. The
+  step is split, and a lint now fails any heading carrying more than one action so this
+  cannot recur silently. (The parser convention is unchanged and deliberate: one action
+  per heading.)
+
+### Changed
+
+- The module page offers a single "Run Module" action; the dry-run/live choice is made
+  on the run page itself, by a click.
+- `xrpl-lab lint` gains the one-action-per-heading check.
+
+### Tests
+
+1663 → 1755 passing; skipped 26 → 24, because two win32 wallet tests hidden behind a
+blanket `skipif` now actually execute.
+
 ## 2.4.0 — 2026-07-12
 
 **Fourth dogfood re-swarm** — a deep health pass on the shipped v2.3.0 surface (2 CRITICAL +
