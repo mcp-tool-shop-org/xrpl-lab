@@ -3,11 +3,27 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .modules import _ACTION_RE, _STEP_RE, parse_module
 from .registry import PayloadError, PayloadSchema, is_registered, resolve
+
+# Explicit opt-out for ## Step headings that are intentionally actionless
+# (literacy tables, reflection prompts). Checkpoints are exempt by kind;
+# Steps need either one action or this marker — otherwise a forgotten or
+# typo'd action comment (``<!-- action: set-trust-line -->`` fails
+# ``_ACTION_RE`` because ``\w+`` rejects hyphens) ships as silent no-op.
+_NARRATIVE_ONLY_RE = re.compile(r"<!--\s*narrative-only\s*-->", re.IGNORECASE)
+
+# Kind-aware step heading matcher for the action-count lint. Same headings
+# as ``_STEP_RE``, but keeps Step vs Checkpoint so zero-action rules can
+# exempt narrative wrap-ups without rewriting the parser.
+_STEP_HEADING_KIND_RE = re.compile(
+    r"^##\s+(?P<kind>Step\s+\d+|Checkpoint)[.:]\s*(?P<title>.*)",
+    re.MULTILINE,
+)
 
 # Tracks whose modules are sourced from the XRPL knowledge base (KB). A module
 # on one of these tracks SHOULD carry a ``kb_source`` capability slug so its
@@ -270,7 +286,7 @@ def lint_module_text(
                 ),
             ))
 
-    # 8. One action per step heading.
+    # 8. Action count per step heading (exactly one, unless exempt).
     #
     # ``parse_module`` binds a step to its action with ``_ACTION_RE.search()``,
     # which returns only the FIRST ``<!-- action: ... -->`` in a heading's body.
@@ -283,32 +299,59 @@ def lint_module_text(
     #
     # The curriculum convention is ONE action per heading (see clawback_101's
     # Step 11/12 split), so a second action is an authoring error, not a
-    # supported form. This is an ERROR by the same logic as "Unknown action"
-    # above: both describe a step that cannot do what its author wrote.
+    # supported form. Zero matches are the other face of the same defect: a
+    # forgotten comment, or a typo that makes ``_ACTION_RE`` miss entirely
+    # (e.g. hyphenated ``set-trust-line``), also runs as a silent no-op at
+    # parse/runner time. ``## Checkpoint:`` wrap-ups are exempt; a ``## Step``
+    # may opt out with ``<!-- narrative-only -->``.
     #
     # Scanned from ``raw_body`` rather than ``mod.steps`` — by the time parsing
     # is done the extra actions are already gone, so the parsed steps cannot
-    # see the defect they are the symptom of.
+    # see the defect they are the symptom of. Parser stays first-match; this
+    # lint does not change execute-all behavior.
     raw_parts = _STEP_RE.split(mod.raw_body)
     # Mirror parse_module's indexing so the reported step number matches the
     # one used everywhere else: an intro before the first heading occupies
     # step 1, shifting every heading down by one.
     heading_offset = 2 if raw_parts[0].strip() else 1
-    for j, i in enumerate(range(1, len(raw_parts), 2)):
-        step_body = raw_parts[i + 1] if i + 1 < len(raw_parts) else ""
+    headings = list(_STEP_HEADING_KIND_RE.finditer(mod.raw_body))
+    for j, match in enumerate(headings):
+        kind = match.group("kind")
+        start = match.end()
+        end = headings[j + 1].start() if j + 1 < len(headings) else len(mod.raw_body)
+        step_body = mod.raw_body[start:end]
         found = _ACTION_RE.findall(step_body)
+        step_label = f"step {j + heading_offset}"
         if len(found) > 1:
             names = [name for name, _args in found]
             dropped = ", ".join(f"'{n}'" for n in names[1:])
             issues.append(LintIssue(
                 level="error",
                 module=module_name,
-                location=f"step {j + heading_offset}",
+                location=step_label,
                 message=(
                     f"Step declares {len(names)} actions ({', '.join(names)}) "
                     f"but only the first ('{names[0]}') will run — {dropped} "
                     "would be silently dropped at parse time. Split each "
                     "action into its own '## Step N:' heading."
+                ),
+            ))
+        elif len(found) == 0:
+            if kind.startswith("Checkpoint"):
+                continue
+            if _NARRATIVE_ONLY_RE.search(step_body):
+                continue
+            issues.append(LintIssue(
+                level="error",
+                module=module_name,
+                location=step_label,
+                message=(
+                    "Step declares no actions — the runner will print the "
+                    "prose and move on with nothing executed. Add exactly one "
+                    "<!-- action: ... --> comment, or mark the step "
+                    "<!-- narrative-only --> if it is intentionally "
+                    "actionless. (A typo'd action name that fails to match "
+                    "the action comment regex also lands here.)"
                 ),
             ))
 
