@@ -86,5 +86,12 @@ addopts = "-v --tb=short"
 # TODO v2.x: migrate off the deprecated starlette.testclient httpx path.
 filterwarnings = [
     "error::DeprecationWarning",
+    # anyio >= 4.11 deprecated the `anyio.abc.BlockingPortal` alias. The call site
+    # is inside starlette.testclient, not this repo -- nothing here imports
+    # BlockingPortal. With `error::DeprecationWarning` above, that third-party
+    # alias turned 11 test modules into COLLECTION errors, so 1663 tests never ran.
+    # Scoped to the one message rather than relaxing the error rule. Remove it when
+    # starlette moves to anyio.from_thread.BlockingPortal.
+    "ignore:The anyio\\.abc\\.BlockingPortal alias is deprecated:DeprecationWarning",
     "ignore:Using `httpx` with `starlette\\.testclient` is deprecated",
 ]
