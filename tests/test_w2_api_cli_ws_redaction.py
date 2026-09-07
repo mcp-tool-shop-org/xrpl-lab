@@ -99,11 +99,11 @@ def test_path_redaction_still_applies_after_url_pass() -> None:
     the same line is still redacted even when a credential-bearing URL
     was also present and rewritten."""
     text = (
-        r"saved to C:\Users\mikey\.xrpl-lab\state.json after contacting "
+        r"saved to C:\Users\SECRETUSER\.xrpl-lab\state.json after contacting "
         "https://facilitator:hunter2@evil.example.com/fund"
     )
     redacted = _redact_output_text(text)
-    assert "mikey" not in redacted
+    assert "SECRETUSER" not in redacted
     assert "<path-redacted>" in redacted
     assert "hunter2" not in redacted
     assert "https://evil.example.com" in redacted

@@ -78,7 +78,7 @@ _TEST_ORIGIN = {"origin": _ALLOWED_ORIGINS[0]}
 # tests/test_runner_ws.py (_SENTINEL_PATH) / tests/test_reporting.py: pin
 # the VALUE channel, not just key/shape, so a leak into an existing field
 # is caught rather than vacuously passing.
-_SENTINEL_WIN_PATH = r"C:\Users\mikey\.xrpl-lab\state.json"
+_SENTINEL_WIN_PATH = r"C:\Users\SECRETUSER\.xrpl-lab\state.json"
 _SENTINEL_POSIX_PATH = "/home/facilitator/.xrpl-lab/state.json"
 
 
@@ -178,7 +178,7 @@ class TestOutputChannelRedaction:
         redacted = _redact_output_text(text)
         assert _SENTINEL_WIN_PATH not in redacted
         assert "<path-redacted>" in redacted
-        assert "mikey" not in redacted
+        assert "SECRETUSER" not in redacted
 
     def test_redacts_quoted_path_in_traceback_style_line(self) -> None:
         text = f'File "{_SENTINEL_WIN_PATH}", line 321, in run_module'
@@ -306,7 +306,7 @@ class TestOutputChannelRedaction:
             assert _SENTINEL_WIN_PATH not in frame["text"], (
                 f"raw sentinel path leaked into output frame: {frame!r}"
             )
-            assert "mikey" not in frame["text"], (
+            assert "SECRETUSER" not in frame["text"], (
                 "OS username embedded in the redacted path must not survive"
             )
             # The exception TYPE name is safe/expected content, not a leak.
