@@ -6,6 +6,7 @@ Each test pins a specific finding fixed in this wave. Run in isolation:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 from pathlib import Path
@@ -133,7 +134,7 @@ def _write_txids(dir_: Path, txids: list[str]) -> Path:
 class TestCL002AuditExitCode:
     def test_all_pass_exits_zero(self, tmp_path):
         runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=tmp_path):
+        with contextlib.chdir(tmp_path):
             # CORRECTED (F-64106db7): audit a GENUINE dry-run txid — fabricated
             # ids no longer fake a validated tesSUCCESS offline.
             txp = _write_txids(Path("."), [_first_dry_run_txid()])
@@ -150,7 +151,7 @@ class TestCL002AuditExitCode:
         depending on transport internals.
         """
         runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=tmp_path):
+        with contextlib.chdir(tmp_path):
             # CORRECTED (F-64106db7): audit a GENUINE dry-run txid — fabricated
             # ids no longer fake a validated tesSUCCESS offline.
             txp = _write_txids(Path("."), [_first_dry_run_txid()])
@@ -201,7 +202,7 @@ class TestCL004NonFiniteAmount:
     @pytest.mark.parametrize("amount", ["Infinity", "1e500", "-Infinity", "NaN"])
     def test_bad_amount_exits_2(self, tmp_path, amount):
         runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=tmp_path):
+        with contextlib.chdir(tmp_path):
             result = runner.invoke(
                 main,
                 ["send", "--to", "rDEST00000000000000000000000000000",
@@ -216,7 +217,7 @@ class TestCL004NonFiniteAmount:
 class TestCL005CohortDirBasename:
     def test_cohort_dir_is_basename(self, tmp_path):
         runner = CliRunner()
-        with runner.isolated_filesystem(temp_dir=tmp_path):
+        with contextlib.chdir(tmp_path):
             cohort = Path("mycohort")
             cohort.mkdir()
             result = runner.invoke(
