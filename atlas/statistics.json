@@ -1,0 +1,1766 @@
+{
+  "authorship": {
+    "parts": [],
+    "places": []
+  },
+  "boundaries": [
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": []
+      },
+      "cohesion": null,
+      "cohesionDropped": false,
+      "confidence": "low",
+      "highWater": null,
+      "name": ".github",
+      "qualifyingSourceCommits": 0,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": []
+      },
+      "cohesion": null,
+      "cohesionDropped": false,
+      "confidence": "low",
+      "highWater": null,
+      "name": "bin",
+      "qualifyingSourceCommits": 2,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": []
+      },
+      "cohesion": null,
+      "cohesionDropped": false,
+      "confidence": "low",
+      "highWater": null,
+      "name": "design",
+      "qualifyingSourceCommits": 0,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": []
+      },
+      "cohesion": null,
+      "cohesionDropped": false,
+      "confidence": "low",
+      "highWater": null,
+      "name": "docs",
+      "qualifyingSourceCommits": 0,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": []
+      },
+      "cohesion": null,
+      "cohesionDropped": false,
+      "confidence": "low",
+      "highWater": null,
+      "name": "modules",
+      "qualifyingSourceCommits": 0,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": []
+      },
+      "cohesion": null,
+      "cohesionDropped": false,
+      "confidence": "low",
+      "highWater": null,
+      "name": "presets",
+      "qualifyingSourceCommits": 0,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": []
+      },
+      "cohesion": null,
+      "cohesionDropped": false,
+      "confidence": "low",
+      "highWater": null,
+      "name": "root",
+      "qualifyingSourceCommits": 0,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": [
+          "tests"
+        ]
+      },
+      "cohesion": null,
+      "cohesionDropped": false,
+      "confidence": "low",
+      "highWater": null,
+      "name": "scripts",
+      "qualifyingSourceCommits": 0,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": []
+      },
+      "cohesion": null,
+      "cohesionDropped": false,
+      "confidence": "low",
+      "highWater": null,
+      "name": "site",
+      "qualifyingSourceCommits": 18,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [
+          "xrpl_lab"
+        ],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [],
+        "importsOnly": []
+      },
+      "cohesion": 0,
+      "cohesionDropped": false,
+      "confidence": "full",
+      "highWater": null,
+      "name": "tests",
+      "qualifyingSourceCommits": 80,
+      "rebaseline": null
+    },
+    {
+      "breakage": {
+        "coChangesOnly": [],
+        "collapsed": false,
+        "confidence": "low",
+        "importsAndCoChanges": [
+          "tests"
+        ],
+        "importsOnly": [
+          "scripts"
+        ]
+      },
+      "cohesion": 0,
+      "cohesionDropped": false,
+      "confidence": "full",
+      "highWater": null,
+      "name": "xrpl_lab",
+      "qualifyingSourceCommits": 81,
+      "rebaseline": null
+    }
+  ],
+  "churn": {
+    "definition": "commits is how many commits in the window touch the file, including merges and commits dropped from coupling. lines is added plus deleted in those commits.",
+    "files": [
+      {
+        "commits": 12,
+        "lines": 143,
+        "path": ".github/workflows/ci.yml"
+      },
+      {
+        "commits": 2,
+        "lines": 26,
+        "path": ".github/workflows/pages.yml"
+      },
+      {
+        "commits": 8,
+        "lines": 145,
+        "path": ".github/workflows/publish-pypi.yml"
+      },
+      {
+        "commits": 11,
+        "lines": 87,
+        "path": ".github/workflows/release-binaries.yml"
+      },
+      {
+        "commits": 3,
+        "lines": 163,
+        "path": ".github/workflows/release.yml"
+      },
+      {
+        "commits": 5,
+        "lines": 50,
+        "path": ".github/workflows/smoke.yml"
+      },
+      {
+        "commits": 5,
+        "lines": 14,
+        "path": ".gitignore"
+      },
+      {
+        "commits": 23,
+        "lines": 859,
+        "path": "CHANGELOG.md"
+      },
+      {
+        "commits": 2,
+        "lines": 116,
+        "path": "CONTRIBUTING.md"
+      },
+      {
+        "commits": 8,
+        "lines": 930,
+        "path": "README.es.md"
+      },
+      {
+        "commits": 8,
+        "lines": 928,
+        "path": "README.fr.md"
+      },
+      {
+        "commits": 8,
+        "lines": 988,
+        "path": "README.hi.md"
+      },
+      {
+        "commits": 8,
+        "lines": 950,
+        "path": "README.it.md"
+      },
+      {
+        "commits": 8,
+        "lines": 1186,
+        "path": "README.ja.md"
+      },
+      {
+        "commits": 16,
+        "lines": 368,
+        "path": "README.md"
+      },
+      {
+        "commits": 8,
+        "lines": 916,
+        "path": "README.pt-BR.md"
+      },
+      {
+        "commits": 8,
+        "lines": 940,
+        "path": "README.zh.md"
+      },
+      {
+        "commits": 1,
+        "lines": 49,
+        "path": "SCORECARD.md"
+      },
+      {
+        "commits": 6,
+        "lines": 130,
+        "path": "SECURITY.md"
+      },
+      {
+        "commits": 10,
+        "lines": 97,
+        "path": "SHIP_GATE.md"
+      },
+      {
+        "commits": 6,
+        "lines": 55,
+        "path": "bin/xrpl-lab.js"
+      },
+      {
+        "commits": 1,
+        "lines": 70,
+        "path": "design/claude-design-brief.md"
+      },
+      {
+        "commits": 1,
+        "lines": 268,
+        "path": "design/dashboard-before.html"
+      },
+      {
+        "commits": 1,
+        "lines": 11,
+        "path": "docs/dex_notes.md"
+      },
+      {
+        "commits": 2,
+        "lines": 0,
+        "path": "docs/images/dashboard-hero.png"
+      },
+      {
+        "commits": 1,
+        "lines": 0,
+        "path": "docs/images/facilitator-active-runs.png"
+      },
+      {
+        "commits": 2,
+        "lines": 0,
+        "path": "docs/images/modules-list.png"
+      },
+      {
+        "commits": 8,
+        "lines": 52,
+        "path": "modules/account_hygiene.md"
+      },
+      {
+        "commits": 7,
+        "lines": 36,
+        "path": "modules/amm_liquidity_101.md"
+      },
+      {
+        "commits": 4,
+        "lines": 209,
+        "path": "modules/checks_101.md"
+      },
+      {
+        "commits": 3,
+        "lines": 147,
+        "path": "modules/clawback_101.md"
+      },
+      {
+        "commits": 1,
+        "lines": 135,
+        "path": "modules/credentials_101.md"
+      },
+      {
+        "commits": 1,
+        "lines": 182,
+        "path": "modules/custodial_crediting_101.md"
+      },
+      {
+        "commits": 3,
+        "lines": 141,
+        "path": "modules/delivered_amount_101.md"
+      },
+      {
+        "commits": 1,
+        "lines": 262,
+        "path": "modules/deposit_gate_101.md"
+      },
+      {
+        "commits": 8,
+        "lines": 28,
+        "path": "modules/dex_inventory_guardrails.md"
+      },
+      {
+        "commits": 6,
+        "lines": 43,
+        "path": "modules/dex_literacy.md"
+      },
+      {
+        "commits": 11,
+        "lines": 65,
+        "path": "modules/dex_market_making_101.md"
+      },
+      {
+        "commits": 8,
+        "lines": 30,
+        "path": "modules/dex_vs_amm_risk_literacy.md"
+      },
+      {
+        "commits": 2,
+        "lines": 88,
+        "path": "modules/did_101.md"
+      },
+      {
+        "commits": 1,
+        "lines": 94,
+        "path": "modules/dnft_evolving_item_101.md"
+      },
+      {
+        "commits": 2,
+        "lines": 65,
+        "path": "modules/escrow_101.md"
+      },
+      {
+        "commits": 4,
+        "lines": 139,
+        "path": "modules/escrow_finish_101.md"
+      },
+      {
+        "commits": 7,
+        "lines": 31,
+        "path": "modules/failure_literacy.md"
+      },
+      {
+        "commits": 1,
+        "lines": 202,
+        "path": "modules/game_economy_capstone.md"
+      },
+      {
+        "commits": 3,
+        "lines": 120,
+        "path": "modules/mpt_distribution_101.md"
+      },
+      {
+        "commits": 3,
+        "lines": 75,
+        "path": "modules/mpt_issuance_101.md"
+      },
+      {
+        "commits": 1,
+        "lines": 194,
+        "path": "modules/multisig_treasury_101.md"
+      },
+      {
+        "commits": 1,
+        "lines": 143,
+        "path": "modules/nft_marketplace_101.md"
+      },
+      {
+        "commits": 2,
+        "lines": 98,
+        "path": "modules/nft_minting_101.md"
+      },
+      {
+        "commits": 1,
+        "lines": 144,
+        "path": "modules/payment_channel_101.md"
+      },
+      {
+        "commits": 3,
+        "lines": 206,
+        "path": "modules/permissioned_domains_101.md"
+      },
+      {
+        "commits": 8,
+        "lines": 37,
+        "path": "modules/receipt_audit.md"
+      },
+      {
+        "commits": 3,
+        "lines": 19,
+        "path": "modules/receipt_literacy.md"
+      },
+      {
+        "commits": 9,
+        "lines": 43,
+        "path": "modules/reserves_101.md"
+      },
+      {
+        "commits": 6,
+        "lines": 279,
+        "path": "modules/token_escrow_101.md"
+      },
+      {
+        "commits": 4,
+        "lines": 171,
+        "path": "modules/token_freeze_101.md"
+      },
+      {
+        "commits": 5,
+        "lines": 41,
+        "path": "modules/trust_line_failures.md"
+      },
+      {
+        "commits": 6,
+        "lines": 43,
+        "path": "modules/trust_lines_101.md"
+      },
+      {
+        "commits": 7,
+        "lines": 55,
+        "path": "package.json"
+      },
+      {
+        "commits": 24,
+        "lines": 109,
+        "path": "pyproject.toml"
+      },
+      {
+        "commits": 1,
+        "lines": 403,
+        "path": "scripts/gen_docs.py"
+      },
+      {
+        "commits": 1,
+        "lines": 5,
+        "path": "site/astro.config.mjs"
+      },
+      {
+        "commits": 1,
+        "lines": 906,
+        "path": "site/package-lock.json"
+      },
+      {
+        "commits": 1,
+        "lines": 7,
+        "path": "site/package.json"
+      },
+      {
+        "commits": 1,
+        "lines": 4,
+        "path": "site/public/favicon.svg"
+      },
+      {
+        "commits": 2,
+        "lines": 72,
+        "path": "site/src/components/dashboard/JsonViewer.astro"
+      },
+      {
+        "commits": 2,
+        "lines": 34,
+        "path": "site/src/components/dashboard/LevelBadge.astro"
+      },
+      {
+        "commits": 2,
+        "lines": 64,
+        "path": "site/src/components/dashboard/ModuleCard.astro"
+      },
+      {
+        "commits": 2,
+        "lines": 50,
+        "path": "site/src/components/dashboard/ProgressBar.astro"
+      },
+      {
+        "commits": 2,
+        "lines": 62,
+        "path": "site/src/components/dashboard/StatusCard.astro"
+      },
+      {
+        "commits": 3,
+        "lines": 22,
+        "path": "site/src/content/docs/handbook/artifacts.md"
+      },
+      {
+        "commits": 6,
+        "lines": 222,
+        "path": "site/src/content/docs/handbook/beginners.md"
+      },
+      {
+        "commits": 6,
+        "lines": 126,
+        "path": "site/src/content/docs/handbook/commands.md"
+      },
+      {
+        "commits": 6,
+        "lines": 155,
+        "path": "site/src/content/docs/handbook/facilitator-dashboard.md"
+      },
+      {
+        "commits": 3,
+        "lines": 224,
+        "path": "site/src/content/docs/handbook/facilitator-guide.md"
+      },
+      {
+        "commits": 8,
+        "lines": 140,
+        "path": "site/src/content/docs/handbook/getting-started.md"
+      },
+      {
+        "commits": 9,
+        "lines": 79,
+        "path": "site/src/content/docs/handbook/index.md"
+      },
+      {
+        "commits": 6,
+        "lines": 371,
+        "path": "site/src/content/docs/handbook/modules.md"
+      },
+      {
+        "commits": 4,
+        "lines": 185,
+        "path": "site/src/data/curriculum.json"
+      },
+      {
+        "commits": 11,
+        "lines": 469,
+        "path": "site/src/layouts/DashboardLayout.astro"
+      },
+      {
+        "commits": 16,
+        "lines": 610,
+        "path": "site/src/lib/api.ts"
+      },
+      {
+        "commits": 1,
+        "lines": 99,
+        "path": "site/src/lib/artifacts-panels.test.ts"
+      },
+      {
+        "commits": 1,
+        "lines": 136,
+        "path": "site/src/lib/artifacts-panels.ts"
+      },
+      {
+        "commits": 1,
+        "lines": 95,
+        "path": "site/src/lib/dashboard-ui.test.ts"
+      },
+      {
+        "commits": 4,
+        "lines": 268,
+        "path": "site/src/lib/dashboard-ui.ts"
+      },
+      {
+        "commits": 1,
+        "lines": 33,
+        "path": "site/src/lib/module-ids.ts"
+      },
+      {
+        "commits": 1,
+        "lines": 133,
+        "path": "site/src/pages/404.astro"
+      },
+      {
+        "commits": 3,
+        "lines": 78,
+        "path": "site/src/pages/app/404.astro"
+      },
+      {
+        "commits": 9,
+        "lines": 784,
+        "path": "site/src/pages/app/artifacts.astro"
+      },
+      {
+        "commits": 7,
+        "lines": 388,
+        "path": "site/src/pages/app/doctor.astro"
+      },
+      {
+        "commits": 4,
+        "lines": 98,
+        "path": "site/src/pages/app/facilitator/index.astro"
+      },
+      {
+        "commits": 5,
+        "lines": 886,
+        "path": "site/src/pages/app/facilitator/runs.astro"
+      },
+      {
+        "commits": 13,
+        "lines": 774,
+        "path": "site/src/pages/app/index.astro"
+      },
+      {
+        "commits": 11,
+        "lines": 705,
+        "path": "site/src/pages/app/modules/[id].astro"
+      },
+      {
+        "commits": 11,
+        "lines": 544,
+        "path": "site/src/pages/app/modules/index.astro"
+      },
+      {
+        "commits": 16,
+        "lines": 1758,
+        "path": "site/src/pages/app/run/[id].astro"
+      },
+      {
+        "commits": 3,
+        "lines": 331,
+        "path": "site/src/pages/app/verify.astro"
+      },
+      {
+        "commits": 8,
+        "lines": 82,
+        "path": "site/src/site-config.ts"
+      },
+      {
+        "commits": 1,
+        "lines": 11,
+        "path": "site/src/styles/dashboard-fonts.css"
+      },
+      {
+        "commits": 5,
+        "lines": 481,
+        "path": "site/src/styles/dashboard.css"
+      },
+      {
+        "commits": 1,
+        "lines": 21,
+        "path": "site/src/styles/starlight-custom.css"
+      },
+      {
+        "commits": 2,
+        "lines": 158,
+        "path": "tests/_shipped_module.py"
+      },
+      {
+        "commits": 2,
+        "lines": 19,
+        "path": "tests/fixtures/bad_amm_no_label.md"
+      },
+      {
+        "commits": 2,
+        "lines": 18,
+        "path": "tests/fixtures/bad_dry_run_no_amm.md"
+      },
+      {
+        "commits": 1,
+        "lines": 12,
+        "path": "tests/fixtures/bad_missing_id.md"
+      },
+      {
+        "commits": 2,
+        "lines": 19,
+        "path": "tests/fixtures/bad_payload.md"
+      },
+      {
+        "commits": 2,
+        "lines": 15,
+        "path": "tests/fixtures/bad_unknown_action.md"
+      },
+      {
+        "commits": 2,
+        "lines": 15,
+        "path": "tests/fixtures/good_minimal.md"
+      },
+      {
+        "commits": 6,
+        "lines": 461,
+        "path": "tests/test_amm.py"
+      },
+      {
+        "commits": 1,
+        "lines": 323,
+        "path": "tests/test_amm_swap_chains.py"
+      },
+      {
+        "commits": 9,
+        "lines": 796,
+        "path": "tests/test_api_contract.py"
+      },
+      {
+        "commits": 3,
+        "lines": 468,
+        "path": "tests/test_atomic.py"
+      },
+      {
+        "commits": 4,
+        "lines": 306,
+        "path": "tests/test_audit.py"
+      },
+      {
+        "commits": 2,
+        "lines": 598,
+        "path": "tests/test_checks.py"
+      },
+      {
+        "commits": 10,
+        "lines": 920,
+        "path": "tests/test_cli.py"
+      },
+      {
+        "commits": 1,
+        "lines": 295,
+        "path": "tests/test_credentials.py"
+      },
+      {
+        "commits": 1,
+        "lines": 290,
+        "path": "tests/test_curriculum.py"
+      },
+      {
+        "commits": 1,
+        "lines": 365,
+        "path": "tests/test_custodial.py"
+      },
+      {
+        "commits": 1,
+        "lines": 185,
+        "path": "tests/test_delivered_amount.py"
+      },
+      {
+        "commits": 1,
+        "lines": 698,
+        "path": "tests/test_deposit_gate.py"
+      },
+      {
+        "commits": 3,
+        "lines": 100,
+        "path": "tests/test_dex.py"
+      },
+      {
+        "commits": 1,
+        "lines": 61,
+        "path": "tests/test_did.py"
+      },
+      {
+        "commits": 1,
+        "lines": 221,
+        "path": "tests/test_docs_drift.py"
+      },
+      {
+        "commits": 7,
+        "lines": 389,
+        "path": "tests/test_doctor.py"
+      },
+      {
+        "commits": 2,
+        "lines": 139,
+        "path": "tests/test_doctor_pedagogy.py"
+      },
+      {
+        "commits": 7,
+        "lines": 965,
+        "path": "tests/test_envelope_pedagogy.py"
+      },
+      {
+        "commits": 4,
+        "lines": 231,
+        "path": "tests/test_errors.py"
+      },
+      {
+        "commits": 1,
+        "lines": 58,
+        "path": "tests/test_escrow.py"
+      },
+      {
+        "commits": 3,
+        "lines": 101,
+        "path": "tests/test_feedback.py"
+      },
+      {
+        "commits": 1,
+        "lines": 74,
+        "path": "tests/test_freeze.py"
+      },
+      {
+        "commits": 1,
+        "lines": 262,
+        "path": "tests/test_ft001_precondition_verify.py"
+      },
+      {
+        "commits": 1,
+        "lines": 193,
+        "path": "tests/test_ft002_verified_surfacing.py"
+      },
+      {
+        "commits": 1,
+        "lines": 2,
+        "path": "tests/test_hygiene.py"
+      },
+      {
+        "commits": 5,
+        "lines": 267,
+        "path": "tests/test_linter.py"
+      },
+      {
+        "commits": 3,
+        "lines": 206,
+        "path": "tests/test_modules.py"
+      },
+      {
+        "commits": 1,
+        "lines": 67,
+        "path": "tests/test_mpt.py"
+      },
+      {
+        "commits": 3,
+        "lines": 183,
+        "path": "tests/test_mpt_distribution.py"
+      },
+      {
+        "commits": 1,
+        "lines": 650,
+        "path": "tests/test_multisig.py"
+      },
+      {
+        "commits": 5,
+        "lines": 426,
+        "path": "tests/test_network_safety.py"
+      },
+      {
+        "commits": 1,
+        "lines": 82,
+        "path": "tests/test_nft.py"
+      },
+      {
+        "commits": 3,
+        "lines": 301,
+        "path": "tests/test_numeric_law.py"
+      },
+      {
+        "commits": 1,
+        "lines": 51,
+        "path": "tests/test_payloads.py"
+      },
+      {
+        "commits": 1,
+        "lines": 97,
+        "path": "tests/test_payment_channel.py"
+      },
+      {
+        "commits": 3,
+        "lines": 592,
+        "path": "tests/test_permissioned_domains.py"
+      },
+      {
+        "commits": 1,
+        "lines": 283,
+        "path": "tests/test_product_smoke.py"
+      },
+      {
+        "commits": 1,
+        "lines": 164,
+        "path": "tests/test_registry.py"
+      },
+      {
+        "commits": 8,
+        "lines": 594,
+        "path": "tests/test_reporting.py"
+      },
+      {
+        "commits": 1,
+        "lines": 102,
+        "path": "tests/test_reserve_facts.py"
+      },
+      {
+        "commits": 1,
+        "lines": 200,
+        "path": "tests/test_reswarm3_actions.py"
+      },
+      {
+        "commits": 1,
+        "lines": 219,
+        "path": "tests/test_reswarm3_api.py"
+      },
+      {
+        "commits": 1,
+        "lines": 395,
+        "path": "tests/test_reswarm3_backend.py"
+      },
+      {
+        "commits": 3,
+        "lines": 272,
+        "path": "tests/test_reswarm3_cli.py"
+      },
+      {
+        "commits": 1,
+        "lines": 224,
+        "path": "tests/test_reswarm3_fixups.py"
+      },
+      {
+        "commits": 1,
+        "lines": 543,
+        "path": "tests/test_reswarm3_stagec_cli.py"
+      },
+      {
+        "commits": 3,
+        "lines": 363,
+        "path": "tests/test_reswarm3_stagec_transport.py"
+      },
+      {
+        "commits": 3,
+        "lines": 556,
+        "path": "tests/test_reswarm3_transport.py"
+      },
+      {
+        "commits": 1,
+        "lines": 485,
+        "path": "tests/test_reswarm3_verify_flag.py"
+      },
+      {
+        "commits": 4,
+        "lines": 924,
+        "path": "tests/test_reswarm4_api.py"
+      },
+      {
+        "commits": 1,
+        "lines": 865,
+        "path": "tests/test_reswarm4_backend_core.py"
+      },
+      {
+        "commits": 3,
+        "lines": 779,
+        "path": "tests/test_reswarm4_backend_handlers.py"
+      },
+      {
+        "commits": 1,
+        "lines": 701,
+        "path": "tests/test_reswarm4_reporting_audit.py"
+      },
+      {
+        "commits": 4,
+        "lines": 1332,
+        "path": "tests/test_reswarm4_transport.py"
+      },
+      {
+        "commits": 2,
+        "lines": 176,
+        "path": "tests/test_reswarm_stage_a.py"
+      },
+      {
+        "commits": 4,
+        "lines": 579,
+        "path": "tests/test_runner.py"
+      },
+      {
+        "commits": 1,
+        "lines": 415,
+        "path": "tests/test_runner_isolation.py"
+      },
+      {
+        "commits": 14,
+        "lines": 1438,
+        "path": "tests/test_runner_ws.py"
+      },
+      {
+        "commits": 1,
+        "lines": 189,
+        "path": "tests/test_runtime_rate_limit.py"
+      },
+      {
+        "commits": 3,
+        "lines": 358,
+        "path": "tests/test_schema_drift.py"
+      },
+      {
+        "commits": 1,
+        "lines": 116,
+        "path": "tests/test_send_fund.py"
+      },
+      {
+        "commits": 5,
+        "lines": 603,
+        "path": "tests/test_server.py"
+      },
+      {
+        "commits": 8,
+        "lines": 639,
+        "path": "tests/test_state.py"
+      },
+      {
+        "commits": 3,
+        "lines": 70,
+        "path": "tests/test_strategy.py"
+      },
+      {
+        "commits": 4,
+        "lines": 690,
+        "path": "tests/test_token_escrow.py"
+      },
+      {
+        "commits": 5,
+        "lines": 499,
+        "path": "tests/test_transport.py"
+      },
+      {
+        "commits": 2,
+        "lines": 1012,
+        "path": "tests/test_v2_api.py"
+      },
+      {
+        "commits": 1,
+        "lines": 235,
+        "path": "tests/test_v2_capstone.py"
+      },
+      {
+        "commits": 1,
+        "lines": 988,
+        "path": "tests/test_v2_core.py"
+      },
+      {
+        "commits": 3,
+        "lines": 502,
+        "path": "tests/test_v2_gameecon.py"
+      },
+      {
+        "commits": 1,
+        "lines": 418,
+        "path": "tests/test_v2_kbsource.py"
+      },
+      {
+        "commits": 3,
+        "lines": 386,
+        "path": "tests/test_v2_lifecycle.py"
+      },
+      {
+        "commits": 2,
+        "lines": 520,
+        "path": "tests/test_v2_transport.py"
+      },
+      {
+        "commits": 1,
+        "lines": 459,
+        "path": "tests/test_v2_verify.py"
+      },
+      {
+        "commits": 1,
+        "lines": 145,
+        "path": "tests/test_verify.py"
+      },
+      {
+        "commits": 1,
+        "lines": 122,
+        "path": "tests/test_w2_actions_custodial_delivered_amount.py"
+      },
+      {
+        "commits": 1,
+        "lines": 242,
+        "path": "tests/test_w2_actions_wallet_win32_acl.py"
+      },
+      {
+        "commits": 4,
+        "lines": 308,
+        "path": "tests/test_w2_api_cli_credential_leak.py"
+      },
+      {
+        "commits": 2,
+        "lines": 400,
+        "path": "tests/test_w2_api_cli_dry_run.py"
+      },
+      {
+        "commits": 5,
+        "lines": 234,
+        "path": "tests/test_w2_api_cli_ws_redaction.py"
+      },
+      {
+        "commits": 1,
+        "lines": 89,
+        "path": "tests/test_w2_cli_wallet_acl_exit.py"
+      },
+      {
+        "commits": 2,
+        "lines": 178,
+        "path": "tests/test_w2_core_state_credential_redaction.py"
+      },
+      {
+        "commits": 2,
+        "lines": 328,
+        "path": "tests/test_w2_core_state_session_export_symlink.py"
+      },
+      {
+        "commits": 3,
+        "lines": 358,
+        "path": "tests/test_w2_dashboard_dryrun_autostart.py"
+      },
+      {
+        "commits": 4,
+        "lines": 457,
+        "path": "tests/test_w2_handlers_token_escrow_noopt.py"
+      },
+      {
+        "commits": 5,
+        "lines": 932,
+        "path": "tests/test_w2_transport_dryrun_reserve.py"
+      },
+      {
+        "commits": 5,
+        "lines": 673,
+        "path": "tests/test_w2_transport_retry_sequence.py"
+      },
+      {
+        "commits": 1,
+        "lines": 153,
+        "path": "tests/test_w4_actions_icacls_userdomain.py"
+      },
+      {
+        "commits": 2,
+        "lines": 226,
+        "path": "tests/test_w4_api_cli_wallet_create_save_state.py"
+      },
+      {
+        "commits": 2,
+        "lines": 138,
+        "path": "tests/test_w4_api_cli_ws_redaction_shapes.py"
+      },
+      {
+        "commits": 2,
+        "lines": 362,
+        "path": "tests/test_w4_handlers_fundresult_message.py"
+      },
+      {
+        "commits": 2,
+        "lines": 246,
+        "path": "tests/test_w4_handlers_issuer_reuse.py"
+      },
+      {
+        "commits": 2,
+        "lines": 166,
+        "path": "tests/test_w4_transport_pin_sequence.py"
+      },
+      {
+        "commits": 2,
+        "lines": 200,
+        "path": "tests/test_w5_core_state_zero_action_heading.py"
+      },
+      {
+        "commits": 2,
+        "lines": 242,
+        "path": "tests/test_w5_curriculum_honest_verify_checks.py"
+      },
+      {
+        "commits": 2,
+        "lines": 562,
+        "path": "tests/test_w5_dashboard_dryrun_behavior.py"
+      },
+      {
+        "commits": 2,
+        "lines": 388,
+        "path": "tests/test_w5_handlers_credit_unit_labels.py"
+      },
+      {
+        "commits": 2,
+        "lines": 376,
+        "path": "tests/test_w5_handlers_verify_assert.py"
+      },
+      {
+        "commits": 1,
+        "lines": 182,
+        "path": "tests/test_w5_transport_fee_debit.py"
+      },
+      {
+        "commits": 2,
+        "lines": 228,
+        "path": "tests/test_w6_api_cli_config_non_testnet_no_retry.py"
+      },
+      {
+        "commits": 2,
+        "lines": 254,
+        "path": "tests/test_w6_api_cli_named_labexception.py"
+      },
+      {
+        "commits": 2,
+        "lines": 256,
+        "path": "tests/test_w6_api_cli_run_state_signal.py"
+      },
+      {
+        "commits": 1,
+        "lines": 143,
+        "path": "tests/test_w6_curriculum_expected_args.py"
+      },
+      {
+        "commits": 2,
+        "lines": 666,
+        "path": "tests/test_w6_dashboard_run_state.py"
+      },
+      {
+        "commits": 2,
+        "lines": 508,
+        "path": "tests/test_w6_handlers_named_fix.py"
+      },
+      {
+        "commits": 2,
+        "lines": 176,
+        "path": "tests/test_w7_api_cli_audit_verify.py"
+      },
+      {
+        "commits": 2,
+        "lines": 180,
+        "path": "tests/test_w7_api_cli_cohort_all_verified.py"
+      },
+      {
+        "commits": 2,
+        "lines": 192,
+        "path": "tests/test_w7_core_state_audit_pack_verify_surface.py"
+      },
+      {
+        "commits": 2,
+        "lines": 366,
+        "path": "tests/test_w7_core_state_support_bundle_warn_icons.py"
+      },
+      {
+        "commits": 2,
+        "lines": 198,
+        "path": "tests/test_w7_curriculum_issuer_reuse_prose.py"
+      },
+      {
+        "commits": 1,
+        "lines": 355,
+        "path": "tests/test_w7_handlers_reuse_cleanup.py"
+      },
+      {
+        "commits": 2,
+        "lines": 316,
+        "path": "tests/test_w7_transport_object_create_reserve.py"
+      },
+      {
+        "commits": 5,
+        "lines": 338,
+        "path": "tests/test_wallet.py"
+      },
+      {
+        "commits": 4,
+        "lines": 424,
+        "path": "tests/test_workshop.py"
+      },
+      {
+        "commits": 1,
+        "lines": 154,
+        "path": "tests/test_ws_backpressure.py"
+      },
+      {
+        "commits": 14,
+        "lines": 1290,
+        "path": "uv.lock"
+      },
+      {
+        "commits": 5,
+        "lines": 22,
+        "path": "verify.sh"
+      },
+      {
+        "commits": 16,
+        "lines": 40,
+        "path": "xrpl_lab/__init__.py"
+      },
+      {
+        "commits": 3,
+        "lines": 273,
+        "path": "xrpl_lab/_atomic.py"
+      },
+      {
+        "commits": 6,
+        "lines": 120,
+        "path": "xrpl_lab/actions/amm.py"
+      },
+      {
+        "commits": 1,
+        "lines": 112,
+        "path": "xrpl_lab/actions/checks.py"
+      },
+      {
+        "commits": 1,
+        "lines": 168,
+        "path": "xrpl_lab/actions/credentials.py"
+      },
+      {
+        "commits": 2,
+        "lines": 343,
+        "path": "xrpl_lab/actions/custodial.py"
+      },
+      {
+        "commits": 1,
+        "lines": 186,
+        "path": "xrpl_lab/actions/deposit_gate.py"
+      },
+      {
+        "commits": 2,
+        "lines": 85,
+        "path": "xrpl_lab/actions/did.py"
+      },
+      {
+        "commits": 4,
+        "lines": 197,
+        "path": "xrpl_lab/actions/escrow.py"
+      },
+      {
+        "commits": 1,
+        "lines": 85,
+        "path": "xrpl_lab/actions/freeze.py"
+      },
+      {
+        "commits": 4,
+        "lines": 145,
+        "path": "xrpl_lab/actions/mpt.py"
+      },
+      {
+        "commits": 1,
+        "lines": 307,
+        "path": "xrpl_lab/actions/multisig.py"
+      },
+      {
+        "commits": 2,
+        "lines": 315,
+        "path": "xrpl_lab/actions/nft.py"
+      },
+      {
+        "commits": 1,
+        "lines": 158,
+        "path": "xrpl_lab/actions/partial_payment.py"
+      },
+      {
+        "commits": 2,
+        "lines": 178,
+        "path": "xrpl_lab/actions/paychan.py"
+      },
+      {
+        "commits": 3,
+        "lines": 332,
+        "path": "xrpl_lab/actions/permissioned_domains.py"
+      },
+      {
+        "commits": 1,
+        "lines": 10,
+        "path": "xrpl_lab/actions/reserves.py"
+      },
+      {
+        "commits": 6,
+        "lines": 94,
+        "path": "xrpl_lab/actions/strategy.py"
+      },
+      {
+        "commits": 2,
+        "lines": 235,
+        "path": "xrpl_lab/actions/token_escrow.py"
+      },
+      {
+        "commits": 4,
+        "lines": 152,
+        "path": "xrpl_lab/actions/trust_line.py"
+      },
+      {
+        "commits": 2,
+        "lines": 31,
+        "path": "xrpl_lab/actions/verify.py"
+      },
+      {
+        "commits": 7,
+        "lines": 367,
+        "path": "xrpl_lab/actions/wallet.py"
+      },
+      {
+        "commits": 1,
+        "lines": 0,
+        "path": "xrpl_lab/api/__init__.py"
+      },
+      {
+        "commits": 17,
+        "lines": 1071,
+        "path": "xrpl_lab/api/routes.py"
+      },
+      {
+        "commits": 25,
+        "lines": 2313,
+        "path": "xrpl_lab/api/runner_ws.py"
+      },
+      {
+        "commits": 11,
+        "lines": 302,
+        "path": "xrpl_lab/api/schemas.py"
+      },
+      {
+        "commits": 10,
+        "lines": 425,
+        "path": "xrpl_lab/audit.py"
+      },
+      {
+        "commits": 34,
+        "lines": 2306,
+        "path": "xrpl_lab/cli.py"
+      },
+      {
+        "commits": 5,
+        "lines": 314,
+        "path": "xrpl_lab/curriculum.py"
+      },
+      {
+        "commits": 1,
+        "lines": 171,
+        "path": "xrpl_lab/curriculum_manifest.py"
+      },
+      {
+        "commits": 16,
+        "lines": 672,
+        "path": "xrpl_lab/doctor.py"
+      },
+      {
+        "commits": 4,
+        "lines": 60,
+        "path": "xrpl_lab/errors.py"
+      },
+      {
+        "commits": 5,
+        "lines": 39,
+        "path": "xrpl_lab/feedback.py"
+      },
+      {
+        "commits": 22,
+        "lines": 9377,
+        "path": "xrpl_lab/handlers.py"
+      },
+      {
+        "commits": 8,
+        "lines": 598,
+        "path": "xrpl_lab/linter.py"
+      },
+      {
+        "commits": 13,
+        "lines": 283,
+        "path": "xrpl_lab/modules.py"
+      },
+      {
+        "commits": 1,
+        "lines": 179,
+        "path": "xrpl_lab/registry.py"
+      },
+      {
+        "commits": 16,
+        "lines": 1560,
+        "path": "xrpl_lab/reporting.py"
+      },
+      {
+        "commits": 1,
+        "lines": 29,
+        "path": "xrpl_lab/reserves.py"
+      },
+      {
+        "commits": 23,
+        "lines": 2234,
+        "path": "xrpl_lab/runner.py"
+      },
+      {
+        "commits": 8,
+        "lines": 372,
+        "path": "xrpl_lab/runtime.py"
+      },
+      {
+        "commits": 8,
+        "lines": 192,
+        "path": "xrpl_lab/server.py"
+      },
+      {
+        "commits": 24,
+        "lines": 694,
+        "path": "xrpl_lab/state.py"
+      },
+      {
+        "commits": 11,
+        "lines": 1175,
+        "path": "xrpl_lab/transport/base.py"
+      },
+      {
+        "commits": 23,
+        "lines": 5610,
+        "path": "xrpl_lab/transport/dry_run.py"
+      },
+      {
+        "commits": 24,
+        "lines": 4726,
+        "path": "xrpl_lab/transport/xrpl_testnet.py"
+      },
+      {
+        "commits": 8,
+        "lines": 732,
+        "path": "xrpl_lab/workshop.py"
+      }
+    ]
+  },
+  "confidence": {
+    "level": "low",
+    "reason": "fewer than 20 source files reach 10 revisions in the window"
+  },
+  "generatedAt": "2026-09-25T02:31:13.966Z",
+  "generatedFrom": {
+    "commit": "0b2dd2f45b8f927395521a3e85ce0bfa036d014b"
+  },
+  "pairs": [
+    {
+      "a": "modules/account_hygiene.md",
+      "b": "modules/amm_liquidity_101.md",
+      "either": 8,
+      "shared": 4,
+      "strength": 0.5
+    },
+    {
+      "a": "modules/account_hygiene.md",
+      "b": "modules/dex_inventory_guardrails.md",
+      "either": 7,
+      "shared": 5,
+      "strength": 0.714286
+    },
+    {
+      "a": "modules/account_hygiene.md",
+      "b": "modules/dex_market_making_101.md",
+      "either": 8,
+      "shared": 6,
+      "strength": 0.75
+    },
+    {
+      "a": "modules/account_hygiene.md",
+      "b": "modules/dex_vs_amm_risk_literacy.md",
+      "either": 8,
+      "shared": 5,
+      "strength": 0.625
+    },
+    {
+      "a": "modules/account_hygiene.md",
+      "b": "modules/reserves_101.md",
+      "either": 6,
+      "shared": 6,
+      "strength": 1
+    },
+    {
+      "a": "modules/amm_liquidity_101.md",
+      "b": "modules/dex_inventory_guardrails.md",
+      "either": 7,
+      "shared": 5,
+      "strength": 0.714286
+    },
+    {
+      "a": "modules/amm_liquidity_101.md",
+      "b": "modules/dex_market_making_101.md",
+      "either": 9,
+      "shared": 5,
+      "strength": 0.555556
+    },
+    {
+      "a": "modules/amm_liquidity_101.md",
+      "b": "modules/dex_vs_amm_risk_literacy.md",
+      "either": 8,
+      "shared": 5,
+      "strength": 0.625
+    },
+    {
+      "a": "modules/amm_liquidity_101.md",
+      "b": "modules/reserves_101.md",
+      "either": 8,
+      "shared": 4,
+      "strength": 0.5
+    },
+    {
+      "a": "modules/dex_inventory_guardrails.md",
+      "b": "modules/dex_market_making_101.md",
+      "either": 8,
+      "shared": 6,
+      "strength": 0.75
+    },
+    {
+      "a": "modules/dex_inventory_guardrails.md",
+      "b": "modules/reserves_101.md",
+      "either": 7,
+      "shared": 5,
+      "strength": 0.714286
+    },
+    {
+      "a": "modules/dex_market_making_101.md",
+      "b": "modules/dex_vs_amm_risk_literacy.md",
+      "either": 10,
+      "shared": 5,
+      "strength": 0.5
+    },
+    {
+      "a": "modules/dex_market_making_101.md",
+      "b": "modules/reserves_101.md",
+      "either": 8,
+      "shared": 6,
+      "strength": 0.75
+    },
+    {
+      "a": "modules/dex_vs_amm_risk_literacy.md",
+      "b": "modules/reserves_101.md",
+      "either": 8,
+      "shared": 5,
+      "strength": 0.625
+    },
+    {
+      "a": "modules/failure_literacy.md",
+      "b": "modules/receipt_audit.md",
+      "either": 7,
+      "shared": 6,
+      "strength": 0.857143
+    },
+    {
+      "a": "pyproject.toml",
+      "b": "xrpl_lab/__init__.py",
+      "either": 20,
+      "shared": 12,
+      "strength": 0.6
+    },
+    {
+      "a": "site/src/layouts/DashboardLayout.astro",
+      "b": "site/src/pages/app/modules/[id].astro",
+      "either": 9,
+      "shared": 5,
+      "strength": 0.555556
+    },
+    {
+      "a": "site/src/layouts/DashboardLayout.astro",
+      "b": "site/src/pages/app/modules/index.astro",
+      "either": 10,
+      "shared": 5,
+      "strength": 0.5
+    },
+    {
+      "a": "site/src/pages/app/artifacts.astro",
+      "b": "site/src/pages/app/doctor.astro",
+      "either": 7,
+      "shared": 4,
+      "strength": 0.571429
+    },
+    {
+      "a": "site/src/pages/app/artifacts.astro",
+      "b": "site/src/pages/app/index.astro",
+      "either": 10,
+      "shared": 5,
+      "strength": 0.5
+    },
+    {
+      "a": "site/src/pages/app/index.astro",
+      "b": "site/src/pages/app/modules/index.astro",
+      "either": 11,
+      "shared": 6,
+      "strength": 0.545455
+    },
+    {
+      "a": "tests/test_server.py",
+      "b": "xrpl_lab/server.py",
+      "either": 8,
+      "shared": 4,
+      "strength": 0.5
+    }
+  ],
+  "parameters": {
+    "appliedChangesetLimit": 50,
+    "changeset": 50,
+    "changesetFraction": 0.25,
+    "cohesionDrop": 0.2,
+    "couplingPopulation": "source",
+    "fallenShared": 3,
+    "floor": "fallen",
+    "floorHeld": false,
+    "floorTrigger": "revision-depth",
+    "headDate": "2026-09-07T11:31:08-04:00",
+    "inScopeFiles": 284,
+    "pinnedStart": null,
+    "priorFloor": null,
+    "qualifyingCommits": 164,
+    "qualifyingMinimum": 30,
+    "revisions": 5,
+    "shared": 10,
+    "sharedFloorUsed": 3,
+    "since": "2026-03-11T15:31:08.000Z",
+    "sourceExtensions": [
+      ".js",
+      ".mjs",
+      ".cjs",
+      ".jsx",
+      ".ts",
+      ".tsx",
+      ".mts",
+      ".cts",
+      ".py",
+      ".rs",
+      ".gd"
+    ],
+    "sourceFileReach": 20,
+    "sourceFileRise": 25,
+    "sourceFilesReachingStrongFloor": 13,
+    "strength": 0.5,
+    "windowDays": 180
+  },
+  "strengthDefinition": "strength is the shared qualifying commits divided by either. either is the number of qualifying commits that touch either file."
+}
