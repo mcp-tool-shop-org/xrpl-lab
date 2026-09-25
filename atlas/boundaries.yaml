@@ -1,0 +1,46 @@
+summary: ""
+boundaries:
+  - name: .github
+    globs:
+      - .github/**
+    role: config
+  - name: bin
+    globs:
+      - bin/**
+    role: code
+  - name: design
+    globs:
+      - design/**
+    role: docs
+  - name: docs
+    globs:
+      - docs/**
+    role: data
+  - name: modules
+    globs:
+      - modules/**
+    role: docs
+  - name: presets
+    globs:
+      - presets/**
+    role: data
+  - name: root
+    globs:
+      - "*"
+    role: config
+  - name: scripts
+    globs:
+      - scripts/**
+    role: code
+  - name: site
+    globs:
+      - site/**
+    role: site
+  - name: tests
+    globs:
+      - tests/**
+    role: test
+  - name: xrpl_lab
+    globs:
+      - xrpl_lab/**
+    role: code
