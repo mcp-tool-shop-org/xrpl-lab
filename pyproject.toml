@@ -42,7 +42,7 @@ dependencies = [
 # urllib3>=2.7.0 is a security floor (PYSEC-2026-141/142, fixed in 2.7.0). It
 # enters the dev tree transitively via pip-audit -> requests; pinned here so the
 # audited dependency tree cannot regress to the vulnerable 2.6.3.
-dev = ["ruff", "pytest", "pytest-asyncio", "pip-audit", "urllib3>=2.7.0"]
+dev = ["ruff", "pytest", "pytest-asyncio", "pytest-cov", "pip-audit", "urllib3>=2.7.0"]
 
 [project.scripts]
 xrpl-lab = "xrpl_lab.cli:main"
