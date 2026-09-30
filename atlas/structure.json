@@ -9,7 +9,7 @@
       "externals": 0,
       "files": [
         {
-          "hash": "e584792ab8520f2a134b48d3ba746c2caaa87a1669d9d698407fff1c7bf3c61a",
+          "hash": "4c69f19587535f463cadadc257dad9aacfdc6729978db0c48802ecd4e8ee0044",
           "path": ".github/workflows/ci.yml"
         },
         {
@@ -373,15 +373,19 @@
           "path": "SHIP_GATE.md"
         },
         {
+          "hash": "59ca3f6a5be96b80fee73bebf2b778211208d17cd3fb82e2134608dff0729c76",
+          "path": "codecov.yml"
+        },
+        {
           "hash": "7074aa4a84393a56cb9ed6fcc1f5bea6ec612eab2e20efc21a7645cd10a2672b",
           "path": "package.json"
         },
         {
-          "hash": "6248cf63f43d893e5730f6c4a4ef822f71e3b3cff5b2377dc3af95ad07d6a813",
+          "hash": "755e562f20a39cebc55448289fb14523fe0d6104779c8a842da8bc60d3a5dbe6",
           "path": "pyproject.toml"
         },
         {
-          "hash": "dbb276abadb76516bc808f85f21cef2567a1f4b2c68040769ad54496b345e345",
+          "hash": "f34bec67d8adebc6182eb6c420d7fde65299708a3e2574c2332f81ed0ad79753",
           "path": "uv.lock"
         },
         {
@@ -428,6 +432,17 @@
             "update_handbook_modules",
             "update_readme"
           ],
+          "failurePaths": [
+            {
+              "in": "replace_block",
+              "kind": "raise",
+              "line": 82
+            },
+            {
+              "kind": "raise",
+              "line": 403
+            }
+          ],
           "hash": "26186e0ad1286289f8935f147144afe138a328eaca5478d90e01eedf4a055624",
           "importsFiles": [
             "xrpl_lab/curriculum_manifest.py"
@@ -441,7 +456,20 @@
       "importConfidence": "full",
       "name": "scripts",
       "origin": "authored",
+      "outsidePlaces": [
+        {
+          "reads": 1,
+          "where": [
+            "caller"
+          ],
+          "writes": 0
+        }
+      ],
+      "outsideReads": 1,
       "role": "code",
+      "testRunners": [
+        "pytest"
+      ],
       "testedBy": 1,
       "unresolvedSites": 0
     },
@@ -470,6 +498,7 @@
           "path": "site/public/favicon.svg"
         },
         {
+          "constantOnly": true,
           "hash": "ee756dfba4122d2acc94a39b2555d9f200fff56a87a8c0b10f9cd01df26a8b62",
           "path": "site/src/content.config.ts"
         },
@@ -511,6 +540,16 @@
         },
         {
           "hash": "d901a22ff877c082de87244e2e04cf9fe9facb1a46795c1f97dd7561b6011f49",
+          "importOrder": [
+            "site/src/styles/global.css",
+            "site/src/styles/dashboard-fonts.css",
+            "site/src/styles/dashboard.css"
+          ],
+          "importsFiles": [
+            "site/src/styles/dashboard-fonts.css",
+            "site/src/styles/dashboard.css",
+            "site/src/styles/global.css"
+          ],
           "path": "site/src/layouts/DashboardLayout.astro"
         },
         {
@@ -530,6 +569,33 @@
             "startModuleRun",
             "verifyArtifact"
           ],
+          "failurePaths": [
+            {
+              "in": "request",
+              "kind": "throw",
+              "line": 87
+            },
+            {
+              "in": "verifyArtifact",
+              "kind": "catch",
+              "line": 337
+            },
+            {
+              "in": "verifyArtifact",
+              "kind": "throw",
+              "line": 341
+            },
+            {
+              "in": "startModuleRun",
+              "kind": "catch",
+              "line": 374
+            },
+            {
+              "in": "startModuleRun",
+              "kind": "throw",
+              "line": 382
+            }
+          ],
           "hash": "7c597d5d37750e075de5fdee084afcdbd9b2061d5507b72cee44380d96e63468",
           "path": "site/src/lib/api.ts"
         },
@@ -538,7 +604,8 @@
           "importsFiles": [
             "site/src/lib/artifacts-panels.ts"
           ],
-          "path": "site/src/lib/artifacts-panels.test.ts"
+          "path": "site/src/lib/artifacts-panels.test.ts",
+          "testFramework": "vitest"
         },
         {
           "exports": [
@@ -549,6 +616,10 @@
             "renderProofPanel"
           ],
           "hash": "5fb88f10e09d8addce77958ea9492eea8129cfb28a54443ec213ca94d795223c",
+          "importOrder": [
+            "site/src/lib/dashboard-ui.ts",
+            "site/src/lib/api.ts"
+          ],
           "importsFiles": [
             "site/src/lib/api.ts",
             "site/src/lib/dashboard-ui.ts"
@@ -560,7 +631,8 @@
           "importsFiles": [
             "site/src/lib/dashboard-ui.ts"
           ],
-          "path": "site/src/lib/dashboard-ui.test.ts"
+          "path": "site/src/lib/dashboard-ui.test.ts",
+          "testFramework": "vitest"
         },
         {
           "exports": [
@@ -579,6 +651,13 @@
             "skeleton",
             "verifyBadge"
           ],
+          "failurePaths": [
+            {
+              "in": "fmtClock",
+              "kind": "catch",
+              "line": 68
+            }
+          ],
           "hash": "7021ee6d08ab7432f2fd69f1b2daae78e5a8d9a90c5e9de7656d76c211011609",
           "importsFiles": [
             "site/src/lib/api.ts"
@@ -594,53 +673,109 @@
         },
         {
           "hash": "914479376d1fa029124a292e14b1ab9f0c5cf488257e6cc50ea71bb81cf22e65",
+          "importOrder": [
+            "site/src/styles/global.css",
+            "site/src/site-config.ts"
+          ],
+          "importsFiles": [
+            "site/src/site-config.ts",
+            "site/src/styles/global.css"
+          ],
           "path": "site/src/pages/404.astro"
         },
         {
           "hash": "174190ea6e03f4dbd13328a21c29c1497d7d944e6f8f36f23439f6c2a5a7daa7",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro"
+          ],
           "path": "site/src/pages/app/404.astro"
         },
         {
           "hash": "b98b49f7334a7fca0958c19a30fc7c3f37a976d205077a4457c5531c9d2eb177",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro"
+          ],
           "path": "site/src/pages/app/artifacts.astro"
         },
         {
           "hash": "a5d0aa1270fb67f52b20683081eb95620a250b9335a45689089b977dd756a867",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro"
+          ],
           "path": "site/src/pages/app/doctor.astro"
         },
         {
           "hash": "ca7309dffe57d3eb50cd708cb291ae4804dd62bb2a8eac13e36e7f3e48f1e554",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro",
+            "site/src/lib/dashboard-ui.ts"
+          ],
           "path": "site/src/pages/app/facilitator/index.astro"
         },
         {
           "hash": "cf9f127c89b44d7b18bc8ec6f6dac66f06f94da3577f3ef1d0356df2a5cca990",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro"
+          ],
           "path": "site/src/pages/app/facilitator/runs.astro"
         },
         {
           "hash": "00fd0c422b6bf5504207d476d1f1e7db90c355d93c1c71cfabd788f6fbe4f6bf",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro"
+          ],
           "path": "site/src/pages/app/index.astro"
         },
         {
+          "exports": [
+            "getStaticPaths"
+          ],
           "hash": "cc8015f1aa906ad8c93854c6f27a62d4583f30801107ecd9cae0fa19ffa22a21",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro",
+            "site/src/lib/module-ids.ts"
+          ],
           "path": "site/src/pages/app/modules/[id].astro"
         },
         {
           "hash": "51a4fce1e4ea80a443e9a8a0b035f295c51a23f6ff805bb5ac8bf38abb01c5c8",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro"
+          ],
           "path": "site/src/pages/app/modules/index.astro"
         },
         {
+          "exports": [
+            "getStaticPaths"
+          ],
           "hash": "1aa2f76659bd75fd9e8ff08a2d4860575a83781327a70582177b55d4a06e8d93",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro",
+            "site/src/lib/module-ids.ts"
+          ],
           "path": "site/src/pages/app/run/[id].astro"
         },
         {
           "hash": "2c104dee5956b6622d559a970eaf69f321da74e0c3d623031163969e913d0fbd",
+          "importsFiles": [
+            "site/src/layouts/DashboardLayout.astro"
+          ],
           "path": "site/src/pages/app/verify.astro"
         },
         {
           "hash": "391533713539035d3c92282579d43de0f137067867fdb502d7eaea3c74601d2a",
+          "importOrder": [
+            "site/src/styles/global.css",
+            "site/src/site-config.ts"
+          ],
+          "importsFiles": [
+            "site/src/site-config.ts",
+            "site/src/styles/global.css"
+          ],
           "path": "site/src/pages/index.astro"
         },
         {
+          "constantOnly": true,
           "hash": "6bf261b32cbdcd9ffabe45363ad7f25ad15be9a56ec474196f7ce16fc5e6e227",
           "importsFiles": [
             "site/src/data/curriculum.json"
@@ -675,6 +810,9 @@
       "name": "site",
       "origin": "authored",
       "role": "site",
+      "testRunners": [
+        "vitest"
+      ],
       "testedBy": 2,
       "unresolvedSites": 0
     },
@@ -697,13 +835,20 @@
             "run_shipped_module"
           ],
           "hash": "2ba573e18360047559a813e69b77c9230eb39f60567c0e4e65c51de933249b7b",
+          "importOrder": [
+            "xrpl_lab/modules.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/state.py"
+          ],
           "importsFiles": [
             "xrpl_lab/modules.py",
             "xrpl_lab/runner.py",
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/_shipped_module.py"
+          "path": "tests/_shipped_module.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "7a50cb748e460dd2fe540bcce3a102bbec41486cf1939bae0ec2cdee33032d13",
@@ -740,7 +885,8 @@
             "xrpl_lab/actions/reserves.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_amm.py"
+          "path": "tests/test_amm.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -750,47 +896,79 @@
           "importsFiles": [
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_amm_swap_chains.py"
+          "path": "tests/test_amm_swap_chains.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
             "client"
           ],
           "hash": "9b31c48de7328fe846649dd05037ee5b09e546631f81ab830c5420d0c69456d3",
+          "importOrder": [
+            "xrpl_lab/api/schemas.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/api/routes.py",
+            "xrpl_lab/api/__init__.py",
+            "xrpl_lab/api/runner_ws.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/api/__init__.py",
             "xrpl_lab/api/routes.py",
+            "xrpl_lab/api/runner_ws.py",
             "xrpl_lab/api/schemas.py",
             "xrpl_lab/doctor.py",
             "xrpl_lab/modules.py",
             "xrpl_lab/server.py",
             "xrpl_lab/state.py"
           ],
-          "path": "tests/test_api_contract.py"
+          "path": "tests/test_api_contract.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "1ff47815376caaa312605fdfac5b8d1e254bea1ff96ef1d90b253438e71c8d55",
           "importsFiles": [
             "xrpl_lab/_atomic.py"
           ],
-          "path": "tests/test_atomic.py"
+          "path": "tests/test_atomic.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "20ea22edbb2b737f23c1b9b21f1f21e8969885e6b311c0f8bbb6af8dcaecf044",
+          "importOrder": [
+            "xrpl_lab/audit.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/cli.py"
+          ],
           "importsFiles": [
             "xrpl_lab/audit.py",
             "xrpl_lab/cli.py",
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_audit.py"
+          "path": "tests/test_audit.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
             "transport"
           ],
           "hash": "dd56657fd74b3fc1c4435476f18e52455284b7355d724c384789a2cdcebf1402",
+          "importOrder": [
+            "xrpl_lab/actions/checks.py",
+            "xrpl_lab/actions/partial_payment.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/checks.py",
             "xrpl_lab/actions/partial_payment.py",
@@ -801,7 +979,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_checks.py"
+          "path": "tests/test_checks.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -834,6 +1013,13 @@
             "test_version"
           ],
           "hash": "fb9047d69e9dee21943a487dcf88d5b6179f5933265941a6a5dc04966e1267ed",
+          "importOrder": [
+            "xrpl_lab/cli.py",
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/audit.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/audit.py",
@@ -848,6 +1034,14 @@
             "transport"
           ],
           "hash": "02252ed0dff2e175494133e5d290971826f272dba03f2ce32e440eb20cec051b",
+          "importOrder": [
+            "xrpl_lab/actions/credentials.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/state.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/credentials.py",
             "xrpl_lab/handlers.py",
@@ -856,7 +1050,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_credentials.py"
+          "path": "tests/test_credentials.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "776eacc682ab0a855079807d550a0bcededf26524c1319abe2dcf2b41a3dfcba",
@@ -887,6 +1082,14 @@
             "test_untagged_payment_to_require_dest_pool_fails_dst_tag_needed"
           ],
           "hash": "ee272ffab713801c7fb74a9c4ef3ecee4d70c77abd52398fa35093f681bb97c8",
+          "importOrder": [
+            "xrpl_lab/actions/custodial.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/state.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/custodial.py",
             "xrpl_lab/handlers.py",
@@ -895,7 +1098,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_custodial.py"
+          "path": "tests/test_custodial.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -908,6 +1112,16 @@
             "test_xrp_to_xrp_partial_payment_is_forbidden"
           ],
           "hash": "e0646e7c1a500fbb5252c425522ac61c89e8305da992714769b217cba055cc1f",
+          "importOrder": [
+            "xrpl_lab/actions/partial_payment.py",
+            "xrpl_lab/actions/trust_line.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/partial_payment.py",
             "xrpl_lab/actions/trust_line.py",
@@ -918,13 +1132,24 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_delivered_amount.py"
+          "path": "tests/test_delivered_amount.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
             "transport"
           ],
           "hash": "1ec85886afd7bcd85ce5184134c2bc6118d7792de1087a85021d73aefbf9a15f",
+          "importOrder": [
+            "xrpl_lab/actions/credentials.py",
+            "xrpl_lab/actions/deposit_gate.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/credentials.py",
             "xrpl_lab/actions/deposit_gate.py",
@@ -935,7 +1160,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_deposit_gate.py"
+          "path": "tests/test_deposit_gate.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -947,7 +1173,8 @@
             "xrpl_lab/actions/dex.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_dex.py"
+          "path": "tests/test_dex.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -959,7 +1186,8 @@
             "xrpl_lab/linter.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_did.py"
+          "path": "tests/test_did.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -979,11 +1207,16 @@
             "test_surfaces_are_idempotent"
           ],
           "hash": "14947c372ea86e565a3cd5094d6b7db1813bc17efb8f61dbc4d20aadb3b63590",
+          "importOrder": [
+            "xrpl_lab/curriculum_manifest.py",
+            "scripts/gen_docs.py"
+          ],
           "importsFiles": [
             "scripts/gen_docs.py",
             "xrpl_lab/curriculum_manifest.py"
           ],
-          "path": "tests/test_docs_drift.py"
+          "path": "tests/test_docs_drift.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "9252991c979fcf1942f38f38a8a0f1efa09dda89e3e88673dfb2d19714018e99",
@@ -992,12 +1225,16 @@
             "xrpl_lab/state.py",
             "xrpl_lab/workshop.py"
           ],
-          "path": "tests/test_doctor.py"
+          "path": "tests/test_doctor.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "c9ca45d04f06bbeb50f42aec85140620ded59b7bedd4e261402c122cfbf18fec",
           "importsFiles": [
             "xrpl_lab/doctor.py"
+          ],
+          "names": [
+            "xrpl_lab/handlers.py"
           ],
           "path": "tests/test_doctor_pedagogy.py"
         },
@@ -1006,6 +1243,14 @@
             "client_with_module"
           ],
           "hash": "1acfddedfb33f5410b6044295553ec80106ac1efb6d762d9500b9d08e7c243d2",
+          "importOrder": [
+            "xrpl_lab/api/runner_ws.py",
+            "xrpl_lab/errors.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/api/__init__.py",
+            "xrpl_lab/transport/xrpl_testnet.py"
+          ],
           "importsFiles": [
             "xrpl_lab/api/__init__.py",
             "xrpl_lab/api/runner_ws.py",
@@ -1014,7 +1259,8 @@
             "xrpl_lab/server.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_envelope_pedagogy.py"
+          "path": "tests/test_envelope_pedagogy.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "94b29601361a0f6f525de9da58c9702bfa17b0072b26f33becc629e0de8d4721",
@@ -1033,7 +1279,8 @@
             "xrpl_lab/linter.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_escrow.py"
+          "path": "tests/test_escrow.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1065,18 +1312,29 @@
             "xrpl_lab/linter.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_freeze.py"
+          "path": "tests/test_freeze.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "227473dcd0ec2b3920df817d98bbb1d88235ba422b5ceca054b09508a93c3daf",
+          "importOrder": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/errors.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/errors.py",
+            "xrpl_lab/handlers.py",
             "xrpl_lab/modules.py",
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_ft001_precondition_verify.py"
+          "path": "tests/test_ft001_precondition_verify.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "51edde06f41c5195cda1c3cc6e6892e2a859f8416236368d3b2164d287f5c981",
@@ -1086,7 +1344,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/workshop.py"
           ],
-          "path": "tests/test_ft002_verified_surfacing.py"
+          "path": "tests/test_ft002_verified_surfacing.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1098,7 +1357,8 @@
             "xrpl_lab/actions/trust_line.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_hygiene.py"
+          "path": "tests/test_hygiene.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "19d6bdd182bdf804adcb1ee4a1189b13d9599f34c370ec2b733848651989da47",
@@ -1106,16 +1366,23 @@
             "xrpl_lab/linter.py",
             "xrpl_lab/modules.py"
           ],
-          "path": "tests/test_linter.py"
+          "path": "tests/test_linter.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "1abfb0b2aa1d493816d9b6e9d71e455ba8d9a2adb7903a1b9d86683dda938b86",
+          "importOrder": [
+            "xrpl_lab/modules.py",
+            "xrpl_lab/cli.py",
+            "xrpl_lab/linter.py"
+          ],
           "importsFiles": [
             "xrpl_lab/cli.py",
             "xrpl_lab/linter.py",
             "xrpl_lab/modules.py"
           ],
-          "path": "tests/test_modules.py"
+          "path": "tests/test_modules.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1127,7 +1394,8 @@
             "xrpl_lab/linter.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_mpt.py"
+          "path": "tests/test_mpt.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1144,10 +1412,23 @@
             "xrpl_lab/linter.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_mpt_distribution.py"
+          "path": "tests/test_mpt_distribution.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "eb0a01d10d73dfb55836ce88ea4594bafeae7d29fec57d474c7b9ab8c090c23a",
+          "importOrder": [
+            "xrpl_lab/actions/multisig.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/registry.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/runner.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/multisig.py",
             "xrpl_lab/doctor.py",
@@ -1160,7 +1441,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_multisig.py"
+          "path": "tests/test_multisig.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1174,7 +1456,8 @@
           "importsFiles": [
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_network_safety.py"
+          "path": "tests/test_network_safety.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1186,10 +1469,18 @@
             "xrpl_lab/linter.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_nft.py"
+          "path": "tests/test_nft.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "8cb04d46b51c87a8edcdeef4618e94ebf78687778dec1389a7db0863cf84a8be",
+          "importOrder": [
+            "xrpl_lab/runner.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/transport/__init__.py",
+            "xrpl_lab/actions/reserves.py",
+            "xrpl_lab/transport/base.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/reserves.py",
             "xrpl_lab/runner.py",
@@ -1197,7 +1488,8 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_numeric_law.py"
+          "path": "tests/test_numeric_law.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "ec20536a45e72b5cf9cc085975f9527ad44bfd42e9f6f657a1bd93007ceb0d41",
@@ -1222,13 +1514,24 @@
             "xrpl_lab/transport/dry_run.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_payment_channel.py"
+          "path": "tests/test_payment_channel.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
             "transport"
           ],
           "hash": "3909f1153e10e3dfd3ecda8dab21bb63fd317e23cac4c0853790d34d5eb67643",
+          "importOrder": [
+            "tests/_shipped_module.py",
+            "xrpl_lab/actions/credentials.py",
+            "xrpl_lab/actions/permissioned_domains.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/state.py"
+          ],
           "importsFiles": [
             "tests/_shipped_module.py",
             "xrpl_lab/actions/credentials.py",
@@ -1239,13 +1542,21 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_permissioned_domains.py"
+          "path": "tests/test_permissioned_domains.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
             "smoke_client"
           ],
           "hash": "1c484ac7a92ca105a039140acde79b39578ee8edc94a4a2e64fbdbb14c40fb18",
+          "importOrder": [
+            "xrpl_lab/modules.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/api/routes.py"
+          ],
           "importsFiles": [
             "xrpl_lab/api/routes.py",
             "xrpl_lab/doctor.py",
@@ -1253,15 +1564,21 @@
             "xrpl_lab/server.py",
             "xrpl_lab/state.py"
           ],
-          "path": "tests/test_product_smoke.py"
+          "path": "tests/test_product_smoke.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "323babb1c549c3cc0c0d25ed4a36744cf7adb4db69413db2b657f504635c1494",
+          "importOrder": [
+            "xrpl_lab/registry.py",
+            "xrpl_lab/handlers.py"
+          ],
           "importsFiles": [
             "xrpl_lab/handlers.py",
             "xrpl_lab/registry.py"
           ],
-          "path": "tests/test_registry.py"
+          "path": "tests/test_registry.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1272,16 +1589,25 @@
             "xrpl_lab/reporting.py",
             "xrpl_lab/state.py"
           ],
-          "path": "tests/test_reporting.py"
+          "path": "tests/test_reporting.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "c420a8fdafe07c6e5098c33e291d5943006f01f5662359d0f2cadea63e8631a3",
-          "importsFiles": [
+          "importOrder": [
             "xrpl_lab/__init__.py",
+            "xrpl_lab/reserves.py",
             "xrpl_lab/actions/strategy.py",
             "xrpl_lab/doctor.py"
           ],
-          "path": "tests/test_reserve_facts.py"
+          "importsFiles": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/actions/strategy.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/reserves.py"
+          ],
+          "path": "tests/test_reserve_facts.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1293,7 +1619,8 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_reserves.py"
+          "path": "tests/test_reserves.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1313,7 +1640,8 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_reswarm3_actions.py"
+          "path": "tests/test_reswarm3_actions.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1324,7 +1652,8 @@
             "xrpl_lab/api/routes.py",
             "xrpl_lab/server.py"
           ],
-          "path": "tests/test_reswarm3_api.py"
+          "path": "tests/test_reswarm3_api.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1339,27 +1668,47 @@
             "test_bc007_is_reachable_has_no_recursionerror_handler"
           ],
           "hash": "cf552df305fc9ffb9839a3104137edb640f8ba4ca10751b867d34b1e42a3bed0",
+          "importOrder": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/errors.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/curriculum.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/curriculum.py",
             "xrpl_lab/errors.py",
             "xrpl_lab/handlers.py",
             "xrpl_lab/modules.py",
+            "xrpl_lab/runner.py",
             "xrpl_lab/runtime.py",
             "xrpl_lab/state.py",
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_reswarm3_backend.py"
+          "path": "tests/test_reswarm3_backend.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "83368ec6518b62333e30afb850995c380a4c10a10ea6df48bdad642e4b189be9",
+          "importOrder": [
+            "xrpl_lab/cli.py",
+            "xrpl_lab/audit.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
           "importsFiles": [
             "xrpl_lab/audit.py",
             "xrpl_lab/cli.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_reswarm3_cli.py"
+          "path": "tests/test_reswarm3_cli.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1382,17 +1731,39 @@
             "test_verify_tx_exits_zero_on_passed_verdict"
           ],
           "hash": "0ee81bff2ddc1b022072e78444adfc85399cd9408d173923a09f7d8ccef8015f",
+          "importOrder": [
+            "xrpl_lab/actions/verify.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/cli.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/actions/verify.py",
+            "xrpl_lab/cli.py",
             "xrpl_lab/server.py",
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_reswarm3_fixups.py"
+          "path": "tests/test_reswarm3_fixups.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "20aad28818d8b70d43b7304423f28fc626313248dee5848d26e1241195c25672",
+          "importOrder": [
+            "xrpl_lab/cli.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/curriculum.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/api/routes.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/workshop.py",
+            "tests/test_v2_kbsource.py",
+            "xrpl_lab/linter.py"
+          ],
           "importsFiles": [
             "tests/test_v2_kbsource.py",
             "xrpl_lab/api/routes.py",
@@ -1405,7 +1776,8 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/workshop.py"
           ],
-          "path": "tests/test_reswarm3_stagec_cli.py"
+          "path": "tests/test_reswarm3_stagec_cli.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1425,6 +1797,13 @@
             "test_verify_channel_valid_expect_amount_still_matches"
           ],
           "hash": "c9672bdc2ee3bdcac7d94eb683a1b8b319c819f4a2ddfaa6710ae3c2b6b30836",
+          "importOrder": [
+            "xrpl_lab/actions/paychan.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/transport/__init__.py",
+            "xrpl_lab/transport/xrpl_testnet.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/paychan.py",
             "xrpl_lab/transport/__init__.py",
@@ -1432,7 +1811,8 @@
             "xrpl_lab/transport/dry_run.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_reswarm3_stagec_transport.py"
+          "path": "tests/test_reswarm3_stagec_transport.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1452,15 +1832,30 @@
             "test_signed_channel_claim_without_amount_is_rejected"
           ],
           "hash": "e0ac500b255c68ef55b7655cc6eb70f81e5845f981f41cddd3dd3d42317a27e2",
+          "importOrder": [
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/transport/xrpl_testnet.py",
+            "xrpl_lab/transport/__init__.py"
+          ],
           "importsFiles": [
             "xrpl_lab/transport/__init__.py",
             "xrpl_lab/transport/dry_run.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_reswarm3_transport.py"
+          "path": "tests/test_reswarm3_transport.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "41a0f073ef641d371f1d8a11f12d64f4090e9599c125533898b778c4b7220609",
+          "importOrder": [
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/registry.py",
+            "xrpl_lab/reporting.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/runner.py"
+          ],
           "importsFiles": [
             "xrpl_lab/handlers.py",
             "xrpl_lab/modules.py",
@@ -1470,7 +1865,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_reswarm3_verify_flag.py"
+          "path": "tests/test_reswarm3_verify_flag.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1478,16 +1874,36 @@
             "client_with_module"
           ],
           "hash": "e5d82cca282b80bb504eef23eaf0d0ee119f218577d0d3abdb758796d7eadae1",
+          "importOrder": [
+            "xrpl_lab/api/runner_ws.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/api/__init__.py"
+          ],
           "importsFiles": [
             "xrpl_lab/api/__init__.py",
             "xrpl_lab/api/runner_ws.py",
             "xrpl_lab/modules.py",
             "xrpl_lab/server.py"
           ],
-          "path": "tests/test_reswarm4_api.py"
+          "path": "tests/test_reswarm4_api.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "126148f57e5ec1b700cab8d6ee1ff9f50f861a5e357b08a4a220725170a9333c",
+          "importOrder": [
+            "xrpl_lab/errors.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/_atomic.py",
+            "xrpl_lab/cli.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/linter.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/_atomic.py",
@@ -1501,13 +1917,14 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_reswarm4_backend_core.py"
+          "path": "tests/test_reswarm4_backend_core.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "e6b805f7667e5dd36cc21029c200ef42bc454a3fc401655cad6664e6c6518baa",
-          "importsFiles": [
+          "importOrder": [
             "xrpl_lab/__init__.py",
-            "xrpl_lab/actions/strategy.py",
+            "xrpl_lab/handlers.py",
             "xrpl_lab/actions/token_escrow.py",
             "xrpl_lab/actions/verify.py",
             "xrpl_lab/errors.py",
@@ -1516,12 +1933,37 @@
             "xrpl_lab/runtime.py",
             "xrpl_lab/state.py",
             "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/actions/strategy.py"
+          ],
+          "importsFiles": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/actions/strategy.py",
+            "xrpl_lab/actions/token_escrow.py",
+            "xrpl_lab/actions/verify.py",
+            "xrpl_lab/errors.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/registry.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_reswarm4_backend_handlers.py"
+          "path": "tests/test_reswarm4_backend_handlers.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "167c0dc18ff1aec0c8cb3156dbc68bf0d5419b16c415693e3d375132e9450a4d",
+          "importOrder": [
+            "xrpl_lab/audit.py",
+            "xrpl_lab/reporting.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/transport/xrpl_testnet.py",
+            "xrpl_lab/__init__.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/audit.py",
@@ -1531,7 +1973,8 @@
             "xrpl_lab/transport/dry_run.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_reswarm4_reporting_audit.py"
+          "path": "tests/test_reswarm4_reporting_audit.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1545,13 +1988,20 @@
             "test_txids_deterministic_across_identical_sessions"
           ],
           "hash": "9642922777265d2fbb3c7e133a7cac3209958e61198fdf775443b1bc042404e6",
+          "importOrder": [
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/transport/__init__.py",
+            "xrpl_lab/transport/xrpl_testnet.py"
+          ],
           "importsFiles": [
             "xrpl_lab/transport/__init__.py",
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_reswarm4_transport.py"
+          "path": "tests/test_reswarm4_transport.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1572,7 +2022,8 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_reswarm_stage_a.py"
+          "path": "tests/test_reswarm_stage_a.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1580,6 +2031,17 @@
             "test_recovery_save_failure_no_path_leak_and_graceful"
           ],
           "hash": "ca2f818608dce755e3124190f1eb7b8c6c1bf5923f55a467b396916d983973e8",
+          "importOrder": [
+            "xrpl_lab/modules.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/errors.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/registry.py",
+            "xrpl_lab/transport/base.py"
+          ],
           "importsFiles": [
             "xrpl_lab/errors.py",
             "xrpl_lab/handlers.py",
@@ -1591,10 +2053,18 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_runner.py"
+          "path": "tests/test_runner.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "e1ba160f5a5c8b11424471145477de39dba3a4a39d8c4070f8db85cfe4a20f37",
+          "importOrder": [
+            "xrpl_lab/modules.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/api/runner_ws.py"
+          ],
           "importsFiles": [
             "xrpl_lab/api/runner_ws.py",
             "xrpl_lab/modules.py",
@@ -1602,7 +2072,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_runner_isolation.py"
+          "path": "tests/test_runner_isolation.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1610,14 +2081,24 @@
             "client_with_module"
           ],
           "hash": "3b8619931ba616db180a92370a6ff361e12387dd8f522b3ffca8baebed2dd3f6",
+          "importOrder": [
+            "xrpl_lab/api/runner_ws.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/api/__init__.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/api/__init__.py",
             "xrpl_lab/api/runner_ws.py",
             "xrpl_lab/modules.py",
+            "xrpl_lab/runner.py",
             "xrpl_lab/server.py"
           ],
-          "path": "tests/test_runner_ws.py"
+          "path": "tests/test_runner_ws.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1626,6 +2107,13 @@
             "test_envelope_routing_end_to_end_from_runtime"
           ],
           "hash": "3ce322ade753960b4c87171ba5ff55bc69b810a1dbabf65808cae1a6a09afcff",
+          "importOrder": [
+            "xrpl_lab/errors.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/api/runner_ws.py"
+          ],
           "importsFiles": [
             "xrpl_lab/api/runner_ws.py",
             "xrpl_lab/errors.py",
@@ -1633,12 +2121,16 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/base.py"
           ],
-          "path": "tests/test_runtime_rate_limit.py"
+          "path": "tests/test_runtime_rate_limit.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "1c4e02b40b7e48e29c36b908367e3b7cb360a614159a00aeba617be8a5da9700",
           "importsFiles": [
             "xrpl_lab/api/schemas.py"
+          ],
+          "names": [
+            "site/src/lib/api.ts"
           ],
           "path": "tests/test_schema_drift.py"
         },
@@ -1652,7 +2144,8 @@
             "xrpl_lab/actions/send.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_send_fund.py"
+          "path": "tests/test_send_fund.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1660,6 +2153,14 @@
             "client_with_modules"
           ],
           "hash": "c56ff1f08bcbd663035ee69f255d5597f69a4c09ea333160b12884b9d6a3f709",
+          "importOrder": [
+            "xrpl_lab/api/runner_ws.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/api/routes.py"
+          ],
           "importsFiles": [
             "xrpl_lab/api/routes.py",
             "xrpl_lab/api/runner_ws.py",
@@ -1668,30 +2169,55 @@
             "xrpl_lab/server.py",
             "xrpl_lab/state.py"
           ],
-          "path": "tests/test_server.py"
+          "path": "tests/test_server.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "fdedac164c56b2680b681be67f00f15a48ddacec50a8be4ac2f3ee94654a1258",
+          "importOrder": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/reporting.py",
+            "xrpl_lab/audit.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/audit.py",
             "xrpl_lab/reporting.py",
             "xrpl_lab/state.py"
           ],
-          "path": "tests/test_state.py"
+          "path": "tests/test_state.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "e0a6cb42b3c2c94cf78b49a8da8ab935f5da83d640341d9093fcec1182ca57e6",
+          "importOrder": [
+            "xrpl_lab/actions/strategy.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/cli.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/strategy.py",
             "xrpl_lab/cli.py",
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_strategy.py"
+          "path": "tests/test_strategy.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "3f1a8f43e8480f95a983e2a2f2c92a15599add342fe0381406fe1cc20186f4ac",
+          "importOrder": [
+            "xrpl_lab/actions/token_escrow.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/handlers.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/token_escrow.py",
             "xrpl_lab/handlers.py",
@@ -1702,19 +2228,26 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_token_escrow.py"
+          "path": "tests/test_token_escrow.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
             "transport"
           ],
           "hash": "aa19df00e50f3e497345ceee44a16a1314063f15cd3fd0cdd9c3acdb11867822",
+          "importOrder": [
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/transport/__init__.py",
+            "xrpl_lab/transport/xrpl_testnet.py"
+          ],
           "importsFiles": [
             "xrpl_lab/transport/__init__.py",
             "xrpl_lab/transport/dry_run.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_transport.py"
+          "path": "tests/test_transport.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1725,7 +2258,8 @@
             "xrpl_lab/actions/trust_line.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_trust_line.py"
+          "path": "tests/test_trust_line.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1733,17 +2267,30 @@
             "verify_client"
           ],
           "hash": "e2ee93568b026a734c52c679fe13d294ec2ee31ec540488709c8716497eac1f6",
+          "importOrder": [
+            "xrpl_lab/modules.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/api/__init__.py",
+            "xrpl_lab/api/runner_ws.py",
+            "xrpl_lab/api/schemas.py",
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/reporting.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/api/__init__.py",
             "xrpl_lab/api/runner_ws.py",
             "xrpl_lab/api/schemas.py",
             "xrpl_lab/modules.py",
+            "xrpl_lab/reporting.py",
             "xrpl_lab/server.py",
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_v2_api.py"
+          "path": "tests/test_v2_api.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1751,6 +2298,15 @@
             "modules"
           ],
           "hash": "637a2726f58ddf6f5e1e725cf2f0ab4aacdbaf3a7797575d6e62b609641e11f2",
+          "importOrder": [
+            "xrpl_lab/curriculum.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/registry.py",
+            "xrpl_lab/reporting.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/handlers.py"
+          ],
           "importsFiles": [
             "xrpl_lab/curriculum.py",
             "xrpl_lab/handlers.py",
@@ -1760,7 +2316,8 @@
             "xrpl_lab/reporting.py",
             "xrpl_lab/state.py"
           ],
-          "path": "tests/test_v2_capstone.py"
+          "path": "tests/test_v2_capstone.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1789,9 +2346,29 @@
             "test_version_matches_pyproject"
           ],
           "hash": "6f7338d9662f25d5b92c8c839a2c7d59e7c00a10950493a3962d2e67c6c970c0",
+          "importOrder": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/cli.py",
+            "xrpl_lab/curriculum.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/reporting.py",
+            "xrpl_lab/linter.py",
+            "xrpl_lab/registry.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/actions/__init__.py",
+            "xrpl_lab/actions/wallet.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/errors.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/actions/__init__.py",
+            "xrpl_lab/actions/wallet.py",
             "xrpl_lab/cli.py",
             "xrpl_lab/curriculum.py",
             "xrpl_lab/doctor.py",
@@ -1807,7 +2384,8 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_v2_core.py"
+          "path": "tests/test_v2_core.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1822,7 +2400,8 @@
             "xrpl_lab/transport/dry_run.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_v2_gameecon.py"
+          "path": "tests/test_v2_gameecon.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "b0f3692afa2247fe435cd9cb5ee336bc99c34d9cc135c41061819d1047a0eff0",
@@ -1832,7 +2411,8 @@
             "xrpl_lab/reporting.py",
             "xrpl_lab/state.py"
           ],
-          "path": "tests/test_v2_kbsource.py"
+          "path": "tests/test_v2_kbsource.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "6b2b3ed8db405ca6c200f14c03408a3b335bae0f910ef29c1c7eca0385a4d8bd",
@@ -1845,13 +2425,21 @@
             "xrpl_lab/transport/dry_run.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_v2_lifecycle.py"
+          "path": "tests/test_v2_lifecycle.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
             "transport"
           ],
           "hash": "446e51e4e98157bd01eb0ac149a55839b25616343b25f8505138931c2d008e44",
+          "importOrder": [
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/transport/xrpl_testnet.py",
+            "xrpl_lab/transport/__init__.py",
+            "xrpl_lab/actions/verify.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/verify.py",
             "xrpl_lab/transport/__init__.py",
@@ -1859,7 +2447,8 @@
             "xrpl_lab/transport/dry_run.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_v2_transport.py"
+          "path": "tests/test_v2_transport.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "8702171c29e4c6777b56d726759da8364e63600aa8dff510c8d9083eec3c61d1",
@@ -1869,7 +2458,8 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_v2_verify.py"
+          "path": "tests/test_v2_verify.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1881,7 +2471,8 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_verify.py"
+          "path": "tests/test_verify.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1896,7 +2487,8 @@
             "xrpl_lab/actions/custodial.py",
             "xrpl_lab/transport/base.py"
           ],
-          "path": "tests/test_w2_actions_custodial_delivered_amount.py"
+          "path": "tests/test_w2_actions_custodial_delivered_amount.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "e959c14db7c5d341a666e55bd1d0e1e78433a4968e77ee9f251fb90a097adeeb",
@@ -1905,7 +2497,8 @@
             "xrpl_lab/actions/wallet.py",
             "xrpl_lab/errors.py"
           ],
-          "path": "tests/test_w2_actions_wallet_win32_acl.py"
+          "path": "tests/test_w2_actions_wallet_win32_acl.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1913,22 +2506,37 @@
             "test_ensure_funded_leaves_credential_free_message_readable"
           ],
           "hash": "f9660733a6414e5a7bd166e55b57d66f74c6a1eb394c4d101016ddff03a7f1e2",
+          "importOrder": [
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/errors.py"
+          ],
           "importsFiles": [
             "xrpl_lab/errors.py",
             "xrpl_lab/runtime.py",
             "xrpl_lab/state.py",
             "xrpl_lab/transport/base.py"
           ],
-          "path": "tests/test_w2_api_cli_credential_leak.py"
+          "path": "tests/test_w2_api_cli_credential_leak.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "11771fa68e12dfd44af53deea670262dc5a6fe0d799fcb0c9318c814ba89236c",
+          "importOrder": [
+            "xrpl_lab/modules.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/api/__init__.py",
+            "xrpl_lab/api/runner_ws.py"
+          ],
           "importsFiles": [
             "xrpl_lab/api/__init__.py",
+            "xrpl_lab/api/runner_ws.py",
             "xrpl_lab/modules.py",
             "xrpl_lab/server.py"
           ],
-          "path": "tests/test_w2_api_cli_dry_run.py"
+          "path": "tests/test_w2_api_cli_dry_run.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1955,7 +2563,8 @@
             "xrpl_lab/errors.py",
             "xrpl_lab/state.py"
           ],
-          "path": "tests/test_w2_cli_wallet_acl_exit.py"
+          "path": "tests/test_w2_cli_wallet_acl_exit.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -1973,7 +2582,8 @@
           "importsFiles": [
             "xrpl_lab/reporting.py"
           ],
-          "path": "tests/test_w2_core_state_session_export_symlink.py"
+          "path": "tests/test_w2_core_state_session_export_symlink.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "56950c59a9f4089653b09e8cef4efaf2b95aa729877fdbb6c4254027f2fb0002",
@@ -1986,15 +2596,26 @@
             "test_shipped_module_teaches_real_tecno_permission"
           ],
           "hash": "49bd18c043e947a7589f785267230ed3e4127d529b90e3f54fa883e4c4d51bc9",
+          "importOrder": [
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/actions/__init__.py",
+            "xrpl_lab/actions/wallet.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/__init__.py",
+            "xrpl_lab/actions/wallet.py",
             "xrpl_lab/handlers.py",
             "xrpl_lab/modules.py",
             "xrpl_lab/runner.py",
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w2_handlers_token_escrow_noopt.py"
+          "path": "tests/test_w2_handlers_token_escrow_noopt.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2009,7 +2630,8 @@
           "importsFiles": [
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w2_transport_dryrun_reserve.py"
+          "path": "tests/test_w2_transport_dryrun_reserve.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2023,7 +2645,8 @@
             "xrpl_lab/transport/__init__.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_w2_transport_retry_sequence.py"
+          "path": "tests/test_w2_transport_retry_sequence.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2032,9 +2655,11 @@
           "hash": "10715c24cef8ff570a57b9f641c43ba02c05985d8e3dce2dd163e235b05cd557",
           "importsFiles": [
             "xrpl_lab/actions/__init__.py",
+            "xrpl_lab/actions/wallet.py",
             "xrpl_lab/errors.py"
           ],
-          "path": "tests/test_w4_actions_icacls_userdomain.py"
+          "path": "tests/test_w4_actions_icacls_userdomain.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2047,7 +2672,8 @@
             "xrpl_lab/errors.py",
             "xrpl_lab/state.py"
           ],
-          "path": "tests/test_w4_api_cli_wallet_create_save_state.py"
+          "path": "tests/test_w4_api_cli_wallet_create_save_state.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2075,7 +2701,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/base.py"
           ],
-          "path": "tests/test_w4_handlers_fundresult_message.py"
+          "path": "tests/test_w4_handlers_fundresult_message.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2083,15 +2710,26 @@
             "test_two_trust_lines_101_runs_do_not_add_second_issuer_line"
           ],
           "hash": "3b7630ee9a08c5e55845b29762c9cd49bc17a22c6738469107d7328a7f0a10a4",
+          "importOrder": [
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/actions/__init__.py",
+            "xrpl_lab/actions/wallet.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/__init__.py",
+            "xrpl_lab/actions/wallet.py",
             "xrpl_lab/handlers.py",
             "xrpl_lab/modules.py",
             "xrpl_lab/runner.py",
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w4_handlers_issuer_reuse.py"
+          "path": "tests/test_w4_handlers_issuer_reuse.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2102,7 +2740,8 @@
             "xrpl_lab/transport/__init__.py",
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
-          "path": "tests/test_w4_transport_pin_sequence.py"
+          "path": "tests/test_w4_transport_pin_sequence.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "0f6b1e98f17684f9cd69b08969cf47aa263ed36052a84d852b74deddebb51898",
@@ -2133,7 +2772,8 @@
             "assert_startrun_invocations_are_click_wired"
           ],
           "hash": "56cf1118cf0c807d5d44bb9e4fd6f986802b95ab2bc0ff2d5cb93c5996cb7147",
-          "path": "tests/test_w5_dashboard_dryrun_behavior.py"
+          "path": "tests/test_w5_dashboard_dryrun_behavior.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2144,6 +2784,14 @@
             "test_source_sweep_no_hardcoded_drops_on_polymorphic_credit_fields"
           ],
           "hash": "2efc8bd5fe64ff07760e2e78a70e263373b32277984a699f8162a795fbb02964",
+          "importOrder": [
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/actions/custodial.py",
+            "xrpl_lab/actions/partial_payment.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/custodial.py",
             "xrpl_lab/actions/partial_payment.py",
@@ -2152,7 +2800,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w5_handlers_credit_unit_labels.py"
+          "path": "tests/test_w5_handlers_credit_unit_labels.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2171,14 +2820,16 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w5_handlers_verify_assert.py"
+          "path": "tests/test_w5_handlers_verify_assert.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "7d23d062298fb8b32c7f163b7c554af1dec2a286be08b0e16c7f7dfe9f244bf5",
           "importsFiles": [
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w5_transport_fee_debit.py"
+          "path": "tests/test_w5_transport_fee_debit.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2186,6 +2837,13 @@
             "test_ensure_funded_stops_immediately_on_config_non_testnet"
           ],
           "hash": "b8a4850a378e48c000c5eeac2a0c1d83a111acdff0dd956bce0428f9653b5703",
+          "importOrder": [
+            "xrpl_lab/errors.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/api/runner_ws.py"
+          ],
           "importsFiles": [
             "xrpl_lab/api/runner_ws.py",
             "xrpl_lab/errors.py",
@@ -2193,7 +2851,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/base.py"
           ],
-          "path": "tests/test_w6_api_cli_config_non_testnet_no_retry.py"
+          "path": "tests/test_w6_api_cli_config_non_testnet_no_retry.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2209,7 +2868,11 @@
             "xrpl_lab/runner.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w6_api_cli_named_labexception.py"
+          "names": [
+            "xrpl_lab/cli.py"
+          ],
+          "path": "tests/test_w6_api_cli_named_labexception.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2251,7 +2914,11 @@
             "assert_txids_used_as_completion_fallback"
           ],
           "hash": "b579052914bf492e088fafeff6e86afcfbec7f8bf662b11dc70d67af0d89670b",
-          "path": "tests/test_w6_dashboard_run_state.py"
+          "names": [
+            "site/src/lib/api.ts"
+          ],
+          "path": "tests/test_w6_dashboard_run_state.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2261,6 +2928,15 @@
             "test_state_missing_noopt_issuer_names_the_fix"
           ],
           "hash": "5573f1e4ac526c80243f620eaef6fa4316b62487c8097219b197d043dce837db",
+          "importOrder": [
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/errors.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
           "importsFiles": [
             "xrpl_lab/errors.py",
             "xrpl_lab/handlers.py",
@@ -2270,7 +2946,8 @@
             "xrpl_lab/transport/base.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w6_handlers_named_fix.py"
+          "path": "tests/test_w6_handlers_named_fix.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2280,12 +2957,18 @@
             "test_audit_verify_valid_pack_exits_zero"
           ],
           "hash": "8593c6125241257399ed17d596ddaa5301666d2e27153f3c5ec55606e1086d3c",
+          "importOrder": [
+            "xrpl_lab/cli.py",
+            "xrpl_lab/audit.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
           "importsFiles": [
             "xrpl_lab/audit.py",
             "xrpl_lab/cli.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w7_api_cli_audit_verify.py"
+          "path": "tests/test_w7_api_cli_audit_verify.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2314,7 +2997,8 @@
             "xrpl_lab/reporting.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w7_core_state_audit_pack_verify_surface.py"
+          "path": "tests/test_w7_core_state_audit_pack_verify_surface.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2356,8 +3040,19 @@
             "test_verify_trust_line_removed_honors_issuer_override"
           ],
           "hash": "dc9576aa63fb8265fb57c10532587d99e05394f348b39a42af873e9de8c866e5",
+          "importOrder": [
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/actions/__init__.py",
+            "xrpl_lab/actions/wallet.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/registry.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/__init__.py",
+            "xrpl_lab/actions/wallet.py",
             "xrpl_lab/handlers.py",
             "xrpl_lab/modules.py",
             "xrpl_lab/registry.py",
@@ -2365,7 +3060,8 @@
             "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w7_handlers_reuse_cleanup.py"
+          "path": "tests/test_w7_handlers_reuse_cleanup.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2378,24 +3074,33 @@
           "importsFiles": [
             "xrpl_lab/transport/dry_run.py"
           ],
-          "path": "tests/test_w7_transport_object_create_reserve.py"
+          "path": "tests/test_w7_transport_object_create_reserve.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "ab7b3df3396b353e7ab70caea916b4d91cc7161fe0330f92e182aac7c85d0cb4",
           "importsFiles": [
             "xrpl_lab/actions/wallet.py"
           ],
-          "path": "tests/test_wallet.py"
+          "path": "tests/test_wallet.py",
+          "testFramework": "pytest"
         },
         {
           "hash": "1fa1d3a7678d15c5249645cc80b3b4126efa5ab823c38108796c71d5c1055fa4",
+          "importOrder": [
+            "xrpl_lab/state.py",
+            "xrpl_lab/workshop.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/curriculum.py"
+          ],
           "importsFiles": [
             "xrpl_lab/curriculum.py",
             "xrpl_lab/modules.py",
             "xrpl_lab/state.py",
             "xrpl_lab/workshop.py"
           ],
-          "path": "tests/test_workshop.py"
+          "path": "tests/test_workshop.py",
+          "testFramework": "pytest"
         },
         {
           "exports": [
@@ -2405,7 +3110,8 @@
           "importsFiles": [
             "xrpl_lab/api/runner_ws.py"
           ],
-          "path": "tests/test_ws_backpressure.py"
+          "path": "tests/test_ws_backpressure.py",
+          "testFramework": "pytest"
         }
       ],
       "globs": [
@@ -2415,20 +3121,36 @@
       "name": "tests",
       "origin": "authored",
       "role": "test",
+      "testRunners": [
+        "pytest"
+      ],
       "testedBy": 0,
+      "unresolvedNamed": [
+        {
+          "path": "tests/test_product_smoke.py",
+          "specifier": null,
+          "why": "dynamic"
+        }
+      ],
       "unresolvedSites": 1
     },
     {
-      "dynamicReads": 19,
+      "dynamicReads": 6,
       "dynamicSpawns": 0,
       "dynamicSpawnsInTests": 0,
-      "dynamicWrites": 6,
+      "dynamicWrites": 2,
       "entryPoints": [
         "xrpl_lab/cli.py"
       ],
       "externals": 0,
       "files": [
         {
+          "failurePaths": [
+            {
+              "kind": "except",
+              "line": 7
+            }
+          ],
           "hash": "d8ce5663695aeb9b3069f0af46ff0d9c92789dda64d13026647cc479204de62a",
           "path": "xrpl_lab/__init__.py"
         },
@@ -2442,6 +3164,48 @@
         {
           "exports": [
             "atomic_write_json"
+          ],
+          "failurePaths": [
+            {
+              "in": "_fsync_dir",
+              "kind": "except",
+              "line": 108
+            },
+            {
+              "in": "_fsync_dir",
+              "kind": "except",
+              "line": 112
+            },
+            {
+              "in": "atomic_write_json",
+              "kind": "except",
+              "line": 179
+            },
+            {
+              "in": "atomic_write_json",
+              "kind": "except",
+              "line": 201
+            },
+            {
+              "in": "atomic_write_json",
+              "kind": "raise",
+              "line": 205
+            },
+            {
+              "in": "atomic_write_json",
+              "kind": "except",
+              "line": 215
+            },
+            {
+              "in": "atomic_write_json",
+              "kind": "except",
+              "line": 223
+            },
+            {
+              "in": "atomic_write_json",
+              "kind": "raise",
+              "line": 225
+            }
           ],
           "hash": "de55f199e172cb9c8e5ddd52a5e18bc00e12d458b394cc97f75a2bedd046640a",
           "path": "xrpl_lab/_atomic.py"
@@ -2458,6 +3222,23 @@
             "ensure_amm_pair",
             "verify_lp_received",
             "verify_withdrawal"
+          ],
+          "failurePaths": [
+            {
+              "in": "verify_lp_received",
+              "kind": "except",
+              "line": 148
+            },
+            {
+              "in": "verify_withdrawal",
+              "kind": "except",
+              "line": 211
+            },
+            {
+              "in": "verify_withdrawal",
+              "kind": "except",
+              "line": 216
+            }
           ],
           "hash": "044816894e9fa6347e5ed9781c43418f751634eda793b1cfbb65ca730cc51cb3",
           "importsFiles": [
@@ -2484,6 +3265,13 @@
             "delete_credential",
             "verify_credential"
           ],
+          "failurePaths": [
+            {
+              "in": "_type_to_hex",
+              "kind": "except",
+              "line": 42
+            }
+          ],
           "hash": "d28285f912b07822d536424343290c4898a4b748ccddaefe29ffff63056000dd",
           "importsFiles": [
             "xrpl_lab/transport/base.py"
@@ -2495,6 +3283,13 @@
             "credit_player_deposit",
             "enable_require_dest",
             "send_tagged_deposit"
+          ],
+          "failurePaths": [
+            {
+              "in": "_validate_tag",
+              "kind": "except",
+              "line": 57
+            }
           ],
           "hash": "fa1e8135683e7eaf626ccddda01b8284f30014b154ae6713cf79e86295a6a0fc",
           "importsFiles": [
@@ -2511,6 +3306,13 @@
             "send_gated_payment",
             "unauthorize_deposit_address",
             "unauthorize_deposit_credential"
+          ],
+          "failurePaths": [
+            {
+              "in": "_type_to_hex",
+              "kind": "except",
+              "line": 50
+            }
           ],
           "hash": "fd40ba7b4db24fdaccfaaf18652229fc6e3392503ecf060c808ecd8109401910",
           "importsFiles": [
@@ -2648,6 +3450,18 @@
             "sign_claim",
             "verify_channel"
           ],
+          "failurePaths": [
+            {
+              "in": "_drops_to_xrp",
+              "kind": "except",
+              "line": 21
+            },
+            {
+              "in": "_want",
+              "kind": "except",
+              "line": 123
+            }
+          ],
           "hash": "ae610b6174972f0b1a443e694e496b074d12900fce1fee137c021761b878c71c",
           "importsFiles": [
             "xrpl_lab/transport/base.py"
@@ -2663,6 +3477,13 @@
             "verify_domain",
             "verify_permissioned_offer"
           ],
+          "failurePaths": [
+            {
+              "in": "_type_to_hex",
+              "kind": "except",
+              "line": 55
+            }
+          ],
           "hash": "52f483287cfec0f7dadf1597ac43b37a6844992337019c49e1fd6a07041da8ad",
           "importsFiles": [
             "xrpl_lab/transport/base.py"
@@ -2673,6 +3494,18 @@
           "exports": [
             "compare_snapshots",
             "snapshot_account"
+          ],
+          "failurePaths": [
+            {
+              "in": "_safe_int",
+              "kind": "except",
+              "line": 17
+            },
+            {
+              "in": "_drops_to_xrp",
+              "kind": "except",
+              "line": 25
+            }
           ],
           "hash": "a3741c368df678d7b71c51afac6a35aecbe4f0dff2ba1d6c4bc4275d9adbca49",
           "importsFiles": [
@@ -2700,7 +3533,24 @@
             "strategy_memo",
             "write_last_run"
           ],
+          "failurePaths": [
+            {
+              "in": "spendable_estimate_drops",
+              "kind": "except",
+              "line": 62
+            },
+            {
+              "in": "check_inventory",
+              "kind": "except",
+              "line": 196
+            }
+          ],
           "hash": "ce9f63f4ab60922c215dec0c0b1d5d7fbd016aa534840009c8bb5d624fac9268",
+          "importOrder": [
+            "xrpl_lab/reserves.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/state.py"
+          ],
           "importsFiles": [
             "xrpl_lab/reserves.py",
             "xrpl_lab/state.py",
@@ -2714,6 +3564,18 @@
             "finish_escrow",
             "set_allow_trustline_locking",
             "verify_token_moved"
+          ],
+          "failurePaths": [
+            {
+              "in": "verify_token_moved",
+              "kind": "except",
+              "line": 199
+            },
+            {
+              "in": "verify_token_moved",
+              "kind": "except",
+              "line": 209
+            }
           ],
           "hash": "86657c16db277804af93d9c18d4ed86d68e1a397fc88071583622aae85e92d0c",
           "importsFiles": [
@@ -2732,6 +3594,13 @@
             "verify_clawback",
             "verify_trust_line",
             "verify_trust_line_removed"
+          ],
+          "failurePaths": [
+            {
+              "in": "verify_clawback",
+              "kind": "except",
+              "line": 216
+            }
           ],
           "hash": "b704915126add2f774a2298da4d6764509a3a3d276c7fe51a58fc879a5c18a91",
           "importsFiles": [
@@ -2776,6 +3645,33 @@
             "save_wallet",
             "wallet_exists",
             "wallet_info"
+          ],
+          "failurePaths": [
+            {
+              "in": "run",
+              "kind": "except",
+              "line": 162
+            },
+            {
+              "in": "run",
+              "kind": "raise",
+              "line": 163
+            },
+            {
+              "in": "run",
+              "kind": "raise",
+              "line": 181
+            },
+            {
+              "in": "_windows_icacls_lockdown",
+              "kind": "raise",
+              "line": 208
+            },
+            {
+              "in": "load_wallet",
+              "kind": "except",
+              "line": 329
+            }
           ],
           "hash": "92f985c5c7d8be465bdc0bb94366456f79e490dd2d7ce37dbf1a2424882ce430",
           "importsFiles": [
@@ -3079,10 +3975,106 @@
             "list_runs",
             "verify_artifact"
           ],
+          "failurePaths": [
+            {
+              "in": "get_module",
+              "kind": "raise",
+              "line": 162
+            },
+            {
+              "in": "list_reports",
+              "kind": "except",
+              "line": 332
+            },
+            {
+              "in": "get_report",
+              "kind": "raise",
+              "line": 361
+            },
+            {
+              "in": "get_report",
+              "kind": "raise",
+              "line": 373
+            },
+            {
+              "in": "get_report",
+              "kind": "raise",
+              "line": 380
+            },
+            {
+              "in": "get_report",
+              "kind": "except",
+              "line": 395
+            },
+            {
+              "in": "get_report",
+              "kind": "raise",
+              "line": 397
+            },
+            {
+              "in": "verify_artifact",
+              "kind": "raise",
+              "line": 490
+            },
+            {
+              "in": "verify_artifact",
+              "kind": "except",
+              "line": 502
+            },
+            {
+              "in": "verify_artifact",
+              "kind": "raise",
+              "line": 503
+            },
+            {
+              "in": "verify_artifact",
+              "kind": "raise",
+              "line": 510
+            },
+            {
+              "in": "verify_artifact",
+              "kind": "raise",
+              "line": 531
+            },
+            {
+              "in": "verify_artifact",
+              "kind": "raise",
+              "line": 554
+            },
+            {
+              "in": "verify_artifact",
+              "kind": "except",
+              "line": 588
+            },
+            {
+              "in": "get_run",
+              "kind": "raise",
+              "line": 722
+            },
+            {
+              "in": "cancel_run",
+              "kind": "raise",
+              "line": 760
+            }
+          ],
           "hash": "0a55ebf5bb6b8f335cbeb164fd3bf4bc55fbfe0cab8c3d5e2d3d36c1cc0006d8",
+          "importOrder": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/reporting.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/xrpl_testnet.py",
+            "xrpl_lab/api/schemas.py",
+            "xrpl_lab/curriculum.py",
+            "xrpl_lab/workshop.py",
+            "xrpl_lab/api/__init__.py",
+            "xrpl_lab/api/runner_ws.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/api/__init__.py",
+            "xrpl_lab/api/runner_ws.py",
             "xrpl_lab/api/schemas.py",
             "xrpl_lab/curriculum.py",
             "xrpl_lab/doctor.py",
@@ -3103,7 +4095,109 @@
             "run_websocket",
             "start_run"
           ],
+          "failurePaths": [
+            {
+              "in": "_safe_put",
+              "kind": "except",
+              "line": 94
+            },
+            {
+              "in": "_safe_put",
+              "kind": "except",
+              "line": 105
+            },
+            {
+              "in": "_await_quietly",
+              "kind": "except",
+              "line": 601
+            },
+            {
+              "in": "_await_quietly",
+              "kind": "except",
+              "line": 603
+            },
+            {
+              "in": "_cleanup",
+              "kind": "except",
+              "line": 628
+            },
+            {
+              "in": "_run_module_task",
+              "kind": "except",
+              "line": 954
+            },
+            {
+              "in": "_run_module_task",
+              "kind": "except",
+              "line": 977
+            },
+            {
+              "in": "_run_module_task",
+              "kind": "except",
+              "line": 993
+            },
+            {
+              "in": "_run_module_task",
+              "kind": "raise",
+              "line": 1006
+            },
+            {
+              "in": "_run_module_task",
+              "kind": "except",
+              "line": 1007
+            },
+            {
+              "in": "start_run",
+              "kind": "raise",
+              "line": 1098
+            },
+            {
+              "in": "start_run",
+              "kind": "raise",
+              "line": 1120
+            },
+            {
+              "in": "start_run",
+              "kind": "raise",
+              "line": 1144
+            },
+            {
+              "in": "run_websocket",
+              "kind": "except",
+              "line": 1262
+            },
+            {
+              "in": "run_websocket",
+              "kind": "except",
+              "line": 1277
+            },
+            {
+              "in": "run_websocket",
+              "kind": "except",
+              "line": 1281
+            },
+            {
+              "in": "run_websocket",
+              "kind": "except",
+              "line": 1302
+            },
+            {
+              "in": "run_websocket",
+              "kind": "except",
+              "line": 1320
+            }
+          ],
           "hash": "ce60a4e6648295fefdb7930c7cf044e057b9ebd27ca960784920fb1d90583de8",
+          "importOrder": [
+            "xrpl_lab/modules.py",
+            "xrpl_lab/reporting.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/api/schemas.py",
+            "xrpl_lab/errors.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/transport/xrpl_testnet.py",
+            "xrpl_lab/state.py"
+          ],
           "importsFiles": [
             "xrpl_lab/api/schemas.py",
             "xrpl_lab/errors.py",
@@ -3136,6 +4230,43 @@
             "write_audit_pack",
             "write_audit_report_csv",
             "write_audit_report_md"
+          ],
+          "failurePaths": [
+            {
+              "in": "parse_txids_file",
+              "kind": "except",
+              "line": 134
+            },
+            {
+              "in": "parse_txids_file",
+              "kind": "raise",
+              "line": 135
+            },
+            {
+              "in": "parse_txids_file",
+              "kind": "raise",
+              "line": 142
+            },
+            {
+              "in": "parse_expectations",
+              "kind": "except",
+              "line": 161
+            },
+            {
+              "in": "parse_expectations",
+              "kind": "raise",
+              "line": 162
+            },
+            {
+              "in": "parse_expectations",
+              "kind": "except",
+              "line": 165
+            },
+            {
+              "in": "parse_expectations",
+              "kind": "raise",
+              "line": 166
+            }
           ],
           "hash": "f275031da816e69652db74065149594019796781974516a0ab65cc1af48ca478",
           "importsFiles": [
@@ -3361,7 +4492,169 @@
             "wallet_create",
             "wallet_show"
           ],
+          "failurePaths": [
+            {
+              "in": "_try_import_camp_wallet",
+              "kind": "except",
+              "line": 101
+            },
+            {
+              "in": "_try_import_camp_wallet",
+              "kind": "except",
+              "line": 110
+            },
+            {
+              "in": "start",
+              "kind": "except",
+              "line": 163
+            },
+            {
+              "in": "start",
+              "kind": "except",
+              "line": 247
+            },
+            {
+              "in": "proof_verify",
+              "kind": "except",
+              "line": 677
+            },
+            {
+              "in": "cert_verify",
+              "kind": "except",
+              "line": 824
+            },
+            {
+              "in": "support_bundle",
+              "kind": "except",
+              "line": 930
+            },
+            {
+              "in": "audit",
+              "kind": "raise",
+              "line": 1152
+            },
+            {
+              "in": "audit_verify",
+              "kind": "except",
+              "line": 1175
+            },
+            {
+              "in": "last_run",
+              "kind": "except",
+              "line": 1242
+            },
+            {
+              "in": "cohort_status",
+              "kind": "except",
+              "line": 1467
+            },
+            {
+              "in": "reset",
+              "kind": "except",
+              "line": 1745
+            },
+            {
+              "in": "reset",
+              "kind": "except",
+              "line": 1756
+            },
+            {
+              "in": "reset",
+              "kind": "except",
+              "line": 1759
+            },
+            {
+              "in": "reset",
+              "kind": "except",
+              "line": 1799
+            },
+            {
+              "in": "wallet_create",
+              "kind": "except",
+              "line": 1895
+            },
+            {
+              "in": "wallet_create",
+              "kind": "except",
+              "line": 1914
+            },
+            {
+              "in": "fund",
+              "kind": "raise",
+              "line": 1952
+            },
+            {
+              "in": "fund",
+              "kind": "raise",
+              "line": 1970
+            },
+            {
+              "in": "fund",
+              "kind": "raise",
+              "line": 1982
+            },
+            {
+              "in": "fund",
+              "kind": "raise",
+              "line": 1993
+            },
+            {
+              "in": "send",
+              "kind": "except",
+              "line": 2008
+            },
+            {
+              "in": "send",
+              "kind": "raise",
+              "line": 2010
+            },
+            {
+              "in": "send",
+              "kind": "raise",
+              "line": 2019
+            },
+            {
+              "in": "send",
+              "kind": "raise",
+              "line": 2022
+            },
+            {
+              "in": "send",
+              "kind": "raise",
+              "line": 2025
+            },
+            {
+              "in": "send",
+              "kind": "raise",
+              "line": 2031
+            },
+            {
+              "in": "verify",
+              "kind": "raise",
+              "line": 2085
+            }
+          ],
           "hash": "a44f74c5015ffc3f0a53c09099a149b0933d1f5ce1f69bed5ec241793cdec3aa",
+          "importOrder": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/curriculum.py",
+            "xrpl_lab/actions/verify.py",
+            "xrpl_lab/errors.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/reporting.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/transport/xrpl_testnet.py",
+            "xrpl_lab/actions/wallet.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/workshop.py",
+            "xrpl_lab/doctor.py",
+            "xrpl_lab/audit.py",
+            "xrpl_lab/server.py",
+            "xrpl_lab/curriculum_manifest.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/linter.py"
+          ],
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/actions/verify.py",
@@ -4423,6 +5716,88 @@
             "public_check_icon",
             "run_doctor"
           ],
+          "failurePaths": [
+            {
+              "in": "_redact_path",
+              "kind": "except",
+              "line": 38
+            },
+            {
+              "in": "_redact_path",
+              "kind": "except",
+              "line": 42
+            },
+            {
+              "in": "_redact_path",
+              "kind": "except",
+              "line": 46
+            },
+            {
+              "in": "_check_wallet",
+              "kind": "except",
+              "line": 112
+            },
+            {
+              "in": "_check_state",
+              "kind": "except",
+              "line": 131
+            },
+            {
+              "in": "_check_state",
+              "kind": "except",
+              "line": 133
+            },
+            {
+              "in": "_check_workspace",
+              "kind": "except",
+              "line": 153
+            },
+            {
+              "in": "_check_workspace",
+              "kind": "except",
+              "line": 168
+            },
+            {
+              "in": "_check_rpc",
+              "kind": "except",
+              "line": 204
+            },
+            {
+              "in": "_check_rpc",
+              "kind": "except",
+              "line": 212
+            },
+            {
+              "in": "_check_faucet",
+              "kind": "except",
+              "line": 247
+            },
+            {
+              "in": "_check_faucet",
+              "kind": "except",
+              "line": 254
+            },
+            {
+              "in": "_check_last_module_state",
+              "kind": "except",
+              "line": 413
+            },
+            {
+              "in": "_check_last_module_state",
+              "kind": "except",
+              "line": 431
+            },
+            {
+              "in": "_check_last_module_state",
+              "kind": "except",
+              "line": 499
+            },
+            {
+              "in": "_append_doctor_log",
+              "kind": "except",
+              "line": 590
+            }
+          ],
           "hash": "9ef8d0faa1aedd95142fe364336a03b03e1927f2caa72112e20f8036604200e1",
           "importsFiles": [
             "xrpl_lab/_atomic.py",
@@ -4884,6 +6259,13 @@
           "exports": [
             "generate_feedback"
           ],
+          "failurePaths": [
+            {
+              "in": "generate_feedback",
+              "kind": "except",
+              "line": 82
+            }
+          ],
           "hash": "a2a9722d5da7e8b078e10894aa9df0e1820ed7f59e9544851fe3df057ad7c54d",
           "importsFiles": [
             "xrpl_lab/__init__.py",
@@ -5036,7 +6418,216 @@
             "handle_verify_withdrawal",
             "handle_write_report"
           ],
+          "failurePaths": [
+            {
+              "in": "_require",
+              "kind": "raise",
+              "line": 184
+            },
+            {
+              "in": "handle_submit_payment",
+              "kind": "raise",
+              "line": 242
+            },
+            {
+              "in": "handle_open_channel",
+              "kind": "except",
+              "line": 996
+            },
+            {
+              "in": "handle_open_channel",
+              "kind": "except",
+              "line": 1040
+            },
+            {
+              "in": "_canon_currency",
+              "kind": "except",
+              "line": 1240
+            },
+            {
+              "in": "_offer_leg_matches",
+              "kind": "except",
+              "line": 1261
+            },
+            {
+              "in": "_offer_leg_matches",
+              "kind": "except",
+              "line": 1268
+            },
+            {
+              "in": "_offer_leg_matches",
+              "kind": "except",
+              "line": 1276
+            },
+            {
+              "in": "_parse_optional_int",
+              "kind": "except",
+              "line": 1563
+            },
+            {
+              "in": "handle_verify_reserve_change",
+              "kind": "raise",
+              "line": 1614
+            },
+            {
+              "in": "handle_verify_position_delta",
+              "kind": "raise",
+              "line": 2373
+            },
+            {
+              "in": "handle_check_inventory",
+              "kind": "except",
+              "line": 2444
+            },
+            {
+              "in": "handle_check_inventory",
+              "kind": "except",
+              "line": 2449
+            },
+            {
+              "in": "handle_mint_nft",
+              "kind": "except",
+              "line": 2687
+            },
+            {
+              "in": "handle_mint_nft",
+              "kind": "except",
+              "line": 2693
+            },
+            {
+              "in": "handle_create_escrow",
+              "kind": "except",
+              "line": 2954
+            },
+            {
+              "in": "_wait_for_finish_after",
+              "kind": "except",
+              "line": 3046
+            },
+            {
+              "in": "handle_create_token_escrow",
+              "kind": "except",
+              "line": 3346
+            },
+            {
+              "in": "handle_create_token_escrow",
+              "kind": "except",
+              "line": 3361
+            },
+            {
+              "in": "handle_create_token_escrow_expect_fail",
+              "kind": "raise",
+              "line": 3444
+            },
+            {
+              "in": "handle_create_token_escrow_expect_fail",
+              "kind": "except",
+              "line": 3472
+            },
+            {
+              "in": "handle_create_token_escrow_expect_fail",
+              "kind": "except",
+              "line": 3480
+            },
+            {
+              "in": "handle_create_signer_wallets",
+              "kind": "except",
+              "line": 3641
+            },
+            {
+              "in": "handle_set_signer_list",
+              "kind": "except",
+              "line": 3674
+            },
+            {
+              "in": "handle_set_signer_list",
+              "kind": "except",
+              "line": 3694
+            },
+            {
+              "in": "handle_send_multisig_payment",
+              "kind": "except",
+              "line": 3798
+            },
+            {
+              "in": "handle_send_multisig_payment_expect_fail",
+              "kind": "except",
+              "line": 3868
+            },
+            {
+              "in": "handle_create_mpt_issuance",
+              "kind": "except",
+              "line": 5279
+            },
+            {
+              "in": "handle_create_mpt_issuance",
+              "kind": "except",
+              "line": 5285
+            },
+            {
+              "in": "handle_assign_player_tag",
+              "kind": "except",
+              "line": 5594
+            },
+            {
+              "in": "handle_send_tagged_deposit",
+              "kind": "except",
+              "line": 5629
+            },
+            {
+              "in": "handle_send_tagged_deposit",
+              "kind": "except",
+              "line": 5636
+            },
+            {
+              "in": "handle_credit_player_deposit",
+              "kind": "except",
+              "line": 5789
+            },
+            {
+              "in": "handle_verify_nft_trade",
+              "kind": "except",
+              "line": 6338
+            },
+            {
+              "in": "handle_verify_nft_trade",
+              "kind": "except",
+              "line": 6372
+            }
+          ],
           "hash": "4902a8ac1cb92b08c66898e186c66e4d6469683c34e31c06d210da1f363aec4d",
+          "importOrder": [
+            "xrpl_lab/actions/amm.py",
+            "xrpl_lab/actions/checks.py",
+            "xrpl_lab/actions/credentials.py",
+            "xrpl_lab/actions/custodial.py",
+            "xrpl_lab/actions/deposit_gate.py",
+            "xrpl_lab/actions/dex.py",
+            "xrpl_lab/actions/did.py",
+            "xrpl_lab/actions/escrow.py",
+            "xrpl_lab/actions/freeze.py",
+            "xrpl_lab/actions/mpt.py",
+            "xrpl_lab/actions/multisig.py",
+            "xrpl_lab/actions/nft.py",
+            "xrpl_lab/actions/partial_payment.py",
+            "xrpl_lab/actions/paychan.py",
+            "xrpl_lab/actions/permissioned_domains.py",
+            "xrpl_lab/actions/reserves.py",
+            "xrpl_lab/actions/send.py",
+            "xrpl_lab/actions/strategy.py",
+            "xrpl_lab/actions/token_escrow.py",
+            "xrpl_lab/actions/trust_line.py",
+            "xrpl_lab/actions/verify.py",
+            "xrpl_lab/actions/wallet.py",
+            "xrpl_lab/audit.py",
+            "xrpl_lab/errors.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/registry.py",
+            "xrpl_lab/runtime.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/doctor.py"
+          ],
           "importsFiles": [
             "xrpl_lab/actions/amm.py",
             "xrpl_lab/actions/checks.py",
@@ -5080,6 +6671,33 @@
             "lint_module_file",
             "lint_module_text",
             "load_kb_capability_slugs"
+          ],
+          "failurePaths": [
+            {
+              "in": "load_kb_capability_slugs",
+              "kind": "except",
+              "line": 85
+            },
+            {
+              "in": "lint_module_text",
+              "kind": "except",
+              "line": 166
+            },
+            {
+              "in": "lint_module_text",
+              "kind": "except",
+              "line": 221
+            },
+            {
+              "in": "lint_module_file",
+              "kind": "except",
+              "line": 372
+            },
+            {
+              "in": "lint_all_modules",
+              "kind": "except",
+              "line": 391
+            }
           ],
           "hash": "e907632349ba35e65223ae9e1ceb9d608bf10a1aafb918c38b0a8b15c4a28d16",
           "importsFiles": [
@@ -5334,6 +6952,23 @@
             "parse_module",
             "render_module_skeleton"
           ],
+          "failurePaths": [
+            {
+              "in": "parse_module",
+              "kind": "raise",
+              "line": 112
+            },
+            {
+              "in": "parse_module",
+              "kind": "raise",
+              "line": 120
+            },
+            {
+              "in": "load_all_modules",
+              "kind": "except",
+              "line": 318
+            }
+          ],
           "hash": "c477f1c4919328fd083d432cebb184bb40f2d0cff7f622887ad2ffa46779d7eb",
           "path": "xrpl_lab/modules.py"
         },
@@ -5344,6 +6979,58 @@
             "is_registered",
             "register",
             "resolve"
+          ],
+          "failurePaths": [
+            {
+              "in": "validate",
+              "kind": "raise",
+              "line": 69
+            },
+            {
+              "in": "validate",
+              "kind": "raise",
+              "line": 79
+            },
+            {
+              "in": "validate",
+              "kind": "raise",
+              "line": 100
+            },
+            {
+              "in": "validate",
+              "kind": "except",
+              "line": 112
+            },
+            {
+              "in": "validate",
+              "kind": "raise",
+              "line": 113
+            },
+            {
+              "in": "validate",
+              "kind": "except",
+              "line": 114
+            },
+            {
+              "in": "validate",
+              "kind": "raise",
+              "line": 115
+            },
+            {
+              "in": "register",
+              "kind": "raise",
+              "line": 155
+            },
+            {
+              "in": "resolve",
+              "kind": "except",
+              "line": 163
+            },
+            {
+              "in": "resolve",
+              "kind": "raise",
+              "line": 164
+            }
           ],
           "hash": "17977c4aef7d83cc4aab57b20f5d107c7b9be6164bb4b64eb454bb4d82b56dc3",
           "importsFiles": [
@@ -5371,6 +7058,48 @@
             "write_module_report",
             "write_proof_pack",
             "write_session_export"
+          ],
+          "failurePaths": [
+            {
+              "in": "sanitize_endpoint",
+              "kind": "except",
+              "line": 77
+            },
+            {
+              "in": "write_module_report",
+              "kind": "raise",
+              "line": 344
+            },
+            {
+              "in": "_reject_duplicate_keys",
+              "kind": "raise",
+              "line": 380
+            },
+            {
+              "in": "load_artifact_json",
+              "kind": "raise",
+              "line": 403
+            },
+            {
+              "in": "_default_transport_factory",
+              "kind": "raise",
+              "line": 729
+            },
+            {
+              "in": "_collect_learner_artifacts",
+              "kind": "except",
+              "line": 1261
+            },
+            {
+              "in": "write_session_export",
+              "kind": "raise",
+              "line": 1338
+            },
+            {
+              "in": "write_session_export",
+              "kind": "raise",
+              "line": 1342
+            }
           ],
           "hash": "3453cc410851f688814b0041f5ce65158e14266ad888d1b875477853681bd2bd",
           "importsFiles": [
@@ -5749,6 +7478,38 @@
           "exports": [
             "run_module"
           ],
+          "failurePaths": [
+            {
+              "in": "_execute_action",
+              "kind": "except",
+              "line": 126
+            },
+            {
+              "in": "_execute_action",
+              "kind": "except",
+              "line": 145
+            },
+            {
+              "in": "run_module",
+              "kind": "except",
+              "line": 310
+            },
+            {
+              "in": "run_module",
+              "kind": "except",
+              "line": 375
+            },
+            {
+              "in": "run_module",
+              "kind": "except",
+              "line": 469
+            },
+            {
+              "in": "run_module",
+              "kind": "except",
+              "line": 538
+            }
+          ],
           "hash": "fbd7203efbf747b4776ce4d454d24e55e7b32e6aa698822202fcc46fbce024fc",
           "importsFiles": [
             "xrpl_lab/actions/wallet.py",
@@ -6029,6 +7790,33 @@
           "exports": [
             "ensure_funded",
             "ensure_wallet"
+          ],
+          "failurePaths": [
+            {
+              "in": "__reduce__",
+              "kind": "raise",
+              "line": 64
+            },
+            {
+              "in": "ensure_funded",
+              "kind": "except",
+              "line": 192
+            },
+            {
+              "in": "ensure_funded",
+              "kind": "except",
+              "line": 205
+            },
+            {
+              "in": "ensure_funded",
+              "kind": "raise",
+              "line": 224
+            },
+            {
+              "in": "ensure_funded",
+              "kind": "raise",
+              "line": 248
+            }
           ],
           "hash": "91d824072117d89b780bf1e518f6f6013f74ddda0b3e07119ca381d812f0ee1a",
           "importsFiles": [
@@ -6330,6 +8118,73 @@
             "reset_state",
             "save_state",
             "state_path"
+          ],
+          "failurePaths": [
+            {
+              "in": "_try_lock",
+              "kind": "except",
+              "line": 92
+            },
+            {
+              "in": "_try_lock",
+              "kind": "except",
+              "line": 105
+            },
+            {
+              "in": "_state_lock",
+              "kind": "raise",
+              "line": 157
+            },
+            {
+              "in": "_load_state_for_merge",
+              "kind": "except",
+              "line": 183
+            },
+            {
+              "in": "load_state_from_path",
+              "kind": "raise",
+              "line": 410
+            },
+            {
+              "in": "load_state_from_path",
+              "kind": "except",
+              "line": 414
+            },
+            {
+              "in": "load_state_from_path",
+              "kind": "raise",
+              "line": 415
+            },
+            {
+              "in": "load_state_from_path",
+              "kind": "except",
+              "line": 418
+            },
+            {
+              "in": "load_state_from_path",
+              "kind": "raise",
+              "line": 419
+            },
+            {
+              "in": "load_state",
+              "kind": "except",
+              "line": 445
+            },
+            {
+              "in": "load_state",
+              "kind": "except",
+              "line": 468
+            },
+            {
+              "in": "reset_module",
+              "kind": "raise",
+              "line": 628
+            },
+            {
+              "in": "reset_module",
+              "kind": "except",
+              "line": 659
+            }
           ],
           "hash": "3b5d73ec9322c594de45152d36e9e759b50453f4ef7cba052d2c990deac81f01",
           "importsFiles": [
@@ -6669,6 +8524,203 @@
           "path": "xrpl_lab/transport/base.py"
         },
         {
+          "failurePaths": [
+            {
+              "in": "_validate_xrp_amount",
+              "kind": "except",
+              "line": 109
+            },
+            {
+              "in": "_validate_xrp_amount",
+              "kind": "raise",
+              "line": 110
+            },
+            {
+              "in": "_validate_xrp_amount",
+              "kind": "raise",
+              "line": 112
+            },
+            {
+              "in": "_validate_xrp_amount",
+              "kind": "raise",
+              "line": 116
+            },
+            {
+              "in": "_validate_xrp_amount",
+              "kind": "raise",
+              "line": 122
+            },
+            {
+              "in": "_validate_positive_issued_amount",
+              "kind": "raise",
+              "line": 139
+            },
+            {
+              "in": "_validate_issued_amount",
+              "kind": "except",
+              "line": 156
+            },
+            {
+              "in": "_validate_issued_amount",
+              "kind": "raise",
+              "line": 157
+            },
+            {
+              "in": "_validate_issued_amount",
+              "kind": "raise",
+              "line": 159
+            },
+            {
+              "in": "_validate_issued_amount",
+              "kind": "raise",
+              "line": 161
+            },
+            {
+              "in": "submit_payment",
+              "kind": "except",
+              "line": 603
+            },
+            {
+              "in": "submit_issued_payment",
+              "kind": "except",
+              "line": 951
+            },
+            {
+              "in": "submit_issued_payment",
+              "kind": "except",
+              "line": 1001
+            },
+            {
+              "in": "submit_issued_payment",
+              "kind": "except",
+              "line": 1012
+            },
+            {
+              "in": "submit_partial_payment",
+              "kind": "except",
+              "line": 1097
+            },
+            {
+              "in": "submit_partial_payment",
+              "kind": "except",
+              "line": 1140
+            },
+            {
+              "in": "submit_partial_payment",
+              "kind": "except",
+              "line": 1149
+            },
+            {
+              "in": "submit_offer_create",
+              "kind": "except",
+              "line": 1261
+            },
+            {
+              "in": "submit_amm_create",
+              "kind": "except",
+              "line": 1502
+            },
+            {
+              "in": "submit_amm_deposit",
+              "kind": "except",
+              "line": 1658
+            },
+            {
+              "in": "submit_amm_withdraw",
+              "kind": "except",
+              "line": 1790
+            },
+            {
+              "in": "submit_nft_create_offer",
+              "kind": "except",
+              "line": 2064
+            },
+            {
+              "in": "submit_clawback",
+              "kind": "except",
+              "line": 2379
+            },
+            {
+              "in": "submit_clawback",
+              "kind": "except",
+              "line": 2433
+            },
+            {
+              "in": "submit_escrow_create",
+              "kind": "except",
+              "line": 2554
+            },
+            {
+              "in": "submit_token_escrow_create",
+              "kind": "except",
+              "line": 2979
+            },
+            {
+              "in": "_credit_iou",
+              "kind": "except",
+              "line": 3032
+            },
+            {
+              "in": "submit_escrow_finish",
+              "kind": "except",
+              "line": 3134
+            },
+            {
+              "in": "submit_escrow_cancel",
+              "kind": "except",
+              "line": 3187
+            },
+            {
+              "in": "submit_check_create",
+              "kind": "except",
+              "line": 3221
+            },
+            {
+              "in": "submit_check_cash",
+              "kind": "except",
+              "line": 3315
+            },
+            {
+              "in": "submit_permissioned_offer_create",
+              "kind": "except",
+              "line": 3811
+            },
+            {
+              "in": "submit_mpt_payment",
+              "kind": "except",
+              "line": 3959
+            },
+            {
+              "in": "submit_payment_channel_create",
+              "kind": "except",
+              "line": 4017
+            },
+            {
+              "in": "submit_payment_channel_fund",
+              "kind": "except",
+              "line": 4067
+            },
+            {
+              "in": "verify_payment_channel_claim",
+              "kind": "except",
+              "line": 4111
+            },
+            {
+              "in": "submit_payment_channel_claim",
+              "kind": "except",
+              "line": 4158
+            },
+            {
+              "in": "submit_payment_channel_claim",
+              "kind": "except",
+              "line": 4176
+            },
+            {
+              "in": "submit_multisig_payment",
+              "kind": "except",
+              "line": 4412
+            }
+          ],
           "hash": "cceea7a6e8e4b48bf8650b9ef8ed42f8def2bb62e08a92d18b21a4de1dde633c",
           "importsFiles": [
             "xrpl_lab/transport/base.py"
@@ -6681,7 +8733,448 @@
             "get_faucet_url",
             "get_rpc_url"
           ],
+          "failurePaths": [
+            {
+              "in": "classify_network",
+              "kind": "except",
+              "line": 261
+            },
+            {
+              "in": "_decode_memos",
+              "kind": "except",
+              "line": 298
+            },
+            {
+              "in": "_pin_sequence",
+              "kind": "except",
+              "line": 504
+            },
+            {
+              "in": "_int_or_none",
+              "kind": "except",
+              "line": 583
+            },
+            {
+              "in": "_safe_int",
+              "kind": "except",
+              "line": 598
+            },
+            {
+              "in": "_parse_nft_entry",
+              "kind": "except",
+              "line": 614
+            },
+            {
+              "in": "_verify_local_chain",
+              "kind": "except",
+              "line": 761
+            },
+            {
+              "in": "get_network_info",
+              "kind": "except",
+              "line": 814
+            },
+            {
+              "in": "fund_from_faucet",
+              "kind": "except",
+              "line": 888
+            },
+            {
+              "in": "fund_from_faucet",
+              "kind": "except",
+              "line": 941
+            },
+            {
+              "in": "fund_from_faucet",
+              "kind": "except",
+              "line": 947
+            },
+            {
+              "in": "submit_payment",
+              "kind": "except",
+              "line": 975
+            },
+            {
+              "in": "submit_payment",
+              "kind": "except",
+              "line": 1013
+            },
+            {
+              "in": "submit_trust_set",
+              "kind": "except",
+              "line": 1050
+            },
+            {
+              "in": "submit_issued_payment",
+              "kind": "except",
+              "line": 1089
+            },
+            {
+              "in": "submit_partial_payment",
+              "kind": "except",
+              "line": 1140
+            },
+            {
+              "in": "get_trust_lines",
+              "kind": "except",
+              "line": 1166
+            },
+            {
+              "in": "submit_nft_mint",
+              "kind": "except",
+              "line": 1205
+            },
+            {
+              "in": "get_account_nfts",
+              "kind": "except",
+              "line": 1231
+            },
+            {
+              "in": "get_account_nfts",
+              "kind": "except",
+              "line": 1245
+            },
+            {
+              "in": "submit_nft_burn",
+              "kind": "except",
+              "line": 1263
+            },
+            {
+              "in": "submit_nft_create_offer",
+              "kind": "except",
+              "line": 1311
+            },
+            {
+              "in": "submit_nft_create_offer",
+              "kind": "except",
+              "line": 1324
+            },
+            {
+              "in": "submit_nft_accept_offer",
+              "kind": "except",
+              "line": 1347
+            },
+            {
+              "in": "submit_nft_modify",
+              "kind": "except",
+              "line": 1371
+            },
+            {
+              "in": "get_nft_offers",
+              "kind": "except",
+              "line": 1404
+            },
+            {
+              "in": "submit_account_set_clawback",
+              "kind": "except",
+              "line": 1430
+            },
+            {
+              "in": "submit_clawback",
+              "kind": "except",
+              "line": 1463
+            },
+            {
+              "in": "_submit_tx",
+              "kind": "except",
+              "line": 1504
+            },
+            {
+              "in": "_submit_tx",
+              "kind": "except",
+              "line": 1516
+            },
+            {
+              "in": "_submit_tx",
+              "kind": "except",
+              "line": 1520
+            },
+            {
+              "in": "_submit_tx",
+              "kind": "except",
+              "line": 1542
+            },
+            {
+              "in": "submit_set_freeze",
+              "kind": "except",
+              "line": 1605
+            },
+            {
+              "in": "submit_global_freeze",
+              "kind": "except",
+              "line": 1632
+            },
+            {
+              "in": "get_freeze_status",
+              "kind": "except",
+              "line": 1673
+            },
+            {
+              "in": "submit_payment_channel_create",
+              "kind": "except",
+              "line": 1698
+            },
+            {
+              "in": "submit_payment_channel_fund",
+              "kind": "except",
+              "line": 1722
+            },
+            {
+              "in": "submit_payment_channel_claim",
+              "kind": "except",
+              "line": 1750
+            },
+            {
+              "in": "get_account_channels",
+              "kind": "except",
+              "line": 1780
+            },
+            {
+              "in": "verify_payment_channel_claim",
+              "kind": "except",
+              "line": 1800
+            },
+            {
+              "in": "submit_escrow_create",
+              "kind": "except",
+              "line": 1831
+            },
+            {
+              "in": "submit_require_dest",
+              "kind": "except",
+              "line": 1865
+            },
+            {
+              "in": "submit_deposit_auth",
+              "kind": "except",
+              "line": 1899
+            },
+            {
+              "in": "submit_deposit_preauth",
+              "kind": "except",
+              "line": 1945
+            },
+            {
+              "in": "submit_allow_trustline_locking",
+              "kind": "except",
+              "line": 1970
+            },
+            {
+              "in": "submit_token_escrow_create",
+              "kind": "except",
+              "line": 2006
+            },
+            {
+              "in": "submit_signer_list_set",
+              "kind": "except",
+              "line": 2047
+            },
+            {
+              "in": "submit_multisig_payment",
+              "kind": "except",
+              "line": 2088
+            },
+            {
+              "in": "submit_multisig_payment",
+              "kind": "except",
+              "line": 2102
+            },
+            {
+              "in": "submit_multisig_payment",
+              "kind": "except",
+              "line": 2112
+            },
+            {
+              "in": "submit_multisig_payment",
+              "kind": "except",
+              "line": 2122
+            },
+            {
+              "in": "get_signer_list",
+              "kind": "except",
+              "line": 2133
+            },
+            {
+              "in": "_escrow_create_sequences",
+              "kind": "except",
+              "line": 2191
+            },
+            {
+              "in": "get_escrows",
+              "kind": "except",
+              "line": 2200
+            },
+            {
+              "in": "submit_escrow_finish",
+              "kind": "except",
+              "line": 2248
+            },
+            {
+              "in": "submit_escrow_cancel",
+              "kind": "except",
+              "line": 2270
+            },
+            {
+              "in": "submit_check_create",
+              "kind": "except",
+              "line": 2307
+            },
+            {
+              "in": "submit_check_cash",
+              "kind": "except",
+              "line": 2346
+            },
+            {
+              "in": "submit_check_cancel",
+              "kind": "except",
+              "line": 2370
+            },
+            {
+              "in": "submit_did_set",
+              "kind": "except",
+              "line": 2387
+            },
+            {
+              "in": "get_did",
+              "kind": "except",
+              "line": 2396
+            },
+            {
+              "in": "_dec",
+              "kind": "except",
+              "line": 2405
+            },
+            {
+              "in": "submit_did_delete",
+              "kind": "except",
+              "line": 2422
+            },
+            {
+              "in": "submit_credential_create",
+              "kind": "except",
+              "line": 2456
+            },
+            {
+              "in": "submit_credential_accept",
+              "kind": "except",
+              "line": 2479
+            },
+            {
+              "in": "submit_credential_delete",
+              "kind": "except",
+              "line": 2504
+            },
+            {
+              "in": "get_credential",
+              "kind": "except",
+              "line": 2525
+            },
+            {
+              "in": "_dec",
+              "kind": "except",
+              "line": 2544
+            },
+            {
+              "in": "submit_permissioned_domain_set",
+              "kind": "except",
+              "line": 2593
+            },
+            {
+              "in": "submit_permissioned_domain_delete",
+              "kind": "except",
+              "line": 2622
+            },
+            {
+              "in": "submit_permissioned_offer_create",
+              "kind": "except",
+              "line": 2661
+            },
+            {
+              "in": "get_permissioned_domains",
+              "kind": "except",
+              "line": 2683
+            },
+            {
+              "in": "submit_mpt_issuance_create",
+              "kind": "except",
+              "line": 2728
+            },
+            {
+              "in": "submit_mpt_authorize",
+              "kind": "except",
+              "line": 2757
+            },
+            {
+              "in": "submit_mpt_payment",
+              "kind": "except",
+              "line": 2780
+            },
+            {
+              "in": "get_mpt_balance",
+              "kind": "except",
+              "line": 2789
+            },
+            {
+              "in": "get_mpt_issuances",
+              "kind": "except",
+              "line": 2803
+            },
+            {
+              "in": "_amount_obj",
+              "kind": "except",
+              "line": 2827
+            },
+            {
+              "in": "_amount_obj",
+              "kind": "raise",
+              "line": 2828
+            },
+            {
+              "in": "submit_offer_create",
+              "kind": "except",
+              "line": 2873
+            },
+            {
+              "in": "submit_offer_cancel",
+              "kind": "except",
+              "line": 2898
+            },
+            {
+              "in": "get_account_offers",
+              "kind": "except",
+              "line": 2921
+            },
+            {
+              "in": "get_account_offers",
+              "kind": "except",
+              "line": 2931
+            },
+            {
+              "in": "get_account_info",
+              "kind": "except",
+              "line": 2951
+            },
+            {
+              "in": "fetch_tx",
+              "kind": "except",
+              "line": 3018
+            },
+            {
+              "in": "fetch_tx",
+              "kind": "except",
+              "line": 3028
+            },
+            {
+              "in": "get_balance",
+              "kind": "except",
+              "line": 3042
+            }
+          ],
           "hash": "880cdb6281632becc0f28f36eee6041c0140ba386f0a0beaf5316f4b66521ee7",
+          "importOrder": [
+            "xrpl_lab/transport/base.py",
+            "xrpl_lab/doctor.py"
+          ],
           "importsFiles": [
             "xrpl_lab/doctor.py",
             "xrpl_lab/transport/base.py"
@@ -6810,6 +9303,18 @@
             "get_learner_status",
             "get_track_summaries",
             "verify_support_bundle"
+          ],
+          "failurePaths": [
+            {
+              "in": "verify_support_bundle",
+              "kind": "except",
+              "line": 434
+            },
+            {
+              "in": "diagnose_recovery",
+              "kind": "except",
+              "line": 614
+            }
           ],
           "hash": "d5a88c4112a3e1f5b8398db86a2151803d441491a53bd8ab984e3802bbb6f7ce",
           "importsFiles": [
@@ -7064,6 +9569,13 @@
       "origin": "authored",
       "outsidePlaces": [
         {
+          "reads": 50,
+          "where": [
+            "caller"
+          ],
+          "writes": 6
+        },
+        {
           "reads": 3,
           "where": [
             "caller",
@@ -7072,7 +9584,16 @@
           "writes": 0
         },
         {
-          "reads": 2,
+          "reads": 0,
+          "where": [
+            "caller",
+            "home:.xrpl-lab",
+            "home:.xrpl-lab/"
+          ],
+          "writes": 1
+        },
+        {
+          "reads": 3,
           "where": [
             "caller",
             "home:.xrpl-lab/"
@@ -7080,7 +9601,7 @@
           "writes": 0
         },
         {
-          "reads": 1,
+          "reads": 2,
           "where": [
             "cwd"
           ],
@@ -7092,10 +9613,21 @@
             "cwd:.xrpl-camp/"
           ],
           "writes": 0
+        },
+        {
+          "reads": 1,
+          "where": [
+            "cwd:presets"
+          ],
+          "writes": 0
         }
       ],
-      "outsideReads": 7,
+      "outsideReads": 60,
+      "outsideWrites": 7,
       "role": "code",
+      "testRunners": [
+        "pytest"
+      ],
       "testedBy": 115,
       "unresolvedSites": 0
     }
@@ -7105,48 +9637,168 @@
       "checksCount": 1,
       "commands": [
         {
+          "dir": "",
           "job": "lint-and-test",
-          "step": "Atlas check",
-          "text": "npx --yes @dogfood-lab/atlas@1.20.0 check"
+          "programs": [
+            "npx"
+          ],
+          "step": "Atlas check"
         },
         {
+          "dir": "",
           "job": "lint-and-test",
-          "step": "Install dependencies",
-          "text": "python -m pip install --upgrade pip\npip install -e \".[dev]\"\n"
+          "programs": [
+            "pip",
+            "python"
+          ],
+          "step": "Install dependencies"
         },
         {
+          "dir": "",
           "job": "lint-and-test",
-          "step": "Lint with ruff",
-          "text": "ruff check xrpl_lab/ tests/ > ruff.log 2>&1 || RUFF_EXIT=$?\ncat ruff.log\nexit ${RUFF_EXIT:-0}\n"
+          "programs": [
+            "1",
+            "cat",
+            "ruff"
+          ],
+          "step": "Lint with ruff"
         },
         {
+          "dir": "",
           "job": "lint-and-test",
-          "step": "Run tests",
-          "text": "pytest tests/ -v --tb=short --junitxml=pytest-report.xml"
+          "programs": [
+            "pytest"
+          ],
+          "step": "Run tests"
         },
         {
+          "dir": "",
           "job": "lint-and-test",
-          "step": "Lock file integrity (uv lock --check)",
-          "text": "python -m pip install uv\nif [ -f uv.lock ]; then\n  uv lock --check\nfi\n"
+          "programs": [
+            "python",
+            "uv"
+          ],
+          "step": "Lock file integrity (uv lock --check)"
         },
         {
+          "dir": "",
           "job": "lint-and-test",
-          "step": "Dependency audit (pip-audit)",
-          "text": "set -o pipefail\npip-audit --skip-editable --ignore-vuln PYSEC-2026-196 | tee pip-audit.log\n"
+          "programs": [
+            "pip-audit",
+            "tee"
+          ],
+          "step": "Dependency audit (pip-audit)"
         },
         {
+          "dir": "site",
           "job": "site-test",
-          "step": "Install site dependencies",
-          "text": "npm ci"
+          "programs": [
+            "npm"
+          ],
+          "step": "Install site dependencies"
         },
         {
+          "dir": "site",
           "job": "site-test",
-          "step": "Run site tests",
-          "text": "npm test"
+          "programs": [
+            "npm"
+          ],
+          "step": "Run site tests"
         }
       ],
       "elsewhere": [],
       "file": ".github/workflows/ci.yml",
+      "jobs": [
+        {
+          "basis": "declared",
+          "name": "lint-and-test",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "ranges": [
+                {
+                  "from": "3.11",
+                  "range": ">=3.11.0 <3.12.0-0"
+                },
+                {
+                  "from": "3.12",
+                  "range": ">=3.12.0 <3.13.0-0"
+                }
+              ],
+              "step": "Set up Python ${{ matrix.python-version }}",
+              "uses": "actions/setup-python",
+              "version": "${{ matrix.python-version }}"
+            },
+            {
+              "ranges": [
+                {
+                  "from": "22",
+                  "range": ">=22.0.0 <23.0.0-0"
+                }
+              ],
+              "step": "Set up Node for Atlas",
+              "uses": "actions/setup-node",
+              "version": "22"
+            }
+          ]
+        },
+        {
+          "basis": "declared",
+          "name": "codecov",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            }
+          ]
+        },
+        {
+          "basis": "declared",
+          "name": "site-test",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "ranges": [
+                {
+                  "from": "22",
+                  "range": ">=22.0.0 <23.0.0-0"
+                }
+              ],
+              "step": "1",
+              "uses": "actions/setup-node",
+              "version": "22"
+            }
+          ]
+        }
+      ],
       "landings": [],
       "mentions": [
         {
@@ -7156,7 +9808,8 @@
       ],
       "name": "CI",
       "permissions": [
-        "contents:read"
+        "contents:read",
+        "id-token:write"
       ],
       "pushes": false,
       "reach": [
@@ -7227,6 +9880,26 @@
         "releases": false
       },
       "stages": [],
+      "tests": [
+        {
+          "config": "pyproject.toml",
+          "files": 119,
+          "job": "lint-and-test",
+          "junit": true,
+          "runner": "pytest",
+          "step": "Run tests"
+        },
+        {
+          "dir": "site",
+          "files": 2,
+          "job": "site-test",
+          "runner": "vitest",
+          "step": "Run site tests",
+          "through": [
+            "npm test (site)"
+          ]
+        }
+      ],
       "triggers": [
         {
           "event": "pull_request",
@@ -7234,6 +9907,7 @@
             ".github/workflows/**",
             "README.md",
             "atlas/**",
+            "codecov.yml",
             "modules/**",
             "pyproject.toml",
             "site/**",
@@ -7249,6 +9923,7 @@
             ".github/workflows/**",
             "README.md",
             "atlas/**",
+            "codecov.yml",
             "modules/**",
             "pyproject.toml",
             "site/**",
@@ -7264,9 +9939,11 @@
       ],
       "uses": [
         "actions/checkout",
+        "actions/download-artifact",
         "actions/setup-node",
         "actions/setup-python",
-        "actions/upload-artifact"
+        "actions/upload-artifact",
+        "codecov/codecov-action"
       ],
       "usesWorkflowToken": false
     },
@@ -7274,18 +9951,74 @@
       "checksCount": 0,
       "commands": [
         {
+          "dir": "site",
           "job": "build",
-          "step": "Install site dependencies",
-          "text": "npm ci"
+          "programs": [
+            "npm"
+          ],
+          "step": "Install site dependencies"
         },
         {
+          "dir": "site",
           "job": "build",
-          "step": "Build site",
-          "text": "npm run build"
+          "programs": [
+            "npm"
+          ],
+          "step": "Build site"
         }
       ],
       "elsewhere": [],
       "file": ".github/workflows/pages.yml",
+      "jobs": [
+        {
+          "basis": "declared",
+          "name": "build",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "ranges": [
+                {
+                  "from": "22",
+                  "range": ">=22.0.0 <23.0.0-0"
+                }
+              ],
+              "step": "1",
+              "uses": "actions/setup-node",
+              "version": "22"
+            }
+          ]
+        },
+        {
+          "basis": "declared",
+          "environment": {
+            "name": "github-pages"
+          },
+          "name": "deploy",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            }
+          ]
+        }
+      ],
       "landings": [],
       "mentions": [],
       "name": "Deploy site to GitHub Pages",
@@ -7299,7 +10032,7 @@
         {
           "boundary": "site",
           "depth": 0,
-          "files": 10
+          "files": 26
         }
       ],
       "readers": [],
@@ -7360,18 +10093,56 @@
       "checksCount": 1,
       "commands": [
         {
+          "dir": "",
           "job": "publish",
-          "step": "Verify tag matches pyproject.toml version",
-          "text": "if [ -z \"${TAG_REF}\" ]; then\n  echo \"No tag ref (workflow_dispatch) — skipping version gate.\"\n  exit 0\nfi\nPY_VERSION=$(python3 -c \"import tomllib; print(tomllib.loads(open('pyproject.toml').read())['project']['version'])\")\nTAG_VERSION=\"${TAG_REF#v}\"\necho \"pyproject.toml: ${PY_VERSION} | tag: ${TAG_REF} -> ${TAG_VERSION}\"\nif [ \"${PY_VERSION}\" != \"${TAG_VERSION}\" ]; then\n  echo \"::error::Tag ${TAG_VERSION} does not match pyproject.toml version ${PY_VERSION}\"\n  exit 1\nfi\n"
+          "programs": [
+            "echo",
+            "python3"
+          ],
+          "step": "Verify tag matches pyproject.toml version"
         },
         {
+          "dir": "",
           "job": "publish",
-          "step": "Build sdist + wheel",
-          "text": "python -m pip install --upgrade build\npython -m build\n"
+          "programs": [
+            "python"
+          ],
+          "step": "Build sdist + wheel"
         }
       ],
       "elsewhere": [],
       "file": ".github/workflows/publish-pypi.yml",
+      "jobs": [
+        {
+          "basis": "declared",
+          "name": "publish",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "ranges": [
+                {
+                  "from": "3.12",
+                  "range": ">=3.12.0 <3.13.0-0"
+                }
+              ],
+              "step": "1",
+              "uses": "actions/setup-python",
+              "version": "3.12"
+            }
+          ]
+        }
+      ],
       "landings": [],
       "mentions": [
         {
@@ -7447,38 +10218,103 @@
       "checksCount": 0,
       "commands": [
         {
+          "dir": "",
           "job": "build",
-          "step": "2",
-          "text": "uv python install 3.12"
+          "programs": [
+            "uv"
+          ],
+          "step": "2"
         },
         {
+          "dir": "",
           "job": "build",
-          "step": "3",
-          "text": "uv venv"
+          "programs": [
+            "uv"
+          ],
+          "step": "3"
         },
         {
+          "dir": "",
           "job": "build",
-          "step": "Install dependencies + PyInstaller",
-          "text": "uv pip install . \"pyinstaller>=6.9.0\""
+          "programs": [
+            "uv"
+          ],
+          "step": "Install dependencies + PyInstaller"
         },
         {
+          "dir": "",
           "job": "build",
-          "step": "Set path separator",
-          "text": "echo \"sep=$([[ \"$RUNNER_OS\" == \"Windows\" ]] && echo ';' || echo ':')\" >> \"$GITHUB_OUTPUT\""
+          "programs": [
+            "echo"
+          ],
+          "step": "Set path separator"
         },
         {
+          "dir": "",
           "job": "build",
-          "step": "Build binary",
-          "text": "REF_NAME=\"${{ github.event.workflow_run.head_branch || github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}\"\nVERSION=${REF_NAME#v}\nuv run pyinstaller --onefile --name \"xrpl-lab\" --console \\\n  --collect-submodules rich \\\n  --collect-submodules pydantic \\\n  --collect-data xrpl \\\n  --add-data \"modules${{ steps.sep.outputs.sep }}modules\" \\\n  xrpl_lab/__main__.py\nOUTNAME=\"xrpl-lab-${VERSION}-${{ matrix.target }}${{ matrix.ext }}\"\nmv \"dist/xrpl-lab${{ matrix.ext }}\" \"dist/${OUTNAME}\"\necho \"ASSET_NAME=${OUTNAME}\" >> \"$GITHUB_ENV\"\n"
+          "programs": [
+            "echo",
+            "mv",
+            "uv"
+          ],
+          "step": "Build binary"
         },
         {
+          "dir": "",
           "job": "release",
-          "step": "Generate checksums",
-          "text": "REF_NAME=\"${{ github.event.workflow_run.head_branch || github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}\"\nVERSION=${REF_NAME#v}\ncd artifacts\nsha256sum * > \"checksums-${VERSION}.txt\"\ncat \"checksums-${VERSION}.txt\"\n"
+          "programs": [
+            "cat",
+            "cd",
+            "sha256sum"
+          ],
+          "step": "Generate checksums"
         }
       ],
       "elsewhere": [],
       "file": ".github/workflows/release-binaries.yml",
+      "jobs": [
+        {
+          "basis": "declared",
+          "name": "build",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            },
+            {
+              "labels": [
+                "windows-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "os": "win32"
+              }
+            }
+          ]
+        },
+        {
+          "basis": "declared",
+          "name": "release",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            }
+          ]
+        }
+      ],
       "landings": [],
       "mentions": [],
       "name": "Release Binaries",
@@ -7539,6 +10375,17 @@
           ]
         }
       ],
+      "unresolvedChecks": [
+        {
+          "job": "build",
+          "manifest": "pyproject.toml",
+          "requires": ">=3.11",
+          "rule": "D1-python",
+          "step": "Install dependencies + PyInstaller",
+          "tool": "uv pip",
+          "why": "no setup-python step before it"
+        }
+      ],
       "uses": [
         "actions/checkout",
         "actions/download-artifact",
@@ -7552,48 +10399,124 @@
       "checksCount": 0,
       "commands": [
         {
+          "dir": "",
           "job": "release",
-          "step": "Install npm >=11.5 in a sandbox for OIDC trusted-publishing auth",
-          "text": "# Node 22 ships npm 10.9, which signs Sigstore provenance but cannot\n# negotiate the OIDC auth path for trusted publishing (the PUT returns\n# a misleading 404 \"not in this registry\"). An in-place\n# `npm install -g npm@latest` races on the bundled npm's arborist\n# rebuild and breaks irrecoverably; a sandbox install + PATH shadow\n# avoids the race. See memory: npm-115-required-for-oidc.\nSANDBOX=\"$HOME/.npm-cli-sandbox\"\nmkdir -p \"$SANDBOX\"\npushd \"$SANDBOX\" >/dev/null\necho '{\"name\":\"npm-cli-sandbox\",\"version\":\"0.0.0\",\"private\":true}' > package.json\nnpm install --no-save --no-audit --no-fund --silent npm@latest\npopd >/dev/null\necho \"$SANDBOX/node_modules/.bin\" >> \"$GITHUB_PATH\"\n\"$SANDBOX/node_modules/.bin/npm\" --version\n"
+          "programs": [
+            "echo",
+            "mkdir",
+            "npm",
+            "popd",
+            "pushd"
+          ],
+          "step": "Install npm >=11.5 in a sandbox for OIDC trusted-publishing auth"
         },
         {
+          "dir": "",
           "job": "release",
-          "step": "Verify tag matches package.json version",
-          "text": "PKG_VERSION=$(node -p \"require('./package.json').version\")\nTAG_VERSION=\"${GITHUB_REF_NAME#v}\"\necho \"Tag: ${GITHUB_REF_NAME} -> ${TAG_VERSION} | package.json: ${PKG_VERSION}\"\nif [ \"${PKG_VERSION}\" != \"${TAG_VERSION}\" ]; then\n  echo \"::error::Tag ${TAG_VERSION} does not match package.json version ${PKG_VERSION}\"\n  exit 1\nfi\n"
+          "programs": [
+            "echo",
+            "node"
+          ],
+          "step": "Verify tag matches package.json version"
         },
         {
+          "dir": "",
           "job": "release",
-          "step": "Verify tag matches pyproject.toml version",
-          "text": "PY_VERSION=$(python3 -c \"import tomllib; print(tomllib.loads(open('pyproject.toml').read())['project']['version'])\")\nTAG_VERSION=\"${GITHUB_REF_NAME#v}\"\necho \"pyproject.toml: ${PY_VERSION}\"\nif [ \"${PY_VERSION}\" != \"${TAG_VERSION}\" ]; then\n  echo \"::error::Tag ${TAG_VERSION} does not match pyproject.toml version ${PY_VERSION}\"\n  exit 1\nfi\n"
+          "programs": [
+            "echo",
+            "python3"
+          ],
+          "step": "Verify tag matches pyproject.toml version"
         },
         {
+          "dir": "",
           "job": "release",
-          "step": "Verify tag matches bin/xrpl-lab.js launch config",
-          "text": "# export (not a bare shell var) so the child `node` process sees it in\n# process.env — the shell-var form read undefined in node and false-failed\n# every real tag push (the local test masked it; CI semantics differ).\nexport TAG_VERSION=\"${GITHUB_REF_NAME#v}\"\nnode -e '\n  const fs = require(\"fs\");\n  const src = fs.readFileSync(\"bin/xrpl-lab.js\", \"utf8\");\n  const m = src.match(/MCPTOOLSHOP_LAUNCH_CONFIG\\s*=\\s*JSON\\.stringify\\((\\{[\\s\\S]*?\\})\\)/);\n  if (!m) { console.error(\"::error::Could not locate MCPTOOLSHOP_LAUNCH_CONFIG in bin/xrpl-lab.js\"); process.exit(1); }\n  const cfg = eval(\"(\" + m[1] + \")\");\n  const tag = process.env.TAG_VERSION;\n  console.log(\"bin/xrpl-lab.js: version=\" + cfg.version + \" tag=\" + cfg.tag + \" | tag: \" + tag);\n  let ok = true;\n  if (cfg.version !== tag) { console.error(\"::error::Tag \" + tag + \" does not match bin/xrpl-lab.js version \" + cfg.version); ok = false; }\n  if (cfg.tag !== \"v\" + tag) { console.error(\"::error::Release tag v\" + tag + \" does not match bin/xrpl-lab.js tag \" + cfg.tag); ok = false; }\n  process.exit(ok ? 0 : 1);\n'\n"
+          "programs": [
+            "node"
+          ],
+          "step": "Verify tag matches bin/xrpl-lab.js launch config"
         },
         {
+          "dir": "",
           "job": "release",
-          "step": "Install dependencies",
-          "text": "npm install --no-audit --no-fund"
+          "programs": [
+            "npm"
+          ],
+          "step": "Install dependencies"
         },
         {
+          "dir": "",
           "job": "release",
-          "step": "npm pack dry-run (verify tarball shape)",
-          "text": "npm pack --dry-run"
+          "programs": [
+            "npm"
+          ],
+          "step": "npm pack dry-run (verify tarball shape)"
         },
         {
+          "dir": "",
           "job": "release",
-          "step": "Publish to npm with provenance (OIDC trusted publisher)",
-          "text": "npm publish --provenance --access public"
+          "programs": [
+            "npm"
+          ],
+          "step": "Publish to npm with provenance (OIDC trusted publisher)"
         },
         {
+          "dir": "",
           "job": "release",
-          "step": "Create GitHub Release (idempotent)",
-          "text": "# Extract the `## <version> — ...` section from CHANGELOG.md as notes;\n# fall back to the tag name if the section is missing.\nVERSION=\"${GITHUB_REF_NAME#v}\"\nNOTES_FILE=\"$(mktemp)\"\nawk -v ver=\"${VERSION}\" '\n  $0 ~ \"^## \" ver \" \" {capture=1; next}\n  capture && /^## / {exit}\n  capture {print}\n' CHANGELOG.md > \"${NOTES_FILE}\"\n\nif [ ! -s \"${NOTES_FILE}\" ]; then\n  echo \"XRPL Lab ${GITHUB_REF_NAME}\" > \"${NOTES_FILE}\"\n  echo \"\" >> \"${NOTES_FILE}\"\n  echo \"See CHANGELOG.md for details.\" >> \"${NOTES_FILE}\"\nfi\n\n# Idempotent: skip creation if the release already exists (re-pushed\n# tag / workflow_dispatch re-run). Publishing the release fires\n# `release: published` -> publish-pypi.yml + release-binaries.yml.\nif gh release view \"${GITHUB_REF_NAME}\" >/dev/null 2>&1; then\n  echo \"Release ${GITHUB_REF_NAME} already exists; skipping create.\"\nelse\n  gh release create \"${GITHUB_REF_NAME}\" \\\n    --title \"XRPL Lab ${GITHUB_REF_NAME}\" \\\n    --notes-file \"${NOTES_FILE}\" \\\n    --verify-tag\nfi\n"
+          "programs": [
+            "1",
+            "awk",
+            "echo",
+            "gh",
+            "mktemp"
+          ],
+          "step": "Create GitHub Release (idempotent)"
         }
       ],
       "elsewhere": [],
       "file": ".github/workflows/release.yml",
+      "jobs": [
+        {
+          "basis": "declared",
+          "name": "release",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "ranges": [
+                {
+                  "from": "22",
+                  "range": ">=22.0.0 <23.0.0-0"
+                }
+              ],
+              "step": "Setup Node",
+              "uses": "actions/setup-node",
+              "version": "22"
+            },
+            {
+              "ranges": [
+                {
+                  "from": "3.11",
+                  "range": ">=3.11.0 <3.12.0-0"
+                }
+              ],
+              "step": "Setup Python for pyproject version check",
+              "uses": "actions/setup-python",
+              "version": "3.11"
+            }
+          ]
+        }
+      ],
       "landings": [],
       "mentions": [
         {
@@ -7668,23 +10591,67 @@
       "checksCount": 0,
       "commands": [
         {
+          "dir": "",
           "job": "testnet-smoke",
-          "step": "Install xrpl-lab",
-          "text": "python -m pip install --upgrade pip\npip install -e .\n"
+          "programs": [
+            "pip",
+            "python"
+          ],
+          "step": "Install xrpl-lab"
         },
         {
+          "dir": "",
           "job": "testnet-smoke",
-          "step": "Run smoke test",
-          "text": "# Tee the run to smoke.log so the WHY of a failure is captured, not\n# just a red X. The script prints only status lines and txid PREFIXES\n# — never wallet.seed — so the log is safe to surface/upload. `set -o\n# pipefail` keeps the python exit code (the tee would otherwise mask\n# a non-zero exit). On failure the on-failure step below and the\n# always-on artifact upload make smoke.log readable in the run UI.\nset -o pipefail\npython -c \"\nimport asyncio\nimport json\nfrom xrpl.wallet import Wallet\nfrom xrpl_lab.transport.xrpl_testnet import XRPLTestnetTransport\n\nasync def smoke():\n    transport = XRPLTestnetTransport()\n\n    # 1. Check network\n    info = await transport.get_network_info()\n    assert info.connected, f'RPC not connected: {info.rpc_url}'\n    print(f'RPC connected: ledger {info.ledger_index}')\n\n    # 2. Create temp wallet and fund\n    wallet = Wallet.create()\n    print(f'Temp wallet: {wallet.address}')\n\n    fund = await transport.fund_from_faucet(wallet.address)\n    assert fund.success, f'Faucet failed: {fund.message}'\n    print(f'Funded: {fund.balance} XRP')\n\n    # 3. Send self-payment\n    result = await transport.submit_payment(\n        wallet.seed, wallet.address, '10', 'XRPLLAB|SMOKE'\n    )\n    assert result.success, f'Payment failed: {result.error}'\n    print(f'Payment OK: {result.txid[:24]}...')\n\n    # 4. Verify tx\n    tx = await transport.fetch_tx(result.txid)\n    assert tx.result_code == 'tesSUCCESS', f'Verify failed: {tx.result_code}'\n    print(f'Verified: {tx.result_code}, ledger {tx.ledger_index}')\n\n    print('Smoke test passed.')\n\nasyncio.run(smoke())\n\" 2>&1 | tee smoke.log\n"
+          "programs": [
+            "1",
+            "python",
+            "tee"
+          ],
+          "step": "Run smoke test"
         },
         {
+          "dir": "",
           "job": "testnet-smoke",
-          "step": "Surface failure detail",
-          "text": "{\n  echo '### Testnet smoke failed'\n  echo ''\n  echo 'Last output from the smoke run (no secrets — status lines and txid prefixes only):'\n  echo ''\n  echo '```'\n  cat smoke.log || echo '(smoke.log not produced — the run failed before any output)'\n  echo '```'\n} >> \"$GITHUB_STEP_SUMMARY\"\n"
+          "programs": [
+            "cat",
+            "echo"
+          ],
+          "step": "Surface failure detail"
         }
       ],
       "elsewhere": [],
       "file": ".github/workflows/smoke.yml",
+      "jobs": [
+        {
+          "basis": "declared",
+          "name": "testnet-smoke",
+          "runsOn": [
+            {
+              "labels": [
+                "ubuntu-latest"
+              ],
+              "platform": {
+                "cpu": "x64",
+                "libc": "glibc",
+                "os": "linux"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "ranges": [
+                {
+                  "from": "3.12",
+                  "range": ">=3.12.0 <3.13.0-0"
+                }
+              ],
+              "step": "Set up Python 3.12",
+              "uses": "actions/setup-python",
+              "version": "3.12"
+            }
+          ]
+        }
+      ],
       "landings": [],
       "mentions": [],
       "name": "Smoke Test (Testnet)",
@@ -7692,10 +10659,22 @@
         "contents:read"
       ],
       "pushes": false,
-      "reach": [],
+      "reach": [
+        {
+          "boundary": "xrpl_lab",
+          "depth": 0,
+          "files": 11
+        }
+      ],
       "readers": [],
-      "runs": [],
-      "runsCount": 0,
+      "runs": [
+        {
+          "job": "testnet-smoke",
+          "path": "xrpl_lab/transport/xrpl_testnet.py",
+          "runKind": "executes"
+        }
+      ],
+      "runsCount": 1,
       "secrets": [],
       "sends": {
         "deploysPages": false,
@@ -7708,6 +10687,16 @@
         "releases": false
       },
       "stages": [],
+      "tests": [
+        {
+          "job": "testnet-smoke",
+          "ran": [
+            "xrpl_lab/transport/xrpl_testnet.py"
+          ],
+          "runner": null,
+          "step": "Run smoke test"
+        }
+      ],
       "triggers": [
         {
           "event": "workflow_dispatch"
@@ -7824,15 +10813,17 @@
       "to": "xrpl_lab"
     }
   ],
+  "engine": "1.24.0",
   "generatedFrom": {
-    "commit": "0b2dd2f45b8f927395521a3e85ce0bfa036d014b",
-    "tracked": 284
+    "commit": "15a48f1f10d1938ae1a5ec5b45e4bfabdf365182",
+    "tracked": 285
   },
   "landings": [
     {
       "readers": [
         {
-          "by": ".github/workflows/release.yml"
+          "by": ".github/workflows/release.yml",
+          "confidence": "config"
         }
       ],
       "target": "CHANGELOG.md",
@@ -7857,7 +10848,8 @@
     {
       "readers": [
         {
-          "by": ".github/workflows/release.yml"
+          "by": ".github/workflows/release.yml",
+          "confidence": "config"
         }
       ],
       "target": "bin/xrpl-lab.js",
@@ -8129,7 +11121,8 @@
     {
       "readers": [
         {
-          "by": ".github/workflows/release.yml"
+          "by": ".github/workflows/release.yml",
+          "confidence": "config"
         }
       ],
       "target": "package.json",
@@ -8138,21 +11131,12 @@
     {
       "readers": [
         {
-          "by": "xrpl_lab/runner.py",
-          "call": "glob",
-          "confidence": "ast"
-        }
-      ],
-      "target": "presets",
-      "writers": []
-    },
-    {
-      "readers": [
-        {
-          "by": ".github/workflows/publish-pypi.yml"
+          "by": ".github/workflows/publish-pypi.yml",
+          "confidence": "config"
         },
         {
-          "by": ".github/workflows/release.yml"
+          "by": ".github/workflows/release.yml",
+          "confidence": "config"
         },
         {
           "by": "tests/test_reswarm3_stagec_cli.py",
@@ -8261,6 +11245,12 @@
           "call": "literal",
           "confidence": "ast",
           "fromTests": true
+        },
+        {
+          "by": "tests/test_w6_dashboard_run_state.py",
+          "call": "read_text",
+          "confidence": "ast",
+          "fromTests": true
         }
       ],
       "target": "site/src/lib/api.ts",
@@ -8275,8 +11265,20 @@
           "fromTests": true
         },
         {
+          "by": "tests/test_w2_dashboard_dryrun_autostart.py",
+          "call": "read_text",
+          "confidence": "ast",
+          "fromTests": true
+        },
+        {
           "by": "tests/test_w5_dashboard_dryrun_behavior.py",
           "call": "literal",
+          "confidence": "ast",
+          "fromTests": true
+        },
+        {
+          "by": "tests/test_w5_dashboard_dryrun_behavior.py",
+          "call": "read_text",
           "confidence": "ast",
           "fromTests": true
         }
@@ -8293,14 +11295,32 @@
           "fromTests": true
         },
         {
+          "by": "tests/test_w2_dashboard_dryrun_autostart.py",
+          "call": "read_text",
+          "confidence": "ast",
+          "fromTests": true
+        },
+        {
           "by": "tests/test_w5_dashboard_dryrun_behavior.py",
           "call": "literal",
           "confidence": "ast",
           "fromTests": true
         },
         {
+          "by": "tests/test_w5_dashboard_dryrun_behavior.py",
+          "call": "read_text",
+          "confidence": "ast",
+          "fromTests": true
+        },
+        {
           "by": "tests/test_w6_dashboard_run_state.py",
           "call": "literal",
+          "confidence": "ast",
+          "fromTests": true
+        },
+        {
+          "by": "tests/test_w6_dashboard_run_state.py",
+          "call": "read_text",
           "confidence": "ast",
           "fromTests": true
         }
@@ -8313,6 +11333,12 @@
         {
           "by": "tests/test_w6_dashboard_run_state.py",
           "call": "literal",
+          "confidence": "ast",
+          "fromTests": true
+        },
+        {
+          "by": "tests/test_w6_dashboard_run_state.py",
+          "call": "read_text",
           "confidence": "ast",
           "fromTests": true
         }
@@ -8346,7 +11372,8 @@
     {
       "readers": [
         {
-          "by": ".github/workflows/ci.yml"
+          "by": ".github/workflows/ci.yml",
+          "confidence": "config"
         },
         {
           "by": "verify.sh",
