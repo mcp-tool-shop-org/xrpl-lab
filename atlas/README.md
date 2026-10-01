@@ -1,21 +1,19 @@
 # xrpl-lab: how it works
 
-Mapped at 2026-09-30 from commit 15a48f1 by Atlas 1.24.0.
+Mapped at 2026-10-01 from commit eef6677 by Atlas 1.24.0.
 
 ## What this is
 
 11 parts, mostly Python (173 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.
 
-## What changed since 2026-09-25 (0b2dd2f)
+## What changed since 2026-09-30 (15a48f1)
 
-- CI's pull request trigger now also names `codecov.yml`.
-- CI's push trigger now also names `codecov.yml`.
-- Smoke Test (Testnet) now also runs xrpl_lab/transport/xrpl_testnet.py.
-- 1 file added and 3 changed content, across 2 parts.
+- CI's pull request trigger no longer names `.github/workflows/**`, `README.md`, `atlas/**`, `codecov.yml`, `modules/**`, `pyproject.toml`, `site/**`, `site/src/content/docs/handbook/**`, `site/src/data/curriculum.json`, `tests/**` and `xrpl_lab/**`.
+- 1 file changed content, across 1 part.
 
 ## What comes in
 
-1. **CI.** On a pull request touching 11 paths; on a push touching 11 paths; or by hand. Runs tests/, site/src/lib/artifacts-panels.test.ts and site/src/lib/dashboard-ui.test.ts; checks xrpl_lab/.
+1. **CI.** On a pull request; on a push touching 11 paths; or by hand. Runs tests/, site/src/lib/artifacts-panels.test.ts and site/src/lib/dashboard-ui.test.ts; checks xrpl_lab/.
 2. **Deploy site to GitHub Pages.** On a push to main touching 2 paths; or by hand. Runs site/astro.config.mjs and site/src/.
 3. **Release Binaries.** When a release is published; when the workflow Release completes; or by hand. Builds xrpl_lab/__main__.py.
 4. **Smoke Test (Testnet).** By hand. Runs xrpl_lab/transport/xrpl_testnet.py.
