@@ -9,7 +9,7 @@
       "externals": 0,
       "files": [
         {
-          "hash": "4c69f19587535f463cadadc257dad9aacfdc6729978db0c48802ecd4e8ee0044",
+          "hash": "9b826c939e27865e1d70e3f6da2d41cd1227c06b5d4f27ba4b87f784f23f7f10",
           "path": ".github/workflows/ci.yml"
         },
         {
@@ -9902,20 +9902,7 @@
       ],
       "triggers": [
         {
-          "event": "pull_request",
-          "paths": [
-            ".github/workflows/**",
-            "README.md",
-            "atlas/**",
-            "codecov.yml",
-            "modules/**",
-            "pyproject.toml",
-            "site/**",
-            "site/src/content/docs/handbook/**",
-            "site/src/data/curriculum.json",
-            "tests/**",
-            "xrpl_lab/**"
-          ]
+          "event": "pull_request"
         },
         {
           "event": "push",
@@ -10815,7 +10802,7 @@
   ],
   "engine": "1.24.0",
   "generatedFrom": {
-    "commit": "15a48f1f10d1938ae1a5ec5b45e4bfabdf365182",
+    "commit": "eef6677a1e815f1e8210fce1875ead214a9034e9",
     "tracked": 285
   },
   "landings": [

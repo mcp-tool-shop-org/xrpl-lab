@@ -18,23 +18,11 @@ on:
       - "site/**"
       # Codecov reads its status and comment settings from this file.
       - "codecov.yml"
+  # No paths filter on pull requests, deliberately: this workflow emits the
+  # required status check, and a PR that matched no path (a docs-only change)
+  # would never report it and could never merge. Pushes to main stay
+  # paths-gated.
   pull_request:
-    paths:
-      - "xrpl_lab/**"
-      - "modules/**"
-      - "tests/**"
-      - "pyproject.toml"
-      - ".github/workflows/**"
-      - "atlas/**"
-      # Doc surfaces the drift gate (tests/test_docs_drift.py) pins — so a
-      # doc-only hand-edit that diverges from the curriculum manifest still
-      # re-runs the gate instead of merging stale.
-      - "README.md"
-      - "site/src/content/docs/handbook/**"
-      - "site/src/data/curriculum.json"
-      - "site/**"
-      # Codecov reads its status and comment settings from this file.
-      - "codecov.yml"
   workflow_dispatch:
 
 concurrency:
