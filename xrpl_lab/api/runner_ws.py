@@ -673,7 +673,7 @@ def _schedule_session_cleanup(run_id: str, delay: float = _CLEANUP_GRACE_SECONDS
 #
 # Two passes:
 #   1. QUOTED paths first — Python exception messages routinely quote the
-#      path (``FileNotFoundError: [Errno 2] ... 'C:\\Users\\mike\\x.json'``,
+#      path (``FileNotFoundError: [Errno 2] ... 'C:\\Users\\<user>\\x.json'``,
 #      or a traceback's ``File "C:\\...\\runner.py", line 321``). Matching
 #      the quoted form FIRST lets us safely swallow a path containing
 #      spaces by consuming everything up to the matching closing quote.

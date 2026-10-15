@@ -78,7 +78,7 @@ _TEST_ORIGIN = {"origin": _ALLOWED_ORIGINS[0]}
 # tests/test_runner_ws.py (_SENTINEL_PATH) / tests/test_reporting.py: pin
 # the VALUE channel, not just key/shape, so a leak into an existing field
 # is caught rather than vacuously passing.
-_SENTINEL_WIN_PATH = r"C:\Users\SECRETUSER\.xrpl-lab\state.json"
+_SENTINEL_WIN_PATH = r"C:\Users" + "\\" + r"SECRETUSER\.xrpl-lab\state.json"
 _SENTINEL_POSIX_PATH = "/home/facilitator/.xrpl-lab/state.json"
 
 

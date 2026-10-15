@@ -505,7 +505,7 @@ def test_recovery_save_failure_no_path_leak_and_graceful(monkeypatch, tmp_path):
     monkeypatch.setattr("xrpl_lab.runner._execute_action", _boom)
 
     # Recovery save raises a PermissionError whose str() embeds a secret path.
-    secret_path = r"C:\Users\SECRETUSER\.xrpl-lab\state.json.tmp"
+    secret_path = r"C:\Users" + "\\" + r"SECRETUSER\.xrpl-lab\state.json.tmp"
 
     def _raise_save(_state):
         raise PermissionError(f"[WinError 5] Access is denied: {secret_path!r} -> 'x'")
@@ -551,7 +551,7 @@ def test_completion_save_failure_no_path_leak_and_still_completes(monkeypatch, t
     ws.mkdir()
     monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
 
-    secret_path = r"C:\Users\SECRETUSER\.xrpl-lab\state.json.tmp"
+    secret_path = r"C:\Users" + "\\" + r"SECRETUSER\.xrpl-lab\state.json.tmp"
 
     def _raise_save(_state):
         raise PermissionError(f"[WinError 5] Access is denied: {secret_path!r} -> 'x'")
