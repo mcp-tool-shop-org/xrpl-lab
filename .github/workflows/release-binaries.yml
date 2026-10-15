@@ -64,8 +64,11 @@ jobs:
 
       - name: Build binary
         shell: bash
+        env:
+          # Through env, never interpolated into the script: head_branch is a ref name,
+          # and a ref name may carry shell syntax.
+          REF_NAME: ${{ github.event.workflow_run.head_branch || github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}
         run: |
-          REF_NAME="${{ github.event.workflow_run.head_branch || github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}"
           VERSION=${REF_NAME#v}
           uv run pyinstaller --onefile --name "xrpl-lab" --console \
             --collect-submodules rich \
@@ -109,8 +112,9 @@ jobs:
 
       - name: Generate checksums
         shell: bash
+        env:
+          REF_NAME: ${{ github.event.workflow_run.head_branch || github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}
         run: |
-          REF_NAME="${{ github.event.workflow_run.head_branch || github.event.inputs.tag || github.event.release.tag_name || github.ref_name }}"
           VERSION=${REF_NAME#v}
           cd artifacts
           sha256sum * > "checksums-${VERSION}.txt"

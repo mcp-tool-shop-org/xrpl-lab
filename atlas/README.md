@@ -1,15 +1,14 @@
 # xrpl-lab: how it works
 
-Mapped at 2026-10-01 from commit eef6677 by Atlas 1.24.0.
+Mapped at 2026-10-15 from commit c73deb4 by Atlas 1.24.0.
 
 ## What this is
 
 11 parts, mostly Python (173 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.
 
-## What changed since 2026-09-30 (15a48f1)
+## What changed since 2026-10-01 (eef6677)
 
-- CI's pull request trigger no longer names `.github/workflows/**`, `README.md`, `atlas/**`, `codecov.yml`, `modules/**`, `pyproject.toml`, `site/**`, `site/src/content/docs/handbook/**`, `site/src/data/curriculum.json`, `tests/**` and `xrpl_lab/**`.
-- 1 file changed content, across 1 part.
+Nothing structural changed since 2026-10-01; 13 files changed content.
 
 ## What comes in
 
@@ -56,9 +55,11 @@ CI writes nothing this map can see.
 
 ## What tends to change together
 
-No two source files changed together often enough to name.
+No two source files, other than a file and its own test, changed together often enough to name.
 
-Window: 180 days; a pair counts from 3 shared commits, since 9 source files reach 10 revisions; the floor rises to 10 when 25 do.
+1 file changed together with its own test, as expected.
+
+Window: 180 days; a pair counts from 3 shared commits, since 4 source files reach 10 revisions; the floor rises to 10 when 25 do.
 
 ## What no test touches
 

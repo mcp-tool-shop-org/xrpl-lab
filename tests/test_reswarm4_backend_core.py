@@ -404,7 +404,7 @@ class TestFae597821StepFailureRedaction:
         ws.mkdir()
         monkeypatch.setattr("xrpl_lab.state.DEFAULT_WORKSPACE_DIR", ws)
 
-        secret_path = r"C:\Users\SECRETUSER\.xrpl-lab\state.json.55512.abcd1234.tmp"
+        secret_path = r"C:\Users" + "\\" + r"SECRETUSER\.xrpl-lab\state.json.55512.abcd1234.tmp"
 
         async def _boom(*args, **kwargs):
             raise FileExistsError(f"[Errno 17] File exists: {secret_path!r}")
