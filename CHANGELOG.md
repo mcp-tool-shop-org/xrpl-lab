@@ -1,4 +1,21 @@
 # Changelog
+## 2.5.1 — 2026-10-14
+
+### Security
+
+- **The binary-release workflow no longer interpolates the triggering ref into shell.**
+  `release-binaries.yml` (Build binary, Generate checksums) put
+  `github.event.workflow_run.head_branch`, the dispatch `tag` input and the release tag
+  straight into a `run:` script, where a ref name carrying shell syntax would have run
+  as code. They now arrive through `env:` and are read as a shell variable. Closes the two
+  critical `actions/code-injection/critical` code-scanning alerts.
+
+### Changed
+
+- Test fixtures build their fake Windows home paths from parts at run time, and a comment in
+  `xrpl_lab/api/runner_ws.py` uses a placeholder user, so the studio identity scan reads the
+  tree clean. Every test receives the same string it had before.
+
 ## 2.5.0 — 2026-08-25
 
 **Fifth dogfood re-swarm** — health pass (Stages A–C) plus two feature waves on

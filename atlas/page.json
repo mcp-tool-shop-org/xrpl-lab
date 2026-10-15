@@ -43,37 +43,31 @@
   "changes": {
     "fileCounts": {
       "added": 0,
-      "changed": 1,
+      "changed": 13,
       "moved": 0,
-      "parts": 1,
+      "parts": 6,
       "removed": 0
     },
     "items": [
       {
-        "kind": "door",
-        "sentence": "CI's pull request trigger no longer names `.github/workflows/**`, `README.md`, `atlas/**`, `codecov.yml`, `modules/**`, `pyproject.toml`, `site/**`, `site/src/content/docs/handbook/**`, `site/src/data/curriculum.json`, `tests/**` and `xrpl_lab/**`.",
-        "subjects": [
-          ".github/workflows/ci.yml"
-        ]
-      },
-      {
         "kind": "counts",
-        "sentence": "1 file changed content, across 1 part.",
+        "sentence": "Nothing structural changed since 2026-10-01; 13 files changed content.",
         "subjects": []
       }
     ],
     "since": {
-      "commit": "15a48f1f10d1938ae1a5ec5b45e4bfabdf365182",
-      "generatedAt": "2026-09-30T20:14:49.769Z"
+      "commit": "eef6677a1e815f1e8210fce1875ead214a9034e9",
+      "generatedAt": "2026-10-01T02:14:54.618Z"
     },
-    "unchanged": false
+    "unchanged": true
   },
   "changesTogether": [],
   "changesTogetherNote": [
-    "Window: 180 days; a pair counts from 3 shared commits, since 9 source files reach 10 revisions; the floor rises to 10 when 25 do."
+    "1 file changed together with its own test, as expected.",
+    "Window: 180 days; a pair counts from 3 shared commits, since 4 source files reach 10 revisions; the floor rises to 10 when 25 do."
   ],
-  "changesTogetherWithTests": 0,
-  "commit": "eef6677a1e815f1e8210fce1875ead214a9034e9",
+  "changesTogetherWithTests": 1,
+  "commit": "c73deb4e8314a62d57c2a5a9f211c6f14471a0f8",
   "defaultBranch": "main",
   "derived": "11 parts, mostly Python (173 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
   "doors": [
@@ -337,7 +331,7 @@
   ],
   "engine": "1.24.0",
   "generated": [],
-  "generatedAt": "2026-10-01T02:14:54.618Z",
+  "generatedAt": "2026-10-15T00:28:11.589Z",
   "limits": [
     "1 import could not be resolved: `tests/test_product_smoke.py` imports a path built at run time.",
     "3 writes and 7 reads use paths built at run time and are not named here.",
