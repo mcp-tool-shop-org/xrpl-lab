@@ -249,6 +249,8 @@ transaction IDs, and explorer links. Includes a SHA-256 integrity hash. No secre
 
 **Dashboard surface (when `xrpl-lab serve` is running):**
 - WebSocket runner endpoint enforces an Origin allow-list (closes non-allow-listed connections with code 4003)
+- HTTP requests that change state (POST, PUT, PATCH, DELETE) from a non-allow-listed Origin are refused with `403 ORIGIN_REJECTED`, so a page in another tab can't start a run; requests with no Origin (CLI, curl) still work
+- Requests whose `Host` isn't loopback or the address `serve` bound to are refused with `400 HOST_REJECTED`, which closes DNS rebinding (off for a `0.0.0.0` bind)
 - All error frames emit a structured envelope (`code`, `message`, `hint`, `severity`, `icon_hint`) — no path leakage, no internal-state leakage
 - Bounded per-connection message queue with documented back-pressure behavior
 
