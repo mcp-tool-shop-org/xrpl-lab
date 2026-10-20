@@ -58,7 +58,7 @@ you the category:
 | Prefix | Meaning |
 |--------|---------|
 | `tes`  | Success |
-| `tec`  | Claimed — tx applied but failed (fee charged on mainnet) |
+| `tec`  | Claimed — tx applied but failed (on the ledger; the fee was charged) |
 | `tef`  | Failed — tx not applied |
 | `tel`  | Local — client-side rejection |
 | `tem`  | Malformed — invalid tx format |

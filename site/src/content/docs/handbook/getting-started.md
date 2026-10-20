@@ -66,10 +66,10 @@ The `doctor` command checks your wallet, state file, workspace, RPC endpoint, an
 Modules are organized into ten tracks with explicit prerequisites (the order below matches `xrpl-lab list`):
 
 - **foundations** — wallet, payments, trust lines, error handling
-- **nfts** — NFT game assets: minting, marketplace settlement, dynamic NFTs (XLS-20)
-- **tokens** — Multi-Purpose Token (MPT) game-currency issuance & clawback (XLS-33)
-- **payments** — escrow & time-locked value
-- **identity** — Decentralized Identifiers (DID, XLS-40)
+- **nfts** — NFT game assets: minting, marketplace settlement (XLS-20), dynamic NFTs (XLS-46)
+- **tokens** — MPT issuance & distribution (XLS-33), token freeze, clawback (XLS-39)
+- **payments** — time-locked escrow, checks, payment channels, partial payments, destination tags
+- **identity** — DID (XLS-40), credentials (XLS-70), permissioned DEX (XLS-80/81), deposit auth
 - **dex** — offers, order books, market making, inventory management
 - **reserves** — account reserves, owner count, cleanup
 - **audit** — batch verification, audit reports

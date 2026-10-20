@@ -252,7 +252,8 @@ def start(dry_run: bool):
         from .runner import run_module
 
         transport = _get_transport(dry_run)
-        asyncio.run(run_module(next_module, transport, dry_run=dry_run))
+        ok = asyncio.run(run_module(next_module, transport, dry_run=dry_run))
+        _exit_if_unverified(next_module.id, ok, console)
 
 
 @main.command("list")
@@ -373,7 +374,32 @@ def run(module_id: str, dry_run: bool, force: bool):
 
     from .runner import run_module
 
-    asyncio.run(run_module(modules[module_id], transport, dry_run=dry_run, force=force))
+    ok = asyncio.run(
+        run_module(modules[module_id], transport, dry_run=dry_run, force=force)
+    )
+    _exit_if_unverified(module_id, ok, console)
+
+
+def _exit_if_unverified(module_id: str, ok: bool, console: Console) -> None:
+    """Exit 3 (the PARTIAL_ code) when a run completed with failed steps.
+
+    The re-swarm-3 ruling keeps such a module completed and records it
+    ``verified: false``; it says nothing about the exit code, which was 0.
+    Live-fire run 2 (2.6.0) exited 0 on a run that created no AMM, so a
+    script couldn't tell. A run that stopped early (``ok`` False) keeps its
+    existing exit.
+    """
+    if not ok:
+        return
+    record = next(
+        (m for m in load_state().completed_modules if m.module_id == module_id),
+        None,
+    )
+    if record is not None and not record.verified:
+        console.print(
+            f"[yellow]'{module_id}' completed with failed steps; exiting with code 3.[/]"
+        )
+        sys.exit(3)
 
 
 @main.command()
@@ -556,9 +582,11 @@ def doctor():
     _run_doctor_and_display()
 
 
-@main.command("self-check")
+@main.command("self-check", hidden=True)
 def self_check():
-    """Alias for 'doctor' — ecosystem-consistent diagnostic."""
+    """Alias for 'doctor' — ecosystem-consistent diagnostic (deprecated)."""
+    # stderr, NOT warnings.warn — pyproject escalates DeprecationWarning to error.
+    click.echo("`self-check` is deprecated, use `doctor`.", err=True)
     _run_doctor_and_display()
 
 
@@ -593,9 +621,10 @@ def proof():
     """Proof pack commands: generate and verify."""
 
 
-@proof.command("generate")
+@proof.command("generate", hidden=True)
 def proof_generate():
-    """Generate a shareable proof pack (same as proof-pack)."""
+    """Generate a shareable proof pack (same as proof-pack; deprecated alias)."""
+    click.echo("`proof generate` is deprecated, use `proof-pack`.", err=True)
     state = load_state()
 
     if not state.completed_modules:
@@ -655,31 +684,20 @@ def _render_live_report(live) -> None:
     console.print()
 
 
-@proof.command("verify")
-@click.argument("file", type=click.Path(exists=True))
-@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
-@click.option(
-    "--live", "live", is_flag=True,
-    help=(
-        "Ledger-anchored verification: re-fetch every claimed txid from the "
-        "public XRPL (per the tx's own network) and confirm it exists, is "
-        "validated, and succeeded. The offline SHA-256 check ALWAYS runs; "
-        "--live adds the on-ledger trust layer on top."
-    ),
-)
-def proof_verify(file: str, json_output: bool, live: bool):
-    """Verify a proof pack's integrity (and, with --live, on-ledger truth)."""
-    from .reporting import verify_proof_pack, verify_proof_pack_live
+def _run_proof_pack_verify(
+    path: Path,
+    pack: dict,
+    json_output: bool,
+    live: bool,
+    json_extras: dict | None = None,
+) -> None:
+    """Verify + render a proof pack (shared by `proof verify` and verify-artifact).
 
-    path = Path(file)
-    try:
-        pack = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, ValueError) as e:
-        if json_output:
-            print(json.dumps({"valid": False, "message": f"Invalid JSON: {e}"}))
-        else:
-            console.print(f"[red]Invalid JSON: {e}[/]")
-        sys.exit(1)
+    Byte-identical surface to the deprecated ``proof verify`` command;
+    ``json_extras`` (if given) is folded into the --json object so the
+    unified command can label the detected artifact kind.
+    """
+    from .reporting import verify_proof_pack, verify_proof_pack_live
 
     # Hash layer ALWAYS runs (tamper-evidence). --live ADDS on-ledger truth.
     valid, message = verify_proof_pack(pack)
@@ -729,6 +747,8 @@ def proof_verify(file: str, json_output: bool, live: bool):
                 "skipped": "hash check failed — live check not attempted",
             }
             result["live_passed"] = live_ok if live_result else False
+        if json_extras:
+            result.update(json_extras)
         print(json.dumps(result, indent=2))
     else:
         if valid:
@@ -777,6 +797,35 @@ def proof_verify(file: str, json_output: bool, live: bool):
         sys.exit(1)
 
 
+@proof.command("verify")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+@click.option(
+    "--live", "live", is_flag=True,
+    help=(
+        "Ledger-anchored verification: re-fetch every claimed txid from the "
+        "public XRPL (per the tx's own network) and confirm it exists, is "
+        "validated, and succeeded. The offline SHA-256 check ALWAYS runs; "
+        "--live adds the on-ledger trust layer on top."
+    ),
+)
+def proof_verify(file: str, json_output: bool, live: bool):
+    """Verify a proof pack's integrity (and, with --live, on-ledger truth)."""
+    # stderr note, NOT warnings.warn — pyproject escalates DeprecationWarning.
+    click.echo("`proof verify` is deprecated, use `verify-artifact`.", err=True)
+    path = Path(file)
+    try:
+        pack = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError) as e:
+        if json_output:
+            print(json.dumps({"valid": False, "message": f"Invalid JSON: {e}"}))
+        else:
+            console.print(f"[red]Invalid JSON: {e}[/]")
+        sys.exit(1)
+
+    _run_proof_pack_verify(path, pack, json_output, live)
+
+
 @main.command()
 def certificate():
     """Generate a completion certificate."""
@@ -802,31 +851,20 @@ def certificate():
 # ---------------------------------------------------------------------------
 
 
-@main.command("cert-verify")
-@click.argument("file", type=click.Path(exists=True))
-@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
-@click.option(
-    "--live", "live", is_flag=True,
-    help=(
-        "Ledger-anchored verification. Certificates record no individual "
-        "txids, so --live reports honestly that there is nothing to anchor "
-        "(verify the matching proof pack with --live instead). The offline "
-        "SHA-256 check ALWAYS runs."
-    ),
-)
-def cert_verify(file: str, json_output: bool, live: bool):
-    """Verify a certificate's integrity (and, with --live, on-ledger truth)."""
-    from .reporting import verify_certificate, verify_certificate_live
+def _run_certificate_verify(
+    path: Path,
+    cert: dict,
+    json_output: bool,
+    live: bool,
+    json_extras: dict | None = None,
+) -> None:
+    """Verify + render a certificate (shared by `cert-verify` and verify-artifact).
 
-    path = Path(file)
-    try:
-        cert = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, ValueError) as e:
-        if json_output:
-            print(json.dumps({"valid": False, "message": f"Invalid JSON: {e}"}))
-        else:
-            console.print(f"[red]Invalid JSON: {e}[/]")
-        sys.exit(1)
+    Byte-identical surface to the deprecated ``cert-verify`` command;
+    ``json_extras`` (if given) is folded into the --json object so the
+    unified command can label the detected artifact kind.
+    """
+    from .reporting import verify_certificate, verify_certificate_live
 
     # Hash layer ALWAYS runs (tamper-evidence). --live ADDS on-ledger truth.
     valid, message = verify_certificate(cert)
@@ -859,6 +897,8 @@ def cert_verify(file: str, json_output: bool, live: bool):
                 "skipped": "hash check failed — live check not attempted",
             }
             result["live_passed"] = live_ok if live_result else False
+        if json_extras:
+            result.update(json_extras)
         print(json.dumps(result, indent=2))
     else:
         if valid:
@@ -897,9 +937,38 @@ def cert_verify(file: str, json_output: bool, live: bool):
         sys.exit(1)
 
 
-@main.command()
+@main.command("cert-verify")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+@click.option(
+    "--live", "live", is_flag=True,
+    help=(
+        "Ledger-anchored verification. Certificates record no individual "
+        "txids, so --live reports honestly that there is nothing to anchor "
+        "(verify the matching proof pack with --live instead). The offline "
+        "SHA-256 check ALWAYS runs."
+    ),
+)
+def cert_verify(file: str, json_output: bool, live: bool):
+    """Verify a certificate's integrity (and, with --live, on-ledger truth)."""
+    click.echo("`cert-verify` is deprecated, use `verify-artifact`.", err=True)
+    path = Path(file)
+    try:
+        cert = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError) as e:
+        if json_output:
+            print(json.dumps({"valid": False, "message": f"Invalid JSON: {e}"}))
+        else:
+            console.print(f"[red]Invalid JSON: {e}[/]")
+        sys.exit(1)
+
+    _run_certificate_verify(path, cert, json_output, live)
+
+
+@main.command(hidden=True)
 def feedback():
-    """Generate an issue-ready feedback block (markdown)."""
+    """Generate an issue-ready feedback block (markdown; deprecated alias)."""
+    click.echo("`feedback` is deprecated, use `support-bundle`.", err=True)
     from .workshop import generate_support_bundle
 
     bundle = generate_support_bundle()
@@ -911,15 +980,45 @@ def feedback():
     console.print()
 
 
+def _run_support_bundle_verify(
+    raw: str, json_output: bool, json_extras: dict | None = None,
+) -> None:
+    """Verify + render a support bundle (shared by `support-bundle --verify`
+    and verify-artifact).
+
+    ``verify_support_bundle`` takes the RAW text (it re-parses internally); the
+    caller does the guarded read. Byte-identical surface to the deprecated
+    ``--verify`` flag; ``json_extras`` labels the kind in --json output.
+    """
+    from .workshop import verify_support_bundle
+
+    valid, message = verify_support_bundle(raw)
+    if json_output:
+        result: dict = {"valid": valid, "message": message}
+        if json_extras:
+            result.update(json_extras)
+        print(json.dumps(result))
+    elif valid:
+        console.print(f"\n  [green]✅ PASS[/] — {message}\n")
+    else:
+        console.print(f"\n  [red]❌ FAIL[/] — {message}\n")
+    if not valid:
+        sys.exit(1)
+
+
 @main.command("support-bundle")
-@click.option("--json", "json_output", is_flag=True, help="JSON output instead of markdown")
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
 @click.option("--verify", "verify_path", type=click.Path(exists=True),
               help="Verify an existing support bundle file")
 def support_bundle(json_output: bool, verify_path: str | None):
     """Generate or verify a support bundle for facilitator handoff."""
-    from .workshop import generate_support_bundle, verify_support_bundle
+    from .workshop import generate_support_bundle
 
     if verify_path:
+        click.echo(
+            "`support-bundle --verify` is deprecated, use `verify-artifact`.",
+            err=True,
+        )
         # COREBCD-005: guard the read like the sibling verify commands
         # (proof verify / cert-verify). An unguarded read_text() on an
         # unreadable file (OSError) escaped as a raw traceback that leaked
@@ -934,16 +1033,7 @@ def support_bundle(json_output: bool, verify_path: str | None):
             else:
                 console.print(f"\n  [red]❌ FAIL[/] — {msg}\n")
             sys.exit(1)
-        valid, message = verify_support_bundle(raw)
-        if json_output:
-            print(json.dumps({"valid": valid, "message": message}))
-        else:
-            if valid:
-                console.print(f"\n  [green]✅ PASS[/] — {message}\n")
-            else:
-                console.print(f"\n  [red]❌ FAIL[/] — {message}\n")
-        if not valid:
-            sys.exit(1)
+        _run_support_bundle_verify(raw, json_output)
         return
 
     bundle = generate_support_bundle()
@@ -1162,22 +1252,19 @@ def audit(txids_path: str, expect_path: str | None, csv_path: str | None,
 # per-txid curriculum proofs.
 
 
-@main.command("audit-verify")
-@click.argument("file", type=click.Path(exists=True))
-@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
-def audit_verify(file: str, json_output: bool):
-    """Verify an audit pack's integrity_sha256 (tamper-evidence)."""
-    from .audit import verify_audit_pack
+def _run_audit_pack_verify(
+    path: Path,
+    pack: dict,
+    json_output: bool,
+    json_extras: dict | None = None,
+) -> None:
+    """Verify + render an audit pack (shared by `audit-verify` and verify-artifact).
 
-    path = Path(file)
-    try:
-        pack = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, ValueError) as e:
-        if json_output:
-            print(json.dumps({"valid": False, "message": f"Invalid JSON: {e}"}))
-        else:
-            console.print(f"[red]Invalid JSON: {e}[/]")
-        sys.exit(1)
+    Byte-identical surface to the deprecated ``audit-verify`` command;
+    ``json_extras`` (if given) is folded into the --json object so the
+    unified command can label the detected artifact kind.
+    """
+    from .audit import verify_audit_pack
 
     valid, message = verify_audit_pack(pack)
 
@@ -1187,7 +1274,7 @@ def audit_verify(file: str, json_output: bool):
     ).lower() in ("dry-run", "dry_run", "mixed")
 
     if json_output:
-        print(json.dumps({
+        result = {
             "valid": valid,
             "file": str(path),
             "version": pack.get("version", ""),
@@ -1197,7 +1284,10 @@ def audit_verify(file: str, json_output: bool):
             "summary": pack.get("summary", {}),
             "integrity_sha256": pack.get("integrity_sha256", ""),
             "message": message,
-        }, indent=2))
+        }
+        if json_extras:
+            result.update(json_extras)
+        print(json.dumps(result, indent=2))
     else:
         if valid:
             console.print("\n  [green]✅ PASS[/] — Audit pack integrity verified.\n")
@@ -1224,6 +1314,144 @@ def audit_verify(file: str, json_output: bool):
 
     if not valid:
         sys.exit(1)
+
+
+@main.command("audit-verify")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+def audit_verify(file: str, json_output: bool):
+    """Verify an audit pack's integrity_sha256 (tamper-evidence)."""
+    click.echo("`audit-verify` is deprecated, use `verify-artifact`.", err=True)
+    path = Path(file)
+    try:
+        pack = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError) as e:
+        if json_output:
+            print(json.dumps({"valid": False, "message": f"Invalid JSON: {e}"}))
+        else:
+            console.print(f"[red]Invalid JSON: {e}[/]")
+        sys.exit(1)
+
+    _run_audit_pack_verify(path, pack, json_output)
+
+
+# ---------------------------------------------------------------------------
+# Unified artifact verify — one surface for all four JSON artifact kinds.
+# Detection reads each kind's OWN marker (never filename / extension), then
+# dispatches to the SAME verify+render core its native command uses.
+# ---------------------------------------------------------------------------
+
+
+_ARTIFACT_KIND_LABELS = {
+    "proof_pack": "proof pack",
+    "certificate": "certificate",
+    "audit_pack": "audit pack",
+    "support_bundle": "support bundle",
+}
+
+_SUPPORT_BUNDLE_SCHEMA_PREFIX = "xrpl-lab-support-bundle"
+
+_UNRECOGNIZED_ARTIFACT_MESSAGE = (
+    "Unrecognized artifact — no XRPL Lab markers found. Recognized kinds: "
+    "proof pack (xrpl_lab_proof_pack marker), certificate "
+    "(xrpl_lab_certificate marker), audit pack (tool=\"xrpl-lab\" + verdicts), "
+    "support bundle (schema=\"xrpl-lab-support-bundle-v1\")."
+)
+
+
+def _detect_artifact_kind(artifact: object) -> str | None:
+    """Classify an XRPL Lab artifact from its own JSON markers, or None.
+
+    Marker-bearing checks (proof pack, certificate) win on ambiguity — a file
+    carrying BOTH a proof marker and a bundle schema is verified as a proof
+    pack — then the structural audit-pack check, then the support-bundle
+    schema string.
+    """
+    if not isinstance(artifact, dict):
+        return None
+    if artifact.get("xrpl_lab_proof_pack") is True:
+        return "proof_pack"
+    if artifact.get("xrpl_lab_certificate") is True:
+        return "certificate"
+    from .audit import is_audit_pack
+    if is_audit_pack(artifact):
+        return "audit_pack"
+    if str(artifact.get("schema", "")).startswith(_SUPPORT_BUNDLE_SCHEMA_PREFIX):
+        return "support_bundle"
+    return None
+
+
+@main.command("verify-artifact")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
+def verify_artifact(file: str, json_output: bool):
+    """Verify any XRPL Lab JSON artifact's embedded integrity hash.
+
+    Auto-detects the artifact kind from its own JSON markers, then runs the
+    SAME verification as that kind's (now deprecated) native command:
+
+    \b
+        proof pack       xrpl_lab_proof_pack marker
+        certificate      xrpl_lab_certificate marker
+        audit pack       tool="xrpl-lab" + verdicts (integrity_sha256)
+        support bundle   schema="xrpl-lab-support-bundle-v1"
+    """
+    path = Path(file)
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, ValueError) as e:
+        # COREBCD-005 parity with support-bundle --verify: guarded read, so an
+        # unreadable file is a structured, path-free failure — never a raw
+        # traceback leaking the absolute path.
+        msg = f"Could not read artifact ({type(e).__name__})."
+        if json_output:
+            print(json.dumps({
+                "valid": False, "artifact_kind": "unknown", "message": msg,
+            }))
+        else:
+            console.print(f"\n  [red]❌ FAIL[/] — {msg}\n")
+        sys.exit(1)
+
+    try:
+        artifact = json.loads(raw)
+    except (json.JSONDecodeError, ValueError) as e:
+        if json_output:
+            print(json.dumps({
+                "valid": False,
+                "artifact_kind": "unknown",
+                "message": f"Invalid JSON: {e}",
+            }))
+        else:
+            console.print(f"[red]Invalid JSON: {e}[/]")
+        sys.exit(1)
+
+    kind = _detect_artifact_kind(artifact)
+    if kind is None:
+        if json_output:
+            print(json.dumps({
+                "valid": False,
+                "artifact_kind": "unknown",
+                "message": _UNRECOGNIZED_ARTIFACT_MESSAGE,
+            }))
+        else:
+            console.print(f"[red]{_UNRECOGNIZED_ARTIFACT_MESSAGE}[/]")
+        sys.exit(1)
+
+    if not json_output:
+        console.print(f"\n  [bold]Artifact:[/]    {_ARTIFACT_KIND_LABELS[kind]}")
+
+    # Dispatch to the EXISTING per-kind verify cores — no hashing logic here.
+    extras = {"artifact_kind": kind}
+    if kind == "proof_pack":
+        _run_proof_pack_verify(path, artifact, json_output, live=False,
+                               json_extras=extras)
+    elif kind == "certificate":
+        _run_certificate_verify(path, artifact, json_output, live=False,
+                                json_extras=extras)
+    elif kind == "audit_pack":
+        _run_audit_pack_verify(path, artifact, json_output, json_extras=extras)
+    else:
+        _run_support_bundle_verify(raw, json_output, json_extras=extras)
 
 
 @main.command("last-run")
@@ -1410,7 +1638,10 @@ def serve(port: int, host: str, dry_run: bool):
         )
 
     app = create_app(
-        dry_run=dry_run, dashboard_dir=dashboard_dir, extra_origins=extra_origins
+        dry_run=dry_run,
+        dashboard_dir=dashboard_dir,
+        extra_origins=extra_origins,
+        bind_host=host,
     )
     uvicorn.run(app, host=host, port=port)
 

@@ -137,6 +137,38 @@ async def ensure_wallet(
 # into a generic harness over time).
 _FAUCET_RETRY_DELAYS_S: tuple[float, ...] = (2.0, 4.0, 8.0)
 
+# Live-fire run 1 (2.6.0): the faucet's reply is not proof of funding. The
+# live faucet answered with no usable balance, so three real fundings read as
+# failures; and an account the faucet has just created isn't on a VALIDATED
+# ledger yet, so a transaction sent from it at once can be held (ter) and
+# never land. After a faucet success, poll the validated balance instead:
+# 15 polls, 2 s apart, about 30 s in all.
+_FUND_SETTLE_POLLS = 15
+_FUND_SETTLE_INTERVAL_S = 2.0
+
+
+def _to_decimal(value: str | None) -> Decimal:
+    try:
+        return Decimal(value) if value else Decimal("0")
+    except (ValueError, TypeError, InvalidOperation):
+        return Decimal("0")
+
+
+async def await_validated_balance(transport: Transport, address: str) -> Decimal:
+    """Wait until *address* holds XRP on a validated ledger.
+
+    ``transport.get_balance`` reads ``account_info`` at
+    ``ledger_index="validated"``. Returns the balance, or 0 if the account
+    hasn't appeared after ``_FUND_SETTLE_POLLS`` polls.
+    """
+    for poll in range(_FUND_SETTLE_POLLS):
+        balance = _to_decimal(await transport.get_balance(address))
+        if balance > 0:
+            return balance
+        if poll < _FUND_SETTLE_POLLS - 1:
+            await asyncio.sleep(_FUND_SETTLE_INTERVAL_S)
+    return Decimal("0")
+
 # F-9f0aa836: FundResult.message is operator-influenced prose that can
 # embed a raw endpoint URL verbatim. transport/xrpl_testnet.py's
 # CONFIG_NON_TESTNET branch (NOT owned by this module — see that file's
@@ -187,11 +219,7 @@ async def ensure_funded(
     the learner has gotten the benefit of a real retry window.
     """
     balance = await transport.get_balance(address)
-    try:
-        bal = Decimal(balance) if balance else Decimal("0")
-    except (ValueError, TypeError, InvalidOperation):
-        bal = Decimal("0")
-    if bal > 0:
+    if _to_decimal(balance) > 0:
         console.print(f"  Balance: [green]{balance} XRP[/]")
         return True
 
@@ -200,13 +228,25 @@ async def ensure_funded(
     for attempt, delay in enumerate(_FAUCET_RETRY_DELAYS_S, start=1):
         result = await transport.fund_from_faucet(address)
         last_result = result
-        try:
-            funded_bal = Decimal(result.balance) if result.balance else Decimal("0")
-        except (ValueError, TypeError, InvalidOperation):
-            funded_bal = Decimal("0")
-        if result.success and funded_bal > 0:
-            console.print(f"  Funded! Balance: [green]{result.balance} XRP[/]")
-            return True
+        if result.success:
+            # Funded means "on a validated ledger", not "the faucet said so"
+            # (live-fire run 1). Never ask the faucet again after a success:
+            # the account may simply be a ledger or two behind.
+            settled = await await_validated_balance(transport, address)
+            if settled > 0:
+                console.print(f"  Funded! Balance: [green]{settled} XRP[/]")
+                return True
+            console.print(
+                f"[red]The faucet answered, but {address} hasn't appeared on a "
+                f"validated ledger after about "
+                f"{int(_FUND_SETTLE_POLLS * _FUND_SETTLE_INTERVAL_S)} s.[/] "
+                "Not asking the faucet again."
+            )
+            console.print(
+                "Look the address up on https://testnet.xrpl.org in a minute; "
+                "once it shows a balance, re-run the module."
+            )
+            return False
         # F-35d7a78c: CONFIG_NON_TESTNET is a pure function of static env
         # (XRPL_LAB_FAUCET_URL / XRPL_LAB_RPC_URL). Retrying burns ~14s for
         # zero chance of a different outcome — name the env-var fix and stop.

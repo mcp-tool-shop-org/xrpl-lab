@@ -236,7 +236,7 @@ class TestTestnetSubmitRetry:
             "and a resubmit could duplicate the payment"
         )
         assert result.success is False
-        assert result.result_code == "local_error"
+        assert result.result_code == "submit_timeout"
         assert "timed out" in result.error.lower()
         assert "duplicate" in result.error.lower()
 
@@ -271,7 +271,7 @@ class TestTestnetSubmitRetry:
 
         assert calls["n"] == 1
         assert result.success is False
-        assert result.result_code == "local_error"
+        assert result.result_code == "submit_timeout"
         assert "timed out" in result.error.lower()
 
     @pytest.mark.asyncio

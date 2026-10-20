@@ -368,7 +368,8 @@ def test_proof_verify_json_output(tmp_path):
     runner = CliRunner()
     result = runner.invoke(main, ["proof", "verify", str(path), "--json"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
+    # stdout only — the deprecation note lives on stderr (mixed into .output).
+    data = json.loads(result.stdout)
     assert data["valid"] is True
     assert data["address"] == "rTest123"
 

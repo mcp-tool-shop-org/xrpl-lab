@@ -156,6 +156,18 @@ async def _execute_action(
     return context
 
 
+def _step_heading(step, index: int) -> str:
+    """The step's heading for the report, numbered by the module's own label.
+
+    Numbering by list position shifted every step by one, because a module's
+    intro is element 0 (live-fire run 1). Steps built without a label (tests,
+    scaffolds) fall back to their position.
+    """
+    title = step.text.split("\n")[0].strip().strip("#*").strip()[:100]
+    label = getattr(step, "label", "") or f"Step {index + 1}"
+    return f"{label}: {title}"
+
+
 async def run_module(
     module: ModuleDef,
     transport: Transport,
@@ -212,18 +224,6 @@ async def run_module(
                 "[yellow]Run those modules first, or use --force to bypass.[/]"
             )
 
-    # FT-003: Warn if module uses AMM actions but transport is not dry-run
-    _AMM_ACTIONS = {"ensure_amm_pair", "amm_deposit", "amm_withdraw"}
-    _module_step_actions = {s.action for s in module.steps if s.action}
-    if _AMM_ACTIONS & _module_step_actions and transport.network_name != "dry-run":
-        console.print(
-            "[yellow]This module uses AMM operations which require --dry-run mode.[/]"
-        )
-        console.print(
-            f"[yellow]Run with: xrpl-lab run {module.id} --dry-run[/]"
-        )
-        return False
-
     console.print()
     console.print(
         Panel(
@@ -260,6 +260,15 @@ async def run_module(
     # the lesson continues; it only downgrades this flag + the failing step's
     # dashboard success signal.
     all_verified = True
+    # Live-fire runs 1 and 2 (2.6.0): a failed SUBMIT used to leave
+    # all_verified True (only verify steps flipped it), so a module whose AMM
+    # transactions all failed still recorded as verified, and its report said
+    # "0 failed". A step that records a FAILED transaction (state.record_tx
+    # with success=False, which every submitting handler does on a real
+    # failure) now counts like a failed verification. Deliberate failures in
+    # the failure-literacy lessons record no failed TxRecord, so they don't.
+    failed_steps: list[str] = []
+    action_steps = 0
 
     for i, step in enumerate(module.steps):
         # Render step text
@@ -300,6 +309,9 @@ async def run_module(
             # Mirrors the BC-003 _prev_txid_count slice pattern so a later step
             # can't be blamed for an earlier step's verdict.
             _prev_verif_count = len(context.get("verifications", []))
+            _prev_tx_count = len(state.tx_index)
+            _step_started = time.time()
+            action_steps += 1
             try:
                 context = await _execute_action(
                     step, state, transport,
@@ -442,8 +454,13 @@ async def run_module(
             step_verify_failed = any(
                 not v.get("passed", True) for v in step_verifications
             )
-            if step_verify_failed:
+            step_submit_failed = any(
+                not record.success and record.timestamp >= _step_started
+                for record in state.tx_index[_prev_tx_count:]
+            )
+            if step_verify_failed or step_submit_failed:
                 all_verified = False
+                failed_steps.append(_step_heading(step, i))
 
             # Fire step_complete callback
             if on_step_complete is not None:
@@ -476,11 +493,11 @@ async def run_module(
         # appear in the report without re-listing them here.
         if _is_reportable_action(step.action):
             # FT-006: include action outcome in the report body
-            step_heading = step.text.split("\n")[0][:100]
             outcome_lines: list[str] = [f"Action: `{step.action}`"]
 
-            # Capture txids produced by this step
-            current_txids = context.get("txids", [])
+            # Capture the txids THIS step produced (live-fire run 1: every
+            # step used to list every txid accumulated so far).
+            current_txids = context.get("txids", [])[_prev_txid_count:]
             if current_txids:
                 outcome_lines.append(f"Transactions: {len(current_txids)}")
                 for txid in current_txids[-3:]:  # last 3 at most
@@ -498,14 +515,19 @@ async def run_module(
                     outcome_lines.append(f"- \u2713 {chk}")
 
             report_sections.append(
-                (f"Step {i + 1}: {step_heading}", "\n".join(outcome_lines))
+                (_step_heading(step, i), "\n".join(outcome_lines))
             )
 
     # Module completed — write report and update state
-    report_sections.append(
-        ("Summary", f"Transactions: {len(context['txids'])} successful, "
-         f"{len(context['failed_txids'])} failed")
-    )
+    summary_lines = [
+        f"Steps: {action_steps - len(failed_steps)} passed, {len(failed_steps)} failed",
+        f"Transactions: {len(context['txids'])} successful, "
+        f"{len(context['failed_txids'])} failed",
+    ]
+    if failed_steps:
+        summary_lines.append("Failed steps:")
+        summary_lines.extend(f"- {name}" for name in failed_steps)
+    report_sections.append(("Summary", "\n".join(summary_lines)))
 
     for txid in context["txids"]:
         report_sections.append(("Transaction", f"TXID: `{txid}`"))
@@ -570,10 +592,17 @@ async def run_module(
                 break
         completion_lines.append(f"  [cyan]{audit_cmd}[/]")
 
+    if failed_steps:
+        failure_lines = [
+            f"[yellow]Not verified: {len(failed_steps)} "
+            f"step{'s' if len(failed_steps) != 1 else ''} failed[/]",
+            *(f"  [yellow]- {name}[/]" for name in failed_steps),
+        ]
+        completion_lines[1:1] = failure_lines
     console.print(Panel(
         "\n".join(completion_lines),
-        title="Complete",
-        border_style="green",
+        title="Completed with failures" if failed_steps else "Complete",
+        border_style="yellow" if failed_steps else "green",
     ))
 
     return True

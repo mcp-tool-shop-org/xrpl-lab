@@ -1,4 +1,123 @@
 # Changelog
+
+## 2.6.0 — 2026-10-20
+
+External-audit pass (F1–F7, F10): packaging, curriculum accuracy, CLI surface,
+the long-planned AMM testnet upgrade, and a Host and Origin gate on the API.
+
+### Security
+
+- **A cross-site page can no longer start a run (F10).** CORS stops a page
+  from reading a response, not from sending a simple request, and
+  `POST /api/run/{module_id}` takes no body: a `no-cors` POST from any page a
+  learner opened started a run, live on testnet unless `serve` ran with
+  `--dry-run`. A new guard (`xrpl_lab/api/guards.py`) refuses a POST, PUT,
+  PATCH or DELETE whose `Origin` is present and not on the allow-list, with
+  `403 ORIGIN_REJECTED`. A missing Origin (CLI, curl) is still allowed.
+- **DNS rebinding is closed.** The same guard refuses any request whose `Host`
+  isn't loopback or the address `serve` bound to, with `400 HOST_REJECTED`.
+  A wildcard bind (`0.0.0.0`, `::`) turns the Host gate off; the Origin gate
+  stays on. Starlette's `TrustedHostMiddleware` isn't used because it cuts
+  the Host header at the first `:` (so `[::1]:8321` becomes `[`) and answers
+  in plain text, not the API's `{code, message, hint}` envelope.
+
+### Fixed (found by the live-fire runs)
+
+Module #30's first two live runs on XRPL Testnet created no AMM. Their
+receipts are in `docs/receipts/2.6.0-amm-live-fire/`. Each run reached one
+layer further than the last. Run 1's fixes:
+
+- **Funding is decided on the validated ledger.** The faucet's reply carried
+  no usable balance, so three real fundings read as failures, and the issuer
+  path didn't wait at all: its `AccountSet` went out before the new account
+  was on a validated ledger and never landed. After a faucet success, the
+  learner's wallet and the issuer now wait for a balance on a validated ledger
+  (about 30 s at most), and the faucet is never asked twice after a success.
+- **A held result keeps its code and hash.** rippled holds a provisional `ter`
+  result (here `terNO_RIPPLE`) until the transaction's 20-ledger window
+  closes, about 80 s, and the client gave up at 60 s, so every failure read
+  as a bare timeout. Transactions are now signed locally before submitting,
+  so the hash is known; the client waits up to 150 s; and when the window
+  closes on a held result, the step reports that code and the hash and isn't
+  retried. A timeout now reads `submit_timeout`, not "rejected before
+  reaching the network". The doctor explains `terNO_RIPPLE`, `terNO_AMM`,
+  `terNO_ACCOUNT` and `submit_timeout`.
+- **A failed step shows in the module's status.** A failed submit or funding
+  now counts like a failed verification: the module is recorded with
+  `verified: false`, the completion panel reads "Completed with failures" and
+  lists them, and the report counts failed steps. Each report step lists only
+  its own transactions, numbered as the module numbers them.
+
+Run 2 held all of those on the ledger, and found:
+
+- **Module #30 didn't fit one faucet grant.** A fresh wallet gets 100 XRP
+  once, and the module pooled 100 XRP plus a 10 XRP deposit, so AMMCreate
+  validated `tecUNFUNDED_AMM`. Run 1's triple funding had hidden it. The pool
+  is now 25 XRP / 25 LAB with a 5 / 5 deposit. Before creating a pool, the
+  step reads the ledger's reserves and the wallet's balance, and stops with
+  "needs N XRP, has M" if the XRP leg won't fit.
+- **A failed step is now one that records a failed transaction.** Run 1's
+  rule keyed on `last_submit`, which only 2 of 66 submitting handlers set, so
+  the AMM failures still counted as passed. It also misfired the other way:
+  the failure-literacy lesson's deliberate failed payment read as a failed
+  step. A test now checks every submitting handler in the registry records
+  its failures, and `place_safe_sides` and `ensure_amm_pair` now do.
+- **A failed AMMCreate keeps its hash.** It's printed and indexed, and the
+  deposit and withdraw steps that need the pool are skipped, as failed steps,
+  instead of being broadcast.
+- **`xrpl-lab run` exits 3** (the existing `PARTIAL_` code) when a module
+  completes with failed steps; the module record is unchanged.
+- `verify_withdrawal` no longer prints "All LP tokens returned" beside "no
+  withdrawal detected" when there were none to return, and a `tec` result no
+  longer says its fee is charged "on mainnet".
+- **The `issueMalformed` warning in both runs is gone.** A failed create left
+  pool details with no issuers, and the verify step's pool refresh then asked
+  `amm_info` for LAB with an empty issuer. The pair's issuers are now kept,
+  and the verify steps fail at once, without a ledger query, when there's no
+  pool. `amm_info`'s own `actNotFound` ("no pool for this pair") no longer
+  logs a warning.
+- A failed AMM submit prints its hash and says whether it validated (a `tec`,
+  on the ledger) or never did (the network may not know the hash).
+
+### Feature
+
+- **Module #30 (AMM Liquidity 101) runs on testnet.** The testnet transport's
+  AMM stubs are now real: `AMMCreate` (fee pinned to the ledger's owner-reserve
+  increment per XLS-30), `AMMDeposit` (two-asset), `AMMWithdraw` (LP-token or
+  withdraw-all), and `AMMInfo`. `--dry-run` remains the offline fallback and
+  module #31 stays dry-run. The FT-003 “AMM requires --dry-run” gate is gone.
+- **New `enable_default_ripple` action** — issuer-side `AccountSet`
+  (`asfDefaultRipple`), idempotent on re-runs, so `AMMCreate` no longer fails
+  with `terNO_RIPPLE` on a fresh issuer. Wired into module #30 as a taught step.
+- **`xrpl-lab verify-artifact <file>`** — one command that detects the artifact
+  kind from its own JSON markers and verifies the embedded SHA-256 via the
+  existing per-kind verifiers. `proof verify`, `cert-verify`, `audit-verify`,
+  and `support-bundle --verify` still work but print a deprecation note;
+  `self-check`, `feedback`, and `proof generate` are hidden from `--help`
+  (still functional, with deprecation notes).
+
+### Packaging
+
+- **`fastapi>=0.133.0` floor** — first FastAPI line compatible with the
+  `starlette>=1.0.1` security floor; eliminates resolver backtracking.
+- **PyPI sdist shrank 5.5x** (2.70 MB → 0.50 MB, now ~1.08x the wheel) by
+  excluding repo-side content (docs, site, tests, scripts, translated READMEs)
+  from the source tarball that the wheel never ships.
+
+### Docs
+
+- **Track legend accuracy (F4).** nfts now cites XLS-20 + XLS-46; tokens cites
+  XLS-33 + XLS-39; payments lists checks, payment channels, partial payments,
+  and destination tags; identity lists credentials (XLS-70), permissioned DEX
+  (XLS-80/81), and deposit auth. Regenerated across README + handbook.
+- **`## Install` documents `npx @mcptoolshop/xrpl-lab`** (Node 18+, downloads
+  the standalone binary) alongside pipx/pip — the npm badge is now honest.
+- Linter rule “AMM ⇒ dry-run only” removed; dry-run-only-without-AMM still warns.
+
+### Repo structure
+
+- `design/` folded into `docs/design/` (plus `.gitignore` path update).
+
 ## 2.5.1 — 2026-10-14
 
 ### Security

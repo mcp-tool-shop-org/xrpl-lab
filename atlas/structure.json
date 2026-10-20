@@ -17,7 +17,7 @@
           "path": ".github/workflows/pages.yml"
         },
         {
-          "hash": "9e5ef39f3f0b40289bd790cd9c21126801a868d4297662bd57f951af3ab9d9a2",
+          "hash": "43586b44e1a38e1f99f9206692da75bb497d396b7d535669211443756ac854d5",
           "path": ".github/workflows/publish-pypi.yml"
         },
         {
@@ -78,31 +78,12 @@
       "files": [
         {
           "hash": "a03e7c09f19e426b6bdbf962d472637119cf187ebb3b8d34d469b49ba3f2fb52",
-          "path": "design/claude-design-brief.md"
+          "path": "docs/design/claude-design-brief.md"
         },
         {
           "hash": "65767df9432c6c7ff86a3253c0ebae17ab9e915f196a75cb38134a2bda138674",
-          "path": "design/dashboard-before.html"
-        }
-      ],
-      "globs": [
-        "design/**"
-      ],
-      "importConfidence": "full",
-      "name": "design",
-      "origin": "authored",
-      "role": "docs",
-      "testedBy": 0,
-      "unresolvedSites": 0
-    },
-    {
-      "dynamicReads": 0,
-      "dynamicSpawns": 0,
-      "dynamicSpawnsInTests": 0,
-      "dynamicWrites": 0,
-      "entryPoints": [],
-      "externals": 0,
-      "files": [
+          "path": "docs/design/dashboard-before.html"
+        },
         {
           "hash": "eb125d2b3f47eeeaa642e9ed59e6f98995fc8511455ff765269e3ea62dcd8fb7",
           "path": "docs/dex_notes.md"
@@ -143,7 +124,7 @@
           "path": "modules/account_hygiene.md"
         },
         {
-          "hash": "09eea2b4a672565c52431cb2995047d0410f83c6cf242cf445e7e1bf22c79a3a",
+          "hash": "52ce244c5e8e7e8a82ad29c3a8d00d25bff76336c9db2d2fc18a21af9ad4ac3d",
           "path": "modules/amm_liquidity_101.md"
         },
         {
@@ -317,11 +298,11 @@
       "externals": 0,
       "files": [
         {
-          "hash": "2a98ba0ab9eedc3d4c8b41808a16a970c0eebefd677a11165aed19d119e065b3",
+          "hash": "69fe110d65e89dbd60a23591dab0a1b9a18a957dc27b59c1aa659e2921d7139e",
           "path": ".gitignore"
         },
         {
-          "hash": "b487a45a3bf3909b1109ab1655659a0ea47a1fc9e7b007eac4c608b63214d973",
+          "hash": "baf338e0cf648650c05dac3c08ddd9130c0b957f30f64aec2189e341afda86c7",
           "path": "CHANGELOG.md"
         },
         {
@@ -353,7 +334,7 @@
           "path": "README.ja.md"
         },
         {
-          "hash": "7a3dbd4446880bcffdd58c8eca81ceb20ecec68970b63871bd2466013b7ba5f2",
+          "hash": "9b38a54ea3194f62dfdcf191c5b079b5961bc4d2955dce6511d538013f2a83e4",
           "path": "README.md"
         },
         {
@@ -381,11 +362,11 @@
           "path": "package.json"
         },
         {
-          "hash": "d51a451b82fdde0a33e86b4a7a2073c4fb919bb145a72b15f243875850ce8c70",
+          "hash": "f3a8bd9cdd02630f7ddda0473bcb54388611fec86904692e5c1b5ce2731131ed",
           "path": "pyproject.toml"
         },
         {
-          "hash": "0fb2c24c23d189066d3b62ee3e56468c9bc6b173658c74bb43a9c56d9c67c361",
+          "hash": "d114072740b068ed04c68f2b5be5487597d5b5cb5fff23b6b2bda1f6ce27520a",
           "path": "uv.lock"
         },
         {
@@ -523,7 +504,7 @@
           "path": "site/src/content/docs/handbook/facilitator-guide.md"
         },
         {
-          "hash": "a878e9435839f49e38384a1a4c4881b25507ccc30c2da5155d49f0cf725505fb",
+          "hash": "b99331def8d9a9a5bc84f13a34c12b0c5b638fed66b7f4b42baf6eebfefd3297",
           "path": "site/src/content/docs/handbook/getting-started.md"
         },
         {
@@ -531,7 +512,7 @@
           "path": "site/src/content/docs/handbook/index.md"
         },
         {
-          "hash": "fb048d188d65d1d5b2d62130b818daa4de0f5d68eb3165b5545be1b82f0e9cc5",
+          "hash": "59b48c5e43764d7b5920657618b27d1efd7de0bfb2ee43b5adc4c6cca95ed7e3",
           "path": "site/src/content/docs/handbook/modules.md"
         },
         {
@@ -851,7 +832,7 @@
           "testFramework": "pytest"
         },
         {
-          "hash": "7a50cb748e460dd2fe540bcce3a102bbec41486cf1939bae0ec2cdee33032d13",
+          "hash": "3de8bec88687f8c99dfe4ef3561a0846c31f871f1cdb69979bed9d33a0a66613",
           "path": "tests/fixtures/bad_amm_no_label.md"
         },
         {
@@ -878,11 +859,25 @@
           "exports": [
             "transport"
           ],
-          "hash": "bce282dc94262fe9ad15ca8eed52e176666bd5cb273dc72182d95c1c75c2de39",
+          "hash": "f279c085d05c444c3b0c009040b7db3e8cbd9485c30c96868971fa57ad8d979c",
+          "importOrder": [
+            "tests/_shipped_module.py",
+            "xrpl_lab/actions/amm.py",
+            "xrpl_lab/actions/reserves.py",
+            "xrpl_lab/transport/dry_run.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/handlers.py"
+          ],
           "importsFiles": [
             "tests/_shipped_module.py",
             "xrpl_lab/actions/amm.py",
             "xrpl_lab/actions/reserves.py",
+            "xrpl_lab/handlers.py",
+            "xrpl_lab/modules.py",
+            "xrpl_lab/runner.py",
+            "xrpl_lab/state.py",
             "xrpl_lab/transport/dry_run.py"
           ],
           "path": "tests/test_amm.py",
@@ -897,6 +892,18 @@
             "xrpl_lab/transport/dry_run.py"
           ],
           "path": "tests/test_amm_swap_chains.py",
+          "testFramework": "pytest"
+        },
+        {
+          "exports": [
+            "transport"
+          ],
+          "hash": "1862cc30be20309f58e31c4e666c4eeea364437919192e338841d70f04f3aa90",
+          "importsFiles": [
+            "xrpl_lab/transport/__init__.py",
+            "xrpl_lab/transport/xrpl_testnet.py"
+          ],
+          "path": "tests/test_amm_testnet.py",
           "testFramework": "pytest"
         },
         {
@@ -1012,7 +1019,7 @@
             "test_status",
             "test_version"
           ],
-          "hash": "fb9047d69e9dee21943a487dcf88d5b6179f5933265941a6a5dc04966e1267ed",
+          "hash": "17b4dee7008290af65c009544a52d660a4c2b5b1008bd89fa7e06170768c575d",
           "importOrder": [
             "xrpl_lab/cli.py",
             "xrpl_lab/__init__.py",
@@ -1361,7 +1368,7 @@
           "testFramework": "pytest"
         },
         {
-          "hash": "19d6bdd182bdf804adcb1ee4a1189b13d9599f34c370ec2b733848651989da47",
+          "hash": "2683c848eecebd8a679beb15ec97a027fe865f6adc9f01b32b64e03eb1e08bfd",
           "importsFiles": [
             "xrpl_lab/linter.py",
             "xrpl_lab/modules.py"
@@ -1452,7 +1459,7 @@
             "test_faucet_refused_when_faucet_url_is_mainnet_even_if_rpc_is_testnet",
             "test_mainnet_refusal_covers_every_signing_method"
           ],
-          "hash": "114b450e950f58454940908580d1e6be1b83b92e61a990fc5679342ffdd1a401",
+          "hash": "34b6c160b03281fdd635e5f8357a3c3c20072a8b6439e47c08f452cf7366cb99",
           "importsFiles": [
             "xrpl_lab/transport/xrpl_testnet.py"
           ],
@@ -1730,7 +1737,7 @@
             "test_verify_tx_exits_nonzero_on_failed_verdict",
             "test_verify_tx_exits_zero_on_passed_verdict"
           ],
-          "hash": "0ee81bff2ddc1b022072e78444adfc85399cd9408d173923a09f7d8ccef8015f",
+          "hash": "4458cddaca496e25b452ef04e6aefe23f85794fa90f1a5adf4405362510a9454",
           "importOrder": [
             "xrpl_lab/actions/verify.py",
             "xrpl_lab/server.py",
@@ -2475,6 +2482,21 @@
           "testFramework": "pytest"
         },
         {
+          "hash": "8a42e93823d281fe3a318995dac5dd99a2b6a1ef47d3ca34928e9ee8089272e9",
+          "importOrder": [
+            "xrpl_lab/cli.py",
+            "xrpl_lab/audit.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
+          "importsFiles": [
+            "xrpl_lab/audit.py",
+            "xrpl_lab/cli.py",
+            "xrpl_lab/transport/dry_run.py"
+          ],
+          "path": "tests/test_verify_artifact.py",
+          "testFramework": "pytest"
+        },
+        {
           "exports": [
             "test_issued_currency_credited_drops_field_is_not_the_raw_display_string",
             "test_issued_currency_deposit_is_not_labeled_drops",
@@ -2956,7 +2978,7 @@
             "test_audit_verify_tampered_pack_exits_nonzero",
             "test_audit_verify_valid_pack_exits_zero"
           ],
-          "hash": "8593c6125241257399ed17d596ddaa5301666d2e27153f3c5ec55606e1086d3c",
+          "hash": "17131d7b06c2782ec7d8839adcea3e7d857936279a77bbd9be5c3c918989e548",
           "importOrder": [
             "xrpl_lab/cli.py",
             "xrpl_lab/audit.py",
@@ -3585,8 +3607,10 @@
         },
         {
           "exports": [
+            "check_default_ripple",
             "clawback_tokens",
             "enable_clawback",
+            "enable_default_ripple",
             "get_trust_lines",
             "issue_token",
             "remove_trust_line",
@@ -3599,10 +3623,10 @@
             {
               "in": "verify_clawback",
               "kind": "except",
-              "line": 216
+              "line": 241
             }
           ],
-          "hash": "b704915126add2f774a2298da4d6764509a3a3d276c7fe51a58fc879a5c18a91",
+          "hash": "09154a4bcb3cfd79ece85587ac34f3a7cb01931f404159943487aa3377ba03a9",
           "importsFiles": [
             "xrpl_lab/transport/base.py"
           ],
@@ -4488,6 +4512,7 @@
             "support_bundle",
             "tracks",
             "verify",
+            "verify_artifact",
             "wallet",
             "wallet_create",
             "wallet_show"
@@ -4516,125 +4541,135 @@
             {
               "in": "proof_verify",
               "kind": "except",
-              "line": 677
+              "line": 793
             },
             {
               "in": "cert_verify",
               "kind": "except",
-              "line": 824
+              "line": 932
             },
             {
               "in": "support_bundle",
               "kind": "except",
-              "line": 930
+              "line": 1003
             },
             {
               "in": "audit",
               "kind": "raise",
-              "line": 1152
+              "line": 1216
             },
             {
               "in": "audit_verify",
               "kind": "except",
-              "line": 1175
+              "line": 1302
+            },
+            {
+              "in": "verify_artifact",
+              "kind": "except",
+              "line": 1376
+            },
+            {
+              "in": "verify_artifact",
+              "kind": "except",
+              "line": 1391
             },
             {
               "in": "last_run",
               "kind": "except",
-              "line": 1242
+              "line": 1444
             },
             {
               "in": "cohort_status",
               "kind": "except",
-              "line": 1467
+              "line": 1669
             },
             {
               "in": "reset",
               "kind": "except",
-              "line": 1745
+              "line": 1947
             },
             {
               "in": "reset",
               "kind": "except",
-              "line": 1756
+              "line": 1958
             },
             {
               "in": "reset",
               "kind": "except",
-              "line": 1759
+              "line": 1961
             },
             {
               "in": "reset",
               "kind": "except",
-              "line": 1799
+              "line": 2001
             },
             {
               "in": "wallet_create",
               "kind": "except",
-              "line": 1895
+              "line": 2097
             },
             {
               "in": "wallet_create",
               "kind": "except",
-              "line": 1914
+              "line": 2116
             },
             {
               "in": "fund",
               "kind": "raise",
-              "line": 1952
+              "line": 2154
             },
             {
               "in": "fund",
               "kind": "raise",
-              "line": 1970
+              "line": 2172
             },
             {
               "in": "fund",
               "kind": "raise",
-              "line": 1982
+              "line": 2184
             },
             {
               "in": "fund",
               "kind": "raise",
-              "line": 1993
+              "line": 2195
             },
             {
               "in": "send",
               "kind": "except",
-              "line": 2008
+              "line": 2210
             },
             {
               "in": "send",
               "kind": "raise",
-              "line": 2010
+              "line": 2212
             },
             {
               "in": "send",
               "kind": "raise",
-              "line": 2019
+              "line": 2221
             },
             {
               "in": "send",
               "kind": "raise",
-              "line": 2022
+              "line": 2224
             },
             {
               "in": "send",
               "kind": "raise",
-              "line": 2025
+              "line": 2227
             },
             {
               "in": "send",
               "kind": "raise",
-              "line": 2031
+              "line": 2233
             },
             {
               "in": "verify",
               "kind": "raise",
-              "line": 2085
+              "line": 2287
             }
           ],
-          "hash": "a44f74c5015ffc3f0a53c09099a149b0933d1f5ce1f69bed5ec241793cdec3aa",
+          "hash": "b23d54be02602cfc77069f7eff3e0cc41a0ee8a8b2697aaff3c75eaeb7f9b65f",
           "importOrder": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/curriculum.py",
@@ -4960,21 +4995,21 @@
             {
               "calls": [
                 {
-                  "line": 568,
+                  "line": 570,
                   "name": "load_state",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 581,
+                  "line": 583,
                   "name": "ensure_workspace",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 582,
+                  "line": 584,
                   "name": "write_proof_pack",
                   "target": {
                     "file": "xrpl_lab/reporting.py"
@@ -4989,21 +5024,21 @@
             {
               "calls": [
                 {
-                  "line": 599,
+                  "line": 602,
                   "name": "load_state",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 610,
+                  "line": 613,
                   "name": "ensure_workspace",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 611,
+                  "line": 614,
                   "name": "write_proof_pack",
                   "target": {
                     "file": "xrpl_lab/reporting.py"
@@ -5018,18 +5053,42 @@
             {
               "calls": [
                 {
-                  "line": 685,
+                  "line": 677,
                   "name": "verify_proof_pack",
                   "target": {
                     "file": "xrpl_lab/reporting.py"
                   }
                 },
                 {
-                  "line": 710,
+                  "line": 702,
                   "name": "verify_proof_pack_live",
                   "target": {
                     "file": "xrpl_lab/reporting.py"
                   }
+                }
+              ],
+              "exported": false,
+              "invokedAtTopLevel": false,
+              "isDefaultExport": false,
+              "name": "_run_proof_pack_verify"
+            },
+            {
+              "calls": [
+                {
+                  "line": 677,
+                  "name": "verify_proof_pack",
+                  "target": {
+                    "file": "xrpl_lab/reporting.py"
+                  },
+                  "via": "_run_proof_pack_verify"
+                },
+                {
+                  "line": 702,
+                  "name": "verify_proof_pack_live",
+                  "target": {
+                    "file": "xrpl_lab/reporting.py"
+                  },
+                  "via": "_run_proof_pack_verify"
                 }
               ],
               "exported": true,
@@ -5040,21 +5099,21 @@
             {
               "calls": [
                 {
-                  "line": 783,
+                  "line": 806,
                   "name": "load_state",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 795,
+                  "line": 818,
                   "name": "ensure_workspace",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 796,
+                  "line": 819,
                   "name": "write_certificate",
                   "target": {
                     "file": "xrpl_lab/reporting.py"
@@ -5069,18 +5128,42 @@
             {
               "calls": [
                 {
-                  "line": 832,
+                  "line": 844,
                   "name": "verify_certificate",
                   "target": {
                     "file": "xrpl_lab/reporting.py"
                   }
                 },
                 {
-                  "line": 841,
+                  "line": 853,
                   "name": "verify_certificate_live",
                   "target": {
                     "file": "xrpl_lab/reporting.py"
                   }
+                }
+              ],
+              "exported": false,
+              "invokedAtTopLevel": false,
+              "isDefaultExport": false,
+              "name": "_run_certificate_verify"
+            },
+            {
+              "calls": [
+                {
+                  "line": 844,
+                  "name": "verify_certificate",
+                  "target": {
+                    "file": "xrpl_lab/reporting.py"
+                  },
+                  "via": "_run_certificate_verify"
+                },
+                {
+                  "line": 853,
+                  "name": "verify_certificate_live",
+                  "target": {
+                    "file": "xrpl_lab/reporting.py"
+                  },
+                  "via": "_run_certificate_verify"
                 }
               ],
               "exported": true,
@@ -5091,7 +5174,7 @@
             {
               "calls": [
                 {
-                  "line": 905,
+                  "line": 948,
                   "name": "generate_support_bundle",
                   "target": {
                     "file": "xrpl_lab/workshop.py"
@@ -5106,15 +5189,31 @@
             {
               "calls": [
                 {
-                  "branch": "verify_path",
-                  "line": 937,
+                  "line": 969,
                   "name": "verify_support_bundle",
                   "target": {
                     "file": "xrpl_lab/workshop.py"
                   }
+                }
+              ],
+              "exported": false,
+              "invokedAtTopLevel": false,
+              "isDefaultExport": false,
+              "name": "_run_support_bundle_verify"
+            },
+            {
+              "calls": [
+                {
+                  "branch": "verify_path",
+                  "line": 969,
+                  "name": "verify_support_bundle",
+                  "target": {
+                    "file": "xrpl_lab/workshop.py"
+                  },
+                  "via": "_run_support_bundle_verify"
                 },
                 {
-                  "line": 949,
+                  "line": 1013,
                   "name": "generate_support_bundle",
                   "target": {
                     "file": "xrpl_lab/workshop.py"
@@ -5129,14 +5228,14 @@
             {
               "calls": [
                 {
-                  "line": 964,
+                  "line": 1028,
                   "name": "get_track_summaries",
                   "target": {
                     "file": "xrpl_lab/workshop.py"
                   }
                 },
                 {
-                  "line": 968,
+                  "line": 1032,
                   "name": "load_state",
                   "target": {
                     "file": "xrpl_lab/state.py"
@@ -5151,7 +5250,7 @@
             {
               "calls": [
                 {
-                  "line": 1031,
+                  "line": 1095,
                   "name": "diagnose_recovery",
                   "target": {
                     "file": "xrpl_lab/workshop.py"
@@ -5166,21 +5265,21 @@
             {
               "calls": [
                 {
-                  "line": 1082,
+                  "line": 1146,
                   "name": "parse_txids_file",
                   "target": {
                     "file": "xrpl_lab/audit.py"
                   }
                 },
                 {
-                  "line": 1087,
+                  "line": 1151,
                   "name": "parse_expectations",
                   "target": {
                     "file": "xrpl_lab/audit.py"
                   }
                 },
                 {
-                  "line": 1087,
+                  "line": 1151,
                   "name": "AuditConfig",
                   "target": {
                     "file": "xrpl_lab/audit.py"
@@ -5204,35 +5303,35 @@
                   "via": "_get_transport"
                 },
                 {
-                  "line": 1090,
+                  "line": 1154,
                   "name": "run_audit",
                   "target": {
                     "file": "xrpl_lab/audit.py"
                   }
                 },
                 {
-                  "line": 1125,
+                  "line": 1189,
                   "name": "ensure_workspace",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 1130,
+                  "line": 1194,
                   "name": "write_audit_report_md",
                   "target": {
                     "file": "xrpl_lab/audit.py"
                   }
                 },
                 {
-                  "line": 1136,
+                  "line": 1200,
                   "name": "write_audit_report_csv",
                   "target": {
                     "file": "xrpl_lab/audit.py"
                   }
                 },
                 {
-                  "line": 1142,
+                  "line": 1206,
                   "name": "write_audit_pack",
                   "target": {
                     "file": "xrpl_lab/audit.py"
@@ -5247,11 +5346,27 @@
             {
               "calls": [
                 {
-                  "line": 1182,
+                  "line": 1243,
                   "name": "verify_audit_pack",
                   "target": {
                     "file": "xrpl_lab/audit.py"
                   }
+                }
+              ],
+              "exported": false,
+              "invokedAtTopLevel": false,
+              "isDefaultExport": false,
+              "name": "_run_audit_pack_verify"
+            },
+            {
+              "calls": [
+                {
+                  "line": 1243,
+                  "name": "verify_audit_pack",
+                  "target": {
+                    "file": "xrpl_lab/audit.py"
+                  },
+                  "via": "_run_audit_pack_verify"
                 }
               ],
               "exported": true,
@@ -5262,7 +5377,86 @@
             {
               "calls": [
                 {
-                  "line": 1412,
+                  "line": 1351,
+                  "name": "is_audit_pack",
+                  "target": {
+                    "file": "xrpl_lab/audit.py"
+                  }
+                }
+              ],
+              "exported": false,
+              "invokedAtTopLevel": false,
+              "isDefaultExport": false,
+              "name": "_detect_artifact_kind"
+            },
+            {
+              "calls": [
+                {
+                  "line": 1351,
+                  "name": "is_audit_pack",
+                  "target": {
+                    "file": "xrpl_lab/audit.py"
+                  },
+                  "via": "_detect_artifact_kind"
+                },
+                {
+                  "line": 677,
+                  "name": "verify_proof_pack",
+                  "target": {
+                    "file": "xrpl_lab/reporting.py"
+                  },
+                  "via": "_run_proof_pack_verify"
+                },
+                {
+                  "line": 702,
+                  "name": "verify_proof_pack_live",
+                  "target": {
+                    "file": "xrpl_lab/reporting.py"
+                  },
+                  "via": "_run_proof_pack_verify"
+                },
+                {
+                  "line": 844,
+                  "name": "verify_certificate",
+                  "target": {
+                    "file": "xrpl_lab/reporting.py"
+                  },
+                  "via": "_run_certificate_verify"
+                },
+                {
+                  "line": 853,
+                  "name": "verify_certificate_live",
+                  "target": {
+                    "file": "xrpl_lab/reporting.py"
+                  },
+                  "via": "_run_certificate_verify"
+                },
+                {
+                  "line": 1243,
+                  "name": "verify_audit_pack",
+                  "target": {
+                    "file": "xrpl_lab/audit.py"
+                  },
+                  "via": "_run_audit_pack_verify"
+                },
+                {
+                  "line": 969,
+                  "name": "verify_support_bundle",
+                  "target": {
+                    "file": "xrpl_lab/workshop.py"
+                  },
+                  "via": "_run_support_bundle_verify"
+                }
+              ],
+              "exported": true,
+              "invokedAtTopLevel": false,
+              "isDefaultExport": false,
+              "name": "verify_artifact"
+            },
+            {
+              "calls": [
+                {
+                  "line": 1614,
                   "name": "create_app",
                   "target": {
                     "file": "xrpl_lab/server.py"
@@ -5277,14 +5471,14 @@
             {
               "calls": [
                 {
-                  "line": 1466,
+                  "line": 1668,
                   "name": "load_state_from_path",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 1489,
+                  "line": 1691,
                   "name": "get_learner_status",
                   "target": {
                     "file": "xrpl_lab/workshop.py"
@@ -5299,7 +5493,7 @@
             {
               "calls": [
                 {
-                  "line": 1660,
+                  "line": 1862,
                   "name": "write_session_export",
                   "target": {
                     "file": "xrpl_lab/reporting.py"
@@ -5315,7 +5509,7 @@
               "calls": [
                 {
                   "branch": "module_id",
-                  "line": 1715,
+                  "line": 1917,
                   "name": "load_all_modules",
                   "target": {
                     "file": "xrpl_lab/modules.py"
@@ -5323,14 +5517,14 @@
                 },
                 {
                   "branch": "module_id",
-                  "line": 1755,
+                  "line": 1957,
                   "name": "reset_module",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 1807,
+                  "line": 2009,
                   "name": "reset_state",
                   "target": {
                     "file": "xrpl_lab/state.py"
@@ -5345,7 +5539,7 @@
             {
               "calls": [
                 {
-                  "line": 1833,
+                  "line": 2035,
                   "name": "build_manifest",
                   "target": {
                     "file": "xrpl_lab/curriculum_manifest.py"
@@ -5360,35 +5554,35 @@
             {
               "calls": [
                 {
-                  "line": 1887,
+                  "line": 2089,
                   "name": "wallet_exists",
                   "target": {
                     "file": "xrpl_lab/actions/wallet.py"
                   }
                 },
                 {
-                  "line": 1892,
+                  "line": 2094,
                   "name": "create_wallet",
                   "target": {
                     "file": "xrpl_lab/actions/wallet.py"
                   }
                 },
                 {
-                  "line": 1894,
+                  "line": 2096,
                   "name": "save_wallet",
                   "target": {
                     "file": "xrpl_lab/actions/wallet.py"
                   }
                 },
                 {
-                  "line": 1909,
+                  "line": 2111,
                   "name": "load_state",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 1913,
+                  "line": 2115,
                   "name": "save_state",
                   "target": {
                     "file": "xrpl_lab/state.py"
@@ -5403,14 +5597,14 @@
             {
               "calls": [
                 {
-                  "line": 1929,
+                  "line": 2131,
                   "name": "load_wallet",
                   "target": {
                     "file": "xrpl_lab/actions/wallet.py"
                   }
                 },
                 {
-                  "line": 1934,
+                  "line": 2136,
                   "name": "wallet_info",
                   "target": {
                     "file": "xrpl_lab/actions/wallet.py"
@@ -5425,7 +5619,7 @@
             {
               "calls": [
                 {
-                  "line": 1946,
+                  "line": 2148,
                   "name": "load_state",
                   "target": {
                     "file": "xrpl_lab/state.py"
@@ -5450,7 +5644,7 @@
                 },
                 {
                   "branch": "getattr(result, \"code\", \"\") == \"RUNTIME_FAUCET_RATE_LIMITED\"",
-                  "line": 1967,
+                  "line": 2169,
                   "name": "faucet_rate_limited",
                   "target": {
                     "file": "xrpl_lab/errors.py"
@@ -5458,7 +5652,7 @@
                 },
                 {
                   "branch": "getattr(result, \"code\", \"\") == \"RUNTIME_FAUCET_RATE_LIMITED\"",
-                  "line": 1970,
+                  "line": 2172,
                   "name": "LabException",
                   "target": {
                     "file": "xrpl_lab/errors.py"
@@ -5466,7 +5660,7 @@
                 },
                 {
                   "branch": "getattr(result, \"code\", \"\") == \"CONFIG_NON_TESTNET\"",
-                  "line": 1977,
+                  "line": 2179,
                   "name": "_sanitize_endpoint_urls",
                   "target": {
                     "file": "xrpl_lab/runtime.py"
@@ -5474,7 +5668,7 @@
                 },
                 {
                   "branch": "getattr(result, \"code\", \"\") == \"CONFIG_NON_TESTNET\"",
-                  "line": 1978,
+                  "line": 2180,
                   "name": "_config_non_testnet_error",
                   "target": {
                     "file": "xrpl_lab/runtime.py"
@@ -5482,7 +5676,7 @@
                 },
                 {
                   "branch": "getattr(result, \"code\", \"\") == \"CONFIG_NON_TESTNET\"",
-                  "line": 1982,
+                  "line": 2184,
                   "name": "LabException",
                   "target": {
                     "file": "xrpl_lab/errors.py"
@@ -5497,7 +5691,7 @@
             {
               "calls": [
                 {
-                  "line": 2027,
+                  "line": 2229,
                   "name": "load_wallet",
                   "target": {
                     "file": "xrpl_lab/actions/wallet.py"
@@ -5546,7 +5740,7 @@
                   "via": "_get_transport"
                 },
                 {
-                  "line": 2055,
+                  "line": 2257,
                   "name": "verify_tx",
                   "target": {
                     "file": "xrpl_lab/actions/verify.py"
@@ -5561,21 +5755,21 @@
             {
               "calls": [
                 {
-                  "line": 2155,
+                  "line": 2357,
                   "name": "load_all_modules",
                   "target": {
                     "file": "xrpl_lab/modules.py"
                   }
                 },
                 {
-                  "line": 2174,
+                  "line": 2376,
                   "name": "render_module_skeleton",
                   "target": {
                     "file": "xrpl_lab/modules.py"
                   }
                 },
                 {
-                  "line": 2207,
+                  "line": 2409,
                   "name": "lint_module_file",
                   "target": {
                     "file": "xrpl_lab/linter.py"
@@ -5591,42 +5785,42 @@
               "calls": [
                 {
                   "branch": "not paths",
-                  "line": 2252,
+                  "line": 2454,
                   "name": "LintResult",
                   "target": {
                     "file": "xrpl_lab/linter.py"
                   }
                 },
                 {
-                  "line": 2260,
+                  "line": 2462,
                   "name": "load_kb_capability_slugs",
                   "target": {
                     "file": "xrpl_lab/linter.py"
                   }
                 },
                 {
-                  "line": 2262,
+                  "line": 2464,
                   "name": "LintResult",
                   "target": {
                     "file": "xrpl_lab/linter.py"
                   }
                 },
                 {
-                  "line": 2264,
+                  "line": 2466,
                   "name": "lint_module_file",
                   "target": {
                     "file": "xrpl_lab/linter.py"
                   }
                 },
                 {
-                  "line": 2281,
+                  "line": 2483,
                   "name": "lint_curriculum",
                   "target": {
                     "file": "xrpl_lab/linter.py"
                   }
                 },
                 {
-                  "line": 2284,
+                  "line": 2486,
                   "name": "to_json",
                   "receiver": "LintResult",
                   "target": {
@@ -5658,7 +5852,7 @@
             "build_manifest",
             "track_label"
           ],
-          "hash": "42e6b22eb8873be5aa5ca667795d9c963efbc8d4f14a3d4bcd3133274628b702",
+          "hash": "cf5599c4afae87f19ffe0c9eacd0cefeb1af5746c285245bc2d261c91ea3b9ca",
           "importsFiles": [
             "xrpl_lab/curriculum.py",
             "xrpl_lab/modules.py"
@@ -6330,6 +6524,7 @@
             "handle_delete_permissioned_domain",
             "handle_delete_signer_list",
             "handle_enable_clawback",
+            "handle_enable_default_ripple",
             "handle_enable_deposit_auth",
             "handle_enable_require_dest",
             "handle_ensure_amm_pair",
@@ -6422,180 +6617,180 @@
             {
               "in": "_require",
               "kind": "raise",
-              "line": 184
+              "line": 185
             },
             {
               "in": "handle_submit_payment",
               "kind": "raise",
-              "line": 242
+              "line": 243
             },
             {
               "in": "handle_open_channel",
               "kind": "except",
-              "line": 996
+              "line": 997
             },
             {
               "in": "handle_open_channel",
               "kind": "except",
-              "line": 1040
+              "line": 1041
             },
             {
               "in": "_canon_currency",
               "kind": "except",
-              "line": 1240
+              "line": 1241
             },
             {
               "in": "_offer_leg_matches",
               "kind": "except",
-              "line": 1261
+              "line": 1262
             },
             {
               "in": "_offer_leg_matches",
               "kind": "except",
-              "line": 1268
+              "line": 1269
             },
             {
               "in": "_offer_leg_matches",
               "kind": "except",
-              "line": 1276
+              "line": 1277
             },
             {
               "in": "_parse_optional_int",
               "kind": "except",
-              "line": 1563
+              "line": 1564
             },
             {
               "in": "handle_verify_reserve_change",
               "kind": "raise",
-              "line": 1614
+              "line": 1615
             },
             {
               "in": "handle_verify_position_delta",
               "kind": "raise",
-              "line": 2373
+              "line": 2374
             },
             {
               "in": "handle_check_inventory",
               "kind": "except",
-              "line": 2444
+              "line": 2445
             },
             {
               "in": "handle_check_inventory",
               "kind": "except",
-              "line": 2449
+              "line": 2450
             },
             {
               "in": "handle_mint_nft",
               "kind": "except",
-              "line": 2687
+              "line": 2688
             },
             {
               "in": "handle_mint_nft",
               "kind": "except",
-              "line": 2693
+              "line": 2694
             },
             {
               "in": "handle_create_escrow",
               "kind": "except",
-              "line": 2954
+              "line": 2955
             },
             {
               "in": "_wait_for_finish_after",
               "kind": "except",
-              "line": 3046
+              "line": 3047
             },
             {
               "in": "handle_create_token_escrow",
               "kind": "except",
-              "line": 3346
+              "line": 3347
             },
             {
               "in": "handle_create_token_escrow",
               "kind": "except",
-              "line": 3361
+              "line": 3362
             },
             {
               "in": "handle_create_token_escrow_expect_fail",
               "kind": "raise",
-              "line": 3444
+              "line": 3445
             },
             {
               "in": "handle_create_token_escrow_expect_fail",
               "kind": "except",
-              "line": 3472
+              "line": 3473
             },
             {
               "in": "handle_create_token_escrow_expect_fail",
               "kind": "except",
-              "line": 3480
+              "line": 3481
             },
             {
               "in": "handle_create_signer_wallets",
               "kind": "except",
-              "line": 3641
+              "line": 3642
             },
             {
               "in": "handle_set_signer_list",
               "kind": "except",
-              "line": 3674
+              "line": 3675
             },
             {
               "in": "handle_set_signer_list",
               "kind": "except",
-              "line": 3694
+              "line": 3695
             },
             {
               "in": "handle_send_multisig_payment",
               "kind": "except",
-              "line": 3798
+              "line": 3799
             },
             {
               "in": "handle_send_multisig_payment_expect_fail",
               "kind": "except",
-              "line": 3868
+              "line": 3869
             },
             {
               "in": "handle_create_mpt_issuance",
               "kind": "except",
-              "line": 5279
+              "line": 5280
             },
             {
               "in": "handle_create_mpt_issuance",
               "kind": "except",
-              "line": 5285
+              "line": 5286
             },
             {
               "in": "handle_assign_player_tag",
               "kind": "except",
-              "line": 5594
+              "line": 5595
             },
             {
               "in": "handle_send_tagged_deposit",
               "kind": "except",
-              "line": 5629
+              "line": 5630
             },
             {
               "in": "handle_send_tagged_deposit",
               "kind": "except",
-              "line": 5636
+              "line": 5637
             },
             {
               "in": "handle_credit_player_deposit",
               "kind": "except",
-              "line": 5789
+              "line": 5790
             },
             {
               "in": "handle_verify_nft_trade",
               "kind": "except",
-              "line": 6338
+              "line": 6380
             },
             {
               "in": "handle_verify_nft_trade",
               "kind": "except",
-              "line": 6372
+              "line": 6414
             }
           ],
-          "hash": "4902a8ac1cb92b08c66898e186c66e4d6469683c34e31c06d210da1f363aec4d",
+          "hash": "b51717c5fcec16815a4b21e3f0923e914a0d2043d394b66f8cfed891ef129a63",
           "importOrder": [
             "xrpl_lab/actions/amm.py",
             "xrpl_lab/actions/checks.py",
@@ -6691,15 +6886,15 @@
             {
               "in": "lint_module_file",
               "kind": "except",
-              "line": 372
+              "line": 369
             },
             {
               "in": "lint_all_modules",
               "kind": "except",
-              "line": 391
+              "line": 388
             }
           ],
-          "hash": "e907632349ba35e65223ae9e1ceb9d608bf10a1aafb918c38b0a8b15c4a28d16",
+          "hash": "b7d2f57acfb2e19c691379ae29a45ca9a95f08b13137a3fafdda7652c382cb46",
           "importsFiles": [
             "xrpl_lab/curriculum.py",
             "xrpl_lab/handlers.py",
@@ -6747,14 +6942,14 @@
                   }
                 },
                 {
-                  "line": 312,
+                  "line": 309,
                   "name": "split",
                   "target": {
                     "file": "xrpl_lab/modules.py"
                   }
                 },
                 {
-                  "line": 323,
+                  "line": 320,
                   "name": "findall",
                   "target": {
                     "file": "xrpl_lab/modules.py"
@@ -6769,7 +6964,7 @@
             {
               "calls": [
                 {
-                  "line": 371,
+                  "line": 368,
                   "name": "read_text",
                   "target": null
                 },
@@ -6815,7 +7010,7 @@
                   "via": "lint_module_text"
                 },
                 {
-                  "line": 312,
+                  "line": 309,
                   "name": "split",
                   "target": {
                     "file": "xrpl_lab/modules.py"
@@ -6823,7 +7018,7 @@
                   "via": "lint_module_text"
                 },
                 {
-                  "line": 323,
+                  "line": 320,
                   "name": "findall",
                   "target": {
                     "file": "xrpl_lab/modules.py"
@@ -6839,22 +7034,22 @@
             {
               "calls": [
                 {
-                  "line": 390,
+                  "line": 387,
                   "name": "resolve",
                   "target": null
                 },
                 {
-                  "line": 395,
+                  "line": 392,
                   "name": "is_dir",
                   "target": null
                 },
                 {
-                  "line": 408,
+                  "line": 405,
                   "name": "glob",
                   "target": null
                 },
                 {
-                  "line": 371,
+                  "line": 368,
                   "name": "read_text",
                   "target": null,
                   "via": "lint_module_file"
@@ -6901,7 +7096,7 @@
                   "via": "lint_module_text"
                 },
                 {
-                  "line": 312,
+                  "line": 309,
                   "name": "split",
                   "target": {
                     "file": "xrpl_lab/modules.py"
@@ -6909,7 +7104,7 @@
                   "via": "lint_module_text"
                 },
                 {
-                  "line": 323,
+                  "line": 320,
                   "name": "findall",
                   "target": {
                     "file": "xrpl_lab/modules.py"
@@ -6925,14 +7120,14 @@
             {
               "calls": [
                 {
-                  "line": 424,
+                  "line": 421,
                   "name": "load_all_modules",
                   "target": {
                     "file": "xrpl_lab/modules.py"
                   }
                 },
                 {
-                  "line": 426,
+                  "line": 423,
                   "name": "build_graph",
                   "target": {
                     "file": "xrpl_lab/curriculum.py"
@@ -7492,25 +7687,25 @@
             {
               "in": "run_module",
               "kind": "except",
-              "line": 310
+              "line": 298
             },
             {
               "in": "run_module",
               "kind": "except",
-              "line": 375
+              "line": 363
             },
             {
               "in": "run_module",
               "kind": "except",
-              "line": 469
+              "line": 457
             },
             {
               "in": "run_module",
               "kind": "except",
-              "line": 538
+              "line": 526
             }
           ],
-          "hash": "fbd7203efbf747b4776ce4d454d24e55e7b32e6aa698822202fcc46fbce024fc",
+          "hash": "29b8e873271752514b8ff64882ed493b4fae04655dde5e76d615ff0afa72249d",
           "importsFiles": [
             "xrpl_lab/actions/wallet.py",
             "xrpl_lab/errors.py",
@@ -7637,39 +7832,28 @@
                   "target": null
                 },
                 {
-                  "branch": "_AMM_ACTIONS & _module_step_actions and transport.network_n…",
-                  "line": 219,
-                  "name": "print",
-                  "target": null
-                },
-                {
-                  "line": 227,
-                  "name": "print",
-                  "target": null
-                },
-                {
-                  "line": 242,
+                  "line": 230,
                   "name": "_SecretValue",
                   "target": {
                     "file": "xrpl_lab/runtime.py"
                   }
                 },
                 {
-                  "line": 249,
+                  "line": 237,
                   "name": "load_wallet",
                   "target": {
                     "file": "xrpl_lab/actions/wallet.py"
                   }
                 },
                 {
-                  "line": 251,
+                  "line": 239,
                   "name": "_SecretValue",
                   "target": {
                     "file": "xrpl_lab/runtime.py"
                   }
                 },
                 {
-                  "line": 266,
+                  "line": 254,
                   "name": "print",
                   "target": null
                 },
@@ -7683,7 +7867,7 @@
                   "via": "_snapshot_context"
                 },
                 {
-                  "line": 306,
+                  "line": 294,
                   "name": "_SecretValue",
                   "target": {
                     "file": "xrpl_lab/runtime.py"
@@ -7743,7 +7927,7 @@
                   "via": "_execute_action"
                 },
                 {
-                  "line": 327,
+                  "line": 315,
                   "name": "LabException",
                   "passed": true,
                   "target": {
@@ -7751,29 +7935,39 @@
                   }
                 },
                 {
-                  "line": 328,
+                  "line": 316,
                   "name": "print",
                   "target": null
                 },
                 {
-                  "line": 370,
+                  "line": 358,
                   "name": "save_state",
                   "target": {
                     "file": "xrpl_lab/state.py"
                   }
                 },
                 {
-                  "line": 371,
+                  "line": 359,
                   "name": "print",
                   "target": null
                 },
                 {
-                  "line": 392,
+                  "line": 380,
                   "name": "LabException",
                   "passed": true,
                   "target": {
                     "file": "xrpl_lab/errors.py"
                   }
+                },
+                {
+                  "line": 381,
+                  "name": "print",
+                  "target": null
+                },
+                {
+                  "line": 456,
+                  "name": "input",
+                  "target": null
                 }
               ],
               "exported": true,
@@ -8520,7 +8714,7 @@
           "path": "xrpl_lab/transport/__init__.py"
         },
         {
-          "hash": "43fdf5b958c7935a2f0ec6f6f276e178f26f8e2c5d7e0340681e70fcf1e40789",
+          "hash": "351cc017077d8ebb61033b4146d0236dbe707bdf008facb9f94ff7cac27dd56a",
           "path": "xrpl_lab/transport/base.py"
         },
         {
@@ -8578,150 +8772,150 @@
             {
               "in": "submit_payment",
               "kind": "except",
-              "line": 603
+              "line": 606
             },
             {
               "in": "submit_issued_payment",
               "kind": "except",
-              "line": 951
+              "line": 954
             },
             {
               "in": "submit_issued_payment",
               "kind": "except",
-              "line": 1001
+              "line": 1004
             },
             {
               "in": "submit_issued_payment",
               "kind": "except",
-              "line": 1012
+              "line": 1015
             },
             {
               "in": "submit_partial_payment",
               "kind": "except",
-              "line": 1097
+              "line": 1100
             },
             {
               "in": "submit_partial_payment",
               "kind": "except",
-              "line": 1140
+              "line": 1143
             },
             {
               "in": "submit_partial_payment",
               "kind": "except",
-              "line": 1149
+              "line": 1152
             },
             {
               "in": "submit_offer_create",
               "kind": "except",
-              "line": 1261
+              "line": 1264
             },
             {
               "in": "submit_amm_create",
               "kind": "except",
-              "line": 1502
+              "line": 1505
             },
             {
               "in": "submit_amm_deposit",
               "kind": "except",
-              "line": 1658
+              "line": 1661
             },
             {
               "in": "submit_amm_withdraw",
               "kind": "except",
-              "line": 1790
+              "line": 1793
             },
             {
               "in": "submit_nft_create_offer",
               "kind": "except",
-              "line": 2064
+              "line": 2067
             },
             {
               "in": "submit_clawback",
               "kind": "except",
-              "line": 2379
+              "line": 2410
             },
             {
               "in": "submit_clawback",
               "kind": "except",
-              "line": 2433
+              "line": 2464
             },
             {
               "in": "submit_escrow_create",
               "kind": "except",
-              "line": 2554
+              "line": 2585
             },
             {
               "in": "submit_token_escrow_create",
               "kind": "except",
-              "line": 2979
+              "line": 3010
             },
             {
               "in": "_credit_iou",
               "kind": "except",
-              "line": 3032
+              "line": 3063
             },
             {
               "in": "submit_escrow_finish",
               "kind": "except",
-              "line": 3134
+              "line": 3165
             },
             {
               "in": "submit_escrow_cancel",
               "kind": "except",
-              "line": 3187
+              "line": 3218
             },
             {
               "in": "submit_check_create",
               "kind": "except",
-              "line": 3221
+              "line": 3252
             },
             {
               "in": "submit_check_cash",
               "kind": "except",
-              "line": 3315
+              "line": 3346
             },
             {
               "in": "submit_permissioned_offer_create",
               "kind": "except",
-              "line": 3811
+              "line": 3842
             },
             {
               "in": "submit_mpt_payment",
               "kind": "except",
-              "line": 3959
+              "line": 3990
             },
             {
               "in": "submit_payment_channel_create",
               "kind": "except",
-              "line": 4017
+              "line": 4048
             },
             {
               "in": "submit_payment_channel_fund",
               "kind": "except",
-              "line": 4067
+              "line": 4098
             },
             {
               "in": "verify_payment_channel_claim",
               "kind": "except",
-              "line": 4111
+              "line": 4142
             },
             {
               "in": "submit_payment_channel_claim",
               "kind": "except",
-              "line": 4158
+              "line": 4189
             },
             {
               "in": "submit_payment_channel_claim",
               "kind": "except",
-              "line": 4176
+              "line": 4207
             },
             {
               "in": "submit_multisig_payment",
               "kind": "except",
-              "line": 4412
+              "line": 4443
             }
           ],
-          "hash": "cceea7a6e8e4b48bf8650b9ef8ed42f8def2bb62e08a92d18b21a4de1dde633c",
+          "hash": "b8e8d97e43b14a71aaec9e24ce03f7bbaf6323d0eb4b1d1c5206f25d90c991a5",
           "importsFiles": [
             "xrpl_lab/transport/base.py"
           ],
@@ -8737,440 +8931,485 @@
             {
               "in": "classify_network",
               "kind": "except",
-              "line": 261
+              "line": 269
             },
             {
               "in": "_decode_memos",
               "kind": "except",
-              "line": 298
+              "line": 306
             },
             {
               "in": "_pin_sequence",
               "kind": "except",
-              "line": 504
+              "line": 512
             },
             {
               "in": "_int_or_none",
               "kind": "except",
-              "line": 583
+              "line": 591
             },
             {
               "in": "_safe_int",
               "kind": "except",
-              "line": 598
+              "line": 606
             },
             {
               "in": "_parse_nft_entry",
               "kind": "except",
-              "line": 614
+              "line": 622
             },
             {
               "in": "_verify_local_chain",
               "kind": "except",
-              "line": 761
+              "line": 769
             },
             {
               "in": "get_network_info",
               "kind": "except",
-              "line": 814
+              "line": 822
             },
             {
               "in": "fund_from_faucet",
               "kind": "except",
-              "line": 888
+              "line": 896
             },
             {
               "in": "fund_from_faucet",
               "kind": "except",
-              "line": 941
+              "line": 949
             },
             {
               "in": "fund_from_faucet",
               "kind": "except",
-              "line": 947
+              "line": 955
             },
             {
               "in": "submit_payment",
               "kind": "except",
-              "line": 975
+              "line": 983
             },
             {
               "in": "submit_payment",
               "kind": "except",
-              "line": 1013
+              "line": 1021
             },
             {
               "in": "submit_trust_set",
               "kind": "except",
-              "line": 1050
+              "line": 1058
             },
             {
               "in": "submit_issued_payment",
               "kind": "except",
-              "line": 1089
+              "line": 1097
             },
             {
               "in": "submit_partial_payment",
               "kind": "except",
-              "line": 1140
+              "line": 1148
             },
             {
               "in": "get_trust_lines",
               "kind": "except",
-              "line": 1166
+              "line": 1174
             },
             {
               "in": "submit_nft_mint",
               "kind": "except",
-              "line": 1205
+              "line": 1213
             },
             {
               "in": "get_account_nfts",
               "kind": "except",
-              "line": 1231
+              "line": 1239
             },
             {
               "in": "get_account_nfts",
               "kind": "except",
-              "line": 1245
+              "line": 1253
             },
             {
               "in": "submit_nft_burn",
               "kind": "except",
-              "line": 1263
+              "line": 1271
             },
             {
               "in": "submit_nft_create_offer",
               "kind": "except",
-              "line": 1311
+              "line": 1319
             },
             {
               "in": "submit_nft_create_offer",
               "kind": "except",
-              "line": 1324
+              "line": 1332
             },
             {
               "in": "submit_nft_accept_offer",
               "kind": "except",
-              "line": 1347
+              "line": 1355
             },
             {
               "in": "submit_nft_modify",
               "kind": "except",
-              "line": 1371
+              "line": 1379
             },
             {
               "in": "get_nft_offers",
               "kind": "except",
-              "line": 1404
+              "line": 1412
             },
             {
               "in": "submit_account_set_clawback",
               "kind": "except",
-              "line": 1430
+              "line": 1438
+            },
+            {
+              "in": "submit_default_ripple",
+              "kind": "except",
+              "line": 1460
+            },
+            {
+              "in": "has_default_ripple",
+              "kind": "except",
+              "line": 1482
             },
             {
               "in": "submit_clawback",
               "kind": "except",
-              "line": 1463
+              "line": 1513
             },
             {
               "in": "_submit_tx",
               "kind": "except",
-              "line": 1504
+              "line": 1554
             },
             {
               "in": "_submit_tx",
               "kind": "except",
-              "line": 1516
+              "line": 1566
             },
             {
               "in": "_submit_tx",
               "kind": "except",
-              "line": 1520
+              "line": 1570
             },
             {
               "in": "_submit_tx",
               "kind": "except",
-              "line": 1542
+              "line": 1592
             },
             {
               "in": "submit_set_freeze",
               "kind": "except",
-              "line": 1605
+              "line": 1655
             },
             {
               "in": "submit_global_freeze",
               "kind": "except",
-              "line": 1632
+              "line": 1682
             },
             {
               "in": "get_freeze_status",
               "kind": "except",
-              "line": 1673
+              "line": 1723
             },
             {
               "in": "submit_payment_channel_create",
               "kind": "except",
-              "line": 1698
+              "line": 1748
             },
             {
               "in": "submit_payment_channel_fund",
               "kind": "except",
-              "line": 1722
+              "line": 1772
             },
             {
               "in": "submit_payment_channel_claim",
               "kind": "except",
-              "line": 1750
+              "line": 1800
             },
             {
               "in": "get_account_channels",
               "kind": "except",
-              "line": 1780
+              "line": 1830
             },
             {
               "in": "verify_payment_channel_claim",
               "kind": "except",
-              "line": 1800
+              "line": 1850
             },
             {
               "in": "submit_escrow_create",
               "kind": "except",
-              "line": 1831
+              "line": 1881
             },
             {
               "in": "submit_require_dest",
               "kind": "except",
-              "line": 1865
+              "line": 1915
             },
             {
               "in": "submit_deposit_auth",
               "kind": "except",
-              "line": 1899
+              "line": 1949
             },
             {
               "in": "submit_deposit_preauth",
               "kind": "except",
-              "line": 1945
+              "line": 1995
             },
             {
               "in": "submit_allow_trustline_locking",
               "kind": "except",
-              "line": 1970
+              "line": 2020
             },
             {
               "in": "submit_token_escrow_create",
               "kind": "except",
-              "line": 2006
+              "line": 2056
             },
             {
               "in": "submit_signer_list_set",
               "kind": "except",
-              "line": 2047
+              "line": 2097
             },
             {
               "in": "submit_multisig_payment",
               "kind": "except",
-              "line": 2088
+              "line": 2138
             },
             {
               "in": "submit_multisig_payment",
               "kind": "except",
-              "line": 2102
+              "line": 2152
             },
             {
               "in": "submit_multisig_payment",
               "kind": "except",
-              "line": 2112
+              "line": 2162
             },
             {
               "in": "submit_multisig_payment",
               "kind": "except",
-              "line": 2122
+              "line": 2172
             },
             {
               "in": "get_signer_list",
               "kind": "except",
-              "line": 2133
+              "line": 2183
             },
             {
               "in": "_escrow_create_sequences",
               "kind": "except",
-              "line": 2191
+              "line": 2241
             },
             {
               "in": "get_escrows",
               "kind": "except",
-              "line": 2200
+              "line": 2250
             },
             {
               "in": "submit_escrow_finish",
               "kind": "except",
-              "line": 2248
+              "line": 2298
             },
             {
               "in": "submit_escrow_cancel",
               "kind": "except",
-              "line": 2270
+              "line": 2320
             },
             {
               "in": "submit_check_create",
               "kind": "except",
-              "line": 2307
+              "line": 2357
             },
             {
               "in": "submit_check_cash",
               "kind": "except",
-              "line": 2346
+              "line": 2396
             },
             {
               "in": "submit_check_cancel",
               "kind": "except",
-              "line": 2370
+              "line": 2420
             },
             {
               "in": "submit_did_set",
               "kind": "except",
-              "line": 2387
+              "line": 2437
             },
             {
               "in": "get_did",
               "kind": "except",
-              "line": 2396
+              "line": 2446
             },
             {
               "in": "_dec",
               "kind": "except",
-              "line": 2405
+              "line": 2455
             },
             {
               "in": "submit_did_delete",
               "kind": "except",
-              "line": 2422
+              "line": 2472
             },
             {
               "in": "submit_credential_create",
               "kind": "except",
-              "line": 2456
+              "line": 2506
             },
             {
               "in": "submit_credential_accept",
               "kind": "except",
-              "line": 2479
+              "line": 2529
             },
             {
               "in": "submit_credential_delete",
               "kind": "except",
-              "line": 2504
+              "line": 2554
             },
             {
               "in": "get_credential",
               "kind": "except",
-              "line": 2525
+              "line": 2575
             },
             {
               "in": "_dec",
               "kind": "except",
-              "line": 2544
+              "line": 2594
             },
             {
               "in": "submit_permissioned_domain_set",
               "kind": "except",
-              "line": 2593
+              "line": 2643
             },
             {
               "in": "submit_permissioned_domain_delete",
               "kind": "except",
-              "line": 2622
+              "line": 2672
             },
             {
               "in": "submit_permissioned_offer_create",
               "kind": "except",
-              "line": 2661
+              "line": 2711
             },
             {
               "in": "get_permissioned_domains",
               "kind": "except",
-              "line": 2683
+              "line": 2733
             },
             {
               "in": "submit_mpt_issuance_create",
               "kind": "except",
-              "line": 2728
+              "line": 2778
             },
             {
               "in": "submit_mpt_authorize",
               "kind": "except",
-              "line": 2757
+              "line": 2807
             },
             {
               "in": "submit_mpt_payment",
               "kind": "except",
-              "line": 2780
+              "line": 2830
             },
             {
               "in": "get_mpt_balance",
               "kind": "except",
-              "line": 2789
+              "line": 2839
             },
             {
               "in": "get_mpt_issuances",
               "kind": "except",
-              "line": 2803
+              "line": 2853
             },
             {
               "in": "_amount_obj",
               "kind": "except",
-              "line": 2827
+              "line": 2877
             },
             {
               "in": "_amount_obj",
               "kind": "raise",
-              "line": 2828
+              "line": 2878
             },
             {
               "in": "submit_offer_create",
               "kind": "except",
-              "line": 2873
+              "line": 2923
             },
             {
               "in": "submit_offer_cancel",
               "kind": "except",
-              "line": 2898
+              "line": 2948
             },
             {
               "in": "get_account_offers",
               "kind": "except",
-              "line": 2921
+              "line": 2971
             },
             {
               "in": "get_account_offers",
               "kind": "except",
-              "line": 2931
+              "line": 2981
             },
             {
               "in": "get_account_info",
               "kind": "except",
-              "line": 2951
+              "line": 3001
             },
             {
               "in": "fetch_tx",
               "kind": "except",
-              "line": 3018
+              "line": 3068
             },
             {
               "in": "fetch_tx",
               "kind": "except",
-              "line": 3028
+              "line": 3078
             },
             {
               "in": "get_balance",
               "kind": "except",
-              "line": 3042
+              "line": 3092
+            },
+            {
+              "in": "_parse_amm_amount",
+              "kind": "except",
+              "line": 3117
+            },
+            {
+              "in": "_amm_create_fee_drops",
+              "kind": "except",
+              "line": 3156
+            },
+            {
+              "in": "get_amm_info",
+              "kind": "except",
+              "line": 3182
+            },
+            {
+              "in": "submit_amm_create",
+              "kind": "except",
+              "line": 3258
+            },
+            {
+              "in": "submit_amm_deposit",
+              "kind": "except",
+              "line": 3296
+            },
+            {
+              "in": "submit_amm_withdraw",
+              "kind": "except",
+              "line": 3360
+            },
+            {
+              "in": "get_lp_token_balance",
+              "kind": "except",
+              "line": 3390
             }
           ],
-          "hash": "880cdb6281632becc0f28f36eee6041c0140ba386f0a0beaf5316f4b66521ee7",
+          "hash": "59c4ddf1a0fa4ccb4a1f7f886a89793b370ca279bd8796de999ae2c44a8c1220",
           "importOrder": [
             "xrpl_lab/transport/base.py",
             "xrpl_lab/doctor.py"
@@ -9184,14 +9423,14 @@
             {
               "calls": [
                 {
-                  "line": 393,
+                  "line": 401,
                   "name": "explain_result_code",
                   "target": {
                     "file": "xrpl_lab/doctor.py"
                   }
                 },
                 {
-                  "line": 394,
+                  "line": 402,
                   "name": "SubmitResult",
                   "target": {
                     "file": "xrpl_lab/transport/base.py"
@@ -9207,7 +9446,7 @@
               "calls": [
                 {
                   "branch": "code and msg.startswith(_VALIDATED_FAILURE_PREFIX)",
-                  "line": 393,
+                  "line": 401,
                   "name": "explain_result_code",
                   "target": {
                     "file": "xrpl_lab/doctor.py"
@@ -9216,7 +9455,7 @@
                 },
                 {
                   "branch": "code and msg.startswith(_VALIDATED_FAILURE_PREFIX)",
-                  "line": 394,
+                  "line": 402,
                   "name": "SubmitResult",
                   "target": {
                     "file": "xrpl_lab/transport/base.py"
@@ -9232,7 +9471,7 @@
             {
               "calls": [
                 {
-                  "line": 437,
+                  "line": 445,
                   "name": "SubmitResult",
                   "target": {
                     "file": "xrpl_lab/transport/base.py"
@@ -9247,12 +9486,12 @@
             {
               "calls": [
                 {
-                  "line": 496,
+                  "line": 504,
                   "name": "is_signed",
                   "target": null
                 },
                 {
-                  "line": 515,
+                  "line": 523,
                   "name": "to_dict",
                   "target": null
                 }
@@ -9265,7 +9504,7 @@
             {
               "calls": [
                 {
-                  "line": 616,
+                  "line": 624,
                   "name": "NFTInfo",
                   "target": {
                     "file": "xrpl_lab/transport/base.py"
@@ -9280,7 +9519,7 @@
             {
               "calls": [
                 {
-                  "line": 636,
+                  "line": 644,
                   "name": "OfferInfo",
                   "target": {
                     "file": "xrpl_lab/transport/base.py"
@@ -9569,7 +9808,7 @@
       "origin": "authored",
       "outsidePlaces": [
         {
-          "reads": 50,
+          "reads": 51,
           "where": [
             "caller"
           ],
@@ -9622,13 +9861,13 @@
           "writes": 0
         }
       ],
-      "outsideReads": 60,
+      "outsideReads": 61,
       "outsideWrites": 7,
       "role": "code",
       "testRunners": [
         "pytest"
       ],
-      "testedBy": 115,
+      "testedBy": 117,
       "unresolvedSites": 0
     }
   ],
@@ -9821,7 +10060,7 @@
         {
           "boundary": "tests",
           "depth": 0,
-          "files": 119
+          "files": 121
         },
         {
           "boundary": "xrpl_lab",
@@ -9883,7 +10122,7 @@
       "tests": [
         {
           "config": "pyproject.toml",
-          "files": 119,
+          "files": 121,
           "job": "lint-and-test",
           "junit": true,
           "runner": "pytest",
@@ -10802,8 +11041,8 @@
   ],
   "engine": "1.24.0",
   "generatedFrom": {
-    "commit": "c73deb4e8314a62d57c2a5a9f211c6f14471a0f8",
-    "tracked": 285
+    "commit": "fa2370c86bb3dab62af342d2cbf5d9266ea3c240",
+    "tracked": 287
   },
   "landings": [
     {
@@ -10875,6 +11114,18 @@
         }
       ],
       "target": "modules",
+      "writers": []
+    },
+    {
+      "readers": [
+        {
+          "by": "tests/test_amm.py",
+          "call": "read_text",
+          "confidence": "ast",
+          "fromTests": true
+        }
+      ],
+      "target": "modules/amm_liquidity_101.md",
       "writers": []
     },
     {
@@ -11440,6 +11691,6 @@
   "overlaps": [],
   "submodules": [],
   "symlinks": [],
-  "testFiles": 127,
+  "testFiles": 129,
   "unassigned": []
 }

@@ -2,11 +2,11 @@
 id: amm_liquidity_101
 title: "AMM Liquidity 101: Providing Liquidity and Earning Fees"
 track: amm
-summary: Deposit into an AMM pool, earn LP tokens, and withdraw — all in sandbox.
+summary: Deposit into an AMM pool on testnet, earn LP tokens, and withdraw.
 order: 9
 time: 20-30 min
 level: advanced
-mode: dry-run
+mode: testnet
 requires:
   - trust_lines_101
 produces:
@@ -28,9 +28,10 @@ Traders swap against your pool, and you earn a slice of every swap fee.
 The tradeoff: if the price ratio moves, you may end up with less total
 value than if you'd just held the assets — that's **impermanent loss**.
 
-This module runs in dry-run mode — no real assets at risk. You'll walk
-through the full lifecycle: create a pool, deposit, verify, withdraw,
-verify.
+This module runs on testnet — free, disposable assets only, no real value
+at risk. You'll walk through the full lifecycle: create a pool, deposit,
+verify, withdraw, verify. It also works in `--dry-run`, where the pool is
+simulated offline with no network calls at all.
 
 ## Step 1: Ensure your wallet is ready
 
@@ -60,46 +61,57 @@ until balance is 0 and you remove them; run **Account Hygiene**
 
 <!-- action: fund_issuer -->
 
-## Step 5: Set trust line for LAB
+## Step 5: Enable Default Ripple on the issuer
+
+An issuer must opt in to "rippling" — letting token balances move through
+its trust lines — before its token can participate in an AMM or the DEX
+payment paths built on top. One `AccountSet` flag (`asfDefaultRipple`)
+covers it; skip it and pool creation fails with `terNO_RIPPLE`. This step
+is safe to re-run: if the flag is already set, nothing new is submitted.
+
+<!-- action: enable_default_ripple -->
+
+## Step 6: Set trust line for LAB
 
 You need a trust line to the LAB issuer before receiving tokens.
 
 <!-- action: set_trust_line currency=LAB limit=10000 -->
 
-## Step 6: Issue LAB tokens
+## Step 7: Issue LAB tokens
 
 The issuer sends LAB tokens to your wallet. You need these to deposit
 into the AMM pool alongside XRP.
 
 <!-- action: issue_token currency=LAB amount=1000 -->
 
-## Step 7: Snapshot before deposit
+## Step 8: Snapshot before deposit
 
 Capture your account state before interacting with the AMM. This
 baseline helps you measure the reserve impact of LP positions.
 
 <!-- action: snapshot_account label=before_amm -->
 
-## Step 8: Ensure AMM pool exists
+## Step 9: Ensure AMM pool exists
 
 XRPL allows one AMM per asset pair. If no XRP/LAB pool exists, we
-create one with small initial balances. The creator receives all
-initial LP tokens.
+create one with small initial balances: 25 XRP and 25 LAB. That's
+sized so one faucet grant covers the pool, your deposit, the create
+fee and your reserves. The creator receives all initial LP tokens.
 
 Creating an AMM costs a special fee (higher than normal transactions)
 and the pool is permanent — it belongs to a special AMM account on
 the ledger.
 
-<!-- action: ensure_amm_pair a_currency=XRP a_value=100 b_currency=LAB b_value=100 -->
+<!-- action: ensure_amm_pair a_currency=XRP a_value=25 b_currency=LAB b_value=25 -->
 
-## Step 9: Query AMM state
+## Step 10: Query AMM state
 
 Look at the pool before your deposit: how much XRP, how much LAB,
 what's the LP token supply, and what's the trading fee.
 
 <!-- action: get_amm_info a_currency=XRP b_currency=LAB -->
 
-## Step 10: Deposit into the AMM
+## Step 11: Deposit into the AMM
 
 You deposit both XRP and LAB proportionally. In return, you receive
 LP tokens — these represent your share of the pool.
@@ -108,20 +120,20 @@ Think of LP tokens as a receipt: they prove how much of the pool
 belongs to you. The AMM account issues them, and they behave like
 any other issued token on XRPL (you can see them as trust lines).
 
-<!-- action: amm_deposit a_currency=XRP a_value=10 b_currency=LAB b_value=10 -->
+<!-- action: amm_deposit a_currency=XRP a_value=5 b_currency=LAB b_value=5 -->
 
-## Step 11: Verify LP tokens received
+## Step 12: Verify LP tokens received
 
 Check that your LP token balance increased. The pool balances should
 also reflect your deposit.
 
 <!-- action: verify_lp_received -->
 
-## Step 12: Snapshot after deposit
+## Step 13: Snapshot after deposit
 
 <!-- action: snapshot_account label=after_deposit -->
 
-## Step 13: Check reserve impact
+## Step 14: Check reserve impact
 
 Compare your account state before and after the deposit. Your owner
 count may increase (LP trust line / AMM position), and your XRP
@@ -129,7 +141,7 @@ balance decreased by the deposit amount plus fees.
 
 <!-- action: verify_reserve_change before=before_amm after=after_deposit -->
 
-## Step 14: Withdraw from the AMM
+## Step 15: Withdraw from the AMM
 
 Return your LP tokens to get your assets back. This is a proportional
 withdrawal — you get back XRP and LAB in the current pool ratio,
@@ -138,18 +150,18 @@ in action, though in this exercise the ratio won't change).
 
 <!-- action: amm_withdraw a_currency=XRP b_currency=LAB -->
 
-## Step 15: Verify withdrawal
+## Step 16: Verify withdrawal
 
 Confirm that your LP token balance decreased (or reached zero) and
 that assets were returned from the pool.
 
 <!-- action: verify_withdrawal -->
 
-## Step 16: Snapshot after withdrawal
+## Step 17: Snapshot after withdrawal
 
 <!-- action: snapshot_account label=after_withdraw -->
 
-## Step 17: Final comparison
+## Step 18: Final comparison
 
 Compare before-AMM to after-withdrawal. Your owner count should be
 similar, though XRP balance will be slightly lower from transaction

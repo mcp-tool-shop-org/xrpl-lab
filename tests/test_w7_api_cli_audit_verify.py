@@ -75,7 +75,8 @@ async def test_audit_verify_json_output(tmp_path):
     runner = CliRunner()
     result = runner.invoke(main, ["audit-verify", str(path), "--json"])
     assert result.exit_code == 0, result.output
-    data = json.loads(result.output)
+    # stdout only — the deprecation note lives on stderr (mixed into .output).
+    data = json.loads(result.stdout)
     assert data["valid"] is True
     assert "integrity" in data or "sha256" in data or data.get("message")
 

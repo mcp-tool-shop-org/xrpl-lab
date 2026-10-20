@@ -1,14 +1,16 @@
 # xrpl-lab: how it works
 
-Mapped at 2026-10-15 from commit c73deb4 by Atlas 1.24.0.
+Mapped at 2026-10-20 from commit fa2370c by Atlas 1.24.0.
 
 ## What this is
 
-11 parts, mostly Python (173 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.
+10 parts, mostly Python (175 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.
 
-## What changed since 2026-10-01 (eef6677)
+## What changed since 2026-10-15 (c73deb4)
 
-Nothing structural changed since 2026-10-01; 13 files changed content.
+- modules/amm_liquidity_101.md is now read by tests/test_amm.py.
+- design is no longer a part.
+- 2 files added, 2 moved and 25 changed content, across 8 parts.
 
 ## What comes in
 
@@ -59,7 +61,7 @@ No two source files, other than a file and its own test, changed together often 
 
 1 file changed together with its own test, as expected.
 
-Window: 180 days; a pair counts from 3 shared commits, since 4 source files reach 10 revisions; the floor rises to 10 when 25 do.
+Window: 180 days; a pair counts from 3 shared commits, since 5 source files reach 10 revisions; the floor rises to 10 when 25 do.
 
 ## What no test touches
 
@@ -81,7 +83,7 @@ Nothing in this repository writes to a tracked place this map can see.
 
 ## Hand-authored
 
-People write .github/, design/, docs/, modules/, presets/, the repository root and site/; 3 writes with paths built at run time may land here.
+People write .github/, docs/, modules/, presets/, the repository root and site/; 3 writes with paths built at run time may land here.
 
 ## Where to start
 
@@ -93,7 +95,7 @@ Read those in order to follow one run of xrpl-lab end to end. This path follows 
 
 - 1 import could not be resolved: `tests/test_product_smoke.py` imports a path built at run time.
 - 3 writes and 7 reads use paths built at run time and are not named here.
-- 6 writes and 51 reads go to a path their caller passes, not to this repository.
+- 6 writes and 52 reads go to a path their caller passes, not to this repository.
 - 1 write and 6 reads go to the home directory (.xrpl-lab/) or a path their caller passes, not to this repository.
 - 4 reads go to the directory the command is run in, not to this repository.
 - Statistics confidence is low: fewer than 25 source files reach 10 revisions in the window.

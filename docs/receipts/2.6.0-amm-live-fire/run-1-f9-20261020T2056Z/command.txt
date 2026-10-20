@@ -1,0 +1,9 @@
+cwd: <scratch>/f9-20261020T2056Z/cwd  (outside every repo)
+XRPL_LAB_HOME=<scratch>/f9-20261020T2056Z/home   (wallet.json stays here, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1
+code: mcp-tool-shop-org/xrpl-lab @ 7acc67c (feat/2.6.0, PR #19), worktree _worktrees/xrpl-lab-f9-livefire
+cmd:  yes "" | xrpl-lab run amm_liquidity_101
+started_utc: 2026-10-20T20:56:29Z
+exit_code: 141
+finished_utc: 2026-10-20T21:01:02Z
+exit_code_note: 141 is SIGPIPE from 'yes' under pipefail; xrpl-lab's own exit code was masked (harness error, use PIPESTATUS next run). Module printed 'Complete' and state marks it completed.

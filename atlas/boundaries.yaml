@@ -8,10 +8,6 @@ boundaries:
     globs:
       - bin/**
     role: code
-  - name: design
-    globs:
-      - design/**
-    role: docs
   - name: docs
     globs:
       - docs/**

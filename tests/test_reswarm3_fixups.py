@@ -115,7 +115,8 @@ def test_proof_verify_json_flags_simulated_for_dry_run(tmp_path):
 
     p = _write_pack(tmp_path, "dry-run")
     res = CliRunner().invoke(cli.main, ["proof", "verify", str(p), "--json"])
-    assert json.loads(res.output)["simulated"] is True
+    # stdout only — the deprecation note lives on stderr (mixed into .output).
+    assert json.loads(res.stdout)["simulated"] is True
 
 
 def test_proof_verify_json_not_simulated_for_testnet(tmp_path):
@@ -123,7 +124,7 @@ def test_proof_verify_json_not_simulated_for_testnet(tmp_path):
 
     p = _write_pack(tmp_path, "testnet")
     res = CliRunner().invoke(cli.main, ["proof", "verify", str(p), "--json"])
-    assert json.loads(res.output)["simulated"] is False
+    assert json.loads(res.stdout)["simulated"] is False
 
 
 def test_proof_verify_banner_shows_simulated_for_dry_run(tmp_path):
@@ -150,7 +151,7 @@ def test_proof_verify_json_flags_unverified(tmp_path):
 
     p = _write_pack(tmp_path, "testnet", all_verified=False)
     res = CliRunner().invoke(cli.main, ["proof", "verify", str(p), "--json"])
-    assert json.loads(res.output)["all_verified"] is False
+    assert json.loads(res.stdout)["all_verified"] is False
 
 
 def test_proof_verify_banner_shows_unverified(tmp_path):

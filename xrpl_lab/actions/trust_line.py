@@ -96,6 +96,31 @@ async def enable_clawback(
     return await transport.submit_account_set_clawback(issuer_seed, issuer_address)
 
 
+async def enable_default_ripple(
+    transport: Transport,
+    issuer_seed: str,
+    issuer_address: str = "",
+) -> SubmitResult:
+    """Enable Default Ripple on the issuer (AccountSet asfDefaultRipple).
+
+    Required before the issuer's token can join an AMM pool or ride DEX
+    payment paths — a pool-creation attempt against a token whose issuer
+    never ripples fails with ``terNO_RIPPLE``. Unlike clawback this flag can
+    be set at any time; a second set is a fee-costing no-op, so callers check
+    ``has_default_ripple`` first. ``issuer_address`` is forwarded for the
+    dry-run transport's per-issuer flag state (testnet ignores it).
+    """
+    return await transport.submit_default_ripple(issuer_seed, issuer_address)
+
+
+async def check_default_ripple(
+    transport: Transport,
+    issuer_address: str,
+) -> bool:
+    """Read whether the issuer already has Default Ripple enabled."""
+    return await transport.has_default_ripple(issuer_address)
+
+
 async def clawback_tokens(
     transport: Transport,
     issuer_seed: str,

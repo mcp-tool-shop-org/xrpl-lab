@@ -50,14 +50,21 @@ async def ensure_amm_pair(
         wallet_address=wallet_address,
     )
 
+    # Keep the pair's issuers on the placeholder: a later pool refresh built
+    # from an issuer-less AmmInfo asked amm_info for LAB with issuer "", and
+    # rippled answered issueMalformed (live-fire runs 1 and 2, Argon F4).
+    placeholder = AmmInfo(
+        asset_a=asset_a_currency, asset_b=asset_b_currency,
+        asset_a_issuer=asset_a_issuer, asset_b_issuer=asset_b_issuer,
+    )
     if not result.success:
-        return AmmInfo(asset_a=asset_a_currency, asset_b=asset_b_currency), result
+        return placeholder, result
 
     info = await transport.get_amm_info(
         asset_a_currency, asset_a_issuer,
         asset_b_currency, asset_b_issuer,
     )
-    return info or AmmInfo(asset_a=asset_a_currency, asset_b=asset_b_currency), result
+    return info or placeholder, result
 
 
 async def amm_deposit(
@@ -232,7 +239,7 @@ async def verify_withdrawal(
     else:
         checks.append(f"LP token balance: {lp_balance}")
 
-    if balance_f == 0:
+    if balance_f == 0 and before_f > 0:
         checks.append("All LP tokens returned — full withdrawal")
 
     return AmmVerifyResult(
