@@ -9,6 +9,93 @@ Local paths are shown as `<scratch>`.
 | Run | Date (UTC) | Code | Verdict |
 |---|---|---|---|
 | [run-1](run-1-f9-20261020T2056Z/) | 2026-10-20 20:56–21:01 | `7acc67c` (feat/2.6.0) | **FAIL**: no AMM was created; 4 submissions never validated |
+| [run-2](run-2-f9-20261020T2124Z/) | 2026-10-20 21:24–21:27 | `f803a49` (feat/2.6.0) | **FAIL**: run 1's defects fixed; AMMCreate validated `tecUNFUNDED_AMM` (pool sized past one 100 XRP faucet grant) |
+
+## Run 2: f9-20261020T2124Z, FAIL
+
+**Setup:** the same as run 1, on `f803a49`, which is run 1's receipt plus the fixes for funding, held results and
+honest status.
+
+**Preflight:**
+- `classify_network` reported `testnet`.
+- The network guard passed.
+- Connected at ledger 21692849.
+
+**Exit code:** xrpl-lab exited **0**, read from `PIPESTATUS[1]`, even though the run ended "Completed with failures".
+
+**Accounts:**
+- Learner: `rQ3mdmTCHGHsVzSnfoSYqktePZeHu7CJCy`
+- Issuer: `rGaJTbCz2i9ccNoJ9XZmZrVcrtzRLD2Ew5`
+
+**Ledger at the time:** `reserve_base` 1000000, `reserve_inc` 200000.
+
+| # | Step | Tx type | Hash | Engine result | Fee (drops) | Flags | Outcome |
+|---|---|---|---|---|---|---|---|
+| 1 | ensure_wallet | none | none | n/a | n/a | n/a | PASS |
+| 2 | ensure_funded | Payment (faucet, 100 XRP) ×1 | `CA029368…68CB0` (ledger 21692852) | tesSUCCESS | 12 | 0 | PASS: one call, "Funded! Balance: 100.000000 XRP" |
+| 3 | create_issuer_wallet | none | none | n/a | n/a | n/a | PASS |
+| 4 | fund_issuer | Payment (faucet, 100 XRP) | `4244473F…438F8` (21692854) | tesSUCCESS | 12 | 0 | PASS: balance read back as 100 XRP |
+| 5 | enable_default_ripple | AccountSet asfDefaultRipple | `FE8679A4…DBE4E` (21692857) | tesSUCCESS | 10 | SetFlag 8 | PASS: issuer `Flags` 0x800000 |
+| 6 | set_trust_line | TrustSet | `21B056C7…CE0F` (21692859) | tesSUCCESS | 10 | n/a | PASS |
+| 7 | issue_token | Payment 1000 LAB | `6521535C…1888` (21692861) | tesSUCCESS | 10 | n/a | PASS |
+| 8 | snapshot_account | none | none | n/a | n/a | n/a | 99.999990 XRP, owner count 1 |
+| 9 | ensure_amm_pair | AMMCreate 100 XRP / 100 LAB | `1C14C1C3…08A1F5` (21692864) | **tecUNFUNDED_AMM** | **200000 = reserve_inc** | n/a | **FAIL**: hash never printed or recorded |
+| 10 | get_amm_info | amm_info | n/a | actNotFound | n/a | n/a | FAIL (follows from step 9); printed nothing for "no pool" |
+| 11 | amm_deposit 10/10 | AMMDeposit | `A55B97F2…BA31B` (recorded in `tx_index`) | not found on the network (`txnNotFound`) | n/a | tfTwoAsset | **FAIL**: "There is no AMM pool" |
+| 12 | verify_lp_received | none | none | n/a | n/a | n/a | FAIL |
+| 13 | snapshot_account | none | none | n/a | n/a | n/a | 99.799990 XRP: the 0.2 XRP AMMCreate fee |
+| 14 | verify_reserve_change | none | none | n/a | n/a | n/a | "decreased by 0.200000 XRP" (the failed AMMCreate's fee) |
+| 15 | amm_withdraw | AMMWithdraw | `A91F3B02…B7B98` (recorded) | known but not validated; LastLedgerSequence 21692905 passed | n/a | tfWithdrawAll | **FAIL**: "There is no AMM pool"; stderr `issueMalformed` |
+| 16 | verify_withdrawal | none | none | n/a | n/a | n/a | FAIL: still prints both a ✓ and a ✗ |
+| 17 | snapshot_account | none | none | n/a | n/a | n/a | unchanged |
+| 18 | verify_reserve_change | none | none | n/a | n/a | n/a | "decreased by 0.200000 XRP" |
+
+Pool and reserve before and after:
+- **Pool:** never created. `amm_info` XRP/LAB returned `actNotFound` after the run.
+- **Learner:** 99,999,990 drops before the AMM steps and 99,799,990 after, owner count 1 throughout.
+
+### What run 2 fixed (verified against the ledger)
+
+- **Funding:** one faucet call per account, no triple funding. Each account appeared on a validated ledger before
+  its next step. The issuer was funded at ledger 21692854, and its AccountSet validated at 21692857.
+- **DefaultRipple** is set (issuer `Flags` 0x800000), so the run-1 chain (`terNO_RIPPLE` → `terNO_AMM`) is gone.
+- **Panel and report:**
+  - The panel reads "Completed with failures" and lists failed steps.
+  - The report's step numbers match the module.
+  - The report has a "Steps: N passed, M failed" line.
+
+### What run 2 found
+
+1. **Blocking: the pool is sized past one faucet grant.**
+   - The faucet now funds 100 XRP once.
+   - The module's AMMCreate asks for 100 XRP into the pool. Before the AMM steps the learner held 99.99999 XRP, and
+     the account reserve alone is 1 XRP plus 0.2 XRP per owned object, with 1 already owned (the LAB trust line).
+   - So the AMMCreate can never be funded: `tecUNFUNDED_AMM`.
+   - In run 1 this was hidden: the false-negative faucet loop funded 300 XRP.
+2. **Failed AMM steps don't count as failures.**
+   - The runner marks a step failed on a failed verification, or on a new unsuccessful `context["last_submit"]`.
+   - The AMM handlers never set `last_submit`. So steps 9, 11 and 15 count as passed.
+   - The report says "Steps: 16 passed, 2 failed" and "Transactions: 3 successful, 0 failed". The panel lists only
+     steps 12 and 16.
+   - The process exits 0.
+3. **A validated hash goes missing.**
+   - `handle_ensure_amm_pair`'s failure branch neither prints nor records the AMMCreate hash. `1C14C1C3…` is
+     only in the ledger.
+   - The deposit and withdraw hashes are recorded in `tx_index` but not printed.
+   - The recorded deposit hash `A55B97F2…` is unknown to the network.
+4. **The `tec` failure message says "fee charged on mainnet"** on a testnet run.
+5. **Still open from run 1:** `verify_withdrawal` prints both a pass and a fail line, and an `amm_info` call logs
+   `issueMalformed`.
+
+### The F9 watch-items (Argon) after run 2
+
+| Risk | Status |
+|---|---|
+| AMMCreate fee | **Cleared on the ledger.** The validated AMMCreate `1C14C1C3…` paid exactly `reserve_inc` = 200000 drops. No `telINSUF_FEE_P`, no `max_fee` cap. |
+| Deposit/withdraw mode flags | Cleared at preflight (run 1). Not yet seen on a validated deposit or withdraw. |
+| `amm_info` → `actNotFound` after a full withdraw | **Not tested.** No pool was created. |
+
+---
 
 ## Run 1: f9-20261020T2056Z, FAIL
 
@@ -110,7 +197,8 @@ Pool and reserve before and after:
 
 ### Files
 
-`run-1-f9-20261020T2056Z/`:
+Each `run-N-<run-id>/` holds the same set (run 2's `ledger_evidence.json` also has a ledger lookup of each hash xrpl-lab
+recorded):
 - `command.txt`, `env.txt`, `preflight.txt`
 - `stdout.txt` (the scratch path redacted), `stderr.txt`
 - `module_report.md` (xrpl-lab's own report, unedited)
