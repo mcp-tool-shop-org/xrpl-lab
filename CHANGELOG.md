@@ -21,6 +21,32 @@ the long-planned AMM testnet upgrade, and a Host and Origin gate on the API.
   the Host header at the first `:` (so `[::1]:8321` becomes `[`) and answers
   in plain text, not the API's `{code, message, hint}` envelope.
 
+### Fixed (found by the live-fire run)
+
+Module #30's first live run on XRPL Testnet created no AMM. Its receipt is in
+`docs/receipts/2.6.0-amm-live-fire/`. The fixes:
+
+- **Funding is decided on the validated ledger.** The faucet's reply carried
+  no usable balance, so three real fundings read as failures, and the issuer
+  path didn't wait at all: its `AccountSet` went out before the new account
+  was on a validated ledger and never landed. After a faucet success, the
+  learner's wallet and the issuer now wait for a balance on a validated ledger
+  (about 30 s at most), and the faucet is never asked twice after a success.
+- **A held result keeps its code and hash.** rippled holds a provisional `ter`
+  result (here `terNO_RIPPLE`) until the transaction's 20-ledger window
+  closes, about 80 s, and the client gave up at 60 s, so every failure read
+  as a bare timeout. Transactions are now signed locally before submitting,
+  so the hash is known; the client waits up to 150 s; and when the window
+  closes on a held result, the step reports that code and the hash and isn't
+  retried. A timeout now reads `submit_timeout`, not "rejected before
+  reaching the network". The doctor explains `terNO_RIPPLE`, `terNO_AMM`,
+  `terNO_ACCOUNT` and `submit_timeout`.
+- **A failed step shows in the module's status.** A failed submit or funding
+  now counts like a failed verification: the module is recorded with
+  `verified: false`, the completion panel reads "Completed with failures" and
+  lists them, and the report counts failed steps. Each report step lists only
+  its own transactions, numbered as the module numbers them.
+
 ### Feature
 
 - **Module #30 (AMM Liquidity 101) runs on testnet.** The testnet transport's

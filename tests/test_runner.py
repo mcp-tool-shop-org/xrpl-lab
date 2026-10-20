@@ -414,8 +414,11 @@ class TestEnsureFundedRetry:
         call_count = {"n": 0}
 
         class StubTransport:
+            # The balance appears on the validated ledger once the faucet
+            # succeeds; since 2.6.0 that, not the faucet's reply, decides
+            # "funded" (live-fire run 1).
             async def get_balance(self, addr: str) -> str:
-                return "0"
+                return "100" if call_count["n"] >= 3 else "0"
 
             async def fund_from_faucet(self, addr: str) -> FundResult:
                 call_count["n"] += 1

@@ -141,7 +141,13 @@ from .audit import run_audit, write_audit_pack, write_audit_report_md
 from .errors import LabError, LabException
 from .modules import ModuleStep
 from .registry import ActionDef, PayloadField, register
-from .runtime import _sanitize_endpoint_urls, _SecretValue, ensure_funded, ensure_wallet
+from .runtime import (
+    _sanitize_endpoint_urls,
+    _SecretValue,
+    await_validated_balance,
+    ensure_funded,
+    ensure_wallet,
+)
 from .state import LabState, ensure_workspace, save_state
 from .transport.base import Transport
 
@@ -210,8 +216,11 @@ async def handle_ensure_funded(
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
     address = state.wallet_address
-    if address:
-        await ensure_funded(state, transport, address, console)
+    if address and not await ensure_funded(state, transport, address, console):
+        _record_verification(
+            context, "ensure_funded", passed=False,
+            failures=["wallet not funded on a validated ledger"],
+        )
     return context
 
 
@@ -474,7 +483,19 @@ async def handle_fund_issuer(
     console.print("  Funding issuer wallet from faucet...")
     result = await transport.fund_from_faucet(issuer_address)
     if result.success:
-        console.print(f"  Issuer funded! Balance: [green]{result.balance} XRP[/]")
+        # Live-fire run 1 (2.6.0): this used to return as soon as the faucet
+        # answered, and the next step's AccountSet went out before the issuer
+        # was on a validated ledger; it was held and never landed. Wait for the
+        # validated balance, as ensure_funded does for the learner's wallet.
+        settled = await await_validated_balance(transport, issuer_address)
+        if settled > 0:
+            console.print(f"  Issuer funded! Balance: [green]{settled} XRP[/]")
+            return context
+        console.print(
+            f"  [red]The faucet answered, but the issuer {issuer_address} hasn't "
+            "appeared on a validated ledger yet.[/]"
+        )
+        console.print("  You can retry by re-running this module.")
     elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
         # COREBCD-003: a 429 is not a transient "retry now" — re-running
         # immediately just gets rate-limited again. Mirror `cli.py fund` /
@@ -489,6 +510,10 @@ async def handle_fund_issuer(
             f"  [red]Funding failed: {_sanitize_endpoint_urls(result.message)}[/]"
         )
         console.print("  You can retry by re-running this module.")
+    _record_verification(
+        context, "fund_issuer", passed=False,
+        failures=["issuer account not funded on a validated ledger"],
+    )
     return context
 
 

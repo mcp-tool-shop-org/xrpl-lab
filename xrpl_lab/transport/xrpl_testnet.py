@@ -206,7 +206,12 @@ _EXPLORER_BASES = {
 # Timeouts and retries
 RPC_TIMEOUT = 30  # seconds per RPC call
 FAUCET_TIMEOUT = 30
-SUBMIT_TIMEOUT = 60  # submissions can take a few ledger closes
+# Live-fire run 1 (2.6.0): xrpl-py's autofill gives a transaction a 20-ledger
+# LastLedgerSequence window, about 80 s at testnet's ~4 s ledgers. rippled
+# HOLDS a provisional ter result instead of validating it, and submit_and_wait
+# polls until that window closes; a 60 s client timeout fired first and threw
+# the hash and the code away. Outwait the window so the outcome is known.
+SUBMIT_TIMEOUT = 150
 MAX_RETRIES = 2
 RETRY_DELAY = 3  # seconds between retries
 
@@ -406,6 +411,11 @@ def _structured_failure(result_code: str) -> SubmitResult:
     )
 
 
+# xrpl-py's message when the LastLedgerSequence window closes without the
+# transaction validating; it names the submit's preliminary engine result.
+_PRELIM_RESULT_RE = re.compile(r"Prelim result: (\w+)")
+
+
 def _map_reliable_submission_failure(exc: Exception) -> SubmitResult | None:
     """Map a raised ``XRPLReliableSubmissionException`` to a SubmitResult.
 
@@ -428,10 +438,20 @@ def _map_reliable_submission_failure(exc: Exception) -> SubmitResult | None:
         return _structured_failure(code)
     if code and _is_no_retry_error(code):
         return _structured_failure(code)
+    # Live-fire run 1: the window closed on a HELD result (ter/tef/tel). The
+    # transaction can no longer apply, and the same condition (terNO_RIPPLE,
+    # terNO_AMM) would hold a resubmit too: report the code, don't retry. A
+    # dropped tesSUCCESS or terQUEUED (accepted, then fell out of the queue)
+    # still falls through to the normal retry policy.
+    prelim = _PRELIM_RESULT_RE.search(msg)
+    if prelim and not (
+        prelim.group(1).startswith("tes") or prelim.group(1) == "terQUEUED"
+    ):
+        return _structured_failure(prelim.group(1))
     return None
 
 
-def _timeout_no_resubmit(label: str) -> SubmitResult:
+def _timeout_no_resubmit(label: str, txid: str = "", explorer_url: str = "") -> SubmitResult:
     """The structured result for a submit that timed out client-side.
 
     F-0cbd05ef: a 60s client timeout does NOT mean the tx failed — the first
@@ -442,17 +462,20 @@ def _timeout_no_resubmit(label: str) -> SubmitResult:
     NEVER auto-resubmit after a timeout; the learner is told to verify before
     retrying.
     """
+    which = f" Look it up by hash: {txid}." if txid else ""
     return SubmitResult(
         success=False,
-        result_code="local_error",
+        txid=txid,
+        explorer_url=explorer_url,
+        result_code="submit_timeout",
         error=(
             f"{label} submission timed out after {SUBMIT_TIMEOUT}s. The "
             "transaction may STILL validate in the next few ledgers — it was "
             "handed to the network and its validity window may not have "
             "closed. Not resubmitting automatically (a blind resubmit can "
             "DUPLICATE the transaction). Check your account's recent "
-            "transactions or the explorer first, then retry only if it never "
-            "landed."
+            f"transactions or the explorer first, then retry only if it never "
+            f"landed.{which}"
         ),
     )
 
@@ -1516,6 +1539,24 @@ class XRPLTestnetTransport(Transport):
             )
         return await self._submit_tx(tx, wallet, "Clawback")
 
+    async def _presign(self, tx, wallet, label: str):
+        """Autofill and sign *tx* locally; ``None`` when that can't run.
+
+        Signing is local; autofill reads the fee and the ledger window from
+        the network. A pinned Sequence is kept (autofill fills only what's
+        missing), so F-ad982e08's retry protection still holds.
+        """
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                filled = await asyncio.wait_for(autofill(tx, client), timeout=RPC_TIMEOUT)
+            return sign_transaction(filled, wallet)
+        except Exception:
+            logger.info(
+                "%s: local pre-sign unavailable; submit_and_wait will sign",
+                label, exc_info=True,
+            )
+            return None
+
     async def _submit_tx(self, tx, wallet, label: str, extract=None) -> SubmitResult:
         """Submit a built+signed transaction with retry/timeout, returning a parsed SubmitResult.
 
@@ -1534,11 +1575,19 @@ class XRPLTestnetTransport(Transport):
         sequence_pinned = tx.sequence is not None
         last_error = ""
         for attempt in range(MAX_RETRIES + 1):
+            # Live-fire run 1: sign locally first, so the hash is known BEFORE
+            # the submit and survives a timeout or a held result. If the
+            # pre-sign can't run, submit_and_wait signs as it always has.
+            signed = await self._presign(tx, wallet, label)
+            txid_known = signed.get_hash() if signed is not None else ""
             try:
                 async with _rpc_client(self._rpc_url) as client:
+                    if signed is not None:
+                        submission = submit_and_wait(signed, client)
+                    else:
+                        submission = submit_and_wait(tx, client, wallet)
                     response = await asyncio.wait_for(
-                        submit_and_wait(tx, client, wallet),
-                        timeout=SUBMIT_TIMEOUT,
+                        submission, timeout=SUBMIT_TIMEOUT,
                     )
                 result = response.result
                 meta = result.get("meta", {})
@@ -1566,12 +1615,18 @@ class XRPLTestnetTransport(Transport):
             except TimeoutError:
                 # F-0cbd05ef: never resubmit after a client timeout (see
                 # _timeout_no_resubmit).
-                return _timeout_no_resubmit(label)
+                return _timeout_no_resubmit(
+                    label, txid_known,
+                    self._explorer_url(txid_known) if txid_known else "",
+                )
             except XRPLReliableSubmissionException as exc:
                 # F-1947a03d: validated tec / prelim tem raise — map to the
                 # structured failure; never retry a validated failure.
                 failure = _map_reliable_submission_failure(exc)
                 if failure is not None:
+                    if txid_known:
+                        failure.txid = txid_known
+                        failure.explorer_url = self._explorer_url(txid_known)
                     return failure
                 last_error = _friendly_error(exc)
                 if attempt < MAX_RETRIES:

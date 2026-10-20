@@ -18,6 +18,9 @@ class ModuleStep:
     text: str
     action: str | None = None  # e.g., "ensure_wallet", "submit_payment"
     action_args: dict[str, str] = field(default_factory=dict)
+    # The module's own label for the step ("Step 5", "Checkpoint"); empty for
+    # the intro. Reports number steps by it, not by list position.
+    label: str = ""
 
 
 @dataclass
@@ -53,6 +56,7 @@ _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 _STEP_RE = re.compile(r"^##\s+(?:Step\s+\d+[.:]\s*|Checkpoint[.:]\s*)(.*)", re.MULTILINE)
 
 # Action markers inside steps: <!-- action: ensure_wallet -->
+_STEP_LABEL_RE = re.compile(r"^##\s+(Step\s+\d+|Checkpoint)[.:]", re.MULTILINE)
 _ACTION_RE = re.compile(r"<!--\s*action:\s*(\w+)(?:\s+(.*?))?\s*-->")
 
 
@@ -122,6 +126,7 @@ def parse_module(text: str) -> ModuleDef:
     # Parse steps
     steps: list[ModuleStep] = []
     parts = _STEP_RE.split(body)
+    labels = [" ".join(m.group(1).split()) for m in _STEP_LABEL_RE.finditer(body)]
 
     # parts[0] is intro text before first step header
     # Then alternating: header_text, body_text, header_text, body_text...
@@ -140,7 +145,10 @@ def parse_module(text: str) -> ModuleDef:
             action = action_match.group(1)
             action_args = _parse_action_args(action_match.group(2))
 
-        steps.append(ModuleStep(text=full_text, action=action, action_args=action_args))
+        label = labels[i // 2] if i // 2 < len(labels) else ""
+        steps.append(ModuleStep(
+            text=full_text, action=action, action_args=action_args, label=label,
+        ))
 
     # Derive mode from explicit field or dry_run_only flag
     explicit_mode = meta.get("mode", "")

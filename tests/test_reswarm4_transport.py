@@ -319,7 +319,7 @@ async def test_submit_tx_timeout_never_resubmits(monkeypatch) -> None:
         "be inside its LastLedgerSequence window (double-submit risk)"
     )
     assert result.success is False
-    assert result.result_code == "local_error"
+    assert result.result_code == "submit_timeout"
     assert "duplicate" in result.error.lower()
 
 

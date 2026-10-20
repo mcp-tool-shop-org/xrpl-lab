@@ -803,6 +803,26 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
         "meaning": "Transaction queued for a future ledger",
         "action": "Wait — the transaction should be included soon",
     },
+    "terNO_ACCOUNT": {
+        "category": "retry",
+        "meaning": "The sending account isn't on a validated ledger yet",
+        "action": "Wait a few seconds for funding to validate, then retry",
+    },
+    "terNO_RIPPLE": {
+        "category": "retry",
+        "meaning": "The token issuer hasn't enabled Default Ripple, so its token can't pool",
+        "action": "Run the issuer's AccountSet (asfDefaultRipple) step first, then retry",
+    },
+    "terNO_AMM": {
+        "category": "retry",
+        "meaning": "There is no AMM pool for this asset pair",
+        "action": "Create the pool (AMMCreate) first, then retry",
+    },
+    "submit_timeout": {
+        "category": "pending",
+        "meaning": "Sent to the network; its outcome wasn't known when the client stopped waiting",
+        "action": "Look the transaction up by hash before retrying, so it isn't sent twice",
+    },
     # Local errors
     "local_error": {
         "category": "local",
