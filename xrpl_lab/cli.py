@@ -1612,7 +1612,10 @@ def serve(port: int, host: str, dry_run: bool):
         )
 
     app = create_app(
-        dry_run=dry_run, dashboard_dir=dashboard_dir, extra_origins=extra_origins
+        dry_run=dry_run,
+        dashboard_dir=dashboard_dir,
+        extra_origins=extra_origins,
+        bind_host=host,
     )
     uvicorn.run(app, host=host, port=port)
 

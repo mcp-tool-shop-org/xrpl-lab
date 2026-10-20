@@ -2,8 +2,24 @@
 
 ## Unreleased
 
-External-audit pass (F1–F7): packaging, curriculum accuracy, CLI surface, and
-the long-planned AMM testnet upgrade.
+External-audit pass (F1–F7, F10): packaging, curriculum accuracy, CLI surface,
+the long-planned AMM testnet upgrade, and a Host and Origin gate on the API.
+
+### Security
+
+- **A cross-site page can no longer start a run (F10).** CORS stops a page
+  from reading a response, not from sending a simple request, and
+  `POST /api/run/{module_id}` takes no body: a `no-cors` POST from any page a
+  learner opened started a run, live on testnet unless `serve` ran with
+  `--dry-run`. A new guard (`xrpl_lab/api/guards.py`) refuses a POST, PUT,
+  PATCH or DELETE whose `Origin` is present and not on the allow-list, with
+  `403 ORIGIN_REJECTED`. A missing Origin (CLI, curl) is still allowed.
+- **DNS rebinding is closed.** The same guard refuses any request whose `Host`
+  isn't loopback or the address `serve` bound to, with `400 HOST_REJECTED`.
+  A wildcard bind (`0.0.0.0`, `::`) turns the Host gate off; the Origin gate
+  stays on. Starlette's `TrustedHostMiddleware` isn't used because it cuts
+  the Host header at the first `:` (so `[::1]:8321` becomes `[`) and answers
+  in plain text, not the API's `{code, message, hint}` envelope.
 
 ### Feature
 

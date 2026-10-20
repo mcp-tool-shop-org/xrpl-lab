@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
+from .api.guards import DEFAULT_ALLOWED_HOSTS, WILDCARD_BINDS, HostOriginGuard
 from .api.routes import router
 from .api.runner_ws import _ALLOWED_ORIGINS
 from .api.runner_ws import router as runner_ws_router
@@ -81,6 +82,7 @@ def create_app(
     dry_run: bool = False,
     dashboard_dir: Path | None = None,
     extra_origins: tuple[str, ...] = (),
+    bind_host: str | None = None,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
 
@@ -97,6 +99,11 @@ def create_app(
             (``http://host:port``) here: when the dashboard is mounted on the
             API server, the browser's Origin on a WS upgrade is the API
             host:port rather than ``localhost:4321``, so it must be allowed.
+        bind_host: The address ``serve`` binds to. A specific LAN address is
+            added to the Host allow-list; a wildcard bind (``0.0.0.0``,
+            ``::``) turns the Host gate off, since requests may name the
+            machine any way. ``None`` (bare uvicorn, tests) keeps the
+            loopback defaults.
     """
     app = FastAPI(
         title="XRPL Lab",
@@ -134,6 +141,19 @@ def create_app(
     # instance (not the router) since Starlette wires an ``Exception``
     # handler into ``ServerErrorMiddleware`` at the application level.
     app.add_exception_handler(Exception, _unhandled_exception_handler)
+
+    # Host and Origin gates (F10), added last so they run outermost: a request
+    # from a rebinding domain or a cross-site form is refused before CORS or
+    # any route sees it. See api/guards.py.
+    if bind_host is not None and bind_host in WILDCARD_BINDS:
+        allowed_hosts: tuple[str, ...] | None = None
+    else:
+        allowed_hosts = DEFAULT_ALLOWED_HOSTS + ((bind_host,) if bind_host else ())
+    app.add_middleware(
+        HostOriginGuard,
+        allowed_origins=allowed_origins,
+        allowed_hosts=allowed_hosts,
+    )
 
     app.include_router(router)
     app.include_router(runner_ws_router)
