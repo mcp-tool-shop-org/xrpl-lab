@@ -336,3 +336,102 @@ def test_run_exits_normally_when_verified(_env: Path) -> None:
     save_state(state)
     console, _ = _console()
     _exit_if_unverified("amm_liquidity_101", True, console)
+
+
+# ── Argon's review of run 2 (F3, F4, F5.3, F6) ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_a_failed_create_keeps_the_pool_issuers() -> None:
+    """F4: a failed AMMCreate used to return AmmInfo with empty issuers, and
+    the verify step's pool refresh then sent amm_info for LAB with issuer ""
+    (rippled: issueMalformed, seen in runs 1 and 2)."""
+    from xrpl_lab.actions.amm import ensure_amm_pair as action_ensure
+
+    class _FailCreate(DryRunTransport):
+        async def get_amm_info(self, *args, **kwargs):
+            return None
+
+        async def submit_amm_create(self, **kwargs):
+            return SubmitResult(success=False, txid=_HASH, result_code="tecUNFUNDED_AMM")
+
+    info, result = await action_ensure(
+        _FailCreate(), "sSEED", "XRP", "25", "", "LAB", "25", "rISSUER",
+    )
+    assert result.success is False
+    assert info.asset_b_issuer == "rISSUER"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("handler_name", ["handle_verify_lp_received", "handle_verify_withdrawal"])
+async def test_verify_steps_make_no_rpc_without_a_pool(handler_name: str) -> None:
+    """F5.3: with no pool (empty LP token), the verify steps fail at once
+    instead of querying the ledger with empty currency and issuer."""
+
+    class _NoCalls(DryRunTransport):
+        async def get_amm_info(self, *args, **kwargs):
+            raise AssertionError("amm_info queried with no pool")
+
+        async def get_lp_token_balance(self, *args, **kwargs):
+            raise AssertionError("LP balance queried with no pool")
+
+    console, _ = _console()
+    ctx = {"amm_info": AmmInfo(asset_a="XRP", asset_b="LAB")}
+    step = ModuleStep(text="verify", action="verify", action_args={})
+    handler = getattr(handlers, handler_name)
+    ctx = await handler(step, LabState(wallet_address="rLEARNER"), _NoCalls(), "", ctx, console)
+    assert any(not v.get("passed", True) for v in ctx.get("verifications", []))
+
+
+@pytest.mark.asyncio
+async def test_amm_info_act_not_found_is_quiet(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """F6: rippled's amm_info answers actNotFound when a pair has no pool;
+    that's the healthy "create one" answer, not a warning."""
+    import xrpl_lab.transport.xrpl_testnet as xt
+
+    class _Resp:
+        result = {"error": "actNotFound"}
+
+    class _Client:
+        async def request(self, *args, **kwargs):
+            return _Resp()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+    monkeypatch.setattr(xt, "_rpc_client", lambda url: _Client())
+    with caplog.at_level("WARNING", logger="xrpl_lab.transport.xrpl_testnet"):
+        info = await xt.XRPLTestnetTransport().get_amm_info("XRP", "", "LAB", "rISSUER")
+    assert info is None
+    assert "amm_info error" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("code", "label"),
+    [("tecUNFUNDED_AMM", "validated failure"), ("terNO_AMM", "not validated")],
+)
+async def test_a_failed_deposit_prints_its_hash_and_whether_it_validated(
+    monkeypatch: pytest.MonkeyPatch, code: str, label: str,
+) -> None:
+    """F3: a failed AMM submit prints its hash, and says whether it's on the
+    ledger (a tec) or never validated (a ter, which can return txnNotFound)."""
+
+    async def _failed_deposit(*args, **kwargs):
+        return SubmitResult(success=False, txid=_HASH, result_code=code, error="failed")
+
+    monkeypatch.setattr(handlers, "amm_deposit", _failed_deposit)
+    monkeypatch.setattr(handlers, "save_state", lambda state: None)
+    console, buf = _console()
+    step = ModuleStep(text="deposit", action="amm_deposit", action_args={
+        "a_currency": "XRP", "a_value": "5", "b_currency": "LAB", "b_value": "5"})
+    await handlers.handle_amm_deposit(
+        step, LabState(wallet_address="rLEARNER"), DryRunTransport(), "", _amm_ctx(), console,
+    )
+    out = buf.getvalue()
+    assert _HASH in out and label in out

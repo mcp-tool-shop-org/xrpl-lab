@@ -70,6 +70,14 @@ Run 2 held all of those on the ledger, and found:
 - `verify_withdrawal` no longer prints "All LP tokens returned" beside "no
   withdrawal detected" when there were none to return, and a `tec` result no
   longer says its fee is charged "on mainnet".
+- **The `issueMalformed` warning in both runs is gone.** A failed create left
+  pool details with no issuers, and the verify step's pool refresh then asked
+  `amm_info` for LAB with an empty issuer. The pair's issuers are now kept,
+  and the verify steps fail at once, without a ledger query, when there's no
+  pool. `amm_info`'s own `actNotFound` ("no pool for this pair") no longer
+  logs a warning.
+- A failed AMM submit prints its hash and says whether it validated (a `tec`,
+  on the ledger) or never did (the network may not know the hash).
 
 ### Feature
 

@@ -3257,13 +3257,14 @@ class XRPLTestnetTransport(Transport):
                 exc_info=True,
             )
             return None
-        # "entryNotFound" is the healthy "no pool for this pair" answer —
+        # "actNotFound" (amm_info's own answer) and "entryNotFound" are the
+        # healthy "no pool for this pair" answers (Argon F6, run 2) —
         # ensure_amm_pair reads None as "create one". Any OTHER error also
         # collapses to None (logged): the caller's create attempt then
         # surfaces the ledger's real verdict (e.g. tecDUPLICATE) instead of
         # being masked as a hard read failure.
         if result.get("error"):
-            if result.get("error") != "entryNotFound":
+            if result.get("error") not in ("actNotFound", "entryNotFound"):
                 logger.warning(
                     "amm_info error for %s/%s: %s",
                     asset_a_currency,

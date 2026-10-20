@@ -1757,6 +1757,29 @@ async def handle_run_audit(
 # ---------------------------------------------------------------------------
 
 
+def _print_failed_txid(console: Console, result) -> None:
+    """Print a failed submit's hash, and whether it's on the ledger.
+
+    A tec result validated: the hash is on the ledger and the fee was charged.
+    Anything else never validated, so the network may answer txnNotFound for
+    it (live-fire run 2's deposit). Argon F3.
+    """
+    if not getattr(result, "txid", ""):
+        return
+    code = getattr(result, "result_code", "") or "unknown"
+    if code.startswith("tec"):
+        console.print(
+            f"  TXID: [cyan]{result.txid}[/] (validated failure: {code}; it's on the ledger)"
+        )
+    else:
+        console.print(
+            f"  TXID: [cyan]{result.txid}[/] (not validated: {code}; "
+            "the network may not know this hash)"
+        )
+    if getattr(result, "explorer_url", "") and code.startswith("tec"):
+        console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+
+
 async def _amm_create_budget_problem(
     transport: Transport, address: str, xrp_leg: str,
 ) -> str | None:
@@ -1889,12 +1912,7 @@ async def handle_ensure_amm_pair(
         )
         # Live-fire run 2: a VALIDATED failure (tecUNFUNDED_AMM) is on the
         # ledger and charged a fee; its hash is the one worth keeping.
-        if create_result.txid:
-            console.print(f"  TXID: [cyan]{create_result.txid}[/]")
-            if create_result.explorer_url:
-                console.print(
-                    f"  Explorer: [blue]{create_result.explorer_url}[/]"
-                )
+        _print_failed_txid(console, create_result)
         state.record_tx(
             txid=create_result.txid or "failed",
             module_id=context.get("module_id", ""),
@@ -2002,6 +2020,7 @@ async def handle_amm_deposit(
         context.setdefault("txids", []).append(result.txid)
     else:
         console.print(f"  [red]Deposit failed: {result.error}[/]")
+        _print_failed_txid(console, result)
         state.record_tx(
             txid=result.txid or "failed",
             module_id=context.get("module_id", ""),
@@ -2019,8 +2038,10 @@ async def handle_verify_lp_received(
     amm_info = context.get("amm_info")
     holder_address = state.wallet_address or ""
 
-    if not amm_info:
-        console.print("  [red]No AMM info in context. Run AMM steps first.[/]")
+    # Argon F5.3: a failed create leaves an AmmInfo with no LP token; querying
+    # with an empty currency and issuer can only fail, so fail here instead.
+    if not amm_info or not amm_info.lp_token_currency:
+        console.print("  [red]No AMM pool to check. Run the AMM steps first.[/]")
         # FT-001: no AMM pool → this on-ledger LP assertion could not run.
         _record_verification(
             context, "verify_lp_received", passed=False,
@@ -2104,6 +2125,7 @@ async def handle_amm_withdraw(
         context.setdefault("txids", []).append(result.txid)
     else:
         console.print(f"  [red]Withdrawal failed: {result.error}[/]")
+        _print_failed_txid(console, result)
         state.record_tx(
             txid=result.txid or "failed",
             module_id=context.get("module_id", ""),
@@ -2122,8 +2144,8 @@ async def handle_verify_withdrawal(
     holder_address = state.wallet_address or ""
     lp_before = context.get("lp_balance_before_withdraw", "0")
 
-    if not amm_info:
-        console.print("  [red]No AMM info in context. Run AMM steps first.[/]")
+    if not amm_info or not amm_info.lp_token_currency:  # Argon F5.3
+        console.print("  [red]No AMM pool to check. Run the AMM steps first.[/]")
         # FT-001: no AMM pool → this on-ledger withdrawal assertion could not run.
         _record_verification(
             context, "verify_withdrawal", passed=False,
