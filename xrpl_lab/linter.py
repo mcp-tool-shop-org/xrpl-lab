@@ -226,15 +226,12 @@ def lint_module_text(
                     message=str(exc),
                 ))
 
-    # 5. dry_run_only labeling check
-    if has_amm and not mod.dry_run_only:
-        issues.append(LintIssue(
-            level="warning",
-            module=module_name,
-            location="frontmatter",
-            message="Module uses AMM actions but is not marked dry_run_only: true",
-        ))
-
+    # 5. dry_run_only labeling check. Policy: AMM actions are valid in EITHER
+    # mode — module #30 runs them on testnet, #31 stays dry-run-only — so
+    # "has AMM" never implies "must be dry_run_only". The inverse is still
+    # suspicious: a dry_run_only module with no AMM actions is probably
+    # mislabeled (dry_run_only exists so dry-run-only primitives like the
+    # AMM simulator are honest about it).
     if mod.dry_run_only and not has_amm:
         issues.append(LintIssue(
             level="warning",

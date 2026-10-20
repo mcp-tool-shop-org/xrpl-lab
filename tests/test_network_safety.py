@@ -111,9 +111,10 @@ _MAINNET_RPC = "https://s1.ripple.com:51234"
 #
 # Keyed by method name so the reflection completeness test below can
 # assert this set is EXACTLY the set of signing methods on the transport
-# (minus the explicitly-waived AMM stubs). Adding a new signing method
-# without a row here makes ``test_mainnet_refusal_covers_every_signing_method``
-# FAIL — closing TESTS-A-001 against future drift.
+# (minus the faucet, which refuses via its own faucet-URL guard and is
+# pinned by dedicated tests). Adding a new signing method without a row
+# here makes ``test_mainnet_refusal_covers_every_signing_method`` FAIL —
+# closing TESTS-A-001 against future drift.
 _MAINNET_REFUSAL_CALLS = {
     "submit_payment": lambda t: t.submit_payment("sEdSEED", "rDEST", "10"),
     "submit_trust_set": lambda t: t.submit_trust_set("sEdSEED", "rISSUER", "USD", "100"),
@@ -161,6 +162,11 @@ _MAINNET_REFUSAL_CALLS = {
     # settle trades, mutate assets), so the testnet-only invariant applies.
     "submit_account_set_clawback": (
         lambda t: t.submit_account_set_clawback("sEdSEED")
+    ),
+    # AccountSet asfDefaultRipple (issuer opt-in so its token can join an AMM
+    # pool; XLS-30 terNO_RIPPLE guard) signs a real tx — same invariant.
+    "submit_default_ripple": (
+        lambda t: t.submit_default_ripple("sEdSEED", "rISSUER")
     ),
     "submit_clawback": (
         lambda t: t.submit_clawback("sEdSEED", "rHOLDER", "GOLD", "30")
@@ -230,6 +236,20 @@ _MAINNET_REFUSAL_CALLS = {
             "rTREASURY", "rDEST", "10", ["sEdSEED1", "sEdSEED2"]
         )
     ),
+    # ── amm_liquidity_101: AMM (XLS-30) signing methods ──
+    # AMMCreate / AMMDeposit / AMMWithdraw each sign a real tx (creating a
+    # pool, paying into it, or burning LP-Tokens to withdraw), so the
+    # testnet-only invariant applies — each MUST call _network_guard() before
+    # Wallet.from_seed like every other signing method.
+    "submit_amm_create": (
+        lambda t: t.submit_amm_create("sEdSEED", "XRP", "100", "", "LAB", "100", "rISSUER")
+    ),
+    "submit_amm_deposit": (
+        lambda t: t.submit_amm_deposit("sEdSEED", "XRP", "10", "", "LAB", "10", "rISSUER")
+    ),
+    "submit_amm_withdraw": (
+        lambda t: t.submit_amm_withdraw("sEdSEED", "XRP", "", "LAB", "rISSUER")
+    ),
     # ── FC-002 Credentials (XLS-70) signing methods ──
     # CredentialCreate/Accept/Delete each sign a real tx (issuer attests, subject
     # accepts moving the reserve, either party deletes to revoke), so the
@@ -290,17 +310,6 @@ _MAINNET_REFUSAL_CALLS = {
     ),
 }
 
-# AMM submit_* methods are stubs that return result_code="notSupported"
-# WITHOUT ever signing or reaching the network (see xrpl_testnet.py AMM
-# stub block). They never touch a wallet seed, so the mainnet-refusal
-# invariant is moot for them — an explicit waiver, not an oversight. If
-# AMM is ever implemented for real, drop the relevant name from here and
-# the completeness test below will demand a refusal-coverage row for it.
-_AMM_STUB_WAIVERS = frozenset({
-    "submit_amm_create",
-    "submit_amm_deposit",
-    "submit_amm_withdraw",
-})
 
 
 @pytest.mark.parametrize(
@@ -328,13 +337,11 @@ def test_mainnet_refusal_covers_every_signing_method() -> None:
     """Reflection-based completeness gate (TESTS-A-001).
 
     Enumerate every ``submit_*`` / ``fund_*`` method on
-    ``XRPLTestnetTransport``, subtract the AMM stubs that return
-    'notSupported' WITHOUT signing (explicit waiver), and assert the
-    remaining set is EXACTLY the set covered by the mainnet-refusal
-    parametrize above. A future signing method therefore CANNOT be added
-    without either (a) a refusal-coverage row in ``_MAINNET_REFUSAL_CALLS``
-    or (b) an explicit waiver in ``_AMM_STUB_WAIVERS`` — closing the gap
-    permanently rather than for just today's nine methods.
+    ``XRPLTestnetTransport`` and assert the set is EXACTLY the set covered
+    by the mainnet-refusal parametrize above (minus the faucet, which has
+    its own refusal tests). A future signing method therefore CANNOT be
+    added without a refusal-coverage row in ``_MAINNET_REFUSAL_CALLS`` —
+    closing the gap permanently.
 
     Would-FAIL demonstration: if a new ``submit_foo`` signing method were
     added to the transport and NOT listed in either set, ``signing_methods``
@@ -357,7 +364,7 @@ def test_mainnet_refusal_covers_every_signing_method() -> None:
         if name.startswith("submit_") or name.startswith("fund_")
     }
 
-    signing_methods = discovered - _AMM_STUB_WAIVERS - _FUND_WAIVERS
+    signing_methods = discovered - _FUND_WAIVERS
     covered = set(_MAINNET_REFUSAL_CALLS.keys())
 
     assert signing_methods == covered, (
@@ -366,8 +373,7 @@ def test_mainnet_refusal_covers_every_signing_method() -> None:
         f"  uncovered (signing but no refusal row): {signing_methods - covered}\n"
         f"  stale (refusal row but method gone): {covered - signing_methods}\n"
         "Add a row to _MAINNET_REFUSAL_CALLS for a new signing method, or "
-        "an explicit waiver to _AMM_STUB_WAIVERS / _FUND_WAIVERS if it does "
-        "not sign."
+        "an explicit waiver to _FUND_WAIVERS if it does not sign."
     )
 
 

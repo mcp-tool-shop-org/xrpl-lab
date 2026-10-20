@@ -112,10 +112,36 @@ class TestLinterActions:
 
 
 class TestLinterDryRunLabel:
-    def test_amm_without_dry_run_label_warns(self):
+    def test_amm_without_dry_run_label_is_clean(self):
+        """AMM actions no longer imply dry_run_only — module #30 runs them on
+        testnet. The old warning ("uses AMM actions but is not marked
+        dry_run_only") must not fire.
+        """
         issues = _lint_fixture("bad_amm_no_label.md")
         warnings = [i for i in issues if i.level == "warning"]
-        assert any("dry_run_only" in i.message for i in warnings)
+        assert not any("dry_run_only" in i.message for i in warnings)
+
+    def test_amm_with_dry_run_label_is_clean(self):
+        """Module #31's shape: mode: dry-run with AMM actions — still valid."""
+        text = (
+            "---\n"
+            "id: amm_dry_run_ok\n"
+            "title: AMM Dry Run\n"
+            "track: amm\n"
+            "summary: AMM actions in dry-run mode.\n"
+            "order: 1\n"
+            "time: 5 min\n"
+            "level: advanced\n"
+            "mode: dry-run\n"
+            "---\n\n"
+            "## Step 1: Wallet\n\n"
+            "<!-- action: ensure_wallet -->\n\n"
+            "## Step 2: Pool\n\n"
+            "<!-- action: ensure_amm_pair -->\n"
+        )
+        issues = lint_module_text(text, filename="amm_dry_run_ok.md")
+        warnings = [i for i in issues if i.level == "warning"]
+        assert not any("dry_run_only" in i.message for i in warnings)
 
     def test_dry_run_without_amm_warns(self):
         issues = _lint_fixture("bad_dry_run_no_amm.md")

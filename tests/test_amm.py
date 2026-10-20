@@ -672,3 +672,171 @@ class TestShippedAmmLiquidityModule:
         assert "LP tokens decreased: 110.000000 -> 0" in out, (
             "withdrawal did not debit the learner's LP"
         )
+
+
+# ── Module mode flip + FT-003 gate removal ────────────────────────────────
+
+
+class TestAmmModuleModeFlip:
+    """#30 is testnet-capable now that the testnet transport implements AMM;
+    module #31 (dex_vs_amm_risk_literacy) deliberately stays dry-run."""
+
+    def test_amm_liquidity_101_is_testnet_mode(self) -> None:
+        from xrpl_lab.modules import load_all_modules
+
+        mod = load_all_modules()["amm_liquidity_101"]
+        assert mod.mode == "testnet"
+        assert not mod.dry_run_only
+
+    def test_dex_vs_amm_risk_literacy_stays_dry_run(self) -> None:
+        from xrpl_lab.modules import load_all_modules
+
+        mod = load_all_modules()["dex_vs_amm_risk_literacy"]
+        assert mod.mode == "dry-run"
+        assert mod.dry_run_only
+
+    @pytest.mark.asyncio
+    async def test_amm_module_runs_without_dry_run_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """FT-003 removed: a transport whose network_name is NOT 'dry-run' no
+        longer trips the hard 'AMM operations require --dry-run' stop — the
+        module runs its steps instead of refusing outright. (The transport
+        here is still the offline simulator under a testnet label; this pins
+        the GATE behaviour, not live submission — test_amm_testnet.py owns
+        the real-RPC surface.)
+        """
+        import io
+
+        from rich.console import Console
+
+        import xrpl_lab.runner as runner_mod
+        import xrpl_lab.state as state_mod
+        from xrpl_lab.modules import parse_module
+        from xrpl_lab.state import LabState
+
+        class _TestnetLabelledSim(DryRunTransport):
+            @property
+            def network_name(self) -> str:
+                return "testnet"
+
+        ws = tmp_path / "ws"
+        ws.mkdir()
+        monkeypatch.setattr(state_mod, "DEFAULT_HOME_DIR", tmp_path)
+        monkeypatch.setattr(state_mod, "DEFAULT_WORKSPACE_DIR", ws)
+        monkeypatch.setattr(runner_mod, "load_state", lambda: LabState())
+
+        text = (
+            Path(__file__).parent.parent / "modules" / "amm_liquidity_101.md"
+        ).read_text(encoding="utf-8")
+        buf = io.StringIO()
+        console = Console(file=buf, no_color=True, width=120)
+        monkeypatch.setattr(console, "input", lambda _p="": "")
+
+        ok = await runner_mod.run_module(
+            parse_module(text), _TestnetLabelledSim(), dry_run=False, console=console
+        )
+        out = buf.getvalue()
+
+        assert ok is True, "AMM module must run to completion off the dry-run gate"
+        assert "require --dry-run" not in out
+        assert "Run with: xrpl-lab run" not in out or "--dry-run" not in out.split(
+            "Run with: xrpl-lab run"
+        )[-1][:40]
+
+
+# ── Default Ripple (issuer prerequisite for AMMCreate) ─────────────────────
+
+
+class TestDefaultRippleDryRun:
+    """Simulated AccountSet asfDefaultRipple — mirrors submit_account_set_clawback."""
+
+    @pytest.mark.asyncio
+    async def test_enable_sets_flag_by_issuer_address(self, transport):
+        result = await transport.submit_default_ripple("sFAKE", "rISSUER")
+        assert result.success
+        assert result.result_code == "tesSUCCESS"
+        assert await transport.has_default_ripple("rISSUER")
+        # A different issuer never opted in — the per-address keying must
+        # not collapse every seed to one synthetic address (see clawback).
+        assert not await transport.has_default_ripple("rOTHER_ISSUER")
+
+    @pytest.mark.asyncio
+    async def test_enable_failure_mode(self, transport):
+        transport.set_fail_next()
+        result = await transport.submit_default_ripple("sFAKE", "rISSUER")
+        assert not result.success
+        assert result.result_code == "tecOWNERS"
+        assert not await transport.has_default_ripple("rISSUER")
+
+
+class TestEnableDefaultRippleHandler:
+    """The handler is idempotent like create_issuer_wallet: re-running the
+    step against an already-configured issuer must not burn a transaction."""
+
+    @staticmethod
+    async def _run(transport, context, state, buf):
+        from rich.console import Console
+
+        from xrpl_lab.handlers import handle_enable_default_ripple
+        from xrpl_lab.modules import ModuleStep
+
+        console = Console(file=buf, no_color=True, width=120)
+        step = ModuleStep(text="", action="enable_default_ripple", action_args={})
+        return await handle_enable_default_ripple(
+            step, state, transport, "", context, console
+        )
+
+    @pytest.mark.asyncio
+    async def test_sets_flag_then_no_op_on_rerun(self, transport):
+        import io
+
+        from xrpl_lab.state import LabState
+
+        context = {"issuer_seed": "sFAKE", "issuer_address": "rISSUER"}
+        state = LabState()
+
+        buf = io.StringIO()
+        context = await self._run(transport, context, state, buf)
+        assert context["default_ripple_enabled"] is True
+        assert "Default Ripple enabled" in buf.getvalue()
+        assert await transport.has_default_ripple("rISSUER")
+        txids_after_first = list(context.get("txids", []))
+        assert len(txids_after_first) == 1
+
+        # Re-run (resume): already set — report it, record NO new tx.
+        buf2 = io.StringIO()
+        context = await self._run(transport, context, state, buf2)
+        assert "already enabled" in buf2.getvalue()
+        assert context.get("txids", []) == txids_after_first
+
+    @pytest.mark.asyncio
+    async def test_missing_issuer_context_is_a_soft_stop(self, transport):
+        import io
+
+        from xrpl_lab.state import LabState
+
+        buf = io.StringIO()
+        context = await self._run(transport, {}, LabState(), buf)
+        assert "No issuer wallet" in buf.getvalue()
+        assert "default_ripple_enabled" not in context
+
+
+class TestShippedAmmModuleDefaultRippleStep:
+    """The new Step 5 must run clean inside the shipped module in --dry-run
+    (the full-module harness is the regression net for step insertion)."""
+
+    @pytest.mark.asyncio
+    async def test_step_runs_and_checks_pass(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        out, _ = await run_shipped_module(
+            "amm_liquidity_101.md", tmp_path, monkeypatch
+        )
+        assert "asfDefaultRipple" in out, (
+            "the enable_default_ripple step did not run (or printed nothing)"
+        )
+        assert "Default Ripple enabled" in out, (
+            "the AccountSet submission did not succeed in dry-run"
+        )
+        assert_no_failed_checks(out, "amm_liquidity_101.md")

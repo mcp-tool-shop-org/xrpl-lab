@@ -17,14 +17,14 @@ XRPL Lab includes 32 modules across ten tracks. Each module teaches one skill an
 | Track | Focus | Modules | Mode |
 |-------|-------|---------|------|
 | **foundations** | wallet, payments, trust lines, error handling | 5 | testnet |
-| **nfts** | NFT game assets: minting, marketplace settlement, dynamic NFTs (XLS-20) | 3 | testnet |
-| **tokens** | Multi-Purpose Token (MPT) game-currency issuance & clawback (XLS-33) | 4 | testnet |
-| **payments** | escrow & time-locked value | 7 | testnet |
-| **identity** | Decentralized Identifiers (DID, XLS-40) | 4 | testnet |
+| **nfts** | NFT game assets: minting, marketplace settlement (XLS-20), dynamic NFTs (XLS-46) | 3 | testnet |
+| **tokens** | MPT issuance & distribution (XLS-33), token freeze, clawback (XLS-39) | 4 | testnet |
+| **payments** | time-locked escrow, checks, payment channels, partial payments, destination tags | 7 | testnet |
+| **identity** | DID (XLS-40), credentials (XLS-70), permissioned DEX (XLS-80/81), deposit auth | 4 | testnet |
 | **dex** | offers, order books, market making, inventory management | 3 | testnet |
 | **reserves** | account reserves, owner count, cleanup | 2 | testnet |
 | **audit** | batch verification, audit reports | 1 | testnet |
-| **amm** | automated market maker liquidity, DEX vs AMM comparison | 2 | dry-run |
+| **amm** | automated market maker liquidity, DEX vs AMM comparison | 2 | mixed |
 | **capstone** | compose skills across tracks into one game-economy build | 1 | testnet |
 <!-- END curriculum:auto handbook-tracks-table -->
 
@@ -101,7 +101,7 @@ The numbering below matches `xrpl-lab list` exactly: modules are ordered by trac
 |---|--------|---------------|----------|
 | 29 | Audit Mode: Verify Receipts at Scale | Receipt Literacy | report, audit_pack |
 
-## AMM (dry-run only)
+## AMM
 
 | # | Module | Prerequisites | Produces |
 |---|--------|---------------|----------|

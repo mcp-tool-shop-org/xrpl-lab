@@ -28,7 +28,9 @@ dependencies = [
     "rich>=13.0",
     "pydantic>=2.0",
     "pyyaml>=6.0",
-    "fastapi>=0.115",
+    # fastapi>=0.133.0 is the first line that supports starlette>=1.0 (the
+    # security floor below); a lower floor forces resolver backtracking.
+    "fastapi>=0.133.0",
     "uvicorn>=0.30",
     "httpx>=0.27",
     # Transitive security floors — pinned to patched releases so the shipped
@@ -54,6 +56,20 @@ Issues = "https://github.com/mcp-tool-shop-org/xrpl-lab/issues"
 
 [tool.hatch.build.targets.wheel.force-include]
 "modules" = "modules"
+
+# Keep the PyPI sdist lean: it only needs enough to build+install (xrpl_lab/,
+# modules/, README.md, pyproject.toml). Everything below is repo-side tooling
+# or content the wheel never ships — the sdist was 6x the wheel because of it.
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.github",
+    "/docs",
+    "/scripts",
+    "/site",
+    "/swarms",
+    "/tests",
+    "/README.*.md",
+]
 
 [tool.ruff]
 target-version = "py311"

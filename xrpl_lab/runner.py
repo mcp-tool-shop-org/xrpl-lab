@@ -212,18 +212,6 @@ async def run_module(
                 "[yellow]Run those modules first, or use --force to bypass.[/]"
             )
 
-    # FT-003: Warn if module uses AMM actions but transport is not dry-run
-    _AMM_ACTIONS = {"ensure_amm_pair", "amm_deposit", "amm_withdraw"}
-    _module_step_actions = {s.action for s in module.steps if s.action}
-    if _AMM_ACTIONS & _module_step_actions and transport.network_name != "dry-run":
-        console.print(
-            "[yellow]This module uses AMM operations which require --dry-run mode.[/]"
-        )
-        console.print(
-            f"[yellow]Run with: xrpl-lab run {module.id} --dry-run[/]"
-        )
-        return False
-
     console.print()
     console.print(
         Panel(

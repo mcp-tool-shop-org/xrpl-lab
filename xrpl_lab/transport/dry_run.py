@@ -266,6 +266,9 @@ class DryRunTransport(Transport):
         # A Clawback against an issuer NOT in this set fails with tecNO_PERMISSION,
         # matching the testnet engine result for clawback-without-the-flag.
         self._clawback_enabled: set[str] = set()
+        # Issuer addresses with asfDefaultRipple set (F-terNO_RIPPLE: AMM pool
+        # creation requires the token issuer to have enabled rippling first).
+        self._default_ripple_enabled: set[str] = set()
         # Token-freeze state (FT-CURRIC-003). Individual freeze keys a
         # (issuer, currency, holder) line; global freeze keys an issuer.
         self._frozen_lines: set[tuple[str, str, str]] = set()
@@ -2354,6 +2357,34 @@ class DryRunTransport(Transport):
             success=True, txid=self._next_txid(), result_code="tesSUCCESS",
             fee="12", ledger_index=99999999, explorer_url="",
         )
+
+    async def submit_default_ripple(
+        self,
+        wallet_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        if self._fail_next:
+            self._fail_next = False
+            return SubmitResult(
+                success=False, result_code="tecOWNERS", fee="12",
+                error="[dry-run] Simulated failure: AccountSet default-ripple",
+            )
+        # Key by the real issuer address when supplied (same rationale as
+        # submit_account_set_clawback above); fall back to the collapsed
+        # seed-address otherwise.
+        issuer = issuer_address or _address_from_seed(wallet_seed)
+        guard = self._reserve_guard(issuer, code="tecINSUFFICIENT_RESERVE")
+        if guard is not None:
+            return guard
+        self._default_ripple_enabled.add(issuer)
+        self._debit_fee(issuer)
+        return SubmitResult(
+            success=True, txid=self._next_txid(), result_code="tesSUCCESS",
+            fee="12", ledger_index=99999999, explorer_url="",
+        )
+
+    async def has_default_ripple(self, address: str) -> bool:
+        return address in self._default_ripple_enabled
 
     async def submit_clawback(
         self,

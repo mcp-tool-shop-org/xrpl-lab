@@ -44,5 +44,5 @@ node_modules/
 /package-lock.json
 
 # Raw Claude Design export (reference; integrated copies live in site/src/styles)
-design/redesign/
+docs/design/redesign/
 .swarm/

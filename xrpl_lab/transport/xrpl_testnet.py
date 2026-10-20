@@ -34,6 +34,12 @@ from xrpl.models import (
     AccountSet,
     AccountSetAsfFlag,
     AccountTx,
+    AMMCreate,
+    AMMDeposit,
+    AMMDepositFlag,
+    AMMInfo,
+    AMMWithdraw,
+    AMMWithdrawFlag,
     CheckCancel,
     CheckCash,
     CheckCreate,
@@ -72,6 +78,7 @@ from xrpl.models import (
     PermissionedDomainDelete,
     PermissionedDomainSet,
     ServerInfo,
+    ServerState,
     SignerEntry,
     SignerListSet,
     TrustSet,
@@ -79,6 +86,7 @@ from xrpl.models import (
     Tx,
 )
 from xrpl.models.amounts import MPTAmount
+from xrpl.models.currencies import XRP, IssuedCurrency
 from xrpl.models.transactions.deposit_preauth import Credential as DPCredential
 from xrpl.models.transactions.permissioned_domain_set import (
     Credential as PDCredential,
@@ -1432,6 +1440,48 @@ class XRPLTestnetTransport(Transport):
                 success=False, result_code="local_error", error=_friendly_error(exc)
             )
         return await self._submit_tx(tx, wallet, "AccountSet(clawback)")
+
+    async def submit_default_ripple(
+        self,
+        wallet_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        # ``issuer_address`` is a dry-run aid (see base contract); the testnet
+        # path derives the account from the seed and ignores it.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = AccountSet(
+                account=wallet.address,
+                set_flag=AccountSetAsfFlag.ASF_DEFAULT_RIPPLE,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AccountSet(default-ripple)")
+
+    async def has_default_ripple(self, address: str) -> bool:
+        """Read ``account_data.Flags`` for lsfDefaultRipple (0x00800000).
+
+        Best-effort like ``get_freeze_status``: any read failure is treated as
+        "not set" so callers fall through to submitting the AccountSet.
+        """
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                info_resp = await asyncio.wait_for(
+                    client.request(
+                        AccountInfo(account=address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+                flags = info_resp.result.get("account_data", {}).get("Flags", 0)
+                return bool(flags & 0x00800000)  # lsfDefaultRipple
+        except Exception:
+            logger.warning("has_default_ripple failed for %s", address, exc_info=True)
+            return False
 
     async def submit_clawback(
         self,
@@ -3043,10 +3093,72 @@ class XRPLTestnetTransport(Transport):
             logger.warning("get_balance failed for %s", address, exc_info=True)
             return "0"
 
-    # ── AMM stubs (not yet implemented for testnet) ──────────────────
-    # TODO: XRPL testnet supports AMM natively. Implement real AMM
-    # integration (AMMCreate, AMMDeposit, AMMWithdraw, AMMInfo) in a
-    # future Feature Pass. For now these return clear stub errors.
+    # ── AMM methods (XLS-30) ─────────────────────────────────────────
+
+    @staticmethod
+    def _amm_asset(currency: str, issuer: str):
+        """Build the xrpl-py Currency model identifying one AMM pool leg."""
+        if currency == "XRP":
+            return XRP()
+        return IssuedCurrency(currency=currency, issuer=issuer)
+
+    @staticmethod
+    def _parse_amm_amount(amt) -> str:
+        """Format one AMM pool leg as a display value in WHOLE units.
+
+        Mirrors the dry-run transport's AmmInfo convention: ``pool_a`` /
+        ``pool_b`` are plain numeric pool balances (``"100"``), so an XRP
+        leg arrives as a drops string and is converted back to XRP here,
+        while a token leg keeps its issued ``value``.
+        """
+        if isinstance(amt, str):
+            try:
+                drops = drops_to_xrp(amt)
+            except (ValueError, TypeError, InvalidOperation):
+                return amt
+            # drops_to_xrp returns a 6dp-quantized Decimal ("100.000000");
+            # strip the padding so pool_a matches the dry-run convention
+            # ("100") while dust like 0.000012 keeps its precision.
+            s = format(drops, "f")
+            if "." in s:
+                s = s.rstrip("0").rstrip(".")
+            return s
+        if isinstance(amt, dict):
+            return str(amt.get("value", "0"))
+        return str(amt)
+
+    async def _amm_create_fee_drops(self) -> str | None:
+        """The AMMCreate special fee in drops: the incremental owner reserve.
+
+        XLS-30 bills AMMCreate at the incremental owner reserve instead of
+        the standard transaction cost (xrpl.org: "same special transaction
+        cost as AccountDelete"), because the tx creates an AccountRoot, an
+        AMM entry, and a trust line per token in one shot. xrpl-py's
+        autofill derives the same figure for the AMM_CREATE type from
+        ``server_state.validated_ledger.reserve_inc``; we query it ourselves
+        and pin it on the model so the fee is fixed before signing and the
+        retry loop can never drift it. On a failed probe, ``None`` leaves
+        the field unset and autofill fills the identical value at submit.
+        """
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                resp = await asyncio.wait_for(
+                    client.request(ServerState()), timeout=RPC_TIMEOUT
+                )
+            reserve_inc = (
+                resp.result.get("state", {})
+                .get("validated_ledger", {})
+                .get("reserve_inc")
+            )
+            if reserve_inc is None:
+                return None
+            return str(int(reserve_inc))
+        except Exception:
+            logger.warning(
+                "AMMCreate special-fee probe (server_state) failed",
+                exc_info=True,
+            )
+            return None
 
     async def get_amm_info(
         self,
@@ -3055,7 +3167,62 @@ class XRPLTestnetTransport(Transport):
         asset_b_currency: str,
         asset_b_issuer: str,
     ) -> AmmInfo | None:
-        return None
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                response = await asyncio.wait_for(
+                    client.request(
+                        AMMInfo(
+                            asset=self._amm_asset(asset_a_currency, asset_a_issuer),
+                            asset2=self._amm_asset(asset_b_currency, asset_b_issuer),
+                        )
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+            result = response.result or {}
+        except Exception:
+            logger.warning(
+                "get_amm_info failed for %s/%s",
+                asset_a_currency,
+                asset_b_currency,
+                exc_info=True,
+            )
+            return None
+        # "entryNotFound" is the healthy "no pool for this pair" answer —
+        # ensure_amm_pair reads None as "create one". Any OTHER error also
+        # collapses to None (logged): the caller's create attempt then
+        # surfaces the ledger's real verdict (e.g. tecDUPLICATE) instead of
+        # being masked as a hard read failure.
+        if result.get("error"):
+            if result.get("error") != "entryNotFound":
+                logger.warning(
+                    "amm_info error for %s/%s: %s",
+                    asset_a_currency,
+                    asset_b_currency,
+                    result.get("error"),
+                )
+            return None
+        amm = result.get("amm")
+        if not isinstance(amm, dict):
+            return None
+        lp_token = amm.get("lp_token", {}) or {}
+        return AmmInfo(
+            asset_a=(
+                asset_a_currency if asset_a_currency == "XRP"
+                else f"{asset_a_currency}/{asset_a_issuer}"
+            ),
+            asset_b=(
+                asset_b_currency if asset_b_currency == "XRP"
+                else f"{asset_b_currency}/{asset_b_issuer}"
+            ),
+            pool_a=self._parse_amm_amount(amm.get("amount")),
+            pool_b=self._parse_amm_amount(amm.get("amount2")),
+            lp_token_currency=lp_token.get("currency", ""),
+            lp_token_issuer=lp_token.get("issuer", "") or amm.get("account", ""),
+            lp_supply=str(lp_token.get("value", "0")),
+            trading_fee=str(amm.get("trading_fee", 0)),
+            asset_a_issuer=asset_a_issuer,
+            asset_b_issuer=asset_b_issuer,
+        )
 
     async def submit_amm_create(
         self,
@@ -3070,13 +3237,29 @@ class XRPLTestnetTransport(Transport):
         wallet_address: str = "",
     ) -> SubmitResult:
         # ``wallet_address`` is a dry-run-only storage hint — on a real network
-        # the account is derived from the signing seed, so it is accepted for
-        # signature parity and deliberately ignored here.
-        return SubmitResult(
-            success=False,
-            result_code="notSupported",
-            error="AMM not yet implemented for testnet transport. Use --dry-run for AMM modules.",
-        )
+        # the AMMCreate's Account is derived from the signing seed, so the hint
+        # is accepted for signature parity and deliberately ignored here.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
+        # Pin the XLS-30 special fee (incremental owner reserve) before
+        # signing — see _amm_create_fee_drops.
+        fee = await self._amm_create_fee_drops()
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            tx = AMMCreate(
+                account=wallet.address,
+                amount=self._amount_obj(asset_a_currency, asset_a_value, asset_a_issuer),
+                amount2=self._amount_obj(asset_b_currency, asset_b_value, asset_b_issuer),
+                trading_fee=trading_fee,
+                fee=fee,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AMMCreate")
 
     async def submit_amm_deposit(
         self,
@@ -3090,13 +3273,31 @@ class XRPLTestnetTransport(Transport):
         wallet_address: str = "",
     ) -> SubmitResult:
         # ``wallet_address`` is a dry-run-only storage hint — on a real network
-        # the account is derived from the signing seed, so it is accepted for
-        # signature parity and deliberately ignored here.
-        return SubmitResult(
-            success=False,
-            result_code="notSupported",
-            error="AMM not yet implemented for testnet transport. Use --dry-run for AMM modules.",
-        )
+        # the AMMDeposit's Account is derived from the signing seed, so the
+        # hint is accepted for signature parity and deliberately ignored here.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            # Two-asset deposit: the depositor funds BOTH legs at the pool's
+            # current ratio and the ledger mints LP-Tokens to match. (The
+            # depositor's LP-token trust line to the AMM account is created
+            # automatically on first receipt — no separate TrustSet needed.)
+            tx = AMMDeposit(
+                account=wallet.address,
+                asset=self._amm_asset(asset_a_currency, asset_a_issuer),
+                asset2=self._amm_asset(asset_b_currency, asset_b_issuer),
+                amount=self._amount_obj(asset_a_currency, asset_a_value, asset_a_issuer),
+                amount2=self._amount_obj(asset_b_currency, asset_b_value, asset_b_issuer),
+                flags=AMMDepositFlag.TF_TWO_ASSET,
+            )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AMMDeposit")
 
     async def submit_amm_withdraw(
         self,
@@ -3109,13 +3310,58 @@ class XRPLTestnetTransport(Transport):
         wallet_address: str = "",
     ) -> SubmitResult:
         # ``wallet_address`` is a dry-run-only storage hint — on a real network
-        # the account is derived from the signing seed, so it is accepted for
-        # signature parity and deliberately ignored here.
-        return SubmitResult(
-            success=False,
-            result_code="notSupported",
-            error="AMM not yet implemented for testnet transport. Use --dry-run for AMM modules.",
-        )
+        # the AMMWithdraw's Account is derived from the signing seed, so the
+        # hint is accepted for signature parity and deliberately ignored here.
+        guard = await self._guard_write()
+        if guard is not None:
+            return SubmitResult(success=False, result_code="local_error", error=guard)
+
+        try:
+            wallet = Wallet.from_seed(wallet_seed)
+            asset = self._amm_asset(asset_a_currency, asset_a_issuer)
+            asset2 = self._amm_asset(asset_b_currency, asset_b_issuer)
+            if lp_token_value:
+                # LPToken-return mode needs the LP token's currency code and
+                # issuing AMM account, which only the pool itself can tell us.
+                pool = await self.get_amm_info(
+                    asset_a_currency, asset_a_issuer,
+                    asset_b_currency, asset_b_issuer,
+                )
+                if pool is None or not pool.lp_token_currency:
+                    return SubmitResult(
+                        success=False,
+                        result_code="tecAMM_NOT_FOUND",
+                        error=(
+                            "No AMM found for this pair — cannot resolve the "
+                            "LP token to return."
+                        ),
+                    )
+                tx = AMMWithdraw(
+                    account=wallet.address,
+                    asset=asset,
+                    asset2=asset2,
+                    lp_token_in=IssuedCurrencyAmount(
+                        currency=pool.lp_token_currency,
+                        issuer=pool.lp_token_issuer,
+                        value=lp_token_value,
+                    ),
+                    flags=AMMWithdrawFlag.TF_LP_TOKEN,
+                )
+            else:
+                # Empty lp_token_value == the action layer's "returning all LP
+                # tokens": burn the account's entire LP position and receive
+                # both pool assets back at the current ratio (tfWithdrawAll).
+                tx = AMMWithdraw(
+                    account=wallet.address,
+                    asset=asset,
+                    asset2=asset2,
+                    flags=AMMWithdrawFlag.TF_WITHDRAW_ALL,
+                )
+        except Exception as exc:
+            return SubmitResult(
+                success=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        return await self._submit_tx(tx, wallet, "AMMWithdraw")
 
     async def get_lp_token_balance(
         self,
@@ -3123,5 +3369,26 @@ class XRPLTestnetTransport(Transport):
         lp_token_currency: str,
         lp_token_issuer: str,
     ) -> str:
-        logger.warning("AMM LP balance not available on testnet — returns 0")
+        # The AMM auto-creates the holder's LP-token trust line on first
+        # deposit, so the balance rides the normal account_lines surface
+        # (balance is from the queried account's perspective — a holder of
+        # the LP token reads positive).
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                response = await asyncio.wait_for(
+                    client.request(
+                        AccountLines(account=address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+            for line in response.result.get("lines", []):
+                if (
+                    line.get("currency") == lp_token_currency
+                    and line.get("account") == lp_token_issuer
+                ):
+                    return line.get("balance", "0")
+        except Exception:
+            logger.warning(
+                "get_lp_token_balance failed for %s", address, exc_info=True
+            )
         return "0"

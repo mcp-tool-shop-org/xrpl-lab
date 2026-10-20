@@ -776,6 +776,38 @@ class Transport(ABC):
         """
 
     @abstractmethod
+    async def submit_default_ripple(
+        self,
+        wallet_seed: str,
+        issuer_address: str = "",
+    ) -> SubmitResult:
+        """Enable Default Ripple on the issuer account (AccountSet asfDefaultRipple).
+
+        Default Ripple (ledger flag ``lsfDefaultRipple``) lets the issuer's
+        balances ripple through its trust lines. It is a HARD prerequisite
+        for AMM: XLS-30 requires every token leg's issuer to have it set,
+        otherwise ``AMMCreate`` fails with ``terNO_RIPPLE``. Unlike clawback
+        it can be set at any time (balances outstanding or not) and re-setting
+        an already-set flag is a plain fee-costing no-op on-ledger — the
+        action layer reads :meth:`has_default_ripple` first so a re-run
+        doesn't burn that fee.
+
+        ``issuer_address`` is the issuer's real classic address. The testnet
+        transport ignores it (it derives the address from the seed); the
+        dry-run transport uses it to key per-issuer flag state (same keying
+        aid convention as :meth:`submit_account_set_clawback`).
+        """
+
+    @abstractmethod
+    async def has_default_ripple(self, address: str) -> bool:
+        """True when the account has ``lsfDefaultRipple`` set (account_info Flags).
+
+        Read-only existence check backing the idempotent/re-run-safe
+        ``enable_default_ripple`` handler; a read failure reports False so
+        the caller submits (a redundant set is harmless on-ledger).
+        """
+
+    @abstractmethod
     async def submit_clawback(
         self,
         issuer_seed: str,

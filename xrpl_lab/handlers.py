@@ -127,6 +127,7 @@ from .actions.token_escrow import finish_escrow as finish_token_escrow
 from .actions.trust_line import (
     clawback_tokens,
     enable_clawback,
+    enable_default_ripple,
     issue_token,
     remove_trust_line,
     set_trust_line,
@@ -5886,6 +5887,47 @@ async def handle_enable_clawback(
     return context
 
 
+async def handle_enable_default_ripple(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Enable asfDefaultRipple on the issuer so its token can join an AMM pool.
+
+    Idempotent like ``create_issuer_wallet``: if the flag is already set
+    (re-run of the module, or an issuer configured off-band) the step is a
+    no-op — no transaction, no fee.
+    """
+    _raw_issuer = context.get("issuer_seed", "")
+    issuer_seed = _raw_issuer.get() if isinstance(_raw_issuer, _SecretValue) else _raw_issuer
+    if not issuer_seed:
+        console.print("  [red]No issuer wallet in context. Run the issuer step first.[/]")
+        return context
+    issuer_address = context.get("issuer_address", "")
+    if issuer_address and await transport.has_default_ripple(issuer_address):
+        console.print(
+            "  [green]Default Ripple already enabled on the issuer — "
+            "no new transaction needed.[/]"
+        )
+        context["default_ripple_enabled"] = True
+        return context
+    console.print(
+        "  Enabling Default Ripple on the issuer "
+        "([cyan]asfDefaultRipple[/]) — required before the token joins an AMM pool..."
+    )
+    result = await enable_default_ripple(transport, issuer_seed, issuer_address)
+    if result.success:
+        console.print("  [green]Default Ripple enabled on the issuer.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+        if result.explorer_url:
+            console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        context["default_ripple_enabled"] = True
+    else:
+        console.print(f"  [red]Enabling Default Ripple failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    return context
+
+
 async def handle_snapshot_token_balance(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -7633,6 +7675,15 @@ def _register_all() -> None:
             name="enable_clawback",
             handler=handle_enable_clawback,
             description="Enable issuer clawback (AccountSet asfAllowTrustLineClawback)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="enable_default_ripple",
+            handler=handle_enable_default_ripple,
+            description=(
+                "Enable issuer Default Ripple (AccountSet asfDefaultRipple) — "
+                "required before the token joins an AMM pool"
+            ),
             wallet_required=True,
         ),
         ActionDef(

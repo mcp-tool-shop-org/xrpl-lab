@@ -1,4 +1,49 @@
 # Changelog
+
+## Unreleased
+
+External-audit pass (F1–F7): packaging, curriculum accuracy, CLI surface, and
+the long-planned AMM testnet upgrade.
+
+### Feature
+
+- **Module #30 (AMM Liquidity 101) runs on testnet.** The testnet transport's
+  AMM stubs are now real: `AMMCreate` (fee pinned to the ledger's owner-reserve
+  increment per XLS-30), `AMMDeposit` (two-asset), `AMMWithdraw` (LP-token or
+  withdraw-all), and `AMMInfo`. `--dry-run` remains the offline fallback and
+  module #31 stays dry-run. The FT-003 “AMM requires --dry-run” gate is gone.
+- **New `enable_default_ripple` action** — issuer-side `AccountSet`
+  (`asfDefaultRipple`), idempotent on re-runs, so `AMMCreate` no longer fails
+  with `terNO_RIPPLE` on a fresh issuer. Wired into module #30 as a taught step.
+- **`xrpl-lab verify-artifact <file>`** — one command that detects the artifact
+  kind from its own JSON markers and verifies the embedded SHA-256 via the
+  existing per-kind verifiers. `proof verify`, `cert-verify`, `audit-verify`,
+  and `support-bundle --verify` still work but print a deprecation note;
+  `self-check`, `feedback`, and `proof generate` are hidden from `--help`
+  (still functional, with deprecation notes).
+
+### Packaging
+
+- **`fastapi>=0.133.0` floor** — first FastAPI line compatible with the
+  `starlette>=1.0.1` security floor; eliminates resolver backtracking.
+- **PyPI sdist shrank 5.5x** (2.70 MB → 0.50 MB, now ~1.08x the wheel) by
+  excluding repo-side content (docs, site, tests, scripts, translated READMEs)
+  from the source tarball that the wheel never ships.
+
+### Docs
+
+- **Track legend accuracy (F4).** nfts now cites XLS-20 + XLS-46; tokens cites
+  XLS-33 + XLS-39; payments lists checks, payment channels, partial payments,
+  and destination tags; identity lists credentials (XLS-70), permissioned DEX
+  (XLS-80/81), and deposit auth. Regenerated across README + handbook.
+- **`## Install` documents `npx @mcptoolshop/xrpl-lab`** (Node 18+, downloads
+  the standalone binary) alongside pipx/pip — the npm badge is now honest.
+- Linter rule “AMM ⇒ dry-run only” removed; dry-run-only-without-AMM still warns.
+
+### Repo structure
+
+- `design/` folded into `docs/design/` (plus `.gitignore` path update).
+
 ## 2.5.1 — 2026-10-14
 
 ### Security
