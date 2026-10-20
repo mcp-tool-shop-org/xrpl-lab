@@ -1,0 +1,250 @@
+Warning: This module requires the following to be completed first:
+  - trust_lines_101
+Run those modules first, or use --force to bypass.
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ AMM Liquidity 101: Providing Liquidity and Earning Fees                                                                                                     │
+│ Level: advanced  |  Time: ~20-30 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+You've already worked with trust lines and the DEX order book. Now you meet the other side of XRPL trading: Automated Market Makers.                           
+
+LP is not staking. You are depositing real assets into a shared pool. Traders swap against your pool, and you earn a slice of every swap fee. The tradeoff: if 
+the price ratio moves, you may end up with less total value than if you'd just held the assets — that's impermanent loss.                                      
+
+This module runs on testnet — free, disposable assets only, no real value at risk. You'll walk through the full lifecycle: create a pool, deposit, verify,     
+withdraw, verify. It also works in --dry-run, where the pool is simulated offline with no network calls at all.                                                
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You need a funded wallet with enough XRP for deposits and fees.                                                                                                
+
+
+  → ensure_wallet...
+  No wallet found. Creating a new one...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Wallet created: rNgrA8eo8Bdee3hYEJ4euJoke4DhKJ1APy
+  Saved to: <scratch>\f9-20261020T2056Z\home\wallet.json
+
+  Warning: Your wallet seed is stored locally. Never share it or paste it anywhere.
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Faucet attempt 1/3 did not fund. Retrying in 2s...
+  Faucet attempt 2/3 did not fund. Retrying in 4s...
+Faucet funding failed after retries. The testnet faucet may be under load.
+  Last response: Funded from testnet faucet
+Try: xrpl-lab fund manually, or wait a few minutes and retry.
+
+Press Enter to continue...Create an issuer wallet                                                                                                                                        
+
+We need an issuer for the LAB token. If you completed Trust Lines 101, this pattern is familiar.                                                               
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Creating issuer wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Issuer wallet created: rfsraes2gh6h26SgtaxR2Cf3UNVWHJJekH
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: unknown XRP
+
+Press Enter to continue...Enable Default Ripple on the issuer                                                                                                                            
+
+An issuer must opt in to "rippling" — letting token balances move through its trust lines — before its token can participate in an AMM or the DEX payment paths
+built on top. One AccountSet flag (asfDefaultRipple) covers it; skip it and pool creation fails with terNO_RIPPLE. This step is safe to re-run: if the flag is 
+already set, nothing new is submitted.                                                                                                                         
+
+
+  → enable_default_ripple...
+  Enabling Default Ripple on the issuer (asfDefaultRipple) — required before the token joins an AMM pool...
+  Enabling Default Ripple failed: AccountSet(default-ripple) submission timed out after 60s. The transaction may STILL validate in the next few ledgers — it 
+was handed to the network and its validity window may not have closed. Not resubmitting automatically (a blind resubmit can DUPLICATE the transaction). Check 
+your account's recent transactions or the explorer first, then retry only if it never landed.
+  Category: local
+  Meaning: Rejected by your client before reaching the network
+  Action: Check the error message for details
+
+Press Enter to continue...Set trust line for LAB                                                                                                                                         
+
+You need a trust line to the LAB issuer before receiving tokens.                                                                                               
+
+
+  → set_trust_line...
+  Setting trust line: LAB from issuer rfsraes2gh6h...
+  Limit: 10000
+  Trust line set!
+  TXID: 41A618B218E7D604B03ED5D6B5D92FA47E977C797B3A1549FA5225A973E78C94
+  Explorer: https://testnet.xrpl.org/transactions/41A618B218E7D604B03ED5D6B5D92FA47E977C797B3A1549FA5225A973E78C94
+
+Press Enter to continue...Issue LAB tokens                                                                                                                                               
+
+The issuer sends LAB tokens to your wallet. You need these to deposit into the AMM pool alongside XRP.                                                         
+
+
+  → issue_token...
+  Issuing 1000 LAB to rNgrA8eo8Bde...
+  1000 LAB issued!
+  TXID: C6EF15D0FA7B9427651B3129863991EDBED9005BD37A588037DB1DC3AB66AE98
+  Explorer: https://testnet.xrpl.org/transactions/C6EF15D0FA7B9427651B3129863991EDBED9005BD37A588037DB1DC3AB66AE98
+
+Press Enter to continue...Snapshot before deposit                                                                                                                                        
+
+Capture your account state before interacting with the AMM. This baseline helps you measure the reserve impact of LP positions.                                
+
+
+  → snapshot_account...
+  Account: rNgrA8eo8Bdee3hY...
+  Balance: 299.999990 XRP (299999990 drops)
+  Owner count: 1
+  Sequence: 21692362
+
+Press Enter to continue...Ensure AMM pool exists                                                                                                                                         
+
+XRPL allows one AMM per asset pair. If no XRP/LAB pool exists, we create one with small initial balances. The creator receives all initial LP tokens.          
+
+Creating an AMM costs a special fee (higher than normal transactions) and the pool is permanent — it belongs to a special AMM account on the ledger.           
+
+
+  → ensure_amm_pair...
+  Checking for AMM pool: XRP / LAB
+  AMM creation failed: AMMCreate submission timed out after 60s. The transaction may STILL validate in the next few ledgers — it was handed to the network and 
+its validity window may not have closed. Not resubmitting automatically (a blind resubmit can DUPLICATE the transaction). Check your account's recent 
+transactions or the explorer first, then retry only if it never landed.
+  Pool A: 0
+  Pool B: 0
+  LP token: 
+  LP issuer: ...
+
+Press Enter to continue...Query AMM state                                                                                                                                                
+
+Look at the pool before your deposit: how much XRP, how much LAB, what's the LP token supply, and what's the trading fee.                                      
+
+
+  → get_amm_info...
+  No AMM found for this pair.
+
+Press Enter to continue...Deposit into the AMM                                                                                                                                           
+
+You deposit both XRP and LAB proportionally. In return, you receive LP tokens — these represent your share of the pool.                                        
+
+Think of LP tokens as a receipt: they prove how much of the pool belongs to you. The AMM account issues them, and they behave like any other issued token on   
+XRPL (you can see them as trust lines).                                                                                                                        
+
+
+  → amm_deposit...
+  Depositing: 10 XRP + 10 LAB
+  Deposit failed: AMMDeposit submission timed out after 60s. The transaction may STILL validate in the next few ledgers — it was handed to the network and its 
+validity window may not have closed. Not resubmitting automatically (a blind resubmit can DUPLICATE the transaction). Check your account's recent transactions 
+or the explorer first, then retry only if it never landed.
+
+Press Enter to continue...Verify LP tokens received                                                                                                                                      
+
+Check that your LP token balance increased. The pool balances should also reflect your deposit.                                                                
+
+
+  → verify_lp_received...
+  ✗ No LP tokens received
+
+Press Enter to continue...Snapshot after deposit                                                                                                                                         
+
+
+  → snapshot_account...
+  Account: rNgrA8eo8Bdee3hY...
+  Balance: 299.999990 XRP (299999990 drops)
+  Owner count: 1
+  Sequence: 21692362
+
+Press Enter to continue...Check reserve impact                                                                                                                                           
+
+Compare your account state before and after the deposit. Your owner count may increase (LP trust line / AMM position), and your XRP balance decreased by the   
+deposit amount plus fees.                                                                                                                                      
+
+
+  → verify_reserve_change...
+  • Balance unchanged
+  • Owner count unchanged: 1
+
+  After after_deposit: no significant changes detected.
+
+Press Enter to continue...Withdraw from the AMM                                                                                                                                          
+
+Return your LP tokens to get your assets back. This is a proportional withdrawal — you get back XRP and LAB in the current pool ratio, which may differ from   
+when you deposited (that's impermanent loss in action, though in this exercise the ratio won't change).                                                        
+
+
+  → amm_withdraw...
+  Withdrawing from AMM: XRP / LAB
+  (returning all LP tokens)
+  Withdrawal failed: AMMWithdraw submission timed out after 60s. The transaction may STILL validate in the next few ledgers — it was handed to the network and 
+its validity window may not have closed. Not resubmitting automatically (a blind resubmit can DUPLICATE the transaction). Check your account's recent 
+transactions or the explorer first, then retry only if it never landed.
+
+Press Enter to continue...Verify withdrawal                                                                                                                                              
+
+Confirm that your LP token balance decreased (or reached zero) and that assets were returned from the pool.                                                    
+
+
+  → verify_withdrawal...
+  ✓ All LP tokens returned — full withdrawal
+  ✗ LP balance was 0 before and after — no withdrawal detected
+
+Press Enter to continue...Snapshot after withdrawal                                                                                                                                      
+
+
+  → snapshot_account...
+  Account: rNgrA8eo8Bdee3hY...
+  Balance: 299.999990 XRP (299999990 drops)
+  Owner count: 1
+  Sequence: 21692362
+
+Press Enter to continue...Final comparison                                                                                                                                               
+
+Compare before-AMM to after-withdrawal. Your owner count should be similar, though XRP balance will be slightly lower from transaction fees. The key insight:  
+you got your assets back, minus fees paid to the network.                                                                                                      
+
+
+  → verify_reserve_change...
+  • Balance unchanged
+  • Owner count unchanged: 1
+
+  After after_withdraw: no significant changes detected.
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You just completed a full AMM liquidity cycle:                                                                                                                 
+
+ 1 Created an AMM pool (or confirmed one existed) for XRP/LAB                                                                                                  
+ 2 Deposited both assets and received LP tokens as proof                                                                                                       
+ 3 Verified LP receipt — your pool share is on-ledger                                                                                                          
+ 4 Withdrew your liquidity by returning LP tokens                                                                                                              
+ 5 Verified the withdrawal — assets returned, LP tokens burned                                                                                                 
+
+Operator checklist for real AMM usage:                                                                                                                         
+
+ • LP is not staking: you earn fees, but take price risk                                                                                                       
+ • Impermanent loss: if the price ratio moves significantly, you may have less total value than simply holding the assets                                      
+ • Fee earnings: every swap through your pool pays a fee, split among all LPs proportionally                                                                   
+ • Reserve impact: LP positions (trust lines to the AMM account) count as owned objects and lock reserve XRP                                                   
+ • One AMM per pair: you can't create a competing pool for the same asset pair — all liquidity is concentrated                                                 
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ AMM Liquidity 101: Providing Liquidity and Earning Fees                                                                                                     │
+│ Report saved to .xrpl-lab\reports\amm_liquidity_101.md                                                                                                      │
+│ 2 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

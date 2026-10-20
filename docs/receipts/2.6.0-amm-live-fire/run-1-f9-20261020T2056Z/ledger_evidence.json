@@ -1,0 +1,197 @@
+{
+  "captured_utc_note": "queried after the run, validated ledger",
+  "network": "XRPL Testnet (s.altnet.rippletest.net:51234)",
+  "validated_ledger": {
+    "seq": 21692449,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000,
+    "base_fee": 10
+  },
+  "wallet_account": {
+    "Account": "rNgrA8eo8Bdee3hYEJ4euJoke4DhKJ1APy",
+    "Balance": "299999990",
+    "Sequence": 21692362,
+    "OwnerCount": 1,
+    "Flags": 0
+  },
+  "wallet_account_tx": [
+    {
+      "ledger_index": 21692361,
+      "hash": "EA526DDB4C8E9850C21399AAF6CF432A083544CA0124C8F0387EED0F695DAAF2",
+      "TransactionType": "Payment",
+      "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+      "Sequence": 0,
+      "Fee": "12",
+      "Flags": 0,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21692362,
+      "hash": "9B1F231DB084C34452808A7A368B3164875129A698FD2FE0F82E347A63533F2E",
+      "TransactionType": "Payment",
+      "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+      "Sequence": 0,
+      "Fee": "12",
+      "Flags": 0,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21692363,
+      "hash": "415322A7B8A2CEEF6DF594A4E3B4F3A59A286D2B5B512FC2DF0174F94C27EDC4",
+      "TransactionType": "Payment",
+      "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+      "Sequence": 0,
+      "Fee": "12",
+      "Flags": 0,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21692382,
+      "hash": "41A618B218E7D604B03ED5D6B5D92FA47E977C797B3A1549FA5225A973E78C94",
+      "TransactionType": "TrustSet",
+      "Account": "rNgrA8eo8Bdee3hYEJ4euJoke4DhKJ1APy",
+      "Sequence": 21692361,
+      "Fee": "10",
+      "Flags": null,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21692384,
+      "hash": "C6EF15D0FA7B9427651B3129863991EDBED9005BD37A588037DB1DC3AB66AE98",
+      "TransactionType": "Payment",
+      "Account": "rfsraes2gh6h26SgtaxR2Cf3UNVWHJJekH",
+      "Sequence": 21692363,
+      "Fee": "10",
+      "Flags": null,
+      "TransactionResult": "tesSUCCESS"
+    }
+  ],
+  "issuer_account": {
+    "Account": "rfsraes2gh6h26SgtaxR2Cf3UNVWHJJekH",
+    "Balance": "99999990",
+    "Sequence": 21692364,
+    "OwnerCount": 0,
+    "Flags": 0
+  },
+  "issuer_account_tx": [
+    {
+      "ledger_index": 21692363,
+      "hash": "9CFFD320E8B5840114215F828399F0B3E96A5E4F4ACB39CFE9D5BA3397EDFF17",
+      "TransactionType": "Payment",
+      "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+      "Sequence": 0,
+      "Fee": "12",
+      "Flags": 0,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21692382,
+      "hash": "41A618B218E7D604B03ED5D6B5D92FA47E977C797B3A1549FA5225A973E78C94",
+      "TransactionType": "TrustSet",
+      "Account": "rNgrA8eo8Bdee3hYEJ4euJoke4DhKJ1APy",
+      "Sequence": 21692361,
+      "Fee": "10",
+      "Flags": null,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21692384,
+      "hash": "C6EF15D0FA7B9427651B3129863991EDBED9005BD37A588037DB1DC3AB66AE98",
+      "TransactionType": "Payment",
+      "Account": "rfsraes2gh6h26SgtaxR2Cf3UNVWHJJekH",
+      "Sequence": 21692363,
+      "Fee": "10",
+      "Flags": null,
+      "TransactionResult": "tesSUCCESS"
+    }
+  ],
+  "amm_info_xrp_lab_after_run": {
+    "error": "actNotFound",
+    "error_code": 19,
+    "error_message": "Account not found."
+  },
+  "simulate_after_run": {
+    "accountset_defaultripple_issuer": {
+      "tx_json": {
+        "Account": "rfsraes2gh6h26SgtaxR2Cf3UNVWHJJekH",
+        "Fee": "10",
+        "Sequence": 21692364,
+        "SetFlag": 8,
+        "SigningPubKey": "",
+        "TransactionType": "AccountSet",
+        "TxnSignature": "",
+        "hash": "1FB0881B4E9637FCF3E04C6B3097C8A0CD44B29E844BD3B92DB65B92DAE4F33C"
+      },
+      "engine_result": "tesSUCCESS",
+      "engine_result_message": "The simulated transaction would have been applied."
+    },
+    "ammcreate_wallet": {
+      "tx_json": {
+        "Account": "rNgrA8eo8Bdee3hYEJ4euJoke4DhKJ1APy",
+        "Amount": "100000000",
+        "Amount2": {
+          "currency": "LAB",
+          "issuer": "rfsraes2gh6h26SgtaxR2Cf3UNVWHJJekH",
+          "value": "100"
+        },
+        "Fee": "200000",
+        "Sequence": 21692362,
+        "SigningPubKey": "",
+        "TradingFee": 0,
+        "TransactionType": "AMMCreate",
+        "TxnSignature": "",
+        "hash": "5A866A79D580401459B1ABFF9316E5EA0F14AACCCDF36E452CD6FA019FBA1496"
+      },
+      "engine_result": "terNO_RIPPLE",
+      "engine_result_message": "Path does not permit rippling."
+    },
+    "ammdeposit_wallet_twoasset": {
+      "tx_json": {
+        "Account": "rNgrA8eo8Bdee3hYEJ4euJoke4DhKJ1APy",
+        "Amount": "10000000",
+        "Amount2": {
+          "currency": "LAB",
+          "issuer": "rfsraes2gh6h26SgtaxR2Cf3UNVWHJJekH",
+          "value": "10"
+        },
+        "Asset": {
+          "currency": "XRP"
+        },
+        "Asset2": {
+          "currency": "LAB",
+          "issuer": "rfsraes2gh6h26SgtaxR2Cf3UNVWHJJekH"
+        },
+        "Fee": "10",
+        "Flags": 1048576,
+        "Sequence": 21692362,
+        "SigningPubKey": "",
+        "TransactionType": "AMMDeposit",
+        "TxnSignature": "",
+        "hash": "1CCD93D0B63FF83EC35FF5CA2461C21F14B69672AABD8879803BE9A0E4FCA46F"
+      },
+      "engine_result": "terNO_AMM",
+      "engine_result_message": "AMM doesn't exist for the asset pair."
+    },
+    "ammwithdraw_wallet_all": {
+      "tx_json": {
+        "Account": "rNgrA8eo8Bdee3hYEJ4euJoke4DhKJ1APy",
+        "Asset": {
+          "currency": "XRP"
+        },
+        "Asset2": {
+          "currency": "LAB",
+          "issuer": "rfsraes2gh6h26SgtaxR2Cf3UNVWHJJekH"
+        },
+        "Fee": "10",
+        "Flags": 131072,
+        "Sequence": 21692362,
+        "SigningPubKey": "",
+        "TransactionType": "AMMWithdraw",
+        "TxnSignature": "",
+        "hash": "6CC3B536C0A3A93B2B33F9A8A3E8C06474E8ABBB4F85D059B314500A8D31429B"
+      },
+      "engine_result": "terNO_AMM",
+      "engine_result_message": "AMM doesn't exist for the asset pair."
+    }
+  }
+}
