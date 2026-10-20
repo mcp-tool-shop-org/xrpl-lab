@@ -10,6 +10,87 @@ Local paths are shown as `<scratch>`.
 |---|---|---|---|
 | [run-1](run-1-f9-20261020T2056Z/) | 2026-10-20 20:56–21:01 | `7acc67c` (feat/2.6.0) | **FAIL**: no AMM was created; 4 submissions never validated |
 | [run-2](run-2-f9-20261020T2124Z/) | 2026-10-20 21:24–21:27 | `f803a49` (feat/2.6.0) | **FAIL**: run 1's defects fixed; AMMCreate validated `tecUNFUNDED_AMM` (pool sized past one 100 XRP faucet grant) |
+| [run-3](run-3-f9-20261020T2148Z/) | 2026-10-20 21:48–21:49 | `453d361` (feat/2.6.0) | **PASS**: all 18 steps; all 9 transactions `tesSUCCESS`; the pool was deleted after the full withdraw |
+
+**Acceptance verdict: PASS on run 3 (`453d361`).** Runs 1 and 2 are kept as the failure record that led to the
+fixes.
+
+`35de678` (Argon's run-2 review fixes) landed on `feat/2.6.0` during run 3, so it is not covered by this run. It
+changes code (`xrpl_lab/actions/amm.py`, `handlers.py`, `transport/xrpl_testnet.py`). Under the studio rule it goes to
+Argon for a second review first, and then gets its own live run (run 4) so the receipt covers the PR head.
+
+## Run 3: f9-20261020T2148Z, PASS
+
+**Setup:** the same as runs 1 and 2, on `453d361`, which is run 2's receipt plus the fixes for sizing, failure
+accounting, AMM hashes and the exit code.
+
+**Preflight:**
+- `classify_network` reported `testnet`.
+- The network guard passed.
+- Connected at ledger 21693271.
+
+**Exit code:** xrpl-lab exited **0**, read from `PIPESTATUS[1]`.
+
+**Status:**
+- The panel reads "Complete".
+- The report says "Steps: 18 passed, 0 failed" and "Transactions: 6 successful, 0 failed".
+- `state.json` has the module `verified: true`.
+
+**Accounts:**
+- Learner: `rEfzCXENKBBTQbs6TzVFBH4GAjXyjX61FS`
+- Issuer: `r9hxLvtS9daHa57h2GTnqHWHCSz2opCrU3`
+
+**Ledger at the time:** `reserve_base` 1000000, `reserve_inc` 200000.
+
+| # | Step | Tx type | Hash | Ledger | Engine result | Fee (drops) | Flags | Outcome |
+|---|---|---|---|---|---|---|---|---|
+| 1 | ensure_wallet | none | none | n/a | n/a | n/a | n/a | PASS |
+| 2 | ensure_funded | Payment (faucet, 100 XRP) ×1 | `71497BEE…E145` | 21693273 | tesSUCCESS | 12 | 0 | PASS |
+| 3 | create_issuer_wallet | none | none | n/a | n/a | n/a | n/a | PASS |
+| 4 | fund_issuer | Payment (faucet, 100 XRP) | `D8B77F0F…B2FA` | 21693275 | tesSUCCESS | 12 | 0 | PASS |
+| 5 | enable_default_ripple | AccountSet asfDefaultRipple | `A6917DA5…2BB7` | 21693277 | tesSUCCESS | 10 | SetFlag 8 | PASS: issuer `Flags` 0x800000 |
+| 6 | set_trust_line | TrustSet LAB | `7E4BC208…EF0D` | 21693279 | tesSUCCESS | 10 | n/a | PASS |
+| 7 | issue_token | Payment 1000 LAB | `EDC401FC…E370` | 21693281 | tesSUCCESS | 10 | n/a | PASS |
+| 8 | snapshot_account | none | none | n/a | n/a | n/a | n/a | 99.999990 XRP, owner count 1 |
+| 9 | ensure_amm_pair | AMMCreate 25 XRP / 25 LAB | `020B4543…1104` | 21693284 | **tesSUCCESS** | **200000 = reserve_inc** | n/a | PASS: pool 25/25 |
+| 10 | get_amm_info | amm_info | n/a | n/a | ok | n/a | n/a | PASS: pool XRP 25, LAB 25, LP supply 25000 |
+| 11 | amm_deposit 5/5 | AMMDeposit | `2105787A…203F` | 21693287 | **tesSUCCESS** | 10 | **0x00100000 tfTwoAsset** | PASS |
+| 12 | verify_lp_received | none | none | n/a | n/a | n/a | n/a | PASS: LP balance 30000; pool 30/30; LP supply 30000 |
+| 13 | snapshot_account | none | none | n/a | n/a | n/a | n/a | 69.799980 XRP, owner count 2 |
+| 14 | verify_reserve_change | none | none | n/a | n/a | n/a | n/a | PASS: −30.200010 XRP (30 XRP into the pool + the 0.2 create fee + 10 drops); owner count 1 → 2 (the LP-token line) |
+| 15 | amm_withdraw (all) | AMMWithdraw | `27CADA3F…84B5` | 21693290 | **tesSUCCESS** | 10 | **0x00020000 tfWithdrawAll** | PASS |
+| 16 | verify_withdrawal | none | none | n/a | n/a | n/a | n/a | PASS: "LP tokens decreased: 30000 -> 0", "All LP tokens returned"; no contradictory line |
+| 17 | snapshot_account | none | none | n/a | n/a | n/a | n/a | 99.799970 XRP, owner count 1 |
+| 18 | verify_reserve_change | none | none | n/a | n/a | n/a | n/a | PASS: −0.200020 XRP net (the create fee + 2 × 10 drops); owner count back to 1 |
+
+Pool and reserve before and after:
+- **Pool:** 25/25 after the create, 30/30 after the deposit, deleted after the full withdraw.
+- **Learner:**
+  - 99,999,990 drops and owner count 1 before the AMM steps;
+  - 69,799,980 drops and owner count 2 after the deposit;
+  - 99,799,970 drops and owner count 1 after the withdraw.
+- **LAB:** the learner's balance is back to 1000 on its single trust line, and the LP-token line is gone.
+
+### The F9 watch-items (Argon): all three settled
+
+| Risk | Status |
+|---|---|
+| AMMCreate fee (`max_fee` cap, `telINSUF_FEE_P`) | **Cleared on the ledger.** A `tesSUCCESS` AMMCreate (`020B4543…`) paid exactly `reserve_inc` = 200000 drops. Run 2's validated `tec` paid the same. |
+| Deposit/withdraw mode flags (`temINVALID_FLAG`) | **Cleared on the ledger.** AMMDeposit with `tfTwoAsset` (0x00100000) and AMMWithdraw with `tfWithdrawAll` (0x00020000) both validated `tesSUCCESS`. |
+| `amm_info` → `actNotFound` after a full withdraw | **Confirmed.** The creator was the sole LP and withdrew with `tfWithdrawAll`. The AMM was deleted, and `amm_info` XRP/LAB returned `actNotFound` ("Account not found") on the validated ledger after the run. |
+
+### Notes from run 3
+
+- **`issueMalformed` did not recur.** It comes only from the failed-create path, where the fallback `AmmInfo` has
+  empty issuers (Argon F4.1, open but low).
+- **stderr has two `amm_info error for XRP/LAB: actNotFound` lines.** These are the healthy "no pool yet" answer,
+  logged as a warning because `get_amm_info` checks `entryNotFound` (Argon F6, open but low).
+- **The AMMCreate preflight is silent when the wallet can cover the pool.** It prints "needs N XRP, has M XRP" only
+  on a shortfall (`handlers.py:1780-1787`), so this run shows that it didn't block, not the line itself. By its own
+  formula the create needed 26.6 XRP (25 XRP leg + 0.2 XRP fee + 1 XRP base reserve + 2 × 0.2 XRP owner reserve)
+  against 99.99999 XRP held.
+
+---
 
 ## Run 2: f9-20261020T2124Z, FAIL
 
