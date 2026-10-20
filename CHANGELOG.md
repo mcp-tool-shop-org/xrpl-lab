@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.6.0 — 2026-10-20
 
 External-audit pass (F1–F7, F10): packaging, curriculum accuracy, CLI surface,
 the long-planned AMM testnet upgrade, and a Host and Origin gate on the API.
