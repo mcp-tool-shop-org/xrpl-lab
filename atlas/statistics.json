@@ -33,23 +33,7 @@
       "confidence": "low",
       "highWater": null,
       "name": "bin",
-      "qualifyingSourceCommits": 2,
-      "rebaseline": null
-    },
-    {
-      "breakage": {
-        "coChangesOnly": [],
-        "collapsed": false,
-        "confidence": "low",
-        "importsAndCoChanges": [],
-        "importsOnly": []
-      },
-      "cohesion": null,
-      "cohesionDropped": false,
-      "confidence": "low",
-      "highWater": null,
-      "name": "design",
-      "qualifyingSourceCommits": 0,
+      "qualifyingSourceCommits": 3,
       "rebaseline": null
     },
     {
@@ -165,7 +149,7 @@
       "confidence": "full",
       "highWater": null,
       "name": "tests",
-      "qualifyingSourceCommits": 63,
+      "qualifyingSourceCommits": 64,
       "rebaseline": null
     },
     {
@@ -185,7 +169,7 @@
       "confidence": "full",
       "highWater": null,
       "name": "xrpl_lab",
-      "qualifyingSourceCommits": 57,
+      "qualifyingSourceCommits": 58,
       "rebaseline": null
     }
   ],
@@ -203,13 +187,13 @@
         "path": ".github/workflows/pages.yml"
       },
       {
-        "commits": 8,
-        "lines": 145,
+        "commits": 9,
+        "lines": 147,
         "path": ".github/workflows/publish-pypi.yml"
       },
       {
-        "commits": 8,
-        "lines": 61,
+        "commits": 9,
+        "lines": 69,
         "path": ".github/workflows/release-binaries.yml"
       },
       {
@@ -223,13 +207,13 @@
         "path": ".github/workflows/smoke.yml"
       },
       {
-        "commits": 4,
-        "lines": 12,
+        "commits": 5,
+        "lines": 14,
         "path": ".gitignore"
       },
       {
-        "commits": 15,
-        "lines": 611,
+        "commits": 17,
+        "lines": 673,
         "path": "CHANGELOG.md"
       },
       {
@@ -263,8 +247,8 @@
         "path": "README.ja.md"
       },
       {
-        "commits": 12,
-        "lines": 261,
+        "commits": 13,
+        "lines": 286,
         "path": "README.md"
       },
       {
@@ -288,8 +272,8 @@
         "path": "SHIP_GATE.md"
       },
       {
-        "commits": 5,
-        "lines": 223,
+        "commits": 6,
+        "lines": 236,
         "path": "atlas/README.md"
       },
       {
@@ -298,23 +282,23 @@
         "path": "atlas/boundaries.yaml"
       },
       {
-        "commits": 5,
-        "lines": 697,
+        "commits": 6,
+        "lines": 725,
         "path": "atlas/page.json"
       },
       {
-        "commits": 5,
-        "lines": 2900,
+        "commits": 6,
+        "lines": 3378,
         "path": "atlas/statistics.json"
       },
       {
-        "commits": 5,
-        "lines": 15335,
+        "commits": 6,
+        "lines": 15363,
         "path": "atlas/structure.json"
       },
       {
-        "commits": 6,
-        "lines": 55,
+        "commits": 7,
+        "lines": 63,
         "path": "bin/xrpl-lab.js"
       },
       {
@@ -331,6 +315,16 @@
         "commits": 1,
         "lines": 268,
         "path": "design/dashboard-before.html"
+      },
+      {
+        "commits": 1,
+        "lines": 0,
+        "path": "docs/design}/claude-design-brief.md"
+      },
+      {
+        "commits": 1,
+        "lines": 0,
+        "path": "docs/design}/dashboard-before.html"
       },
       {
         "commits": 1,
@@ -358,8 +352,8 @@
         "path": "modules/account_hygiene.md"
       },
       {
-        "commits": 2,
-        "lines": 14,
+        "commits": 3,
+        "lines": 61,
         "path": "modules/amm_liquidity_101.md"
       },
       {
@@ -508,13 +502,13 @@
         "path": "modules/trust_lines_101.md"
       },
       {
-        "commits": 7,
-        "lines": 55,
+        "commits": 8,
+        "lines": 57,
         "path": "package.json"
       },
       {
-        "commits": 14,
-        "lines": 86,
+        "commits": 16,
+        "lines": 106,
         "path": "pyproject.toml"
       },
       {
@@ -588,8 +582,8 @@
         "path": "site/src/content/docs/handbook/facilitator-guide.md"
       },
       {
-        "commits": 4,
-        "lines": 40,
+        "commits": 5,
+        "lines": 48,
         "path": "site/src/content/docs/handbook/getting-started.md"
       },
       {
@@ -598,8 +592,8 @@
         "path": "site/src/content/docs/handbook/index.md"
       },
       {
-        "commits": 5,
-        "lines": 293,
+        "commits": 6,
+        "lines": 305,
         "path": "site/src/content/docs/handbook/modules.md"
       },
       {
@@ -723,14 +717,24 @@
         "path": "tests/_shipped_module.py"
       },
       {
-        "commits": 6,
-        "lines": 461,
+        "commits": 1,
+        "lines": 6,
+        "path": "tests/fixtures/bad_amm_no_label.md"
+      },
+      {
+        "commits": 7,
+        "lines": 629,
         "path": "tests/test_amm.py"
       },
       {
         "commits": 1,
         "lines": 323,
         "path": "tests/test_amm_swap_chains.py"
+      },
+      {
+        "commits": 1,
+        "lines": 565,
+        "path": "tests/test_amm_testnet.py"
       },
       {
         "commits": 7,
@@ -753,8 +757,8 @@
         "path": "tests/test_checks.py"
       },
       {
-        "commits": 6,
-        "lines": 582,
+        "commits": 7,
+        "lines": 585,
         "path": "tests/test_cli.py"
       },
       {
@@ -838,8 +842,8 @@
         "path": "tests/test_ft002_verified_surfacing.py"
       },
       {
-        "commits": 3,
-        "lines": 71,
+        "commits": 4,
+        "lines": 101,
         "path": "tests/test_linter.py"
       },
       {
@@ -863,8 +867,8 @@
         "path": "tests/test_multisig.py"
       },
       {
-        "commits": 5,
-        "lines": 426,
+        "commits": 6,
+        "lines": 480,
         "path": "tests/test_network_safety.py"
       },
       {
@@ -918,8 +922,8 @@
         "path": "tests/test_reswarm3_cli.py"
       },
       {
-        "commits": 1,
-        "lines": 224,
+        "commits": 2,
+        "lines": 231,
         "path": "tests/test_reswarm3_fixups.py"
       },
       {
@@ -1056,6 +1060,11 @@
         "commits": 1,
         "lines": 459,
         "path": "tests/test_v2_verify.py"
+      },
+      {
+        "commits": 1,
+        "lines": 400,
+        "path": "tests/test_verify_artifact.py"
       },
       {
         "commits": 1,
@@ -1208,8 +1217,8 @@
         "path": "tests/test_w6_handlers_named_fix.py"
       },
       {
-        "commits": 2,
-        "lines": 176,
+        "commits": 3,
+        "lines": 179,
         "path": "tests/test_w7_api_cli_audit_verify.py"
       },
       {
@@ -1258,8 +1267,8 @@
         "path": "tests/test_ws_backpressure.py"
       },
       {
-        "commits": 13,
-        "lines": 827,
+        "commits": 15,
+        "lines": 833,
         "path": "uv.lock"
       },
       {
@@ -1268,8 +1277,8 @@
         "path": "verify.sh"
       },
       {
-        "commits": 8,
-        "lines": 24,
+        "commits": 9,
+        "lines": 26,
         "path": "xrpl_lab/__init__.py"
       },
       {
@@ -1358,8 +1367,8 @@
         "path": "xrpl_lab/actions/token_escrow.py"
       },
       {
-        "commits": 3,
-        "lines": 147,
+        "commits": 4,
+        "lines": 172,
         "path": "xrpl_lab/actions/trust_line.py"
       },
       {
@@ -1393,8 +1402,8 @@
         "path": "xrpl_lab/audit.py"
       },
       {
-        "commits": 20,
-        "lines": 1558,
+        "commits": 21,
+        "lines": 1926,
         "path": "xrpl_lab/cli.py"
       },
       {
@@ -1403,8 +1412,8 @@
         "path": "xrpl_lab/curriculum.py"
       },
       {
-        "commits": 1,
-        "lines": 171,
+        "commits": 2,
+        "lines": 179,
         "path": "xrpl_lab/curriculum_manifest.py"
       },
       {
@@ -1423,13 +1432,13 @@
         "path": "xrpl_lab/feedback.py"
       },
       {
-        "commits": 21,
-        "lines": 7510,
+        "commits": 22,
+        "lines": 7561,
         "path": "xrpl_lab/handlers.py"
       },
       {
-        "commits": 6,
-        "lines": 375,
+        "commits": 7,
+        "lines": 390,
         "path": "xrpl_lab/linter.py"
       },
       {
@@ -1448,8 +1457,8 @@
         "path": "xrpl_lab/reserves.py"
       },
       {
-        "commits": 9,
-        "lines": 397,
+        "commits": 10,
+        "lines": 409,
         "path": "xrpl_lab/runner.py"
       },
       {
@@ -1468,18 +1477,18 @@
         "path": "xrpl_lab/state.py"
       },
       {
-        "commits": 9,
-        "lines": 1164,
+        "commits": 10,
+        "lines": 1196,
         "path": "xrpl_lab/transport/base.py"
       },
       {
-        "commits": 16,
-        "lines": 5298,
+        "commits": 17,
+        "lines": 5329,
         "path": "xrpl_lab/transport/dry_run.py"
       },
       {
-        "commits": 18,
-        "lines": 4579,
+        "commits": 19,
+        "lines": 4900,
         "path": "xrpl_lab/transport/xrpl_testnet.py"
       },
       {
@@ -1493,17 +1502,24 @@
     "level": "low",
     "reason": "fewer than 25 source files reach 10 revisions in the window"
   },
-  "generatedAt": "2026-10-15T00:28:11.589Z",
+  "generatedAt": "2026-10-20T20:46:49.630Z",
   "generatedFrom": {
-    "commit": "c73deb4e8314a62d57c2a5a9f211c6f14471a0f8"
+    "commit": "fa2370c86bb3dab62af342d2cbf5d9266ea3c240"
   },
   "pairs": [
     {
+      "a": "SHIP_GATE.md",
+      "b": "xrpl_lab/__init__.py",
+      "either": 7,
+      "shared": 4,
+      "strength": 0.571429
+    },
+    {
       "a": "pyproject.toml",
       "b": "uv.lock",
-      "either": 11,
-      "shared": 7,
-      "strength": 0.636364
+      "either": 13,
+      "shared": 9,
+      "strength": 0.692308
     },
     {
       "a": "site/src/pages/app/index.astro",
@@ -1530,16 +1546,16 @@
     "floor": "fallen",
     "floorHeld": false,
     "floorTrigger": "revision-depth",
-    "headDate": "2026-10-14T20:27:56-04:00",
-    "inScopeFiles": 290,
+    "headDate": "2026-10-20T16:44:14-04:00",
+    "inScopeFiles": 292,
     "pinnedStart": null,
     "priorFloor": "fallen",
-    "qualifyingCommits": 140,
+    "qualifyingCommits": 142,
     "qualifyingMinimum": 30,
     "revisions": 5,
     "shared": 10,
     "sharedFloorUsed": 3,
-    "since": "2026-04-18T00:27:56.000Z",
+    "since": "2026-04-23T20:44:14.000Z",
     "sourceExtensions": [
       ".js",
       ".mjs",
@@ -1555,7 +1571,7 @@
     ],
     "sourceFileReach": 20,
     "sourceFileRise": 25,
-    "sourceFilesReachingStrongFloor": 4,
+    "sourceFilesReachingStrongFloor": 5,
     "strength": 0.5,
     "windowDays": 180
   },

@@ -1,7 +1,6 @@
 {
   "authored": [
     ".github/",
-    "design/",
     "docs/",
     "modules/",
     "presets/",
@@ -42,34 +41,49 @@
   ],
   "changes": {
     "fileCounts": {
-      "added": 0,
-      "changed": 13,
-      "moved": 0,
-      "parts": 6,
+      "added": 2,
+      "changed": 25,
+      "moved": 2,
+      "parts": 8,
       "removed": 0
     },
     "items": [
       {
+        "kind": "landing",
+        "sentence": "modules/amm_liquidity_101.md is now read by tests/test_amm.py.",
+        "subjects": [
+          "modules/amm_liquidity_101.md",
+          "tests/test_amm.py"
+        ]
+      },
+      {
+        "kind": "part",
+        "sentence": "design is no longer a part.",
+        "subjects": [
+          "design"
+        ]
+      },
+      {
         "kind": "counts",
-        "sentence": "Nothing structural changed since 2026-10-01; 13 files changed content.",
+        "sentence": "2 files added, 2 moved and 25 changed content, across 8 parts.",
         "subjects": []
       }
     ],
     "since": {
-      "commit": "eef6677a1e815f1e8210fce1875ead214a9034e9",
-      "generatedAt": "2026-10-01T02:14:54.618Z"
+      "commit": "c73deb4e8314a62d57c2a5a9f211c6f14471a0f8",
+      "generatedAt": "2026-10-15T00:28:11.589Z"
     },
-    "unchanged": true
+    "unchanged": false
   },
   "changesTogether": [],
   "changesTogetherNote": [
     "1 file changed together with its own test, as expected.",
-    "Window: 180 days; a pair counts from 3 shared commits, since 4 source files reach 10 revisions; the floor rises to 10 when 25 do."
+    "Window: 180 days; a pair counts from 3 shared commits, since 5 source files reach 10 revisions; the floor rises to 10 when 25 do."
   ],
   "changesTogetherWithTests": 1,
-  "commit": "c73deb4e8314a62d57c2a5a9f211c6f14471a0f8",
+  "commit": "fa2370c86bb3dab62af342d2cbf5d9266ea3c240",
   "defaultBranch": "main",
-  "derived": "11 parts, mostly Python (173 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
+  "derived": "10 parts, mostly Python (175 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
   "doors": [
     {
       "checks": [
@@ -91,7 +105,7 @@
         {
           "boundary": "tests",
           "depth": 0,
-          "files": 119
+          "files": 121
         },
         {
           "boundary": "xrpl_lab",
@@ -331,11 +345,11 @@
   ],
   "engine": "1.24.0",
   "generated": [],
-  "generatedAt": "2026-10-15T00:28:11.589Z",
+  "generatedAt": "2026-10-20T20:46:49.630Z",
   "limits": [
     "1 import could not be resolved: `tests/test_product_smoke.py` imports a path built at run time.",
     "3 writes and 7 reads use paths built at run time and are not named here.",
-    "6 writes and 51 reads go to a path their caller passes, not to this repository.",
+    "6 writes and 52 reads go to a path their caller passes, not to this repository.",
     "1 write and 6 reads go to the home directory (.xrpl-lab/) or a path their caller passes, not to this repository.",
     "4 reads go to the directory the command is run in, not to this repository.",
     "Statistics confidence is low: fewer than 25 source files reach 10 revisions in the window."
@@ -344,7 +358,6 @@
   "partLabels": {
     ".github": ".github",
     "bin": "bin",
-    "design": "design",
     "docs": "docs",
     "modules": "modules",
     "presets": "presets",
@@ -354,7 +367,7 @@
     "tests": "tests",
     "xrpl_lab": "xrpl_lab"
   },
-  "parts": 11,
+  "parts": 10,
   "readers": [],
   "repo": "mcp-tool-shop-org/xrpl-lab",
   "sequences": [],
@@ -367,11 +380,11 @@
   "startReason": "This path follows xrpl-lab (a command people run, from pyproject.toml) from its entry, since CI runs only tests and checks.",
   "summary": null,
   "summaryFrom": null,
-  "testFiles": 127,
+  "testFiles": 129,
   "testedBy": {
     "bin": 0,
     "scripts": 1,
-    "xrpl_lab": 115
+    "xrpl_lab": 117
   },
   "unnamedWrites": 3,
   "unread": [],
