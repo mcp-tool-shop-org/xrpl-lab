@@ -312,6 +312,7 @@ async def run_module(
             # can't be blamed for an earlier step's verdict.
             _prev_verif_count = len(context.get("verifications", []))
             _prev_tx_count = len(state.tx_index)
+            _prev_expected = context.get("expected_failures", 0)
             _step_started = time.time()
             action_steps += 1
             try:
@@ -456,10 +457,16 @@ async def run_module(
             step_verify_failed = any(
                 not v.get("passed", True) for v in step_verifications
             )
-            step_submit_failed = any(
-                not record.success and record.timestamp >= _step_started
-                for record in state.tx_index[_prev_tx_count:]
+            # A lesson whose point is a rejected transaction records that tec
+            # (it IS on the ledger) and acknowledges it through
+            # handlers._judge_expected_failure; only failures beyond those
+            # acknowledged count (helper-wallet sweep 1 on 2.6.0).
+            failed_records = sum(
+                1 for record in state.tx_index[_prev_tx_count:]
+                if not record.success and record.timestamp >= _step_started
             )
+            acknowledged = context.get("expected_failures", 0) - _prev_expected
+            step_submit_failed = failed_records > acknowledged
             if step_verify_failed or step_submit_failed:
                 all_verified = False
                 failed_steps.append(_step_heading(step, i))

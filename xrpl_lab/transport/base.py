@@ -63,6 +63,14 @@ class SubmitResult:
     # means the transport could not resolve it — callers keep their existing
     # read-back fallbacks.
     sequence: int | None = None
+    # Whether this outcome came from a VALIDATED ledger (a tesSUCCESS or a
+    # tec). False for a preliminary result whose window closed, a client
+    # timeout, a tem rejection or a local error: those never reached a
+    # ledger. A lesson expecting a tec needs it validated (helper-wallet
+    # sweep 1 on 2.6.0: checks_101's outsider "got" a tec that never landed).
+    # Defaults True so the dry-run transport and existing callers keep their
+    # meaning.
+    validated: bool = True
 
 
 @dataclass

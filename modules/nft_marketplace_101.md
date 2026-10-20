@@ -71,7 +71,7 @@ Read the NFT back: you should see the issuer (you), the taxon, transferable, and
 The creator lists a sell offer. `tfSellNFToken` marks it as a sell. We direct it to the
 buyer so the trade is a clean two-party demonstration.
 
-<!-- action: list_nft_sell_offer amount=100 seller=creator -->
+<!-- action: list_nft_sell_offer amount=10 seller=creator -->
 
 ## Step 7: Read the offer back from the ledger
 
@@ -99,7 +99,7 @@ the verifier says so explicitly.
 Now the buyer lists the same NFT for resale, directed back to the creator. On *this* hop
 the seller is not the issuer, so the protocol will skim the 5% `TransferFee`.
 
-<!-- action: list_nft_sell_offer amount=200 seller=buyer -->
+<!-- action: list_nft_sell_offer amount=20 seller=buyer -->
 
 ## Step 11: The creator buys it back — royalty fires
 

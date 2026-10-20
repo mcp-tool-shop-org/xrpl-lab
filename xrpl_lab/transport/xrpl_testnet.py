@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 
+import xrpl.models.base_model as _xrpl_base_model
 from xrpl.asyncio.account import get_next_valid_seq_number
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
@@ -92,7 +93,14 @@ from xrpl.models.transactions.permissioned_domain_set import (
     Credential as PDCredential,
 )
 from xrpl.transaction import multisign
-from xrpl.utils import drops_to_xrp, get_nftoken_id, hex_to_str, str_to_hex, xrp_to_drops
+from xrpl.utils import (
+    XRPRangeException,
+    drops_to_xrp,
+    get_nftoken_id,
+    hex_to_str,
+    str_to_hex,
+    xrp_to_drops,
+)
 from xrpl.wallet import Wallet
 
 from .base import (
@@ -394,7 +402,15 @@ def _code_from_exception_message(message: str) -> str:
     return m.group(0) if m else ""
 
 
-def _structured_failure(result_code: str) -> SubmitResult:
+# xrpl-py 4.5 serialises ``credential_ids`` as "CredentialIds", but the binary
+# codec's field is "CredentialIDs", so any transaction carrying credentials
+# failed to sign with a KeyError (helper-wallet sweep 1 on 2.6.0:
+# deposit_gate's KYC payment). xrpl-py 5.2 knows the abbreviation; teach it to
+# 4.x. A no-op where it's already present.
+_xrpl_base_model.ABBREVIATIONS.setdefault("ids", "IDs")
+
+
+def _structured_failure(result_code: str, validated: bool = True) -> SubmitResult:
     """Build the failed SubmitResult for a REAL engine result code.
 
     Routes the code through ``explain_result_code`` (the doctor teach moment)
@@ -408,6 +424,7 @@ def _structured_failure(result_code: str) -> SubmitResult:
         success=False,
         result_code=result_code,
         error=f"{info['meaning']}. {info['action']}",
+        validated=validated,
     )
 
 
@@ -437,7 +454,7 @@ def _map_reliable_submission_failure(exc: Exception) -> SubmitResult | None:
     if code and msg.startswith(_VALIDATED_FAILURE_PREFIX):
         return _structured_failure(code)
     if code and _is_no_retry_error(code):
-        return _structured_failure(code)
+        return _structured_failure(code, validated=False)
     # Live-fire run 1: the window closed on a HELD result (ter/tef/tel). The
     # transaction can no longer apply, and the same condition (terNO_RIPPLE,
     # terNO_AMM) would hold a resubmit too: report the code, don't retry. A
@@ -447,7 +464,12 @@ def _map_reliable_submission_failure(exc: Exception) -> SubmitResult | None:
     if prelim and not (
         prelim.group(1).startswith("tes") or prelim.group(1) == "terQUEUED"
     ):
-        return _structured_failure(prelim.group(1))
+        failure = _structured_failure(prelim.group(1), validated=False)
+        failure.error = (
+            f"Never validated: its window closed on a preliminary "
+            f"{prelim.group(1)}. {failure.error}"
+        )
+        return failure
     return None
 
 
@@ -467,6 +489,7 @@ def _timeout_no_resubmit(label: str, txid: str = "", explorer_url: str = "") -> 
         success=False,
         txid=txid,
         explorer_url=explorer_url,
+        validated=False,
         result_code="submit_timeout",
         error=(
             f"{label} submission timed out after {SUBMIT_TIMEOUT}s. The "
@@ -1877,7 +1900,11 @@ class XRPLTestnetTransport(Transport):
                     balance=str(ch.get("balance", "0")),
                     destination=ch.get("destination_account", ""),
                     settle_delay=int(ch.get("settle_delay", 0) or 0),
-                    public_key=ch.get("public_key", ""),
+                    # account_channels gives the key twice: base58
+                    # ("aK...") as public_key and hex as public_key_hex.
+                    # Claim signatures and PaymentChannelClaim need the hex
+                    # (helper-wallet sweep 1: every claim failed to verify).
+                    public_key=ch.get("public_key_hex") or ch.get("public_key", ""),
                     expiration=_int_or_none(ch.get("expiration")),
                     cancel_after=_int_or_none(ch.get("cancel_after")),
                 ))
@@ -3169,7 +3196,9 @@ class XRPLTestnetTransport(Transport):
         if isinstance(amt, str):
             try:
                 drops = drops_to_xrp(amt)
-            except (ValueError, TypeError, InvalidOperation):
+            # drops_to_xrp raises XRPRangeException (not a ValueError) for a
+            # non-numeric string, which used to escape get_amm_info.
+            except (ValueError, TypeError, InvalidOperation, XRPRangeException):
                 return amt
             # drops_to_xrp returns a 6dp-quantized Decimal ("100.000000");
             # strip the padding so pool_a matches the dry-run convention
