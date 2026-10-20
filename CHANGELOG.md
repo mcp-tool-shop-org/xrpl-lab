@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Every helper wallet waits for the validated ledger.** Eleven handlers
+  created a counterparty or second issuer and funded it from the faucet, then
+  went on as soon as the faucet answered. That's the race that held module
+  #30's issuer AccountSet in 2.6.0's first live run. They now share
+  `_fund_new_wallet`, which waits for a validated balance and records a
+  failed step if the wallet never appears. A test checks every faucet call
+  in the handlers waits.
+- **`xrpl-lab fund` prints the validated balance,** not the faucet's reply
+  (which read "unknown" on Testnet).
+- **The report counts failed transactions from the run's transaction
+  records,** the same source as the failed-step signal. AMM deposit and
+  withdraw failures were missing from it.
+- **An AMM-less transport marks the pool missing,** so the deposit and
+  withdraw steps skip, and the step counts as failed.
+- The registry sweep asserts that the six deliberate-failure lessons record
+  no failed transaction, instead of skipping them.
+
 ## 2.6.0 — 2026-10-20
 
 External-audit pass (F1–F7, F10): packaging, curriculum accuracy, CLI surface,

@@ -269,6 +269,8 @@ async def run_module(
     # the failure-literacy lessons record no failed TxRecord, so they don't.
     failed_steps: list[str] = []
     action_steps = 0
+    _run_tx_start = len(state.tx_index)
+    _run_started = time.time()
 
     for i, step in enumerate(module.steps):
         # Render step text
@@ -519,10 +521,16 @@ async def run_module(
             )
 
     # Module completed — write report and update state
+    # Argon (round 2, Low 2): count failed transactions from this run's
+    # TxRecords, the same source as the step signal; context["failed_txids"]
+    # is appended by only some handlers.
+    failed_tx_count = sum(
+        1 for record in state.tx_index[_run_tx_start:]
+        if not record.success and record.timestamp >= _run_started
+    )
     summary_lines = [
         f"Steps: {action_steps - len(failed_steps)} passed, {len(failed_steps)} failed",
-        f"Transactions: {len(context['txids'])} successful, "
-        f"{len(context['failed_txids'])} failed",
+        f"Transactions: {len(context['txids'])} successful, {failed_tx_count} failed",
     ]
     if failed_steps:
         summary_lines.append("Failed steps:")

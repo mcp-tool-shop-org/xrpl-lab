@@ -986,6 +986,45 @@ async def handle_verify_freeze(
 # ---------------------------------------------------------------------------
 
 
+async def _fund_new_wallet(
+    transport: Transport, address: str, who: str, console: Console,
+    context: dict, action: str, quiet: bool = False,
+) -> bool:
+    """Fund a helper wallet the lesson just created, and wait until it's on a
+    validated ledger.
+
+    2.6.1 (issue #20): these handlers used to go on as soon as the faucet
+    answered. Module #30's issuer did the same in live-fire run 1, and its
+    next transaction, sent before the account was validated, was held and
+    never landed. A wallet that never appears is a failed step.
+    ``quiet`` keeps the success line off for handlers that never printed one.
+    """
+    result = await transport.fund_from_faucet(address)
+    if result.success:
+        settled = await await_validated_balance(transport, address)
+        if settled > 0:
+            if not quiet:
+                console.print(f"  {who} funded! Balance: [green]{settled} XRP[/]")
+            return True
+        console.print(
+            f"  [red]The faucet answered, but the {who.lower()} wallet {address} "
+            "hasn't appeared on a validated ledger yet.[/]"
+        )
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        _print_lab_error(console, faucet_rate_limited())
+    else:
+        console.print(
+            f"  [yellow]{who} funding: {_sanitize_endpoint_urls(result.message)}[/]"
+        )
+    _record_verification(
+        context, action, passed=False,
+        failures=[f"{who.lower()} wallet not funded on a validated ledger"],
+    )
+    return False
+
+
 async def handle_create_channel_receiver(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -996,18 +1035,10 @@ async def handle_create_channel_receiver(
     context["receiver_address"] = receiver.address
     console.print(f"  Receiver wallet: [cyan]{receiver.address}[/]")
     console.print("  Funding the receiver from the faucet...")
-    result = await transport.fund_from_faucet(receiver.address)
-    if result.success:
-        console.print(f"  Receiver funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Receiver funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, receiver.address, "Receiver", console, context,
+        "create_channel_receiver",
+    )
     return context
 
 
@@ -1906,6 +1937,13 @@ async def handle_ensure_amm_pair(
                 "[yellow]AMM not supported on this transport. "
                 "Use --dry-run to practice.[/]"
             )
+            # Argon (round 2, Low 3): mark the pool missing and the step
+            # failed, so the deposit and withdraw steps skip.
+            _record_verification(
+                context, "ensure_amm_pair", passed=False,
+                failures=[create_result.error or "AMM not supported on this transport"],
+            )
+            context["amm_unavailable"] = True
             return context
         console.print(
             f"  [red]AMM creation failed: {create_result.error}[/]"
@@ -3374,19 +3412,10 @@ async def handle_create_token_recipient(
     context["recipient_address"] = recipient.address
     console.print(f"  Recipient wallet: [cyan]{recipient.address}[/]")
 
-    fund = await transport.fund_from_faucet(recipient.address)
-    if fund.success:
-        console.print(f"  Recipient funded! Balance: [green]{fund.balance} XRP[/]")
-    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Recipient funding: {_sanitize_endpoint_urls(fund.message)}[/]"
-        )
-
+    await _fund_new_wallet(
+        transport, recipient.address, "Recipient", console, context,
+        "create_token_recipient",
+    )
     console.print(f"  Recipient trusting the issuer for [cyan]{currency}[/]...")
     ts = await set_trust_line(
         transport, recipient.seed, issuer_address, currency, limit,
@@ -3422,12 +3451,10 @@ async def handle_create_noopt_issuer(
         "  Creating a second issuer (never sets asfAllowTrustLineLocking)..."
     )
     issuer = create_wallet()
-    fund = await transport.fund_from_faucet(issuer.address)
-    if not fund.success and getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
+    await _fund_new_wallet(
+        transport, issuer.address, "Issuer", console, context,
+        "create_noopt_issuer", quiet=True,
+    )
     context["noopt_issuer_seed"] = _SecretValue(issuer.seed)
     context["noopt_issuer_address"] = issuer.address
     context["noopt_currency"] = currency
@@ -4280,18 +4307,10 @@ async def handle_create_subject_wallet(
     context["subject_address"] = subject.address
     console.print(f"  Subject wallet: [cyan]{subject.address}[/]")
     console.print("  Funding the subject from the faucet (so it's a real target)...")
-    result = await transport.fund_from_faucet(subject.address)
-    if result.success:
-        console.print(f"  Subject funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Subject funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, subject.address, "Subject", console, context,
+        "create_subject_wallet",
+    )
     return context
 
 
@@ -4679,18 +4698,10 @@ async def handle_create_uncredentialed_wallet(
     context["outsider_address"] = outsider.address
     console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
     console.print("  Funding it from the faucet (so it's a real account)...")
-    result = await transport.fund_from_faucet(outsider.address)
-    if result.success:
-        console.print(f"  Outsider funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Outsider funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, outsider.address, "Outsider", console, context,
+        "create_uncredentialed_wallet",
+    )
     return context
 
 
@@ -5007,18 +5018,10 @@ async def handle_create_sender_wallet(
     context["sender_seed"] = _SecretValue(sender.seed)
     context["sender_address"] = sender.address
     console.print(f"  Sender wallet: [cyan]{sender.address}[/]")
-    result = await transport.fund_from_faucet(sender.address)
-    if result.success:
-        console.print(f"  Sender funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Sender funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, sender.address, "Sender", console, context,
+        "create_sender_wallet",
+    )
     return context
 
 
@@ -5722,18 +5725,10 @@ async def handle_create_player_wallet(
     context["player_address"] = player.address
     console.print(f"  Player wallet: [cyan]{player.address}[/]")
 
-    fund = await transport.fund_from_faucet(player.address)
-    if fund.success:
-        console.print(f"  Player funded! Balance: [green]{fund.balance} XRP[/]")
-    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Player funding: {_sanitize_endpoint_urls(fund.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, player.address, "Player", console, context,
+        "create_player_wallet",
+    )
     return context
 
 
@@ -6249,12 +6244,10 @@ async def handle_create_noclaw_issuer(
     amount = args.get("amount", "50")
     console.print("  Creating a second issuer (no clawback flag)...")
     issuer = create_wallet()
-    fund = await transport.fund_from_faucet(issuer.address)
-    if not fund.success and getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
+    await _fund_new_wallet(
+        transport, issuer.address, "Issuer", console, context,
+        "create_noclaw_issuer", quiet=True,
+    )
     context["noclaw_issuer_seed"] = _SecretValue(issuer.seed)
     context["noclaw_issuer_address"] = issuer.address
     context["noclaw_currency"] = currency
@@ -6290,18 +6283,10 @@ async def handle_create_buyer_wallet(
     """Create + fund a second wallet to act as the marketplace counterparty."""
     console.print("  Creating a second player wallet (buyer/reseller)...")
     buyer = create_wallet()
-    fund = await transport.fund_from_faucet(buyer.address)
-    if fund.success:
-        console.print(f"  Buyer funded: [cyan]{buyer.address}[/] ({fund.balance} XRP)")
-    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Buyer funding note: {_sanitize_endpoint_urls(fund.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, buyer.address, "Buyer", console, context,
+        "create_buyer_wallet",
+    )
     context["buyer_seed"] = _SecretValue(buyer.seed)
     context["buyer_address"] = buyer.address
     return context
@@ -6727,18 +6712,10 @@ async def handle_create_recipient_wallet(
     context["recipient_seed"] = _SecretValue(recipient.seed)
     context["recipient_address"] = recipient.address
     console.print(f"  Player wallet: [cyan]{recipient.address}[/]")
-    result = await transport.fund_from_faucet(recipient.address)
-    if result.success:
-        console.print(f"  Player funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Player funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, recipient.address, "Player", console, context,
+        "create_recipient_wallet",
+    )
     return context
 
 
@@ -6896,18 +6873,10 @@ async def handle_create_outsider_wallet(
     context["outsider_seed"] = _SecretValue(outsider.seed)
     context["outsider_address"] = outsider.address
     console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
-    result = await transport.fund_from_faucet(outsider.address)
-    if result.success:
-        console.print(f"  Outsider funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Outsider funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, outsider.address, "Outsider", console, context,
+        "create_outsider_wallet",
+    )
     return context
 
 

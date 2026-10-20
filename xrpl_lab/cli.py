@@ -2186,7 +2186,18 @@ def fund(dry_run: bool):
     result = asyncio.run(transport.fund_from_faucet(state.wallet_address))
 
     if result.success:
-        console.print(f"[green]Funded![/] Balance: {result.balance} XRP")
+        # 2.6.1 (issue #20): the faucet's reply isn't the balance; read it
+        # from a validated ledger, as the lessons do.
+        from .runtime import await_validated_balance
+
+        settled = asyncio.run(await_validated_balance(transport, state.wallet_address))
+        if settled > 0:
+            console.print(f"[green]Funded![/] Balance: {settled} XRP")
+        else:
+            console.print(
+                "[yellow]The faucet accepted the request, but the wallet isn't on a "
+                "validated ledger yet. Check again in a minute.[/]"
+            )
         return
     # F-BRIDGE-PH8-001: structured ``code`` drives richer CLI behavior than
     # printing ``message`` alone — the rate-limited path gets a dedicated
