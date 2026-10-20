@@ -16,7 +16,7 @@
 
 Manual de treinamento XRPL — aprenda praticando, demonstre com resultados.
 
-Cada módulo ensina uma habilidade do XRPL e produz um resultado verificável: um ID de transação,
+Cada módulo ensina uma habilidade XRPL e produz um resultado verificável: um ID de transação,
 um recibo assinado ou um relatório de diagnóstico. Sem contas, sem informações desnecessárias, sem nuvem — apenas
 competência e comprovantes.
 
@@ -38,13 +38,19 @@ pip install xrpl-lab
 
 Requer Python 3.11+.
 
+Sem Python? O wrapper npm baixa o binário autônomo (requer Node 18+):
+
+```bash
+npx @mcptoolshop/xrpl-lab
+```
+
 ## Guia rápido
 
 ```bash
 xrpl-lab start
 ```
 
-O assistente de inicialização guiado orienta você na configuração da carteira, no financiamento e no seu primeiro módulo.
+O assistente de inicialização guia você na configuração da carteira, financiamento e no seu primeiro módulo.
 
 ### Modo offline
 
@@ -72,52 +78,55 @@ A coluna `#` corresponde à ordem mostrada por `xrpl-lab list` (ordem canônica 
 | 2 | Alfabetização em falhas | fundamentos | testnet | Alfabetização em recibos | txid, relatório |
 | 3 | Linhas de confiança 101: Moedas emitidas como relacionamentos | fundamentos | testnet | — | txid, relatório |
 | 4 | Depuração de linhas de confiança | fundamentos | testnet | Linhas de confiança 101: Moedas emitidas como relacionamentos | txid, relatório |
-| 5 | Tesouraria Multissig (SignerListSet): Controle N-de-M da carteira do Studio | fundamentos | testnet | Alfabetização em recibos | txid, relatório |
+| 5 | Tesouraria Multissig (SignerListSet): Controle N-de-M da carteira Studio | fundamentos | testnet | Alfabetização em recibos | txid, relatório |
 | 6 | Criação de NFT 101: Seu primeiro ativo de jogo | nfts | testnet | — | txid, relatório |
-| 7 | Mercado de NFT 101: Negociação de ativos com royalties aplicados | nfts | testnet | — | txid, relatório |
+| 7 | Mercado NFT 101: Negociação de ativos com royalties aplicados | nfts | testnet | — | txid, relatório |
 | 8 | NFTs dinâmicos 101: Um item de jogo que evolui | nfts | testnet | — | txid, relatório |
-| 9 | Emissão de MPT 101: Uma moeda de jogo em uma única transação | tokens | testnet | — | txid, relatório |
-| 10 | Distribuição de MPT 101: Enviar a moeda para os jogadores | tokens | testnet | Emissão de MPT 101: Uma moeda de jogo em uma única transação | txid, relatório |
+| 9 | Emissão MPT 101: Uma moeda de jogo em uma única transação | tokens | testnet | — | txid, relatório |
+| 10 | Distribuição MPT 101: Enviar a moeda para os jogadores | tokens | testnet | Emissão MPT 101: Uma moeda de jogo em uma única transação | txid, relatório |
 | 11 | Congelamento de token 101: O botão de pausa do emissor | tokens | testnet | — | txid, relatório |
 | 12 | Reembolso 101: A alavanca de revogação do emissor | tokens | testnet | — | txid, relatório |
 | 13 | Escrow 101: XRP com tempo limitado | pagamentos | testnet | — | txid, relatório |
-| 14 | Conclusão de Escrow 101: Liberar o XRP bloqueado | pagamentos | testnet | Escrow 101: XRP com tempo limitado | txid, relatório |
+| 14 | Conclusão do Escrow 101: Liberar o XRP bloqueado | pagamentos | testnet | Escrow 101: XRP com tempo limitado | txid, relatório |
 | 15 | Escrow de token (XLS-85): Bloquear IOUs, não apenas XRP | pagamentos | testnet | Linhas de confiança 101: Moedas emitidas como relacionamentos, Escrow 101: XRP com tempo limitado | txid, relatório |
 | 16 | Verificações 101: Pagamentos diferidos (CheckCreate / CheckCash / CheckCancel) | pagamentos | testnet | Alfabetização em recibos | txid, relatório |
 | 17 | Canais de pagamento 101: Assinar muitos, liquidar uma vez | pagamentos | testnet | — | txid, relatório |
-| 18 | Valor entregue: A exploração do pagamento parcial | pagamentos | testnet | Linhas de confiança 101: Moedas emitidas como relacionamentos | txid, relatório |
-| 19 | Crédito de jogador custodiado: Uma carteira agrupada, muitos jogadores (tags de destino) | pagamentos | testnet | Valor entregue: A exploração do pagamento parcial | txid, relatório |
+| 18 | Valor entregue: A exploração de pagamento parcial | pagamentos | testnet | Linhas de confiança 101: Moedas emitidas como relacionamentos | txid, relatório |
+| 19 | Crédito de jogador custodiado: Uma carteira agrupada, muitos jogadores (tags de destino) | pagamentos | testnet | Valor entregue: A exploração de pagamento parcial | txid, relatório |
 | 20 | DID 101: Identidade no livro-razão | identidade | testnet | — | txid, relatório |
 | 21 | Credenciais 101 (XLS-70): KYC e atestações de idade no livro-razão | identidade | testnet | DID 101: Identidade no livro-razão | txid, relatório |
-| 22 | Domínios com permissão e DEX protegido (XLS-80/81): Negociação compatível e protegida por credenciais | identidade | testnet | Credenciais 101 (XLS-70): KYC e atestações de idade no livro-razão | txid, relatório |
-| 23 | Portão de depósito (DepositAuth + DepositPreauth): Depósitos de tesouraria protegidos por credenciais | identidade | testnet | Credenciais 101 (XLS-70): KYC e atestações de idade no livro-razão | txid, relatório |
+| 22 | Domínios com permissão e DEX com restrição (XLS-80/81): Negociação compatível e com restrição de credenciais | identidade | testnet | Credenciais 101 (XLS-70): KYC e atestações de idade no livro-razão | txid, relatório |
+| 23 | Portão de depósito (DepositAuth + DepositPreauth): Depósitos de tesouraria com restrição de credenciais | identidade | testnet | Credenciais 101 (XLS-70): KYC e atestações de idade no livro-razão | txid, relatório |
 | 24 | Alfabetização em DEX: Ofertas, livros de pedidos e cancelamentos | dex | testnet | Linhas de confiança 101: Moedas emitidas como relacionamentos | txid, relatório |
 | 25 | Criação de mercado DEX 101: Obter lucro com o spread no livro de pedidos | dex | testnet | Alfabetização em DEX: Ofertas, livros de pedidos e cancelamentos | txid, relatório |
 | 26 | Salvaguardas de inventário DEX: Não se deixe desequilibrar | dex | testnet | Criação de mercado DEX 101: Obter lucro com o spread no livro de pedidos | txid, relatório |
 | 27 | Reservas 101: Onde seu XRP "foi" | reservas | testnet | Linhas de confiança 101: Moedas emitidas como relacionamentos | txid, relatório |
 | 28 | Higiene da conta: Liberar reservas e limpar objetos | reservas | testnet | Reservas 101: Onde seu XRP "foi" | txid, relatório |
 | 29 | Modo de auditoria: Verificar recibos em escala | auditoria | testnet | Alfabetização em recibos | relatório, audit_pack |
-| 30 | Liquidez AMM 101: Fornecer liquidez e obter taxas | amm | execução a seco | Linhas de confiança 101: Moedas emitidas como relacionamentos | txid, relatório |
-| 31 | Alfabetização de risco DEX vs AMM: Comparando estratégias de negociação | amm | execução a seco | Criação de mercado DEX 101: Obter lucro com o spread no livro de pedidos, Liquidez AMM 101: Fornecer liquidez e obter taxas | txid, relatório |
-| 32 | Projeto final: Crie uma economia mínima para um jogo no XRPL | projeto final | testnet | Emissão de MPT 101: Uma moeda de jogo em uma única transação, Criação de NFT 101: Seu primeiro ativo de jogo, Escrow 101: XRP com tempo limitado, Modo de auditoria: Verificar recibos em escala | txid, relatório, audit_pack |
+| 30 | Liquidez AMM 101: Fornecer liquidez e ganhar taxas | amm | testnet | Linhas de confiança 101: Moedas emitidas como relacionamentos | txid, relatório |
+| 31 | Alfabetização de risco DEX vs AMM: Comparando estratégias de negociação | amm | execução a seco | Criação de mercado DEX 101: Obter lucro com o spread no livro de pedidos, Liquidez AMM 101: Fornecer liquidez e ganhar taxas | txid, relatório |
+| 32 | Projeto final: Configure uma economia de jogo mínima no XRPL | projeto final | testnet | Emissão MPT 101: Uma moeda de jogo em uma única transação, Criação de NFT 101: Seu primeiro ativo de jogo, Escrow 101: XRP com tempo limitado, Modo de auditoria: Verificar recibos em escala | txid, relatório, audit_pack |
 <!-- END curriculum:auto readme-table -->
 
-A coluna **Produz** lista os tipos de resultados que cada módulo gera (`txid`, `report`, `audit_pack`); consulte a página de cada módulo no [manual](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) para obter o guia completo das habilidades e o que você demonstra no livro-razão.
+A coluna **Produz** lista os tipos de resultados que cada módulo gera (`txid`,
+`report`, `audit_pack`); consulte a página de cada módulo no
+[manual](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) para
+obter o guia completo de habilidades e o que você demonstra no livro-razão.
 
 ### Trilhas
 
 <!-- BEGIN curriculum:auto readme-tracks -->
 <!-- generated by scripts/gen_docs.py — do not hand-edit; run the generator -->
 - **fundamentos** — carteira, pagamentos, linhas de confiança, tratamento de erros
-- **nfts** — ativos de jogo NFT: criação, liquidação do mercado, NFTs dinâmicos (XLS-20)
-- **tokens** — emissão e reembolso de tokens multifuncionais (MPT) para jogos (XLS-33)
-- **pagamentos** — escrow e valor com tempo limitado
-- **identidade** — Identificadores descentralizados (DID, XLS-40)
+- **nfts** — ativos de jogo NFT: criação, liquidação de mercado (XLS-20), NFTs dinâmicos (XLS-46)
+- **tokens** — emissão e distribuição MPT (XLS-33), congelamento de token, reembolso (XLS-39)
+- **pagamentos** — escrow com tempo limitado, verificações, canais de pagamento, pagamentos parciais, tags de destino
+- **identidade** — DID (XLS-40), credenciais (XLS-70), DEX com permissão (XLS-80/81), autenticação de depósito
 - **dex** — ofertas, livros de pedidos, criação de mercado, gerenciamento de inventário
-- **reservas** — reservas da conta, contagem de proprietários, limpeza
+- **reservas** — reservas de conta, contagem de proprietários, limpeza
 - **auditoria** — verificação em lote, relatórios de auditoria
 - **amm** — liquidez do criador de mercado automatizado, comparação DEX vs AMM
-- **projeto final** — combine habilidades entre as trilhas para criar uma economia de jogo
+- **projeto final** — combine habilidades entre as trilhas em uma única construção de economia de jogo
 <!-- END curriculum:auto readme-tracks -->
 
 ### Modos
@@ -138,16 +147,11 @@ xrpl-lab tracks             Track-level completion summaries
 xrpl-lab recovery           Diagnose stuck states, show recovery commands
 xrpl-lab lint [glob] [--json] [--no-curriculum]  Validate module files and curriculum
 xrpl-lab proof-pack         Export shareable proof pack
-xrpl-lab proof generate     Export shareable proof pack (alias of proof-pack)
-xrpl-lab proof verify <file>  Verify a proof pack's integrity (SHA-256)
+xrpl-lab verify-artifact <file> [--json]  Verify any artifact's SHA-256 integrity (proof packs, certificates, audit packs, support bundles)
 xrpl-lab certificate        Export completion certificate
-xrpl-lab cert-verify <file>   Verify a completion certificate's integrity
 xrpl-lab doctor             Run diagnostic checks
-xrpl-lab self-check         Alias for doctor
-xrpl-lab feedback           Generate support bundle (markdown)
-xrpl-lab support-bundle [--json] [--verify FILE]  Generate or verify support bundles
+xrpl-lab support-bundle [--json]  Generate a support bundle
 xrpl-lab audit              Batch verify transactions
-xrpl-lab audit-verify <file>  Verify an audit pack's SHA-256 integrity
 xrpl-lab last-run           Show last module run + audit command
 xrpl-lab serve [--port N] [--host H] [--dry-run]  Start web dashboard and API server
 xrpl-lab reset [--module MODULE_ID]  Wipe local state OR reset a single module (requires confirmation)
@@ -164,7 +168,8 @@ Todos os comandos suportam `--dry-run` para o modo offline, quando aplicável.
 
 ## Uso em workshops
 
-O XRPL Lab foi projetado para ambientes de ensino reais. Sem contas, sem telemetria, sem nuvem. Tudo é executado localmente.
+O XRPL Lab foi projetado para ambientes de ensino reais. Sem contas, sem telemetria, sem nuvem.
+Tudo é executado localmente.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/mcp-tool-shop-org/xrpl-lab/main/docs/images/facilitator-active-runs.png" width="800" alt="Facilitator dashboard listing active learner runs with module IDs, dry-run badges, status, queue depth, and run IDs">
@@ -179,7 +184,7 @@ xrpl-lab tracks             # Track-level completion: what was actually practice
 xrpl-lab recovery           # Stuck? See exactly what to run next
 ```
 
-### Suporte de transferência
+### Suporte para transferência
 
 ```bash
 xrpl-lab support-bundle              # Human-readable markdown bundle
@@ -187,63 +192,67 @@ xrpl-lab support-bundle --json       # Machine-parseable JSON
 xrpl-lab support-bundle --verify bundle.json  # Verify a received bundle
 ```
 
-Um facilitador pode diagnosticar o problema de qualquer aluno a partir de um pacote de suporte, sem precisar reproduzir toda a sessão. Nenhum segredo é incluído.
+Um facilitador pode diagnosticar o problema de qualquer aluno a partir de um pacote de suporte sem
+reproduzir toda a sessão. Nenhum segredo é incluído.
 
-### Fluxos de workshop
+### Fluxo do workshop
 
-**Sandbox totalmente offline** — nenhuma rede necessária:
+**Ambiente totalmente offline** — não requer rede:
 ```bash
 xrpl-lab wallet create
 xrpl-lab start --dry-run
 ```
 
-**Offline misto + testnet** — transações reais para o básico, sandbox para o avançado:
+**Ambiente misto offline + testnet** — transações reais para o básico, ambiente de teste para o avançado:
 ```bash
 xrpl-lab wallet create
 xrpl-lab fund
 xrpl-lab start
 ```
 
-**Camp → Lab: progressão** — continue a partir de xrpl-camp:
+**Progressão de Camp → Lab** — continue a partir de xrpl-camp:
 ```bash
 xrpl-lab start    # auto-detects camp wallet and certificate
 ```
 
 ## Artefatos
 
-**Pacote de prova** (`xrpl_lab_proof_pack.json`): registro compartilhável dos módulos concluídos, IDs de transação e links do explorador. Inclui um hash de integridade SHA-256. Sem informações confidenciais.
+**Pacote de comprovação** (`xrpl_lab_proof_pack.json`): Registro compartilhável dos módulos concluídos,
+IDs de transação e links do explorador. Inclui um hash de integridade SHA-256. Sem informações confidenciais.
 
-**Certificado** (`xrpl_lab_certificate.json`): registro conciso da conclusão.
+**Certificado** (`xrpl_lab_certificate.json`): Registro resumido da conclusão.
 
-**Relatórios** (`reports/*.md`): resumos legíveis por humanos do que você fez e comprovou.
+**Relatórios** (`reports/*.md`): Resumos legíveis por humanos do que você fez e comprovou.
 
-**Pacotes de auditoria** (`audit_pack_*.json`): resultados de verificação em lote com hash de integridade SHA-256.
+**Pacotes de auditoria** (`audit_pack_*.json`): Resultados de verificação em lote com hash de integridade SHA-256.
 
 ## Modelo de segurança e confiança
 
 **Dados que o XRPL Lab acessa:**
-- Semente da carteira (armazenada localmente em `~/.xrpl-lab/wallet.json` como JSON em texto simples — modo POSIX `0o600` / `0o700`, ou uma ACL exclusiva do proprietário no Windows; não criptografada)
+- Seed da carteira (armazenado localmente em `~/.xrpl-lab/wallet.json` como JSON em texto simples — modo POSIX `0o600` / `0o700`, ou uma ACL exclusiva do proprietário no Windows; não criptografado)
 - Progresso do módulo e IDs de transação (armazenados em `~/.xrpl-lab/state.json`, gravações atômicas via tmp + renomear)
-- XRPL Testnet RPC (ponto final público, transações assinadas localmente antes do envio)
-- Torneira da testnet (HTTP público, apenas o seu endereço é enviado)
+- XRPL Testnet RPC (ponto de extremidade público, transações assinadas localmente antes do envio)
+- Testnet faucet (HTTP público, apenas o seu endereço é enviado)
 
 **Dados que o XRPL Lab NÃO acessa:**
-- Sem acesso à mainnet. Apenas testnet
-- Sem telemetria, análises ou qualquer tipo de comunicação com servidores externos
+- Sem mainnet. Apenas testnet
+- Sem telemetria, análise ou qualquer tipo de comunicação com servidores externos
 - Sem contas na nuvem, sem registro, sem APIs de terceiros
-- Sem informações confidenciais nos pacotes de prova, certificados, relatórios ou pacotes de suporte — nunca
+- Sem informações confidenciais nos pacotes de comprovação, certificados, relatórios ou pacotes de suporte — nunca
 
 **Permissões e níveis de armazenamento:**
-- Home `~/.xrpl-lab/` — nível privado para informações confidenciais (POSIX `0o700` / `0o600`, ou uma ACL exclusiva do proprietário no Windows). Armazena a semente da carteira, o log do programa e os pacotes de auditoria.
-- Workspace `./.xrpl-lab/` — nível projetado para compartilhamento, diretório 0o755. Armazena relatórios de módulos, pacotes de prova e certificados. Os facilitadores podem revisar sem elevação de permissões.
-- Sistema de arquivos: lê/grava apenas nos dois locais acima
-- Rede: apenas XRPL Testnet RPC + torneira (ambos substituíveis via variáveis de ambiente, ambos opcionais com `--dry-run`)
+- Home `~/.xrpl-lab/` — nível de segredos privados (POSIX `0o700` / `0o600`, ou uma ACL exclusiva do proprietário no Windows). Armazena a seed da carteira, o log do médico e os pacotes de auditoria.
+- Workspace `./.xrpl-lab/` — nível projetado para compartilhamento, diretório 0o755. Armazena relatórios de módulos, pacotes de comprovação e certificados. Os facilitadores podem revisar sem elevação de permissões.
+- Sistema de arquivos: lê/grava apenas os dois locais acima
+- Rede: apenas XRPL Testnet RPC + faucet (ambos podem ser substituídos por meio de variáveis de ambiente, ambos opcionais com `--dry-run`)
 - Nenhuma permissão elevada é necessária
 
 **Interface do painel (quando `xrpl-lab serve` está em execução):**
-- O ponto final do executor WebSocket aplica uma lista de permissões de origem (fecha conexões não listadas com o código 4003)
+- O ponto de extremidade do executor WebSocket aplica uma lista de permissões de origem (fecha conexões não listadas com o código 4003)
+- As solicitações HTTP que alteram o estado (POST, PUT, PATCH, DELETE) de uma origem não listada são recusadas com `403 ORIGIN_REJECTED`, para que uma página em outra guia não possa iniciar uma execução; solicitações sem origem (CLI, curl) ainda funcionam
+- As solicitações cujo `Host` não é loopback ou o endereço `serve` ao qual está vinculado são recusadas com `400 HOST_REJECTED`, o que fecha o DNS rebinding (desativado para um bind `0.0.0.0`)
 - Todos os quadros de erro emitem um envelope estruturado (`code`, `message`, `hint`, `severity`, `icon_hint`) — sem vazamento de caminho, sem vazamento de estado interno
-- Fila de mensagens por conexão limitada com comportamento documentado de controle de fluxo
+- Fila de mensagens por conexão limitada com comportamento de contrapressão documentado
 
 Consulte [SECURITY.md](SECURITY.md) para obter a política de segurança completa e as orientações de configuração do workshop.
 
