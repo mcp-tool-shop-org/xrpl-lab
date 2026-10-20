@@ -11,13 +11,68 @@ Local paths are shown as `<scratch>`.
 | [run-1](run-1-f9-20261020T2056Z/) | 2026-10-20 20:56–21:01 | `7acc67c` (feat/2.6.0) | **FAIL**: no AMM was created; 4 submissions never validated |
 | [run-2](run-2-f9-20261020T2124Z/) | 2026-10-20 21:24–21:27 | `f803a49` (feat/2.6.0) | **FAIL**: run 1's defects fixed; AMMCreate validated `tecUNFUNDED_AMM` (pool sized past one 100 XRP faucet grant) |
 | [run-3](run-3-f9-20261020T2148Z/) | 2026-10-20 21:48–21:49 | `453d361` (feat/2.6.0) | **PASS**: all 18 steps; all 9 transactions `tesSUCCESS`; the pool was deleted after the full withdraw |
+| [run-4](run-4-f9-20261020T2219Z/) | 2026-10-20 22:19–22:20 | `9630389` (code identical to `35de678`, the version Argon reviewed in round 2) | **PASS**: all 18 steps; all 9 transactions `tesSUCCESS`; the pool was deleted; stderr empty |
 
-**Acceptance verdict: PASS on run 3 (`453d361`).** Runs 1 and 2 are kept as the failure record that led to the
-fixes.
+**Acceptance verdict: PASS on run 4 (`9630389`).** Its code is byte-identical to `35de678`, the version Argon
+reviewed in round 2 (PASS/GO). `git diff 35de678 9630389` outside `docs/receipts/` is empty. Run 3 (`453d361`)
+passed too. Runs 1 and 2 are kept as the failure record that led to the fixes.
 
-`35de678` (Argon's run-2 review fixes) landed on `feat/2.6.0` during run 3, so it is not covered by this run. It
-changes code (`xrpl_lab/actions/amm.py`, `handlers.py`, `transport/xrpl_testnet.py`). Under the studio rule it goes to
-Argon for a second review first, and then gets its own live run (run 4) so the receipt covers the PR head.
+## Run 4: f9-20261020T2219Z, PASS
+
+**Setup:** the same as runs 1–3, on `9630389` (code = `35de678`: Argon's run-2 review fixes).
+
+**Preflight:**
+- `classify_network` reported `testnet`.
+- The network guard passed.
+- Connected at ledger 21693813.
+
+**Exit code:** xrpl-lab exited **0**, read from `PIPESTATUS[1]`.
+
+**Status:**
+- The panel reads "Complete".
+- The report says "Steps: 18 passed, 0 failed" and "Transactions: 6 successful, 0 failed".
+- `state.json` has the module `verified: true`.
+
+**stderr is empty.** The two `amm_info error … actNotFound` warnings from run 3 are gone (Argon F6).
+
+**Accounts:**
+- Learner: `rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6`
+- Issuer: `rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8`
+
+**Ledger at the time:** `reserve_base` 1000000, `reserve_inc` 200000.
+
+| # | Step | Tx type | Hash | Ledger | Engine result | Fee (drops) | Flags | Outcome |
+|---|---|---|---|---|---|---|---|---|
+| 2 | ensure_funded | Payment (faucet, 100 XRP) | `8093B55D…A847` | 21693815 | tesSUCCESS | 12 | 0 | PASS |
+| 4 | fund_issuer | Payment (faucet, 100 XRP) | `7C0792FA…B4C4` | 21693817 | tesSUCCESS | 12 | 0 | PASS |
+| 5 | enable_default_ripple | AccountSet asfDefaultRipple | `054E6E16…9D3D` | 21693819 | tesSUCCESS | 10 | SetFlag 8 | PASS: issuer `Flags` 0x800000 |
+| 6 | set_trust_line | TrustSet LAB | `B580292E…7902` | 21693821 | tesSUCCESS | 10 | n/a | PASS |
+| 7 | issue_token | Payment 1000 LAB | `9F5A88C2…82E8` | 21693824 | tesSUCCESS | 10 | n/a | PASS |
+| 9 | ensure_amm_pair | AMMCreate 25 XRP / 25 LAB | `DF2C8923…F855` | 21693827 | **tesSUCCESS** | **200000 = reserve_inc** | n/a | PASS: pool 25/25, LP supply 25000 |
+| 11 | amm_deposit 5/5 | AMMDeposit | `A06DC32C…AD79` | 21693830 | **tesSUCCESS** | 10 | **0x00100000 tfTwoAsset** | PASS: LP 30000; pool 30/30 |
+| 15 | amm_withdraw (all) | AMMWithdraw | `A52C2D0C…5D7C` | 21693833 | **tesSUCCESS** | 10 | **0x00020000 tfWithdrawAll** | PASS: "LP tokens decreased: 30000 -> 0" |
+
+The other 10 steps have no transaction, and all passed:
+- the wallet and issuer setup (steps 1 and 3);
+- the three snapshots (steps 8, 13 and 17);
+- `get_amm_info` (step 10: 25/25);
+- `verify_lp_received` (step 12);
+- the two reserve checks (step 14: −30.200010 XRP, owner count 1 → 2; step 18: −0.200020 XRP net, owner count 1);
+- `verify_withdrawal` (step 16).
+
+Pool and reserve before and after:
+- **Pool:** 25/25 after the create, 30/30 after the deposit, deleted after the full withdraw. `amm_info` XRP/LAB
+  returns `actNotFound` on the validated ledger after the run.
+- **Learner:** 99,999,990 drops before; 69,799,980 after the deposit (owner count 2); 99,799,970 after the withdraw
+  (owner count 1).
+- **LAB:** the balance is back to 1000, and the LP-token line is gone.
+
+The three F9 watch-items are confirmed a second time on the reviewed code:
+- the AMMCreate fee equals `reserve_inc`;
+- `tfTwoAsset` and `tfWithdrawAll` validate;
+- the pool is deleted on the sole LP's full withdraw.
+
+---
 
 ## Run 3: f9-20261020T2148Z, PASS
 

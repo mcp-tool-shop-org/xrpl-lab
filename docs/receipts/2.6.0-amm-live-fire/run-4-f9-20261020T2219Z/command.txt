@@ -1,0 +1,8 @@
+cwd: <scratch>/f9-20261020T2219Z/cwd  (outside every repo)
+XRPL_LAB_HOME=<scratch>/f9-20261020T2219Z/home   (wallet.json stays here, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1
+code: mcp-tool-shop-org/xrpl-lab @ 9630389 (feat/2.6.0, PR #19), worktree _worktrees/xrpl-lab-f9-livefire
+cmd:  yes "" | xrpl-lab run amm_liquidity_101
+started_utc: 2026-10-20T22:19:51Z
+xrpl_lab_exit_code: 0   (read from PIPESTATUS[1])
+finished_utc: 2026-10-20T22:20:59Z

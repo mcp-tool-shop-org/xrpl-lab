@@ -1,0 +1,229 @@
+{
+  "captured_note": "queried after the run, validated ledger",
+  "network": "XRPL Testnet (s.altnet.rippletest.net:51234)",
+  "validated_ledger": {
+    "seq": 21693835,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000,
+    "base_fee": 10
+  },
+  "wallet_account": {
+    "Account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+    "Balance": "99799970",
+    "Sequence": 21693819,
+    "OwnerCount": 1,
+    "Flags": 0
+  },
+  "wallet_trust_lines": [
+    {
+      "account": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+      "currency": "LAB",
+      "balance": "1000",
+      "limit": "10000"
+    }
+  ],
+  "wallet_account_tx": [
+    {
+      "ledger_index": 21693815,
+      "hash": "8093B55D7BE3D0DF3B0C27C838E7BBEF613A19210BC2363A56D71588D3A4A847",
+      "TransactionType": "Payment",
+      "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+      "Sequence": 0,
+      "Fee": "12",
+      "Flags": 0,
+      "Amount": "100000000",
+      "Amount2": null,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693821,
+      "hash": "B580292E8816B5A3DC2BEA533C32AD76514C3A6D89EEEA2FE14762B3C3677902",
+      "TransactionType": "TrustSet",
+      "Account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+      "Sequence": 21693815,
+      "Fee": "10",
+      "Flags": null,
+      "Amount": null,
+      "Amount2": null,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693824,
+      "hash": "9F5A88C2AC58EAAD1060525A0A6E66B388475C14E29D02FFD48ACE5F166782E8",
+      "TransactionType": "Payment",
+      "Account": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+      "Sequence": 21693818,
+      "Fee": "10",
+      "Flags": null,
+      "Amount": {
+        "currency": "LAB",
+        "issuer": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+        "value": "1000"
+      },
+      "Amount2": null,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693827,
+      "hash": "DF2C89237B18AC1863B302618A86654691BAE762E8ACB303F8F8BE788174F855",
+      "TransactionType": "AMMCreate",
+      "Account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+      "Sequence": 21693816,
+      "Fee": "200000",
+      "Flags": null,
+      "Amount": "25000000",
+      "Amount2": {
+        "currency": "LAB",
+        "issuer": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+        "value": "25"
+      },
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693830,
+      "hash": "A06DC32C53B90AD813AC5DF9F7FCFCD69E350BAD36D42D9C7E6439B22222AD79",
+      "TransactionType": "AMMDeposit",
+      "Account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+      "Sequence": 21693817,
+      "Fee": "10",
+      "Flags": 1048576,
+      "Amount": "5000000",
+      "Amount2": {
+        "currency": "LAB",
+        "issuer": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+        "value": "5"
+      },
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693833,
+      "hash": "A52C2D0CB60E7EF72A29A255674F4E948F2B297234868D7C36004EA703835D7C",
+      "TransactionType": "AMMWithdraw",
+      "Account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+      "Sequence": 21693818,
+      "Fee": "10",
+      "Flags": 131072,
+      "Amount": null,
+      "Amount2": null,
+      "TransactionResult": "tesSUCCESS"
+    }
+  ],
+  "issuer_account": {
+    "Account": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+    "Balance": "99999980",
+    "Sequence": 21693819,
+    "OwnerCount": 0,
+    "Flags": 8388608
+  },
+  "issuer_trust_lines": [
+    {
+      "account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+      "currency": "LAB",
+      "balance": "-1000",
+      "limit": "0"
+    }
+  ],
+  "issuer_account_tx": [
+    {
+      "ledger_index": 21693817,
+      "hash": "7C0792FAE04C311FC1DC1912860E627923CF1D0B3E25B0DDD30DEF958F8BB4C4",
+      "TransactionType": "Payment",
+      "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+      "Sequence": 0,
+      "Fee": "12",
+      "Flags": 0,
+      "Amount": "100000000",
+      "Amount2": null,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693819,
+      "hash": "054E6E163724A9E05F7C388E1F50B713E3AB9719ACADEE3E1D33B751D9149D3D",
+      "TransactionType": "AccountSet",
+      "Account": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+      "Sequence": 21693817,
+      "Fee": "10",
+      "Flags": null,
+      "Amount": null,
+      "Amount2": null,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693821,
+      "hash": "B580292E8816B5A3DC2BEA533C32AD76514C3A6D89EEEA2FE14762B3C3677902",
+      "TransactionType": "TrustSet",
+      "Account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+      "Sequence": 21693815,
+      "Fee": "10",
+      "Flags": null,
+      "Amount": null,
+      "Amount2": null,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693824,
+      "hash": "9F5A88C2AC58EAAD1060525A0A6E66B388475C14E29D02FFD48ACE5F166782E8",
+      "TransactionType": "Payment",
+      "Account": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+      "Sequence": 21693818,
+      "Fee": "10",
+      "Flags": null,
+      "Amount": {
+        "currency": "LAB",
+        "issuer": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+        "value": "1000"
+      },
+      "Amount2": null,
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693827,
+      "hash": "DF2C89237B18AC1863B302618A86654691BAE762E8ACB303F8F8BE788174F855",
+      "TransactionType": "AMMCreate",
+      "Account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+      "Sequence": 21693816,
+      "Fee": "200000",
+      "Flags": null,
+      "Amount": "25000000",
+      "Amount2": {
+        "currency": "LAB",
+        "issuer": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+        "value": "25"
+      },
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693830,
+      "hash": "A06DC32C53B90AD813AC5DF9F7FCFCD69E350BAD36D42D9C7E6439B22222AD79",
+      "TransactionType": "AMMDeposit",
+      "Account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+      "Sequence": 21693817,
+      "Fee": "10",
+      "Flags": 1048576,
+      "Amount": "5000000",
+      "Amount2": {
+        "currency": "LAB",
+        "issuer": "rL9qGFJd1RMuCZyjcaBSfVNVfL9dhn5Pz8",
+        "value": "5"
+      },
+      "TransactionResult": "tesSUCCESS"
+    },
+    {
+      "ledger_index": 21693833,
+      "hash": "A52C2D0CB60E7EF72A29A255674F4E948F2B297234868D7C36004EA703835D7C",
+      "TransactionType": "AMMWithdraw",
+      "Account": "rKFBaCTMv9nfNvocpJfTVtEDNgweNRi2y6",
+      "Sequence": 21693818,
+      "Fee": "10",
+      "Flags": 131072,
+      "Amount": null,
+      "Amount2": null,
+      "TransactionResult": "tesSUCCESS"
+    }
+  ],
+  "amm_info_xrp_lab_after_full_withdraw": {
+    "error": "actNotFound",
+    "error_code": 19,
+    "error_message": "Account not found."
+  }
+}
