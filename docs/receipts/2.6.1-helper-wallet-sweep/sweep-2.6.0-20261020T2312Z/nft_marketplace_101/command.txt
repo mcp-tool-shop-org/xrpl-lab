@@ -1,0 +1,8 @@
+cwd: <scratch>/sweep-2.6.0-20261020T2312Z/nft_marketplace_101/cwd  (outside every repo)
+XRPL_LAB_HOME=<scratch>/sweep-2.6.0-20261020T2312Z/nft_marketplace_101/home   (wallet.json stays here, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1
+code: mcp-tool-shop-org/xrpl-lab @ 036c187 (v2.6.0), worktree _worktrees/xrpl-lab-f9-livefire
+cmd:  yes "" | xrpl-lab run nft_marketplace_101
+started_utc: 2026-10-20T23:34:28Z
+xrpl_lab_exit_code: 3   (read from PIPESTATUS[1])
+finished_utc: 2026-10-20T23:35:31Z

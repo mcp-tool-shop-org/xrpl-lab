@@ -21,6 +21,32 @@
 - The registry sweep asserts that the six deliberate-failure lessons record
   no failed transaction, instead of skipping them.
 
+### Fixed (found by the helper-wallet sweep of 2.6.0)
+
+A live sweep of the 10 testnet modules that fund a helper wallet found these.
+Its receipts are in `docs/receipts/2.6.1-helper-wallet-sweep/`.
+
+- **Lessons whose point is a rejected transaction no longer read as failed.**
+  2.6.0 counts a step failed when it records a failed transaction, so a
+  lesson that teaches `tecDUPLICATE` or `tecNO_PERMISSION` read as failed
+  (credentials, permissioned domains, clawback). The 19 expected-failure
+  steps now judge their outcome through `_judge_expected_failure`: the
+  expected code acknowledges the step, and anything else is a failed step.
+- **An expected `tec` must be on the ledger.** The checks lesson's outsider
+  "got" its expected `tecNO_PERMISSION` from a transaction that never
+  validated, because its window closed on a preliminary result. Results now
+  carry `validated`. A preliminary result, a timeout or a `tem` is not
+  validated, and a lesson expecting a `tec` needs a validated one.
+- **Payment-channel claims verify and redeem.** The channel's public key was
+  read from `account_channels`' base58 `public_key`; claim signatures and
+  `PaymentChannelClaim` need its `public_key_hex`.
+- **Credential-gated payments can be signed.** xrpl-py 4.5 serialises
+  `credential_ids` as `CredentialIds`, which its own binary codec rejects.
+  xrpl-lab now registers the `IDs` abbreviation; xrpl-py 5.2 already has it.
+- **The NFT lessons fit one faucet grant.** The marketplace and the capstone
+  listed an NFT at 100 XRP to a buyer funded once with 100 XRP; listings are
+  now 10 XRP (resale 20).
+
 ## 2.6.0 — 2026-10-20
 
 External-audit pass (F1–F7, F10): packaging, curriculum accuracy, CLI surface,

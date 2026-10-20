@@ -345,6 +345,7 @@ async def handle_submit_payment_fail(
         )
         console.print(f"  Result code: [yellow]{result.result_code}[/]")
         console.print(f"  Error: {result.error}")
+    _judge_expected_failure(console, context, result, (), "submit_payment_fail")
     return context
 
 
@@ -714,6 +715,7 @@ async def handle_issue_token_expect_fail(
             success=False,
         )
     save_state(state)
+    _judge_expected_failure(console, context, result, (), "issue_token_expect_fail")
     return context
 
 
@@ -3070,6 +3072,48 @@ def _explain_failure(console: Console, result_code: str) -> None:
     console.print(f"  Action: [yellow]{info['action']}[/]")
 
 
+def _judge_expected_failure(
+    console: Console, context: dict, result, expected_codes: tuple[str, ...],
+    action: str,
+) -> bool:
+    """Judge a lesson step whose point is a rejected transaction.
+
+    True when the transaction failed with one of ``expected_codes``, and, for
+    a tec, only when that failure VALIDATED (a preliminary tec whose window
+    closed never reached a ledger). The step's expected failure is then
+    acknowledged, so the runner doesn't count it as a failed step.
+
+    An empty ``expected_codes`` accepts any definitive rejection: a validated
+    tec, or a tem (malformed, so it can never succeed). In that mode a
+    tef/ter/tel, a timeout or a local error doesn't count, because none of
+    them says anything about the rule being taught.
+
+    Anything else (an unexpected success, another code, a tec that never
+    validated) records a failed verification. Helper-wallet sweep 1 on 2.6.0.
+    """
+    code = getattr(result, "result_code", "") or ""
+    validated = getattr(result, "validated", True)
+    matches = (
+        code in expected_codes if expected_codes else code.startswith(("tec", "tem"))
+    )
+    definitive = validated or not code.startswith("tec")
+    if not result.success and matches and definitive:
+        context["expected_failures"] = context.get("expected_failures", 0) + 1
+        return True
+    if result.success:
+        why = "the transaction succeeded"
+    elif matches:
+        why = f"{code} never validated (no ledger holds it)"
+    else:
+        why = f"got {code or 'no result'}"
+    expected = " or ".join(expected_codes) or "a validated rejection"
+    console.print(f"  [red]Not the lesson's outcome: expected {expected}, {why}.[/]")
+    _record_verification(
+        context, action, passed=False, failures=[f"expected {expected}; {why}"],
+    )
+    return False
+
+
 def _record_submit(state: LabState, context: dict, result) -> None:
     """Record a submission outcome to state + context (shared by the create handlers)."""
     if result.success:
@@ -3711,6 +3755,11 @@ async def handle_create_token_escrow_expect_fail(
             {"result_code": result.result_code, "error": result.error}
         )
     save_state(state)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "create_token_escrow_expect_fail",
+    )
     return context
 
 
@@ -4114,6 +4163,11 @@ async def handle_send_multisig_payment_expect_fail(
             {"result_code": result.result_code, "error": result.error}
         )
     save_state(state)
+    _judge_expected_failure(
+        console, context, result,
+        ("tefBAD_QUORUM",),
+        "send_multisig_payment_expect_fail",
+    )
     return context
 
 
@@ -4351,6 +4405,11 @@ async def handle_create_credential_unfunded(
         console.print(f"  [green]Expected failure:[/] {result.result_code}")
         _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_TARGET",),
+        "create_credential_unfunded",
+    )
     return context
 
 
@@ -4430,6 +4489,11 @@ async def handle_create_credential_duplicate(
         console.print(f"  [green]Expected failure:[/] {result.result_code}")
         _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecDUPLICATE",),
+        "create_credential_duplicate",
+    )
     return context
 
 
@@ -4471,6 +4535,11 @@ async def handle_accept_credential_wrong_party(
             "it — this is the 'you hold your own passport' rule.[/]"
         )
     _record_submit(state, context, result)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_ENTRY", "temMALFORMED"),
+        "accept_credential_wrong_party",
+    )
     return context
 
 
@@ -4758,6 +4827,11 @@ async def handle_create_permissioned_offer_uncredentialed(
         )
         _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
+    _judge_expected_failure(
+        console, context, result,
+        (),
+        "create_permissioned_offer_uncredentialed",
+    )
     return context
 
 
@@ -4852,6 +4926,7 @@ async def handle_modify_domain_nonowner(
             "rotate a domain's policy.[/]"
         )
     _record_submit(state, context, result)
+    _judge_expected_failure(console, context, result, (), "modify_domain_nonowner")
     return context
 
 
@@ -5083,6 +5158,11 @@ async def handle_send_sender_payment_expect_blocked(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "send_sender_payment_expect_blocked",
+    )
     return context
 
 
@@ -5119,6 +5199,11 @@ async def handle_preauthorize_self_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("temCANNOT_PREAUTH_SELF",),
+        "preauthorize_self_expect_fail",
+    )
     return context
 
 
@@ -5188,6 +5273,11 @@ async def handle_authorize_sender_address_duplicate(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecDUPLICATE",),
+        "authorize_sender_address_duplicate",
+    )
     return context
 
 
@@ -5370,6 +5460,11 @@ async def handle_send_outsider_payment_expect_blocked(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "send_outsider_payment_expect_blocked",
+    )
     return context
 
 
@@ -5428,6 +5523,11 @@ async def handle_unauthorize_sender_address_duplicate(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_ENTRY",),
+        "unauthorize_sender_address_duplicate",
+    )
     return context
 
 
@@ -5907,6 +6007,11 @@ async def handle_send_untagged_deposit_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecDST_TAG_NEEDED",),
+        "send_untagged_deposit_expect_fail",
+    )
     return context
 
 
@@ -6226,6 +6331,7 @@ async def handle_clawback_expect_fail(
             network=state.network, success=False,
         )
         save_state(state)
+    _judge_expected_failure(console, context, result, (), "clawback_expect_fail")
     return context
 
 
@@ -6385,8 +6491,10 @@ async def handle_verify_nft_offer(
             f"expected_min={expected_min} open sell offer(s), "
             f"observed {len(offers)}"
         )
-        for fail in failures:
-            console.print(f"  [red]\u2717[/] {fail}")
+    # Print every reason, including a malformed expected_min, which used to
+    # fail the step silently (found by the 2.6.1 coverage work).
+    for fail in failures:
+        console.print(f"  [red]\u2717[/] {fail}")
     _record_verification(
         context, "verify_nft_offer", len(failures) == 0, failures
     )
@@ -6479,6 +6587,7 @@ async def handle_accept_nft_offer_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(console, context, result, (), "accept_nft_offer_expect_fail")
     return context
 
 
@@ -6649,6 +6758,7 @@ async def handle_modify_nft_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(console, context, result, (), "modify_nft_expect_fail")
     return context
 
 
@@ -6929,6 +7039,11 @@ async def handle_cash_check_wrong_destination_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "cash_check_wrong_destination_expect_fail",
+    )
     return context
 
 
