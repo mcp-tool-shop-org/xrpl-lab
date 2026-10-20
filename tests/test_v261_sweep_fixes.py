@@ -295,3 +295,19 @@ def test_a_non_numeric_amm_leg_is_kept_as_is() -> None:
     which _parse_amm_amount didn't catch, so get_amm_info crashed."""
     assert xt.XRPLTestnetTransport._parse_amm_amount("not-drops") == "not-drops"
     assert xt.XRPLTestnetTransport._parse_amm_amount("25000000") == "25"
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_nft_offer_bound_is_explained() -> None:
+    """Found by the 2.6.1 coverage work: a malformed expected_min failed the
+    verification without printing why."""
+    from xrpl_lab.state import LabState
+
+    console, buf = _console()
+    step = ModuleStep(text="verify", action="verify_nft_offer",
+                      action_args={"expected_min": "two"})
+    ctx = await handlers.handle_verify_nft_offer(
+        step, LabState(), DryRunTransport(), "", {"nft_id": "00" * 32}, console,
+    )
+    assert any(not v["passed"] for v in ctx["verifications"])
+    assert "expected_min" in buf.getvalue()

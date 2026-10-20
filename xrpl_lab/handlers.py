@@ -6491,8 +6491,10 @@ async def handle_verify_nft_offer(
             f"expected_min={expected_min} open sell offer(s), "
             f"observed {len(offers)}"
         )
-        for fail in failures:
-            console.print(f"  [red]\u2717[/] {fail}")
+    # Print every reason, including a malformed expected_min, which used to
+    # fail the step silently (found by the 2.6.1 coverage work).
+    for fail in failures:
+        console.print(f"  [red]\u2717[/] {fail}")
     _record_verification(
         context, "verify_nft_offer", len(failures) == 0, failures
     )
