@@ -1,0 +1,253 @@
+Warning: This module requires the following to be completed first:
+  - credentials_101
+Run those modules first, or use --force to bypass.
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Permissioned Domains & Gated DEX (XLS-80/81): Compliant, Credential-Gated Trading                                                                           │
+│ Level: advanced  |  Time: ~25-35 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Permissioned Domains (XLS-80, amendment PermissionedDomains) went mainnet-live on 2026-02-04, and Permissioned Offers (XLS-81, amendment PermissionedDEX) on   
+2026-02-18. Together they are the XRPL's compliance / gated-trading primitive: a domain gates access to a trading book by credential, and an offer tagged with 
+that domain's DomainID only rests if the placing account holds a credential the domain accepts.                                                                
+
+This is how you build a region-locked or regulated game economy: vet players off-chain, issue them signed credentials (the previous module), stand up one      
+domain per access tier, and run the marketplace as a permissioned DEX. Compliance is enforced by the ledger — when a credential lapses or a region is removed, 
+the player's offers stop matching, with no server-side sweep.                                                                                                  
+
+This module composes with Credentials 101 — you need an accepted credential to trade in a domain. It runs on testnet, free and disposable.                     
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+Your wallet plays two roles here: the credential ISSUER and the domain OWNER (a studio's compliance/ops account).                                              
+
+
+  → ensure_wallet...
+  No wallet found. Creating a new one...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Wallet created: rK21HLb8NxyKx8Z5QLiHNww7WRU7a7Jukz
+  Saved to: 
+<scratch>\sweep-2.6.0-20261020T2312Z\permissioned_domains_101\hom
+e\wallet.json
+
+  Warning: Your wallet seed is stored locally. Never share it or paste it anywhere.
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Creating a domain costs a fee plus an owner reserve while it exists (free on testnet).                                                                         
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create the subject (player) wallet                                                                                                                             
+
+The SUBJECT is the player being attested — and, once credentialed, the eligible trader.                                                                        
+
+
+  → create_subject_wallet...
+  Creating the subject (player) wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Subject wallet: r4Tyb2CvdQhwbt4DU9Jspr6dHNm5n8unGE
+  Funding the subject from the faucet (so it's a real target)...
+  Subject funded! Balance: unknown XRP
+
+Press Enter to continue...Issue the credential (provisional)                                                                                                                             
+
+Reusing the XLS-70 primitive from the previous module: the issuer attests a region-EU credential about the funded subject. It starts provisional — not valid   
+until accepted.                                                                                                                                                
+
+
+  → create_credential...
+  Attesting credential type region-EU about subject r4Tyb2CvdQhw... (PROVISIONAL until accepted)
+  Credential created — provisional, awaiting subject accept.
+  TXID: 92DB9EB16082753DC591E9B6F81D40E9898F5BECB5E95667B4535F76998445BB
+  Explorer: https://testnet.xrpl.org/transactions/92DB9EB16082753DC591E9B6F81D40E9898F5BECB5E95667B4535F76998445BB
+
+Press Enter to continue...Subject accepts the credential                                                                                                                                 
+
+Only the subject can accept. Acceptance makes the credential valid and moves the owner reserve to the subject. This is the credential the domain will require. 
+
+
+  → accept_credential...
+  Subject accepting the credential — clears provisional state, reserve moves from issuer to subject...
+  Credential accepted — now VALID on-ledger!
+  TXID: 14DDB6BBE6E9F7719AAA742CAB513E1BD9764CB11276E8AEA39450A873891FA1
+  Explorer: https://testnet.xrpl.org/transactions/14DDB6BBE6E9F7719AAA742CAB513E1BD9764CB11276E8AEA39450A873891FA1
+
+Press Enter to continue...Create the Permissioned Domain                                                                                                                                 
+
+Now the owner runs PermissionedDomainSet. Because we omit DomainID, this creates a new domain (the DomainID is derived from the owner's address + sequence).   
+Its AcceptedCredentials lists exactly one { Issuer, CredentialType } — the region-EU credential the subject just accepted.                                     
+
+Each unique (Owner, Sequence) yields a distinct DomainID — re-running create makes a NEW domain, it does not idempotently return the old one, so track the     
+DomainID off-ledger after creation.                                                                                                                            
+
+
+  → create_permissioned_domain...
+  Creating a Permissioned Domain accepting credential region-EU from issuer rK21HLb8NxyK...
+  Permissioned Domain created!
+  TXID: CE3B009C3C0AFD46E428BDE7B58F774D6F858FBD84AF925A347E03F95C934ED0
+  DomainID: FDC6EA14A904869684D7EDF4DB55855B4E80510DFC5B6885EC2067A7BD800301
+  Track this DomainID off-ledger — each (owner, sequence) yields a DISTINCT id; re-running create makes a NEW domain.
+  Explorer: https://testnet.xrpl.org/transactions/CE3B009C3C0AFD46E428BDE7B58F774D6F858FBD84AF925A347E03F95C934ED0
+
+Press Enter to continue...Verify the domain accepts the credential                                                                                                                       
+
+Read the domain back. It should exist, be owned by you, and list the region-EU credential in its accepted set — the check a gate runs before relying on a quote
+in it.                                                                                                                                                         
+
+
+  → verify_domain...
+  ✓ Domain found: FDC6EA14A9048696...
+  ✓ Owner: rK21HLb8NxyKx8Z5...
+  ✓ Accepted credentials: 1 entry
+  ✓ Accepts credential {rK21HLb8NxyK..., region-EU} — eligible holders can trade
+
+Press Enter to continue...Place a permissioned offer (credentialed — succeeds)                                                                                                           
+
+The credentialed subject places an OfferCreate carrying the DomainID. Because it holds a valid accepted credential the domain lists, the offer is eligible and 
+rests on the domain's permissioned book.                                                                                                                       
+
+CredentialIDs vs DomainID — the conflation to avoid: eligibility to trade is proven by holding an accepted credential, referenced via DomainID — NOT by        
+CredentialIDs. CredentialIDs is the deposit-authorization rail (gating inbound value); putting it on an OfferCreate does nothing for permissioned trading.     
+Different rails.                                                                                                                                               
+
+
+  → create_permissioned_offer...
+  Credentialed account placing a permissioned offer (plain) scoped to the DomainID...
+  Permissioned offer placed — the credential admits it!
+  TXID: 51C5E1CCA7FB3E57C236436EACF2F0CAE2D9FBBAF4D93C4791CC59115201603B
+  Offer sequence: 21694969
+  Explorer: https://testnet.xrpl.org/transactions/51C5E1CCA7FB3E57C236436EACF2F0CAE2D9FBBAF4D93C4791CC59115201603B
+
+Press Enter to continue...Verify the permissioned offer is resting                                                                                                                       
+
+Confirm the offer landed on-ledger in the subject's active offers.                                                                                             
+
+
+  → verify_permissioned_offer...
+  ✓ Permissioned offer resting: seq 21694969
+  ✓ Taker pays: 50/LAB/rK21HLb8NxyK
+  ✓ Taker gets: 10000000
+
+Press Enter to continue...Create an un-credentialed (outsider) wallet                                                                                                                    
+
+A second funded account that holds no credential the domain accepts — to demonstrate the eligibility gate.                                                     
+
+
+  → create_uncredentialed_wallet...
+  Creating an un-credentialed (outsider) wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Outsider wallet: rfh6nXzjF7965tdsmW2E6yJY12c1jUwgwV
+  Funding it from the faucet (so it's a real account)...
+  Outsider funded! Balance: unknown XRP
+
+Press Enter to continue...Un-credentialed permissioned offer (FAILS)                                                                                                                     
+
+The outsider places the same permissioned offer scoped to the DomainID. Because it holds no accepted credential, the offer is rejected before it can rest. The 
+DomainID rail is the gate.                                                                                                                                     
+
+
+  → create_permissioned_offer_uncredentialed...
+  Un-credentialed account attempting a permissioned offer (expecting rejection — it holds no accepted credential)...
+  Expected rejection: tefPAST_SEQ
+  Eligibility to trade in a domain is proven by holding an accepted credential via DomainID — NOT by CredentialIDs (the deposit-auth rail). This account holds 
+neither.
+  Category: failed
+  Meaning: Sequence number already used
+  Action: This may be a duplicate. Wait and retry
+
+Press Enter to continue...Non-owner tries to modify the domain (rejected)                                                                                                                
+
+Only the original owner may modify a domain. The outsider attempts a PermissionedDomainSet against your DomainID and is rejected — plan domain-owner key       
+custody as carefully as an issuer's.                                                                                                                           
+
+
+  → modify_domain_nonowner...
+  Non-owner attempting to modify the domain (expecting rejection — owner-only)...
+  Expected rejection: tecNO_PERMISSION
+  Domain-owner key custody matters — only the owner may rotate a domain's policy.
+
+Press Enter to continue...The full-replace revocation gotcha                                                                                                                             
+
+AcceptedCredentials is REPLACED wholesale on every PermissionedDomainSet — it is never patched. Here the owner modifies the domain with a decoy credential and,
+in doing so, drops the original region-EU entry. This silently revokes access for everyone holding the dropped type, invalidating their open permissioned      
+offers.                                                                                                                                                        
+
+The lesson: to add or drop an eligible credential you resubmit the full intended list — always read the current set first, or you'll strand your players.      
+
+
+  → modify_domain_drop_credential...
+  Modifying the domain — replacing the accepted set with a DECOY credential (dropping the original)...
+  AcceptedCredentials is a FULL REPLACE — the original type is silently revoked, stranding its holders' permissioned offers.
+  Domain modified — accepted set fully replaced.
+  TXID: 58BC8042A61FE39CEAF1EA476E6EDF5EE363E6D9C4AC22CB9F16EFAF98E64C3C
+  Explorer: https://testnet.xrpl.org/transactions/58BC8042A61FE39CEAF1EA476E6EDF5EE363E6D9C4AC22CB9F16EFAF98E64C3C
+
+Press Enter to continue...Verify the credential is no longer accepted                                                                                                                    
+
+Read the domain back. It no longer lists region-EU — the previously-eligible subject is now excluded. A resting permissioned offer can be invalidated          
+post-placement exactly this way (accepted-set change), alongside credential expiry/revocation and domain deletion.                                             
+
+expect_absent=true inverts the check: here a PASS means the credential is gone. Step 7 ran the same action in its positive form, against the same domain,      
+before the modify.                                                                                                                                             
+
+
+  → verify_domain...
+  ✓ Domain found: FDC6EA14A9048696...
+  ✓ Owner: rK21HLb8NxyKx8Z5...
+  ✓ Accepted credentials: 1 entry
+  ✓ No longer accepts {rK21HLb8NxyK..., region-EU} — the full-replace modify dropped it, revoking access for its holders
+
+Press Enter to continue...Delete the domain (compensator, reclaim reserve)                                                                                                               
+
+PermissionedDomainDelete is the named compensator: it frees the owner-reserve slot the domain consumed. A domain blocks owner-account deletion until it is     
+removed — to sunset a region, delete its domain.                                                                                                               
+
+
+  → delete_permissioned_domain...
+  Owner deleting the domain — reclaiming the owner reserve (compensator)...
+  Domain deleted — reserve freed.
+  TXID: 9D965A2DAFC689758664E38818C833AC0B144BEA860BA2232916EADD7A40055C
+  Explorer: https://testnet.xrpl.org/transactions/9D965A2DAFC689758664E38818C833AC0B144BEA860BA2232916EADD7A40055C
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You ran the full XLS-80/81 gated-trading lifecycle, composed on top of credentials:                                                                            
+
+ 1 Credential issued + accepted — the eligibility proof (XLS-70)                                                                                               
+ 2 PermissionedDomainSet (create) — a credential-gated domain, DomainID tracked off-ledger                                                                     
+ 3 Permissioned offer (credentialed) — placed because the account holds an accepted credential                                                                 
+ 4 Permissioned offer (un-credentialed) — rejected by the eligibility gate                                                                                     
+ 5 Non-owner modify — rejected (owner-only)                                                                                                                    
+ 6 Full-replace modify — dropped the credential, silently revoking access                                                                                      
+ 7 PermissionedDomainDelete — the compensator; freed the reserve                                                                                               
+
+Key concepts to remember:                                                                                                                                      
+
+ • Two rails, don't conflate them — DomainID gates trading (proven by a held accepted credential); CredentialIDs gates inbound value (deposit authorization).  
+   CredentialIDs on an offer does nothing for permissioned trading.                                                                                            
+ • Full replace, not patch — AcceptedCredentials is replaced wholesale on every set; a modify that forgets an entry silently revokes it. Read the current set, 
+   submit the full one.                                                                                                                                        
+ • DomainID is not idempotent — each (Owner, Sequence) yields a distinct id; track it off-ledger, re-creating makes a new domain.                              
+ • tfHybrid — with a DomainID, a hybrid offer matches BOTH the domain book AND the open DEX; a plain permissioned offer matches only the domain book. Open     
+   offers (no DomainID) never match the permissioned-only book.                                                                                                
+ • Ledger-enforced compliance — a resting permissioned offer can be invalidated after placement by credential expiry/revocation, an accepted-set change, or    
+   domain deletion; surface "no longer eligible" in the player UI.                                                                                             
+ • PermissionedDomainDelete is the compensator — it frees the reserve and unblocks owner-account deletion.                                                     
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌────────────────────────────────────────────────────────────────── Completed with failures ──────────────────────────────────────────────────────────────────┐
+│ Permissioned Domains & Gated DEX (XLS-80/81): Compliant, Credential-Gated Trading                                                                           │
+│ Not verified: 2 steps failed                                                                                                                                │
+│   - Step 11: Un-credentialed permissioned offer (FAILS)                                                                                                     │
+│   - Step 12: Non-owner tries to modify the domain (rejected)                                                                                                │
+│ Report saved to .xrpl-lab\reports\permissioned_domains_101.md                                                                                               │
+│ 6 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+'permissioned_domains_101' completed with failed steps; exiting with code 3.

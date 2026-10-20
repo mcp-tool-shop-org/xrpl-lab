@@ -1,0 +1,8 @@
+cwd: <scratch>/sweep-2.6.0-20261020T2312Z/game_economy_capstone/cwd  (outside every repo)
+XRPL_LAB_HOME=<scratch>/sweep-2.6.0-20261020T2312Z/game_economy_capstone/home   (wallet.json stays here, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1
+code: mcp-tool-shop-org/xrpl-lab @ 036c187 (v2.6.0), worktree _worktrees/xrpl-lab-f9-livefire
+cmd:  yes "" | xrpl-lab run game_economy_capstone
+started_utc: 2026-10-20T23:36:38Z
+xrpl_lab_exit_code: 3   (read from PIPESTATUS[1])
+finished_utc: 2026-10-20T23:37:36Z

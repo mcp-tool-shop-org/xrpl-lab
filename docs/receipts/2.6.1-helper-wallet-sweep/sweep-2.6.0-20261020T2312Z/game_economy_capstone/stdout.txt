@@ -1,0 +1,279 @@
+Warning: This module requires the following to be completed first:
+  - mpt_issuance_101
+  - nft_minting_101
+  - escrow_101
+  - receipt_audit
+Run those modules first, or use --force to bypass.
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Capstone: Stand Up a Minimal Game Economy on XRPL                                                                                                           │
+│ Level: advanced  |  Time: ~40-50 min                                                                                                                        │
+│ Produces: txid, report, audit_pack                                                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+This is the capstone. You have already issued an MPT, minted and burned an NFT, locked XRP in escrow, and audited a batch of receipts — each in its own module,
+each on its own track. Here you compose them into one coherent build: a minimal game economy that lives entirely on the public ledger.                         
+
+Nothing below is a new primitive. Every step is an action you have already run — this module simply sequences them into the shape a real economy takes:        
+
+ 1 A currency — a capped Multi-Purpose Token, your in-game hard money.                                                                                         
+ 2 A tradeable asset — a transferable NFT carrying a protocol-enforced creator royalty, so every resale pays you a cut without a marketplace's good behavior.  
+ 3 A market — a second player who buys the asset in one atomic settlement.                                                                                     
+ 4 A reward rail — XRP locked in escrow and released on a timer, the building block for vesting, bounties, and delayed payouts.                                
+ 5 A proof — one audit pass over the entire trail, sealed with a SHA-256 hash you can hand to anyone.                                                          
+
+Because the curriculum gates this module on its four prerequisites (mpt_issuance_101, nft_minting_101, escrow_101, receipt_audit), it is only ever offered once
+you have the skills it composes. There is no new gating code — the same prerequisite graph that orders every other module orders this one too.                 
+
+Everything runs on testnet — free, disposable, and safe to repeat.                                                                                             
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You are the studio in this build — the issuer of the currency, the creator of the asset, and the operator who pays out rewards. If you completed the           
+prerequisite modules your wallet loads automatically.                                                                                                          
+
+
+  → ensure_wallet...
+  No wallet found. Creating a new one...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Wallet created: rpoikpcHJHJu4RFg6ZSKN9epFLAbqRnbrm
+  Saved to: 
+<scratch>\sweep-2.6.0-20261020T2312Z\game_economy_capstone\home\w
+allet.json
+
+  Warning: Your wallet seed is stored locally. Never share it or paste it anywhere.
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Standing up an economy creates several owner objects (an MPT issuance, an NFT page, an escrow) — each costs a small reserve on mainnet, free on testnet.       
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Mint the game currency                                                                                                                                         
+
+Issue a capped Multi-Purpose Token as your in-game hard currency — supply ceiling, two decimal places, and the transferable flag so players can trade it. This 
+is exactly the MPTokenIssuanceCreate from MPT Issuance 101, now the first pillar of a real economy.                                                            
+
+
+  → create_mpt_issuance...
+  Creating MPT issuance — max supply 1000000, scale 2, transferable True
+  MPT issuance created!
+  TXID: F9BAA4670E4E7ACAC6CD2EEBF75C137C07542B6E794F83B93EC505060AFDC858
+  Explorer: https://testnet.xrpl.org/transactions/F9BAA4670E4E7ACAC6CD2EEBF75C137C07542B6E794F83B93EC505060AFDC858
+  Issuance ID: 014B0ADE13D4C84DD46927AF1C6BF6B98B55574DCCF3F694
+
+Press Enter to continue...Verify the currency on-ledger                                                                                                                                  
+
+Read the issuance back via account_objects — you should see your issuance id, the supply cap, and that it is transferable.                                     
+
+
+  → verify_mpt_issuance...
+  MPT issuance found: 014B0ADE13D4C84DD46927AF...
+  Maximum supply: 1000000
+  Asset scale: 2
+  Transferable: yes
+  MPT issuance verified on-ledger.
+
+Press Enter to continue...Mint a tradeable game asset                                                                                                                                    
+
+Now mint a unique game asset — a transferable NFT carrying a 5% transfer_fee royalty (5000 in the XRPL's 0.001% steps). The royalty is permanent and only takes
+effect because the asset is transferable; it is the same NFTokenMint from NFT Minting 101, now wired for a secondary market.                                   
+
+
+  → mint_nft...
+  Minting NFToken — taxon 7, transferable True, mutable False, uri ipfs://bafy-example/relic-of-dawn.json
+  Royalty (TransferFee): 5.000%
+  NFToken minted!
+  TXID: 311047FE932D6492B17BD35FBEA333D2CAB1E4E1F7858489B93C6DF8D32FF97E
+  NFTokenID: 0008138813D4C84DD46927AF1C6BF6B98B55574DCCF3F69428A6237D014B0ADF
+  Explorer: https://testnet.xrpl.org/transactions/311047FE932D6492B17BD35FBEA333D2CAB1E4E1F7858489B93C6DF8D32FF97E
+
+Press Enter to continue...Verify you own the asset                                                                                                                                       
+
+Read the NFT back via account_nfts — issuer (you), taxon 7, transferable, and the 5% royalty baked in.                                                         
+
+
+  → verify_nft...
+  NFToken found: 0008138813D4C84DD46927AF...
+  Issuer: rpoikpcHJHJu4RFg6ZSKN9epFLAbqRnbrm
+  Taxon (collection id): 7
+  URI: ipfs://bafy-example/relic-of-dawn.json
+  Transferable: yes
+  Royalty (TransferFee): 5.000%
+  NFT ownership verified on-ledger.
+
+Press Enter to continue...Bring a second player into the economy                                                                                                                         
+
+A market needs two parties. Create and fund a second wallet — the buyer who will acquire your asset.                                                           
+
+
+  → create_buyer_wallet...
+  Creating a second player wallet (buyer/reseller)...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Buyer funded: rpUTMFz2WmHqcfp149nkKXgx55citZV4kf (unknown XRP)
+
+Press Enter to continue...List the asset for sale                                                                                                                                        
+
+The studio lists a sell offer directed at the buyer — NFTokenCreateOffer with tfSellNFToken. The ledger itself is the marketplace; no contract required.       
+
+
+  → list_nft_sell_offer...
+  Listing NFT for sale: 100 XRP (seller creator, to rpUTMFz2WmHq...)
+  Sell offer listed!
+  TXID: 5DA733DF15B71A6DE819096E68F3F854325CC3984EA48601A003BF27A6A8CBE1
+  Offer index: CB89382772537AD7302A20A5...
+  Explorer: https://testnet.xrpl.org/transactions/5DA733DF15B71A6DE819096E68F3F854325CC3984EA48601A003BF27A6A8CBE1
+
+Press Enter to continue...Read the open offer back from the ledger                                                                                                                       
+
+nft_sell_offers shows the live offer with its price and ledger index — exactly the handle the buyer hands to NFTokenAcceptOffer.                               
+
+
+  → verify_nft_offer...
+  Sell offer: 100000000 (index CB89382772537AD7...)
+  1 open sell offer(s) on the book.
+
+Press Enter to continue...The buyer settles the trade                                                                                                                                    
+
+The buyer accepts the offer. Ownership moves atomically in one transaction. (This is the first sale, from the issuer, so no royalty is charged — the royalty   
+fires on resales, the rule you proved in the marketplace module.)                                                                                              
+
+
+  → accept_nft_offer...
+  Accepting sell offer as buyer (rpUTMFz2WmHq...)...
+  Accept failed: Applied but failed: it's on the ledger, and its fee was charged: tecINSUFFICIENT_FUNDS. Check XRPL docs for this specific code
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecINSUFFICIENT_FUNDS
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Verify the asset changed hands                                                                                                                                 
+
+The NFT is now the buyer's and gone from the studio. The verifier confirms a clean on-ledger ownership transfer.                                               
+
+
+  → verify_nft_trade...
+  No completed trade in context.
+
+Press Enter to continue...Lock a reward in escrow                                                                                                                                        
+
+Economies pay people. Lock some XRP in a short-FinishAfter escrow — a bounty or quest reward held by the ledger until it matures. This is the EscrowCreate from
+Escrow 101; the create step captures the create-sequence the release will need.                                                                                
+
+
+  → create_escrow...
+  Creating time-based escrow: 10 XRP, finishable in ~10s
+  Escrow created!
+  TXID: 413518C16105D34EA7671A054252D946208796A5E033B4B22451BB474F8FD968
+  Explorer: https://testnet.xrpl.org/transactions/413518C16105D34EA7671A054252D946208796A5E033B4B22451BB474F8FD968
+  Escrow create-sequence: 21695201
+
+Press Enter to continue...Verify the reward is locked                                                                                                                                    
+
+Read it back via account_objects — locked amount, destination, and the FinishAfter time, with your owner count one higher while the escrow exists.             
+
+
+  → verify_escrow...
+  Escrow found: 10000000 drops -> rpoikpcHJHJu4RFg...
+  FinishAfter (ripple time): 845854644
+  CancelAfter (ripple time): 845941044
+  Escrow verified on-ledger.
+
+Press Enter to continue...Release the reward                                                                                                                                             
+
+Submit EscrowFinish after the timer matures to release the locked XRP and free the reserve. (On testnet, re-run this step if you see tecNO_PERMISSION — the    
+clock has not elapsed yet; in --dry-run it succeeds immediately.)                                                                                              
+
+
+  → finish_escrow...
+  Finishing escrow (owner rpoikpcHJHJu..., OfferSequence 21695201)...
+  Escrow finished — funds released to destination!
+  TXID: 87BA633AC6C8878523335D909B0298591ACFC2137DC42E60F7ED0F042FCF7E40
+  Explorer: https://testnet.xrpl.org/transactions/87BA633AC6C8878523335D909B0298591ACFC2137DC42E60F7ED0F042FCF7E40
+
+Press Enter to continue...Verify the reward was paid                                                                                                                                     
+
+Confirm the escrow object is gone from account_objects — the reward XRP has moved to the destination and the owner reserve is freed back to spendable.         
+
+
+  → verify_escrow_finished...
+  Escrow (create-sequence 21695201) is gone — funds released, reserve freed
+  Escrow lifecycle complete — reserve freed.
+
+Press Enter to continue...Audit the entire trail into a proof                                                                                                                            
+
+Finally, audit every transaction this build produced — currency issuance, asset mint, the trade, and the escrow lifecycle — in one batch. The audit engine     
+fetches each txid, checks it validated and succeeded, and seals the verdicts into an audit pack with a SHA-256 integrity hash. That pack is your single,       
+shareable, ledger- verifiable proof that the economy actually stood up.                                                                                        
+
+
+  → run_audit...
+  Auditing 5 transaction(s)...
+  Auditing 1/5: F9BAA4670E4E7ACA...
+  Auditing 2/5: 311047FE932D6492...
+  Auditing 3/5: 5DA733DF15B71A6D...
+  Auditing 4/5: 413518C16105D34E...
+  Auditing 5/5: 87BA633AC6C88785...
+
+  Checked: 5
+  Pass:    5
+  Fail:    0
+  Missing: 0
+
+  ✓ F9BAA4670E4E7ACA... 
+      Transaction exists: F9BAA4670E4E7ACA...
+      Transaction is validated
+      Result: tesSUCCESS
+  ✓ 311047FE932D6492... 
+      Transaction exists: 311047FE932D6492...
+      Transaction is validated
+      Result: tesSUCCESS
+  ✓ 5DA733DF15B71A6D... 
+      Transaction exists: 5DA733DF15B71A6D...
+      Transaction is validated
+      Result: tesSUCCESS
+  ✓ 413518C16105D34E... 
+      Transaction exists: 413518C16105D34E...
+      Transaction is validated
+      Result: tesSUCCESS
+  ✓ 87BA633AC6C88785... 
+      Transaction exists: 87BA633AC6C88785...
+      Transaction is validated
+      Result: tesSUCCESS
+
+  Report: .xrpl-lab\reports\audit_1792539456.md
+  Audit pack: .xrpl-lab\proofs\audit_pack_1792539456.json
+
+Press Enter to continue...What you built                                                                                                                                                 
+
+You stood up a minimal game economy on the XRPL — end to end, on the public ledger, with one verifiable proof at the bottom:                                   
+
+ 1 A currency — a capped, transferable MPT (MPTokenIssuanceCreate)                                                                                             
+ 2 An asset — a transferable NFT with a permanent, protocol-enforced royalty (NFTokenMint + TransferFee)                                                       
+ 3 A market — a second player and an atomic on-ledger trade (NFTokenCreateOffer / NFTokenAcceptOffer)                                                          
+ 4 A reward rail — XRP locked and released on a timer (EscrowCreate / EscrowFinish)                                                                            
+ 5 A proof — the whole trail batch-audited into a SHA-256-sealed audit pack                                                                                    
+
+What the capstone really teaches:                                                                                                                              
+
+ • Composition is the skill — none of these primitives is new; the value is in sequencing them into a system. A real economy is exactly this set of moving     
+   parts wired together.                                                                                                                                       
+ • The ledger is the backend — no servers, no custodians, no marketplace contract. Currency, assets, trades, and payouts are all native ledger objects.        
+ • Royalties are enforced, not promised — the creator's cut lives in the protocol, not in a marketplace's terms of service.                                    
+ • Proof is the deliverable — when you are done, you don't have a screenshot; you have a sealed audit pack anyone can re-verify against the live XRPL.         
+
+Run xrpl-lab proof-pack to export the capstone proof — your completed-module list will carry a capstone: true flag, the studio's signature that the whole      
+economy came together.                                                                                                                                         
+
+
+┌────────────────────────────────────────────────────────────────── Completed with failures ──────────────────────────────────────────────────────────────────┐
+│ Capstone: Stand Up a Minimal Game Economy on XRPL                                                                                                           │
+│ Not verified: 2 steps failed                                                                                                                                │
+│   - Step 10: The buyer settles the trade                                                                                                                    │
+│   - Step 11: Verify the asset changed hands                                                                                                                 │
+│ Report saved to .xrpl-lab\reports\game_economy_capstone.md                                                                                                  │
+│ 5 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+'game_economy_capstone' completed with failed steps; exiting with code 3.
