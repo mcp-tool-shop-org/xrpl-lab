@@ -260,10 +260,13 @@ async def run_module(
     # the lesson continues; it only downgrades this flag + the failing step's
     # dashboard success signal.
     all_verified = True
-    # Live-fire run 1 (2.6.0): a failed SUBMIT used to leave all_verified True
-    # (only verify steps flipped it), so a module whose AMM transactions all
-    # failed still recorded as verified, and its report said "0 failed". A
-    # step whose own submit failed now counts like a failed verification.
+    # Live-fire runs 1 and 2 (2.6.0): a failed SUBMIT used to leave
+    # all_verified True (only verify steps flipped it), so a module whose AMM
+    # transactions all failed still recorded as verified, and its report said
+    # "0 failed". A step that records a FAILED transaction (state.record_tx
+    # with success=False, which every submitting handler does on a real
+    # failure) now counts like a failed verification. Deliberate failures in
+    # the failure-literacy lessons record no failed TxRecord, so they don't.
     failed_steps: list[str] = []
     action_steps = 0
 
@@ -306,7 +309,8 @@ async def run_module(
             # Mirrors the BC-003 _prev_txid_count slice pattern so a later step
             # can't be blamed for an earlier step's verdict.
             _prev_verif_count = len(context.get("verifications", []))
-            _prev_last_submit = context.get("last_submit")
+            _prev_tx_count = len(state.tx_index)
+            _step_started = time.time()
             action_steps += 1
             try:
                 context = await _execute_action(
@@ -450,11 +454,9 @@ async def run_module(
             step_verify_failed = any(
                 not v.get("passed", True) for v in step_verifications
             )
-            _last_submit = context.get("last_submit")
-            step_submit_failed = (
-                _last_submit is not None
-                and _last_submit is not _prev_last_submit
-                and not getattr(_last_submit, "success", True)
+            step_submit_failed = any(
+                not record.success and record.timestamp >= _step_started
+                for record in state.tx_index[_prev_tx_count:]
             )
             if step_verify_failed or step_submit_failed:
                 all_verified = False

@@ -1357,6 +1357,11 @@ class DryRunTransport(Transport):
             return list(next(iter(real.values())))
         return []
 
+    async def get_reserves(self) -> tuple[int, int] | None:
+        # Mainnet and testnet values since the 2024 reserve vote: 1 XRP base,
+        # 0.2 XRP per owned object.
+        return 1_000_000, 200_000
+
     async def get_account_info(self, address: str) -> AccountSnapshot:
         if address in self._balances:
             balance_drops = str(self._balances[address])

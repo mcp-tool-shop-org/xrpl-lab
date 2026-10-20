@@ -666,10 +666,11 @@ class TestShippedAmmLiquidityModule:
         out, _ = await run_shipped_module(
             "amm_liquidity_101.md", tmp_path, monkeypatch
         )
-        assert "LP token balance: 110" in out, (
+        # 2.6.0 resized #30 to fit one faucet grant: create 25, deposit 5.
+        assert "LP token balance: 30" in out, (
             "deposit did not credit LP to the learner's address"
         )
-        assert "LP tokens decreased: 110.000000 -> 0" in out, (
+        assert "LP tokens decreased: 30.000000 -> 0" in out, (
             "withdrawal did not debit the learner's LP"
         )
 

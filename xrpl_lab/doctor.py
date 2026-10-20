@@ -627,7 +627,7 @@ RESULT_CODE_INFO: dict[str, dict[str, str]] = {
         "meaning": "Transaction applied and finalized",
         "action": "None needed",
     },
-    # Claimed (fee charged on mainnet)
+    # Claimed (on the ledger; the fee was charged)
     "tecUNFUNDED_PAYMENT": {
         "category": "claimed",
         "meaning": "Sender doesn't have enough XRP",
@@ -843,7 +843,7 @@ def explain_result_code(code: str) -> dict[str, str]:
     # Infer category from prefix
     prefix_map = {
         "tes": ("success", "Transaction succeeded"),
-        "tec": ("claimed", "Transaction applied but failed (fee charged on mainnet)"),
+        "tec": ("claimed", "Applied but failed: it's on the ledger, and its fee was charged"),
         "tef": ("failed", "Transaction not applied to the ledger"),
         "tel": ("local", "Rejected locally by the server"),
         "tem": ("malformed", "Transaction format is invalid"),

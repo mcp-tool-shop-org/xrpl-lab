@@ -3182,6 +3182,21 @@ class XRPLTestnetTransport(Transport):
             return str(amt.get("value", "0"))
         return str(amt)
 
+    async def get_reserves(self) -> tuple[int, int] | None:
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                resp = await asyncio.wait_for(
+                    client.request(ServerState()), timeout=RPC_TIMEOUT
+                )
+            ledger = resp.result.get("state", {}).get("validated_ledger", {})
+            base, inc = ledger.get("reserve_base"), ledger.get("reserve_inc")
+            if base is None or inc is None:
+                return None
+            return int(base), int(inc)
+        except Exception:
+            logger.warning("get_reserves (server_state) failed", exc_info=True)
+            return None
+
     async def _amm_create_fee_drops(self) -> str | None:
         """The AMMCreate special fee in drops: the incremental owner reserve.
 

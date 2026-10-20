@@ -1757,6 +1757,52 @@ async def handle_run_audit(
 # ---------------------------------------------------------------------------
 
 
+async def _amm_create_budget_problem(
+    transport: Transport, address: str, xrp_leg: str,
+) -> str | None:
+    """Why a new pool's XRP leg won't fit this wallet, or ``None`` if it will.
+
+    AMMCreate burns one owner-reserve increment as its fee, and leaves the
+    creator owning one more object (the LP-token trust line), so the wallet
+    must keep ``reserve_base + (owners + 1) * reserve_inc`` after paying the
+    leg and the fee. ``None`` too when the ledger's reserves can't be read.
+    """
+    reserves = await transport.get_reserves()
+    if reserves is None or not address:
+        return None
+    reserve_base, reserve_inc = reserves
+    account = await transport.get_account_info(address)
+    try:
+        balance = int(account.balance_drops or 0)
+        leg = int(Decimal(xrp_leg) * 1_000_000)
+    except (ValueError, TypeError, InvalidOperation):
+        return None
+    needed = leg + reserve_inc + reserve_base + (account.owner_count + 1) * reserve_inc
+    if balance >= needed:
+        return None
+    return (
+        f"Creating this pool needs {Decimal(needed) / 1_000_000} XRP (a "
+        f"{xrp_leg} XRP leg, the {Decimal(reserve_inc) / 1_000_000} XRP create "
+        f"fee and your reserves), and the wallet has {Decimal(balance) / 1_000_000} XRP."
+    )
+
+
+def _skip_without_pool(context: dict, action: str, console: Console) -> bool:
+    """Skip an AMM step that needs a pool when the create step made none.
+
+    Live-fire run 2: after a failed AMMCreate, the deposit and the withdraw
+    were still broadcast and could never succeed. They're now skipped and
+    count as failed steps.
+    """
+    if not context.get("amm_unavailable"):
+        return False
+    console.print("  [yellow]Skipped: no AMM pool (the create step didn't make one).[/]")
+    _record_verification(
+        context, action, passed=False, failures=["skipped: no AMM pool"],
+    )
+    return True
+
+
 async def handle_ensure_amm_pair(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -1775,6 +1821,32 @@ async def handle_ensure_amm_pair(
         f"  Checking for AMM pool: "
         f"[cyan]{a_currency}[/] / [cyan]{b_currency}[/]"
     )
+    context["a_currency"] = a_currency
+    context["a_issuer"] = a_issuer
+    context["b_currency"] = b_currency
+    context["b_issuer"] = b_issuer
+
+    # Live-fire run 2 (2.6.0): AMMCreate validated tecUNFUNDED_AMM because the
+    # pool's XRP leg didn't fit what the faucet grants. Check the budget on the
+    # ledger first, and say what's short, when a new pool would be created.
+    xrp_leg = a_value if a_currency == "XRP" else (b_value if b_currency == "XRP" else "")
+    if xrp_leg and await transport.get_amm_info(
+        a_currency, a_issuer, b_currency, b_issuer,
+    ) is None:
+        problem = await _amm_create_budget_problem(
+            transport, state.wallet_address or "", xrp_leg,
+        )
+        if problem:
+            console.print(f"  [red]{problem}[/]")
+            console.print(
+                "  Fund the wallet further, or lower the pool amounts in the "
+                "module step, then re-run."
+            )
+            _record_verification(
+                context, "ensure_amm_pair", passed=False, failures=[problem],
+            )
+            context["amm_unavailable"] = True
+            return context
 
     amm_info, create_result = await ensure_amm_pair(
         transport, context["wallet_seed"].get(),
@@ -1783,6 +1855,7 @@ async def handle_ensure_amm_pair(
         wallet_address=state.wallet_address or "",
     )
 
+    context.pop("amm_unavailable", None)
     if create_result is None:
         console.print("  [green]AMM pool already exists[/]")
     elif create_result.success:
@@ -1814,6 +1887,27 @@ async def handle_ensure_amm_pair(
         console.print(
             f"  [red]AMM creation failed: {create_result.error}[/]"
         )
+        # Live-fire run 2: a VALIDATED failure (tecUNFUNDED_AMM) is on the
+        # ledger and charged a fee; its hash is the one worth keeping.
+        if create_result.txid:
+            console.print(f"  TXID: [cyan]{create_result.txid}[/]")
+            if create_result.explorer_url:
+                console.print(
+                    f"  Explorer: [blue]{create_result.explorer_url}[/]"
+                )
+        state.record_tx(
+            txid=create_result.txid or "failed",
+            module_id=context.get("module_id", ""),
+            network=state.network,
+            success=False,
+            explorer_url=create_result.explorer_url,
+        )
+        context.setdefault("failed_txids", []).append(
+            {"result_code": create_result.result_code, "error": create_result.error}
+        )
+        context["amm_unavailable"] = True
+        save_state(state)
+        return context
 
     console.print(f"  Pool A: {amm_info.pool_a}")
     console.print(f"  Pool B: {amm_info.pool_b}")
@@ -1875,6 +1969,9 @@ async def handle_amm_deposit(
     )
     a_issuer = context.get("a_issuer", "")
     b_issuer = context.get("b_issuer", "")
+
+    if _skip_without_pool(context, "amm_deposit", console):
+        return context
 
     console.print(
         f"  Depositing: [cyan]{a_value} {a_currency}[/] + "
@@ -1971,6 +2068,9 @@ async def handle_amm_withdraw(
     b_issuer = context.get("b_issuer", "")
     # lp_value is intentionally optional: empty means "withdraw all LP".
     lp_value = args.get("lp_value", "")
+
+    if _skip_without_pool(context, "amm_withdraw", console):
+        return context
 
     console.print(
         f"  Withdrawing from AMM: "
@@ -2585,6 +2685,12 @@ async def handle_place_safe_sides(
             placed += 1
         else:
             console.print(f"  [red]Bid failed: {result.error}[/]")
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
         save_state(state)
     else:
         console.print("  [dim]Bid skipped (XRP too low)[/]")
@@ -2640,6 +2746,12 @@ async def handle_place_safe_sides(
             placed += 1
         else:
             console.print(f"  [red]Ask failed: {result.error}[/]")
+            state.record_tx(
+                txid=result.txid or "failed",
+                module_id=context.get("module_id", ""),
+                network=state.network,
+                success=False,
+            )
         save_state(state)
     else:
         console.print("  [dim]Ask skipped (token too low)[/]")

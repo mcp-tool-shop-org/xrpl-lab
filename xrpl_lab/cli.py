@@ -252,7 +252,8 @@ def start(dry_run: bool):
         from .runner import run_module
 
         transport = _get_transport(dry_run)
-        asyncio.run(run_module(next_module, transport, dry_run=dry_run))
+        ok = asyncio.run(run_module(next_module, transport, dry_run=dry_run))
+        _exit_if_unverified(next_module.id, ok, console)
 
 
 @main.command("list")
@@ -373,7 +374,32 @@ def run(module_id: str, dry_run: bool, force: bool):
 
     from .runner import run_module
 
-    asyncio.run(run_module(modules[module_id], transport, dry_run=dry_run, force=force))
+    ok = asyncio.run(
+        run_module(modules[module_id], transport, dry_run=dry_run, force=force)
+    )
+    _exit_if_unverified(module_id, ok, console)
+
+
+def _exit_if_unverified(module_id: str, ok: bool, console: Console) -> None:
+    """Exit 3 (the PARTIAL_ code) when a run completed with failed steps.
+
+    The re-swarm-3 ruling keeps such a module completed and records it
+    ``verified: false``; it says nothing about the exit code, which was 0.
+    Live-fire run 2 (2.6.0) exited 0 on a run that created no AMM, so a
+    script couldn't tell. A run that stopped early (``ok`` False) keeps its
+    existing exit.
+    """
+    if not ok:
+        return
+    record = next(
+        (m for m in load_state().completed_modules if m.module_id == module_id),
+        None,
+    )
+    if record is not None and not record.verified:
+        console.print(
+            f"[yellow]'{module_id}' completed with failed steps; exiting with code 3.[/]"
+        )
+        sys.exit(3)
 
 
 @main.command()

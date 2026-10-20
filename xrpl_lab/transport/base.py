@@ -578,6 +578,14 @@ class Transport(ABC):
     async def get_account_info(self, address: str) -> AccountSnapshot:
         """Get account info including balance, owner count, and sequence."""
 
+    async def get_reserves(self) -> tuple[int, int] | None:
+        """The validated ledger's ``(reserve_base, reserve_inc)`` in drops.
+
+        Concrete, not abstract: a transport that can't read them returns
+        ``None``, and checks that need them are skipped.
+        """
+        return None
+
     @abstractmethod
     async def fetch_tx(self, txid: str) -> TxInfo:
         """Fetch full transaction details by txid."""

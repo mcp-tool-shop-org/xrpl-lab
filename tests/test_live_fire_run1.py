@@ -211,9 +211,13 @@ def test_client_waits_past_the_ledger_window() -> None:
 
 
 async def _failed_submit_handler(step, state, transport, wallet_seed, ctx, console):
+    # Reports its failure the way real handlers do: a failed TxRecord (run 2
+    # moved the runner's signal off last_submit, which only 2 handlers set).
     result = SubmitResult(success=False, txid="", result_code="terNO_RIPPLE")
     ctx["last_submit"] = result
     ctx.setdefault("failed_txids", []).append("terNO_RIPPLE")
+    state.record_tx(txid="failed", module_id=ctx.get("module_id", ""),
+                    network=state.network, success=False)
     return ctx
 
 

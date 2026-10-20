@@ -21,10 +21,11 @@ the long-planned AMM testnet upgrade, and a Host and Origin gate on the API.
   the Host header at the first `:` (so `[::1]:8321` becomes `[`) and answers
   in plain text, not the API's `{code, message, hint}` envelope.
 
-### Fixed (found by the live-fire run)
+### Fixed (found by the live-fire runs)
 
-Module #30's first live run on XRPL Testnet created no AMM. Its receipt is in
-`docs/receipts/2.6.0-amm-live-fire/`. The fixes:
+Module #30's first two live runs on XRPL Testnet created no AMM. Their
+receipts are in `docs/receipts/2.6.0-amm-live-fire/`. Each run reached one
+layer further than the last. Run 1's fixes:
 
 - **Funding is decided on the validated ledger.** The faucet's reply carried
   no usable balance, so three real fundings read as failures, and the issuer
@@ -46,6 +47,29 @@ Module #30's first live run on XRPL Testnet created no AMM. Its receipt is in
   `verified: false`, the completion panel reads "Completed with failures" and
   lists them, and the report counts failed steps. Each report step lists only
   its own transactions, numbered as the module numbers them.
+
+Run 2 held all of those on the ledger, and found:
+
+- **Module #30 didn't fit one faucet grant.** A fresh wallet gets 100 XRP
+  once, and the module pooled 100 XRP plus a 10 XRP deposit, so AMMCreate
+  validated `tecUNFUNDED_AMM`. Run 1's triple funding had hidden it. The pool
+  is now 25 XRP / 25 LAB with a 5 / 5 deposit. Before creating a pool, the
+  step reads the ledger's reserves and the wallet's balance, and stops with
+  "needs N XRP, has M" if the XRP leg won't fit.
+- **A failed step is now one that records a failed transaction.** Run 1's
+  rule keyed on `last_submit`, which only 2 of 66 submitting handlers set, so
+  the AMM failures still counted as passed. It also misfired the other way:
+  the failure-literacy lesson's deliberate failed payment read as a failed
+  step. A test now checks every submitting handler in the registry records
+  its failures, and `place_safe_sides` and `ensure_amm_pair` now do.
+- **A failed AMMCreate keeps its hash.** It's printed and indexed, and the
+  deposit and withdraw steps that need the pool are skipped, as failed steps,
+  instead of being broadcast.
+- **`xrpl-lab run` exits 3** (the existing `PARTIAL_` code) when a module
+  completes with failed steps; the module record is unchanged.
+- `verify_withdrawal` no longer prints "All LP tokens returned" beside "no
+  withdrawal detected" when there were none to return, and a `tec` result no
+  longer says its fee is charged "on mainnet".
 
 ### Feature
 

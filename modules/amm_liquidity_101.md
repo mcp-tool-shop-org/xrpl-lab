@@ -94,14 +94,15 @@ baseline helps you measure the reserve impact of LP positions.
 ## Step 9: Ensure AMM pool exists
 
 XRPL allows one AMM per asset pair. If no XRP/LAB pool exists, we
-create one with small initial balances. The creator receives all
-initial LP tokens.
+create one with small initial balances: 25 XRP and 25 LAB. That's
+sized so one faucet grant covers the pool, your deposit, the create
+fee and your reserves. The creator receives all initial LP tokens.
 
 Creating an AMM costs a special fee (higher than normal transactions)
 and the pool is permanent — it belongs to a special AMM account on
 the ledger.
 
-<!-- action: ensure_amm_pair a_currency=XRP a_value=100 b_currency=LAB b_value=100 -->
+<!-- action: ensure_amm_pair a_currency=XRP a_value=25 b_currency=LAB b_value=25 -->
 
 ## Step 10: Query AMM state
 
@@ -119,7 +120,7 @@ Think of LP tokens as a receipt: they prove how much of the pool
 belongs to you. The AMM account issues them, and they behave like
 any other issued token on XRPL (you can see them as trust lines).
 
-<!-- action: amm_deposit a_currency=XRP a_value=10 b_currency=LAB b_value=10 -->
+<!-- action: amm_deposit a_currency=XRP a_value=5 b_currency=LAB b_value=5 -->
 
 ## Step 12: Verify LP tokens received
 

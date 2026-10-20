@@ -232,7 +232,7 @@ async def verify_withdrawal(
     else:
         checks.append(f"LP token balance: {lp_balance}")
 
-    if balance_f == 0:
+    if balance_f == 0 and before_f > 0:
         checks.append("All LP tokens returned — full withdrawal")
 
     return AmmVerifyResult(
