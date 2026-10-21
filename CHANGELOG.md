@@ -50,6 +50,15 @@ live sweep.
   the dashboard's verify view builds none, and its session shows an offline
   lesson as a dry run.
 
+### Known issues
+
+- **deposit_gate_101 leaves deposit authorization on the learner's wallet,**
+  so a later lesson in the same home that pays the learner is refused
+  (`tecNO_PERMISSION`), and the lesson can't be re-run on the same wallet
+  after `reset --module` (its earlier authorization gives `tecDUPLICATE`).
+  Both predate 2.7.1 and are fixed in 2.7.2 (#20 items 15 and 16). Until
+  then, run deposit_gate_101 last, or in its own home.
+
 ## 2.7.0 — 2026-10-21
 
 ### Changed
