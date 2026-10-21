@@ -6,6 +6,53 @@ the funding race (#20 item 1). Each module runs once, standalone, on the release
 No seeds and no wallet files are in this directory. Helper-wallet seeds were held only in memory. Testnet
 addresses and transaction hashes are public on-ledger. Local paths are shown as `<scratch>`.
 
+## Sweep 2: `sweep-284fcf7-20261020T2351Z` on `fix/2.6.1-sweep` (`284fcf7`)
+
+**Result:** 9 of 10 modules exit 0. The 10th, credentials_101, exits 3 on a defect the sweep-1 fixes uncovered (see
+below).
+
+**Code:** `284fcf7` = `feat/2.6.1` @ `15d6907` (including `b6815f7`'s helper-wallet wait) plus the fixes for sweep 1's
+classes A–D. `4becc36` (a `verify_nft_offer` message change) landed after this sweep and is not covered.
+
+**Setup:** the same as sweep 1: one clean worktree, a fresh `XRPL_LAB_HOME` per module, preflight checks, the
+`PIPESTATUS` exit code and 60 s faucet spacing.
+
+**Time:** 2026-10-20 23:51 to 2026-10-21 00:40 UTC.
+
+| Module | Exit | Report "Steps" | Report "Transactions" | vs sweep 1 |
+|---|---|---|---|---|
+| payment_channel_101 | 0 | 13 passed, 0 failed | 3 successful, 0 failed | D fixed: both claims verify (3 and 7 XRP); redeem `3724470D…` lands |
+| token_escrow_101 | 0 | 15 passed, 0 failed | 5 successful, 0 failed | still clean |
+| credentials_101 | **3** | 9 passed, 1 failed | 4 successful, 2 failed | B fixed (steps 6/7 pass on their validated tecs); **new: step 4** |
+| deposit_gate_101 | 0 | 18 passed, 0 failed | 8 successful, 0 failed | A fixed (step 5's tecNO_PERMISSION validates); D fixed (step 14 "Payment landed" with CredentialIDs) |
+| permissioned_domains_101 | 0 | 15 passed, 0 failed | 6 successful, 2 failed (the two expected tecs) | A fixed (step 11 OfferCreate tecNO_PERMISSION `2C5E839A…` validated); B fixed (step 12 `0BF1DCAB…` validated) |
+| custodial_crediting_101 | 0 | 8 passed, 0 failed | 2 successful, 0 failed | A fixed: the tagged deposit lands |
+| clawback_101 | 0 | 12 passed, 0 failed | 4 successful, 1 failed (the expected tec) | B fixed (step 12 tecNO_PERMISSION `3574990D…` validated) |
+| checks_101 | 0 | 13 passed, 0 failed | 4 successful, 0 failed | A' fixed: the outsider's CheckCash tecNO_PERMISSION `BA9AEE92…` **validated**, with the fee charged (balance 99,999,990) |
+| nft_marketplace_101 | 0 | 13 passed, 0 failed | 5 successful, 0 failed | C fixed: buyer accepts `4284962B…` and buy-back `E5F893FA…` land |
+| game_economy_capstone | 0 | 16 passed, 0 failed | 6 successful, 0 failed | C fixed |
+
+Checked across all 10 modules:
+- Every helper funding printed a real balance ("Balance: 100.000000 XRP"); none printed "unknown".
+- There was no `tefPAST_SEQ` and no "never validated".
+- stderr is empty in every module.
+- Every non-`tesSUCCESS` transaction the modules recorded is a validated `tec` that the lesson expects.
+- The `txnNotFound` entries in `ledger_evidence.json` are object IDs printed in stdout (a channel ID, check IDs and
+  a domain ID), not transactions.
+
+### New finding: credentials_101 step 4 attests a funded "unfunded" subject
+
+- **What happened:** step 4 ("Try attesting an UNFUNDED subject", which expects `tecNO_TARGET`) submitted
+  CredentialCreate against the fixed default `rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe` (`handlers.py:4383`). It
+  validated **tesSUCCESS** (`D5243336…`).
+- **Why:** that address is a well-known example address, and it is funded on testnet: 33,108 XRP, Sequence
+  17027004, queried 2026-10-21.
+- **Now judged honestly:** the step prints "Not the lesson's outcome: expected tecNO_TARGET, the transaction
+  succeeded" and fails, so the module exits 3.
+- **Sweep 1 had the same tesSUCCESS** (`8EB5E33B…`), but counted it as a pass, so it was a false pass hidden by
+  class B.
+- **Fix:** attest a freshly generated address that is never funded, instead of a fixed one.
+
 ## Sweep 1: `sweep-2.6.0-20261020T2312Z` on v2.6.0 (`036c187`)
 
 **Setup:**
