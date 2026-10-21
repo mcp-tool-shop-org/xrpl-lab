@@ -1,0 +1,173 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.3",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rULUCfVUiuMiYdDNff3mDKThzysWsGLVGf",
+  "generated_at": "2026-10-21T20:04:54.975624+00:00",
+  "completed_modules": [
+    {
+      "module_id": "dex_inventory_guardrails",
+      "completed_at": "2026-10-21T20:04:53.938142+00:00",
+      "txids": [
+        "1D429A102D753A639128F2E14B1229DA14FBBEF58C4B634930A8E19C4961C19A",
+        "20A5F65CE0B5B748B2572AE49B2DFE598144ADD532C1FE7A1E32DD6E8C57AAED",
+        "FCFFB00F413A90FC01037E10511CFE37C90A453DDAC498E0F97235F42B184492",
+        "D36BB825016677137FC8215A811294D0FD138A297C4D92458203C4D2E41E9B0A",
+        "008D8FEC852BEEA5BCB021E46761837718CF1A4BDFEBAC0CC7619D5C91B81459",
+        "50FB957B10C84FBBDC0E90624E874724BF41584F7ABD02E230386F421B6DB220"
+      ],
+      "verified": true,
+      "accounts": [
+        "rMnggZMt9u4wp1QoCpMh4jnCCuAdCoeDjo",
+        "rULUCfVUiuMiYdDNff3mDKThzysWsGLVGf"
+      ],
+      "kb_source": "",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/1D429A102D753A639128F2E14B1229DA14FBBEF58C4B634930A8E19C4961C19A",
+        "https://testnet.xrpl.org/transactions/20A5F65CE0B5B748B2572AE49B2DFE598144ADD532C1FE7A1E32DD6E8C57AAED",
+        "https://testnet.xrpl.org/transactions/FCFFB00F413A90FC01037E10511CFE37C90A453DDAC498E0F97235F42B184492",
+        "https://testnet.xrpl.org/transactions/D36BB825016677137FC8215A811294D0FD138A297C4D92458203C4D2E41E9B0A",
+        "https://testnet.xrpl.org/transactions/008D8FEC852BEEA5BCB021E46761837718CF1A4BDFEBAC0CC7619D5C91B81459",
+        "https://testnet.xrpl.org/transactions/50FB957B10C84FBBDC0E90624E874724BF41584F7ABD02E230386F421B6DB220"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "1D429A102D753A639128F2E14B1229DA14FBBEF58C4B634930A8E19C4961C19A",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:04:07.109401+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/1D429A102D753A639128F2E14B1229DA14FBBEF58C4B634930A8E19C4961C19A"
+    },
+    {
+      "txid": "20A5F65CE0B5B748B2572AE49B2DFE598144ADD532C1FE7A1E32DD6E8C57AAED",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:04:15.136055+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/20A5F65CE0B5B748B2572AE49B2DFE598144ADD532C1FE7A1E32DD6E8C57AAED"
+    },
+    {
+      "txid": "FCFFB00F413A90FC01037E10511CFE37C90A453DDAC498E0F97235F42B184492",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:04:26.288905+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/FCFFB00F413A90FC01037E10511CFE37C90A453DDAC498E0F97235F42B184492"
+    },
+    {
+      "txid": "D36BB825016677137FC8215A811294D0FD138A297C4D92458203C4D2E41E9B0A",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:04:36.887233+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/D36BB825016677137FC8215A811294D0FD138A297C4D92458203C4D2E41E9B0A"
+    },
+    {
+      "txid": "008D8FEC852BEEA5BCB021E46761837718CF1A4BDFEBAC0CC7619D5C91B81459",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:04:52.059023+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/008D8FEC852BEEA5BCB021E46761837718CF1A4BDFEBAC0CC7619D5C91B81459"
+    },
+    {
+      "txid": "50FB957B10C84FBBDC0E90624E874724BF41584F7ABD02E230386F421B6DB220",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:04:52.059044+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/50FB957B10C84FBBDC0E90624E874724BF41584F7ABD02E230386F421B6DB220"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "1D429A102D753A63...",
+      "txid_full": "1D429A102D753A639128F2E14B1229DA14FBBEF58C4B634930A8E19C4961C19A",
+      "module": "dex_inventory_guardrails",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:04"
+    },
+    {
+      "txid": "20A5F65CE0B5B748...",
+      "txid_full": "20A5F65CE0B5B748B2572AE49B2DFE598144ADD532C1FE7A1E32DD6E8C57AAED",
+      "module": "dex_inventory_guardrails",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:04"
+    },
+    {
+      "txid": "FCFFB00F413A90FC...",
+      "txid_full": "FCFFB00F413A90FC01037E10511CFE37C90A453DDAC498E0F97235F42B184492",
+      "module": "dex_inventory_guardrails",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:04"
+    },
+    {
+      "txid": "D36BB82501667713...",
+      "txid_full": "D36BB825016677137FC8215A811294D0FD138A297C4D92458203C4D2E41E9B0A",
+      "module": "dex_inventory_guardrails",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:04"
+    },
+    {
+      "txid": "008D8FEC852BEEA5...",
+      "txid_full": "008D8FEC852BEEA5BCB021E46761837718CF1A4BDFEBAC0CC7619D5C91B81459",
+      "module": "dex_inventory_guardrails",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:04"
+    },
+    {
+      "txid": "50FB957B10C84FBB...",
+      "txid_full": "50FB957B10C84FBBDC0E90624E874724BF41584F7ABD02E230386F421B6DB220",
+      "module": "dex_inventory_guardrails",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:04"
+    }
+  ],
+  "total_transactions": 6,
+  "successful_transactions": 6,
+  "failed_transactions": 0,
+  "expected_failures": 0,
+  "module_accounts": {
+    "dex_inventory_guardrails": [
+      "rMnggZMt9u4wp1QoCpMh4jnCCuAdCoeDjo",
+      "rULUCfVUiuMiYdDNff3mDKThzysWsGLVGf"
+    ]
+  },
+  "sha256": "0f6b1d3467c454a75de8041570948760b615e0f51fc3bddd2b5aaa435fd4de13"
+}

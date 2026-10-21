@@ -1,0 +1,4 @@
+started_utc: 2026-10-21T19:41:59Z
+xrpl_lab_exit_code: 3   (PIPESTATUS[1])
+wall_seconds: 5
+module_interrupted_lines: 0

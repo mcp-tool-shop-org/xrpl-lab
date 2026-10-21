@@ -1,0 +1,177 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Payment Channels 101: Sign Many, Settle Once                                                                                                                │
+│ Level: intermediate  |  Time: ~20-25 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+A regular Payment costs a transaction (and a fee, and a ledger close) every single time. That's fine for buying a sword. It is terrible for tipping a streamer 
+every second, paying per-action in a game, or streaming a reward as a player progresses — hundreds of tiny payments would drown in fees and ledger churn.      
+
+Payment channels solve this. The pattern is "sign many, settle once":                                                                                          
+
+ 1 The sender locks XRP into a channel once (one on-ledger transaction).                                                                                       
+ 2 The sender then signs off-ledger claims — tiny signed messages saying "you may take up to N XRP from this channel." These cost nothing: no transaction, no  
+   fee, no ledger wait. Sign a thousand of them.                                                                                                               
+ 3 The receiver redeems whichever claim they like, on-ledger, whenever they choose (one transaction). Claims are cumulative — redeeming the latest settles     
+   everything.                                                                                                                                                 
+
+The receiver always holds a claim they can cash; the sender's locked XRP guarantees it. That's the trust model: instant, fee-free micropayments backed by      
+on-ledger collateral.                                                                                                                                          
+
+(On XRPL mainnet today, payment channels are XRP-only — perfect for streaming native value. Everything here runs on the testnet.)                              
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You are the sender — the one funding the channel and signing claims.                                                                                           
+
+
+  → ensure_wallet...
+  Wallet loaded: r9vWv5PLZiT3hHsgUUkEr4TVn6KP1bPKqq
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Balance: 49.999640 XRP
+
+Press Enter to continue...Create the receiver                                                                                                                                            
+
+A second wallet is the receiver — the merchant / streamer / player being paid.                                                                                 
+
+
+  → create_channel_receiver...
+  Creating the receiver (merchant) wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Receiver wallet: rKKQGvkJRKReM9hTCaH62Kt45o5StHA74t
+  Funding the receiver from the faucet...
+  Receiver funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Open the channel                                                                                                                                               
+
+Lock 10 XRP into a channel to the receiver. This is the one on-ledger setup. The channel records the sender's signing key so the receiver can later verify your
+claims.                                                                                                                                                        
+
+
+  → open_channel...
+  Opening a 10 XRP channel to the receiver...
+  Channel opened — XRP locked once, ready for many claims!
+  TXID: 682C0ACE7D33E3E3665B9B3AC4366EE5E399042794131BE972AF0AC643B5C4C8
+  Channel ID: 7F8AFAB2567F5AC7CF553173498B4C08D6DF9262C801D79FA7779A174D892662
+  Explorer: https://testnet.xrpl.org/transactions/682C0ACE7D33E3E3665B9B3AC4366EE5E399042794131BE972AF0AC643B5C4C8
+
+Press Enter to continue...Verify the channel exists                                                                                                                                      
+
+
+  → verify_channel...
+  ✓ Channel found: 7F8AFAB2567F5AC7...
+  ✓ Deposited: 10 XRP
+  ✓ Claimed so far: 0 XRP
+
+Press Enter to continue...Top the channel up                                                                                                                                             
+
+Channels can be funded again at any time — add 5 more XRP, bringing the deposit to 15.                                                                         
+
+
+  → fund_channel...
+  Adding 5 XRP to the channel...
+  Channel funded!
+  TXID: 4D0278156FE9A1F42A120C6E084F9EBA5B83F914C87A69073DA6334791ACB424
+  Explorer: https://testnet.xrpl.org/transactions/4D0278156FE9A1F42A120C6E084F9EBA5B83F914C87A69073DA6334791ACB424
+
+Press Enter to continue...Verify the new deposit                                                                                                                                         
+
+
+  → verify_channel...
+  ✓ Channel found: 7F8AFAB2567F5AC7...
+  ✓ Deposited: 15 XRP
+  ✓ Claimed so far: 0 XRP
+
+Press Enter to continue...Sign an off-ledger claim for 3 XRP                                                                                                                             
+
+Here's the magic. The sender signs a claim authorizing the receiver to take up to 3 XRP. No transaction. No fee. Instant. In a real app you'd do this hundreds 
+of times a second.                                                                                                                                             
+
+
+  → sign_claim...
+  Signing an OFF-LEDGER claim for 3 XRP (cumulative)...
+  Claim signed — no transaction, no fee. Hand it to the receiver.
+  Signature: A6143E59AD4187B9B3D68EE98B0EB9423D865661...
+
+Press Enter to continue...The receiver verifies the claim                                                                                                                                
+
+The receiver checks the claim's signature against the channel's key — off-ledger, instantly. A valid claim is as good as cash they can redeem whenever they    
+want.                                                                                                                                                          
+
+
+  → verify_claim_signature...
+  ✓ Receiver verified the claim for 3 XRP — valid, off-ledger, instant.
+
+Press Enter to continue...Sign a larger cumulative claim — 7 XRP                                                                                                                         
+
+Claims are cumulative: a new claim for 7 XRP supersedes the 3 XRP one. The receiver only ever needs to keep the latest. This is the "sign many" half — imagine 
+these streaming by.                                                                                                                                            
+
+
+  → sign_claim...
+  Signing an OFF-LEDGER claim for 7 XRP (cumulative)...
+  Claim signed — no transaction, no fee. Hand it to the receiver.
+  Signature: 8B0A4372A4DA1F460CA947F2377B7284B4C40F57...
+
+Press Enter to continue...The receiver verifies the larger claim                                                                                                                         
+
+
+  → verify_claim_signature...
+  ✓ Receiver verified the claim for 7 XRP — valid, off-ledger, instant.
+
+Press Enter to continue...Redeem the claim on-ledger                                                                                                                                     
+
+Now the "settle once" half. The receiver submits the 7 XRP claim on-ledger with one PaymentChannelClaim. The XRP moves from the channel to the receiver. Dozens
+of off-ledger claims, one settling transaction.                                                                                                                
+
+
+  → redeem_claim...
+  Receiver redeeming the 7 XRP claim on-ledger...
+  Claim redeemed — funds settled to the receiver!
+  TXID: 63EA3F459C2152B197D634FD29B6997F95285FFC30A3D44D13B84A211E9DBEC9
+  Explorer: https://testnet.xrpl.org/transactions/63EA3F459C2152B197D634FD29B6997F95285FFC30A3D44D13B84A211E9DBEC9
+
+Press Enter to continue...Verify the settled balance                                                                                                                                     
+
+Read the channel back. Its claimed balance must be exactly 7 XRP — what the receiver redeemed, out of the 15 deposited.                                        
+
+
+  → verify_channel...
+  ✓ Channel found: 7F8AFAB2567F5AC7...
+  ✓ Deposited: 15 XRP
+  ✓ Claimed so far: 7 XRP
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You ran the full micropayment loop:                                                                                                                            
+
+ 1 Locked XRP into a channel once (PaymentChannelCreate) and topped it up (PaymentChannelFund)                                                                 
+ 2 Signed claims off-ledger for free, and the receiver verified them instantly                                                                                 
+ 3 Signed a larger cumulative claim — the "sign many" pattern                                                                                                  
+ 4 Settled the latest claim on-ledger once (PaymentChannelClaim)                                                                                               
+ 5 Verified the exact claimed amount on-ledger                                                                                                                 
+
+Key concepts to remember:                                                                                                                                      
+
+ • Sign many, settle once: off-ledger claims are free and instant; only the final redemption touches the ledger. This is what makes per-action / streaming     
+   payments viable.                                                                                                                                            
+ • Claims are cumulative: the receiver keeps only the latest; it supersedes all earlier ones.                                                                  
+ • Collateral makes it trustless: the sender's locked XRP backs every claim, so the receiver can always redeem what they were promised.                        
+ • The watchtower pattern: a receiver (or a service watching for them) redeems before the channel's settle-delay lets the sender reclaim unclaimed funds.      
+   Design your payout cadence around it.                                                                                                                       
+ • XRP-only on mainnet today: payment channels stream native XRP; token channels are not yet live. Use them for native-value tipping, metered play, and        
+   streaming rewards.                                                                                                                                          
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Payment Channels 101: Sign Many, Settle Once                                                                                                                │
+│ Report saved to .xrpl-lab\reports\payment_channel_101.md                                                                                                    │
+│ 3 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

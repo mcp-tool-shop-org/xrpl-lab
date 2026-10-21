@@ -1,0 +1,166 @@
+`proof verify` is deprecated, use `verify-artifact`.
+
+  ✅ PASS — Proof pack integrity verified.
+
+  ⚠ SIMULATED — this pack was generated in --dry-run mode. Its transactions are not on any ledger; a passing integrity check proves the file is intact, NOT 
+that anything happened on the XRPL. Run without --dry-run for a real proof.
+
+  ⚠ UNVERIFIED — one or more completed modules failed their on-ledger verification. The integrity check still passes (the file is intact), but not every lesson
+was proven. Re-run the affected module(s) for a fully-verified pack.
+
+  File:         proof_pack.json
+  Version:      2.7.3
+  Address:      r9vWv5PLZiT3hHsgUUkEr4TVn6KP1bPKqq
+  Network:      mixed
+  Modules:      32
+  Transactions: 131
+  SHA-256:      32ea5ebcc2e8a6a1ada3aca6313ea69a13562b1c0e96708108b2672796897fbb
+
+  On-ledger verification:
+  ✓ PASS EBB7D20CB02C34795D10…  (testnet)
+  ✓ PASS C63913E7FF2524DBF893…  (testnet)
+  ✓ PASS 2184EFF9A12720A272D3…  (testnet)
+  ✓ PASS 2CA99267764A923A4E3A…  (testnet)
+  ✓ PASS 0A20829E1CEFBC2322A4…  (testnet)
+  ✓ PASS D7287578CF6BA0916EA1…  (testnet)
+  ✓ PASS B1CCE882F6F6ACC0DAB9…  (testnet)
+  ✓ PASS E142F03E322A687A2F29…  (testnet)
+  ✓ PASS 20D8B3796BDF2BD416FA…  (testnet)
+  ✓ PASS 8C36AAD99A1EBFD57743…  (testnet)
+  · SKIP 6E0DE1E375D679649D9F…  (Expected rejection that never reaches a ledger (by design).)
+  ✓ PASS C6FC1E963BDE13B0B769…  (testnet)
+  ✓ PASS B06F513C16575404E3A9…  (testnet)
+  ✓ PASS 5C9E0E6F0E6E1A329D89…  (testnet)
+  ✓ PASS 20223C8F8DF023669A67…  (testnet)
+  ✓ PASS 594C91B8FEFBDD469586…  (testnet)
+  ✓ PASS 4DF565050E0CACD3000F…  (testnet)
+  ✓ PASS 4E9734B37615355ECB3A…  (testnet)
+  ✓ PASS 98F4FD8186DB14E677C2…  (testnet)
+  ✓ PASS AFE863BE86A9567D9555…  (testnet)
+  ✓ PASS 99FA5FF2E537342C15DF…  (testnet)
+  ✓ PASS 5931CF3961B7BCF6FE28…  (testnet)
+  ✓ PASS EC1B802A1B7DE92D4BD1…  (testnet)
+  ✓ PASS CB14CF57D0CA42A737EE…  (testnet)
+  ✓ PASS 83C5F5EC5AE417F034E8…  (testnet)
+  ✗ FAIL B5D47862928EFB637CB3…  (testnet)
+         On-ledger result is tecNO_PERMISSION, not tesSUCCESS.
+  ✗ FAIL C76E270F5AFFCA8008B6…  (testnet)
+         On-ledger result is tecNO_AUTH, not tesSUCCESS.
+  ✓ PASS 3B0FCDE1379E0F6A381C…  (testnet)
+  ✓ PASS 3D08B7FF1BD501A43F10…  (testnet)
+  ✓ PASS A68A5EC9ACFAA79BCA77…  (testnet)
+  ✓ PASS 19D220073D8A43895BB4…  (testnet)
+  ✓ PASS 493060AA95239A48B7F7…  (testnet)
+  ✓ PASS 9321E8A4C832F9A6154C…  (testnet)
+  ✗ FAIL 0B47B4D74B1918391D3E…  (testnet)
+         On-ledger result is tecOWNERS, not tesSUCCESS.
+  ✓ PASS B6B5F49A09369DCCC03E…  (testnet)
+  ✓ PASS 806458F12C62339C3A5F…  (testnet)
+  ✗ FAIL 74D6700832A7581B995A…  (testnet)
+         On-ledger result is tecNO_PERMISSION, not tesSUCCESS.
+  ✓ PASS 734DDD916BBDDA8528BF…  (testnet)
+  ✓ PASS D24A4D825F6700A12265…  (testnet)
+  ✓ PASS 3CED17CF403797C5127B…  (testnet)
+  ✓ PASS 3CBE8758FF9AA4F0662E…  (testnet)
+  ✓ PASS 6AC6721503037730F320…  (testnet)
+  ✓ PASS E773EB7D28CF739E0B59…  (testnet)
+  ✓ PASS 5AF44B3D11CED910949E…  (testnet)
+  ✓ PASS DFCA2EDE7F3C5948C8F2…  (testnet)
+  ✓ PASS B93C4106EFFC2426306F…  (testnet)
+  ✓ PASS FB7ABD37124FBF6AAD31…  (testnet)
+  ✓ PASS 716D2F0FDA3EFA725820…  (testnet)
+  ✗ FAIL D2A5055AFEA30AA26DCD…  (testnet)
+         On-ledger result is tecPATH_PARTIAL, not tesSUCCESS.
+  ✓ PASS 72CAC1E8155EF2AAA784…  (testnet)
+  ✓ PASS 57749116630FF866E871…  (testnet)
+  ✓ PASS 8D39A0F8CFB67D0ADFB3…  (testnet)
+  ✓ PASS 682C0ACE7D33E3E3665B…  (testnet)
+  ✓ PASS 4D0278156FE9A1F42A12…  (testnet)
+  ✓ PASS 63EA3F459C2152B197D6…  (testnet)
+  ✓ PASS 1D06578254A7DDD01F6E…  (testnet)
+  ✓ PASS 168E0CA6F976E4A4C8AC…  (testnet)
+  ✓ PASS 44B89718D5C2788D60DF…  (testnet)
+  ✓ PASS 755C9B6A641CFE3844DF…  (testnet)
+  ✓ PASS BC162CE29FC4EA928821…  (testnet)
+  ✓ PASS 0A3B42BA19AD87975072…  (testnet)
+  ✓ PASS B1C0B5E054A7AAB84FDD…  (testnet)
+  ✓ PASS 4AB449833DF451015B3F…  (testnet)
+  ✓ PASS 6319D9EAB4193F118E40…  (testnet)
+  ✓ PASS 47EDFE0C682A2674791C…  (testnet)
+  ✓ PASS 3759C78E1AB420B8ADF0…  (testnet)
+  ✓ PASS 9548CFA18B51C733A312…  (testnet)
+  ✓ PASS 8A7668CBEF04FBBDF000…  (testnet)
+  ✓ PASS E220F4CCF3642CDFA0E5…  (testnet)
+  ✓ PASS 3C9C762CE819B39DBCFF…  (testnet)
+  ✓ PASS 6911734D2FF827506388…  (testnet)
+  ✓ PASS 3DEE4607A55205B26803…  (testnet)
+  ✓ PASS DE1CDFFA42105209BA87…  (testnet)
+  ✓ PASS 3465B2EFD34FF7649419…  (testnet)
+  ✓ PASS E9A664C1A35394601F76…  (testnet)
+  ✓ PASS 5F8CEFE7889316294140…  (testnet)
+  ✓ PASS 816AF3BE7A37089E6FF8…  (testnet)
+  ✗ FAIL 8262A7F29D507A6CAD25…  (testnet)
+         On-ledger result is tecDST_TAG_NEEDED, not tesSUCCESS.
+  · SKIP 2116BE263D1C8139BE63…  (Expected rejection that never reaches a ledger (by design).)
+  ✓ PASS 01BDEF2DA806267F54D6…  (testnet)
+  ✓ PASS 36674F63E1B722A82FAC…  (testnet)
+  ✗ FAIL F55BCACAD4F97DF7A789…  (testnet)
+         On-ledger result is tecDST_TAG_NEEDED, not tesSUCCESS.
+  ✓ PASS FA383466744096529BC3…  (testnet)
+  ✓ PASS 47D0AD578EA947A1AEC9…  (testnet)
+  ✓ PASS 5A414CE19B01C52390C5…  (testnet)
+  ✗ FAIL 4A9DD1C291A04225F645…  (testnet)
+         On-ledger result is tecDST_TAG_NEEDED, not tesSUCCESS.
+  ✗ FAIL 682C96D6563238E39EC8…  (testnet)
+         On-ledger result is tecDST_TAG_NEEDED, not tesSUCCESS.
+  ✓ PASS 21D1D33C4AEDE0848E93…  (testnet)
+  ✓ PASS 07A9915A47CC453A105B…  (testnet)
+  ✓ PASS 62E42BCD110DF70608E2…  (testnet)
+  ✓ PASS 05A362D0DF4214FD782D…  (testnet)
+  ✓ PASS 2EDE234984894CC10E0A…  (testnet)
+  ✓ PASS 21C27D4DB7F2F75CE769…  (testnet)
+  ✓ PASS 86D59705BC30DE42735D…  (testnet)
+  ✗ FAIL B5B02C9FBEA48F876D24…  (testnet)
+         On-ledger result is tecDST_TAG_NEEDED, not tesSUCCESS.
+  ✓ PASS F5F6F7F811C5BF32994B…  (testnet)
+  ✓ PASS 6B42ECF72032F6B07F16…  (testnet)
+  ✓ PASS 066F277562F406F0EC13…  (testnet)
+  ✓ PASS FDC94B4B8C32290E28A5…  (testnet)
+  ✓ PASS C7AA23965A7404DA1A47…  (testnet)
+  ✗ FAIL 26BCB98251EC8CABE471…  (testnet)
+         On-ledger result is tecDST_TAG_NEEDED, not tesSUCCESS.
+  ✓ PASS 5D10BF049EE28401CA57…  (testnet)
+  ✓ PASS 15776F4D99C55EB6B0C6…  (testnet)
+  ✓ PASS 3F08A5ECF44C697F4319…  (testnet)
+  ✓ PASS D2E79F1612BBBDC6D00B…  (testnet)
+  ✓ PASS A2A833CF0E00A6A61464…  (testnet)
+  ✗ FAIL failed  (testnet)
+         Transaction not found on the public ledger — the pack claims this txid but the live XRPL has no such transaction.
+  ✓ PASS 2B33D20656D966A1AEBF…  (testnet)
+  ✓ PASS C91AE93D93F115893DA9…  (testnet)
+  ✓ PASS F36CC540541BDDC85DA9…  (testnet)
+  ✓ PASS 8A79CFD01AB925430CDD…  (testnet)
+  ✗ FAIL 4003EE7447816BB20A07…  (testnet)
+         On-ledger result is tecDST_TAG_NEEDED, not tesSUCCESS.
+  ✓ PASS AA79E057104936DBC799…  (testnet)
+  ✓ PASS 5FCA363F00A52CA480BD…  (testnet)
+  ✓ PASS 6959550864232F617E78…  (testnet)
+  · SKIP 5368EF0073FDDE4BD609…  (No on-ledger txid to verify (network='dry-run').)
+  · SKIP 55FADCFAC7712D21197F…  (No on-ledger txid to verify (network='dry-run').)
+  · SKIP 8A1024E6F81623732B4B…  (No on-ledger txid to verify (network='dry-run').)
+  · SKIP FDC71A314DBC370C0047…  (No on-ledger txid to verify (network='dry-run').)
+  · SKIP 511E65CD512E99986CF6…  (No on-ledger txid to verify (network='dry-run').)
+  · SKIP 6D426EC08DAAB092E90D…  (No on-ledger txid to verify (network='dry-run').)
+  · SKIP 555C0152337D2F9BCBDA…  (No on-ledger txid to verify (network='dry-run').)
+  · SKIP 6D7DD9DCBCF3FFEDD03C…  (No on-ledger txid to verify (network='dry-run').)
+  · SKIP 626AE3C0FB69916B891E…  (No on-ledger txid to verify (network='dry-run').)
+  ✓ PASS AF8BC7CA823D968AEAE1…  (testnet)
+  ✓ PASS 35DC940AF51D2ABFCD96…  (testnet)
+  ✓ PASS 0E18C4809572F718668A…  (testnet)
+  ✓ PASS E83D855A24EABAFEDBB5…  (testnet)
+  ✗ FAIL 1504A81261F0B34C9DB9…  (testnet)
+         On-ledger result is tecDST_TAG_NEEDED, not tesSUCCESS.
+
+  On-ledger verdict: FAIL — 14 failed, 104 verified, 11 skipped.
+  Mixed pack — verified 118 real-network txid(s); skipped 11 dry-run/local txid(s).
+

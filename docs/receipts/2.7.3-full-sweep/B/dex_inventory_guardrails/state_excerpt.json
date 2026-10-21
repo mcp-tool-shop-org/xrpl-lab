@@ -1,0 +1,72 @@
+{
+  "note": "excerpt of state.json (wallet_path omitted)",
+  "wallet_address": "rULUCfVUiuMiYdDNff3mDKThzysWsGLVGf",
+  "module_accounts": {
+    "dex_inventory_guardrails": [
+      "rMnggZMt9u4wp1QoCpMh4jnCCuAdCoeDjo",
+      "rULUCfVUiuMiYdDNff3mDKThzysWsGLVGf"
+    ]
+  },
+  "completed_modules": [
+    [
+      "dex_inventory_guardrails",
+      true
+    ]
+  ],
+  "tx_index": [
+    {
+      "txid": "1D429A102D753A639128F2E14B1229DA14FBBEF58C4B634930A8E19C4961C19A",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/1D429A102D753A639128F2E14B1229DA14FBBEF58C4B634930A8E19C4961C19A",
+      "network": "testnet"
+    },
+    {
+      "txid": "20A5F65CE0B5B748B2572AE49B2DFE598144ADD532C1FE7A1E32DD6E8C57AAED",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/20A5F65CE0B5B748B2572AE49B2DFE598144ADD532C1FE7A1E32DD6E8C57AAED",
+      "network": "testnet"
+    },
+    {
+      "txid": "FCFFB00F413A90FC01037E10511CFE37C90A453DDAC498E0F97235F42B184492",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/FCFFB00F413A90FC01037E10511CFE37C90A453DDAC498E0F97235F42B184492",
+      "network": "testnet"
+    },
+    {
+      "txid": "D36BB825016677137FC8215A811294D0FD138A297C4D92458203C4D2E41E9B0A",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/D36BB825016677137FC8215A811294D0FD138A297C4D92458203C4D2E41E9B0A",
+      "network": "testnet"
+    },
+    {
+      "txid": "008D8FEC852BEEA5BCB021E46761837718CF1A4BDFEBAC0CC7619D5C91B81459",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "",
+      "network": "testnet"
+    },
+    {
+      "txid": "50FB957B10C84FBBDC0E90624E874724BF41584F7ABD02E230386F421B6DB220",
+      "module_id": "dex_inventory_guardrails",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "",
+      "network": "testnet"
+    }
+  ]
+}

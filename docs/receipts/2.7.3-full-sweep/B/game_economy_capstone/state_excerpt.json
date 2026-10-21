@@ -1,0 +1,72 @@
+{
+  "note": "excerpt of state.json (wallet_path omitted)",
+  "wallet_address": "rGeojsNe7fVQvCFSNdn39P5eBFirKjvg64",
+  "module_accounts": {
+    "game_economy_capstone": [
+      "r4BA6ygfQZTjNwr5rJiSy4n1sRcawoJs2A",
+      "rGeojsNe7fVQvCFSNdn39P5eBFirKjvg64"
+    ]
+  },
+  "completed_modules": [
+    [
+      "game_economy_capstone",
+      true
+    ]
+  ],
+  "tx_index": [
+    {
+      "txid": "6BBF5AD44A475B9B09672383C3DC433FFFDFB2086B23EDD92852384BAB990D5B",
+      "module_id": "game_economy_capstone",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/6BBF5AD44A475B9B09672383C3DC433FFFDFB2086B23EDD92852384BAB990D5B",
+      "network": "testnet"
+    },
+    {
+      "txid": "17332536478223134822E08C99D4AC66FC99C69A5A883124E7D1CC23ABC4EA73",
+      "module_id": "game_economy_capstone",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/17332536478223134822E08C99D4AC66FC99C69A5A883124E7D1CC23ABC4EA73",
+      "network": "testnet"
+    },
+    {
+      "txid": "AEA652BB1A54917E9F90ECEAA78592FB781D134FA3308F1ADFA483D9B92869A6",
+      "module_id": "game_economy_capstone",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/AEA652BB1A54917E9F90ECEAA78592FB781D134FA3308F1ADFA483D9B92869A6",
+      "network": "testnet"
+    },
+    {
+      "txid": "CCBC91169EA1A27FF190CE13BA622F9DFA404A05305E9C8F4CF8420552F09A63",
+      "module_id": "game_economy_capstone",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/CCBC91169EA1A27FF190CE13BA622F9DFA404A05305E9C8F4CF8420552F09A63",
+      "network": "testnet"
+    },
+    {
+      "txid": "24729A409E29F7661C3A527604DE6D63C735F4F48838AA9EE5CB6424DA3D6BFA",
+      "module_id": "game_economy_capstone",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/24729A409E29F7661C3A527604DE6D63C735F4F48838AA9EE5CB6424DA3D6BFA",
+      "network": "testnet"
+    },
+    {
+      "txid": "B3A923E1C04DE40FC7C436D5CE69E4AA441BBE4EFB1737E7AFB8E73B0A3AC9B5",
+      "module_id": "game_economy_capstone",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/B3A923E1C04DE40FC7C436D5CE69E4AA441BBE4EFB1737E7AFB8E73B0A3AC9B5",
+      "network": "testnet"
+    }
+  ]
+}

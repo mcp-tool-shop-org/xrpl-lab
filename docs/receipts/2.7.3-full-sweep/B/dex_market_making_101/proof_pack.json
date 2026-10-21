@@ -1,0 +1,173 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.3",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rUTyoQnBqedt8iRhrpjV7am5BXMeA6VLJV",
+  "generated_at": "2026-10-21T20:02:32.047597+00:00",
+  "completed_modules": [
+    {
+      "module_id": "dex_market_making_101",
+      "completed_at": "2026-10-21T20:02:31.031645+00:00",
+      "txids": [
+        "A5878602985ADCFFF0D48AE39B08738A7A75720CE999B9206EF00704E3A8CD4E",
+        "6C849D6A4E7CE4F807DEE1D4587F95FDF4C5777A41344A9E8BF4D884F21171E8",
+        "688F8B2B1F1AE9C488D09DFD8D11516F1AB976C17F3786764DF9323C174E292B",
+        "9B2D46AFA783F15DF0F88BC506DC70E91EAAAF1D3F537916B068974E64BE8C55",
+        "4254BE0F0E6BEA20A27406213F974E7582E57B69FF79D81DFF8B169189CBF360",
+        "85C16E1286D6922850813984D00378FEA93E98A8B41771B26C2397A34D79A1D2"
+      ],
+      "verified": true,
+      "accounts": [
+        "rGRrELLspC7CzhAN1SUS65y44DHHttn4Bx",
+        "rUTyoQnBqedt8iRhrpjV7am5BXMeA6VLJV"
+      ],
+      "kb_source": "",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/A5878602985ADCFFF0D48AE39B08738A7A75720CE999B9206EF00704E3A8CD4E",
+        "https://testnet.xrpl.org/transactions/6C849D6A4E7CE4F807DEE1D4587F95FDF4C5777A41344A9E8BF4D884F21171E8",
+        "https://testnet.xrpl.org/transactions/688F8B2B1F1AE9C488D09DFD8D11516F1AB976C17F3786764DF9323C174E292B",
+        "https://testnet.xrpl.org/transactions/9B2D46AFA783F15DF0F88BC506DC70E91EAAAF1D3F537916B068974E64BE8C55",
+        "https://testnet.xrpl.org/transactions/4254BE0F0E6BEA20A27406213F974E7582E57B69FF79D81DFF8B169189CBF360",
+        "https://testnet.xrpl.org/transactions/85C16E1286D6922850813984D00378FEA93E98A8B41771B26C2397A34D79A1D2"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "A5878602985ADCFFF0D48AE39B08738A7A75720CE999B9206EF00704E3A8CD4E",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:01:44.032887+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/A5878602985ADCFFF0D48AE39B08738A7A75720CE999B9206EF00704E3A8CD4E"
+    },
+    {
+      "txid": "6C849D6A4E7CE4F807DEE1D4587F95FDF4C5777A41344A9E8BF4D884F21171E8",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:01:54.086157+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/6C849D6A4E7CE4F807DEE1D4587F95FDF4C5777A41344A9E8BF4D884F21171E8"
+    },
+    {
+      "txid": "688F8B2B1F1AE9C488D09DFD8D11516F1AB976C17F3786764DF9323C174E292B",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:02:04.060232+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/688F8B2B1F1AE9C488D09DFD8D11516F1AB976C17F3786764DF9323C174E292B"
+    },
+    {
+      "txid": "9B2D46AFA783F15DF0F88BC506DC70E91EAAAF1D3F537916B068974E64BE8C55",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:02:12.535493+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/9B2D46AFA783F15DF0F88BC506DC70E91EAAAF1D3F537916B068974E64BE8C55"
+    },
+    {
+      "txid": "4254BE0F0E6BEA20A27406213F974E7582E57B69FF79D81DFF8B169189CBF360",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:02:29.158059+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/4254BE0F0E6BEA20A27406213F974E7582E57B69FF79D81DFF8B169189CBF360"
+    },
+    {
+      "txid": "85C16E1286D6922850813984D00378FEA93E98A8B41771B26C2397A34D79A1D2",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T20:02:29.158081+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/85C16E1286D6922850813984D00378FEA93E98A8B41771B26C2397A34D79A1D2"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "A5878602985ADCFF...",
+      "txid_full": "A5878602985ADCFFF0D48AE39B08738A7A75720CE999B9206EF00704E3A8CD4E",
+      "module": "dex_market_making_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:01"
+    },
+    {
+      "txid": "6C849D6A4E7CE4F8...",
+      "txid_full": "6C849D6A4E7CE4F807DEE1D4587F95FDF4C5777A41344A9E8BF4D884F21171E8",
+      "module": "dex_market_making_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:01"
+    },
+    {
+      "txid": "688F8B2B1F1AE9C4...",
+      "txid_full": "688F8B2B1F1AE9C488D09DFD8D11516F1AB976C17F3786764DF9323C174E292B",
+      "module": "dex_market_making_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:02"
+    },
+    {
+      "txid": "9B2D46AFA783F15D...",
+      "txid_full": "9B2D46AFA783F15DF0F88BC506DC70E91EAAAF1D3F537916B068974E64BE8C55",
+      "module": "dex_market_making_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:02"
+    },
+    {
+      "txid": "4254BE0F0E6BEA20...",
+      "txid_full": "4254BE0F0E6BEA20A27406213F974E7582E57B69FF79D81DFF8B169189CBF360",
+      "module": "dex_market_making_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:02"
+    },
+    {
+      "txid": "85C16E1286D69228...",
+      "txid_full": "85C16E1286D6922850813984D00378FEA93E98A8B41771B26C2397A34D79A1D2",
+      "module": "dex_market_making_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:02"
+    }
+  ],
+  "total_transactions": 6,
+  "successful_transactions": 6,
+  "failed_transactions": 0,
+  "expected_failures": 0,
+  "module_accounts": {
+    "dex_market_making_101": [
+      "rGRrELLspC7CzhAN1SUS65y44DHHttn4Bx",
+      "rUTyoQnBqedt8iRhrpjV7am5BXMeA6VLJV"
+    ]
+  },
+  "sha256": "4007872e3bc256d7d0b2ec89af7ad9a199b73edece8d3611fcd479511d86b79c"
+}

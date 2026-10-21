@@ -1,0 +1,45 @@
+{
+  "note": "excerpt of state.json (wallet_path omitted)",
+  "wallet_address": "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E",
+  "module_accounts": {
+    "mpt_distribution_101": [
+      "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E",
+      "rpLsoYPF8NnmJK9GM75eiLhZzcngv1F743"
+    ]
+  },
+  "completed_modules": [
+    [
+      "mpt_distribution_101",
+      false
+    ]
+  ],
+  "tx_index": [
+    {
+      "txid": "98930C4DF24612A07FA4F9667A170546961240E07C77C281F01F7786CCCEE4F8",
+      "module_id": "mpt_distribution_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/98930C4DF24612A07FA4F9667A170546961240E07C77C281F01F7786CCCEE4F8",
+      "network": "testnet"
+    },
+    {
+      "txid": "C6EED5760B69E18F789BDABCD5FE6EC1A015871226558BF543E2C61DDE314F28",
+      "module_id": "mpt_distribution_101",
+      "success": false,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/C6EED5760B69E18F789BDABCD5FE6EC1A015871226558BF543E2C61DDE314F28",
+      "network": "testnet"
+    },
+    {
+      "txid": "6CFC4050D9FFBAD238750056564E1440E25C94D87DEBDE2A30D22F09086287D6",
+      "module_id": "mpt_distribution_101",
+      "success": false,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/6CFC4050D9FFBAD238750056564E1440E25C94D87DEBDE2A30D22F09086287D6",
+      "network": "testnet"
+    }
+  ]
+}
