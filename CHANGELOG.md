@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.7.1 — 2026-10-21
+
+The last two 2.6.x follow-ups from issue #20 (items 12 and 13), from the 2.6.2
+live sweep.
+
+### Fixed
+
+- **A record says whether its transaction is on a ledger.** Transaction
+  records carry `validated`: true for a success or a validated `tec`, false
+  for one that never reached a ledger (a `tem`, a `tef`, a timeout), unknown
+  for older records. The proof pack carries it per transaction and receipt
+  row, and gives no explorer link for a transaction that never validated or
+  for the `failed` placeholder: deposit_gate's `tem` linked to a page for a
+  transaction on no ledger, and multisig's `tef` linked to
+  `/transactions/failed`.
+- **A multisigned transaction keeps its hash.** The fully signed
+  transaction was sent to be signed again with no wallet, so its hash was
+  lost, and a `tefBAD_QUORUM` was recorded as `failed`.
+- **An offline lesson stays offline.** A lesson marked `mode: dry-run` now
+  runs in the dry-run sandbox whatever it's started with, with a note.
+  `xrpl-lab run dex_vs_amm_risk_literacy` without `--dry-run` went to
+  testnet.
+
 ## 2.7.0 — 2026-10-21
 
 ### Changed
