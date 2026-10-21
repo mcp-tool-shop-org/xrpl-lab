@@ -249,8 +249,16 @@ async def run_module(
         "run_id": time.strftime('%Y%m%dT%H%M%S', time.gmtime()),
     }
 
-    # Load wallet seed if available
-    wallet = load_wallet()
+    # Load wallet seed if available. A seed that doesn't sign as its
+    # recorded address stops the run before anything is signed (2.7.0).
+    from .errors import LabException
+
+    try:
+        wallet = load_wallet()
+    except LabException as exc:
+        console.print(f"[red]{exc.error.code}:[/] {exc.error.message}")
+        console.print(f"  [yellow]Hint:[/] {exc.error.hint}")
+        return False
     if wallet:
         context["wallet_seed"] = _SecretValue(wallet.seed)
 

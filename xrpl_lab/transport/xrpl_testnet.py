@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 
-import xrpl.models.base_model as _xrpl_base_model
 from xrpl.asyncio.account import get_next_valid_seq_number
 from xrpl.asyncio.clients import AsyncJsonRpcClient
 from xrpl.asyncio.ledger import get_latest_validated_ledger_sequence
@@ -24,7 +23,7 @@ from xrpl.asyncio.transaction import (
     sign as sign_transaction,  # aliased: keypairs' raw `sign` is imported below
 )
 from xrpl.core.binarycodec import encode_for_signing_claim
-from xrpl.core.keypairs import derive_keypair, is_valid_message, sign
+from xrpl.core.keypairs import is_valid_message, sign
 from xrpl.models import (
     AccountChannels,
     AccountInfo,
@@ -103,6 +102,7 @@ from xrpl.utils import (
 )
 from xrpl.wallet import Wallet
 
+from ..actions.wallet import wallet_from_seed
 from .base import (
     AccountSnapshot,
     AmmInfo,
@@ -401,13 +401,6 @@ def _code_from_exception_message(message: str) -> str:
     m = _RESULT_CODE_RE.search(message or "")
     return m.group(0) if m else ""
 
-
-# xrpl-py 4.5 serialises ``credential_ids`` as "CredentialIds", but the binary
-# codec's field is "CredentialIDs", so any transaction carrying credentials
-# failed to sign with a KeyError (helper-wallet sweep 1 on 2.6.0:
-# deposit_gate's KYC payment). xrpl-py 5.2 knows the abbreviation; teach it to
-# 4.x. A no-op where it's already present.
-_xrpl_base_model.ABBREVIATIONS.setdefault("ids", "IDs")
 
 
 def _local_failure(error: str) -> SubmitResult:
@@ -734,11 +727,35 @@ class XRPLTestnetTransport(Transport):
 
     def __init__(self) -> None:
         self._rpc_url = get_rpc_url()
+        # Seed -> the address it's recorded under, from bind_wallet (2.7.0).
+        self._bound_addresses: dict[str, str] = {}
         # F-4cf20cef: per-URL cache of the local chain-identity probe. Only
         # DEFINITIVE verdicts are cached (verified test chain -> None, or a
         # verified-mainnet refusal string); an indeterminate probe (server
         # down) is retried on the next write.
         self._local_chain_verdicts: dict[str, str | None] = {}
+
+    def bind_wallet(self, wallet_seed: str, address: str) -> None:
+        """Record the address a seed is known by, so signing can check it.
+
+        The runner binds the learner's seed before every action, and the
+        handlers bind each helper wallet they create (2.7.0).
+        """
+        if wallet_seed and address:
+            self._bound_addresses[wallet_seed] = address
+
+    def _wallet(self, wallet_seed: str, wallet_address: str = "") -> Wallet:
+        """The wallet a seed signs as, checked against its known address.
+
+        The address is the one ``bind_wallet`` recorded, else the caller's
+        ``wallet_address`` (the dry run's keying hint) for a seed nothing
+        bound. Bound first, so a hint can't block a correctly bound signer. A
+        mismatch raises STATE_WALLET_KEY_MISMATCH, which the signing methods
+        report as a local failure: nothing is signed with the wrong key.
+        """
+        expected = self._bound_addresses.get(wallet_seed, "") or wallet_address
+        return wallet_from_seed(wallet_seed, expected or None)
+
 
     @property
     def network_name(self) -> str:
@@ -1053,7 +1070,7 @@ class XRPLTestnetTransport(Transport):
         # full mechanism (why fixing just the Sequence, not the whole signed
         # blob, is sufficient and safe).
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             # destination_tag / source_tag: optional 32-bit routing tags
             # (custodial crediting). xrpl-py's model rejects an out-of-range
             # tag at construction, surfaced below as local_error — the dry-run
@@ -1101,7 +1118,7 @@ class XRPLTestnetTransport(Transport):
         # duplicate-submit defect. Submitting now delegates to _submit_tx,
         # which also pins the Sequence once (_pin_sequence) before retrying.
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             trust_set = TrustSet(
                 account=wallet.address,
                 limit_amount=IssuedCurrencyAmount(
@@ -1139,7 +1156,7 @@ class XRPLTestnetTransport(Transport):
         # _submit_tx, which also pins the Sequence once (_pin_sequence)
         # before retrying.
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             payment = Payment(
                 account=wallet.address,
                 destination=destination,
@@ -1186,7 +1203,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(issuer_seed)
+            wallet = self._wallet(issuer_seed)
             tx = Payment(
                 account=wallet.address,
                 destination=destination,
@@ -1253,7 +1270,7 @@ class XRPLTestnetTransport(Transport):
         # nft_id extraction moves into an ``extract`` callback so the
         # success-path shape stays identical to before.
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             # tfTransferable=0x8, tfMutable=0x10 (XLS-46). A royalty
             # (TransferFee) only takes effect on a transferable NFT.
             flags = 0
@@ -1322,7 +1339,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = NFTokenBurn(
                 account=wallet.address,
                 nftoken_id=nftoken_id,
@@ -1364,7 +1381,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             amount_obj = self._amount_obj(currency, amount, issuer)
             # tfSellNFToken=0x1 marks a sell offer; a buy offer has no flag and
             # MUST name the current ``owner`` of the NFT.
@@ -1407,7 +1424,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = NFTokenAcceptOffer(
                 account=wallet.address,
                 nftoken_sell_offer=sell_offer or None,
@@ -1431,7 +1448,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = NFTokenModify(
                 account=wallet.address,
                 nftoken_id=nftoken_id,
@@ -1493,7 +1510,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = AccountSet(
                 account=wallet.address,
                 set_flag=AccountSetAsfFlag.ASF_ALLOW_TRUSTLINE_CLAWBACK,
@@ -1516,7 +1533,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = AccountSet(
                 account=wallet.address,
                 set_flag=AccountSetAsfFlag.ASF_DEFAULT_RIPPLE,
@@ -1562,7 +1579,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(issuer_seed)
+            wallet = self._wallet(issuer_seed)
             # XRPL quirk (XLS-39): the Amount sub-object's ``issuer`` field
             # carries the HOLDER address, not the issuer. The token being
             # recalled is identified by currency + the clawing account (this
@@ -1739,7 +1756,7 @@ class XRPLTestnetTransport(Transport):
             return _local_failure(guard)
         flag = TrustSetFlag.TF_SET_FREEZE if freeze else TrustSetFlag.TF_CLEAR_FREEZE
         try:
-            wallet = Wallet.from_seed(issuer_seed)
+            wallet = self._wallet(issuer_seed)
             # Individual freeze: the issuer sets tfSetFreeze on ITS side of the
             # (currency, holder) trust line. LimitAmount.issuer carries the
             # HOLDER (the counterparty); the issuer side keeps value 0.
@@ -1767,7 +1784,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(issuer_seed)
+            wallet = self._wallet(issuer_seed)
             if enable:
                 tx = AccountSet(
                     account=wallet.address,
@@ -1836,7 +1853,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = PaymentChannelCreate(
                 account=wallet.address,
                 amount=xrp_to_drops(Decimal(amount_xrp)),
@@ -1863,7 +1880,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = PaymentChannelFund(
                 account=wallet.address,
                 channel=channel_id,
@@ -1886,7 +1903,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             kwargs: dict = {"account": wallet.address, "channel": channel_id}
             if balance_xrp:
                 kwargs["balance"] = xrp_to_drops(Decimal(balance_xrp))
@@ -1944,7 +1961,9 @@ class XRPLTestnetTransport(Transport):
         # Off-ledger: sign the cumulative drops amount with the channel key.
         drops = str(xrp_to_drops(Decimal(amount_xrp)))
         blob = encode_for_signing_claim({"channel": channel_id, "amount": drops})
-        priv = derive_keypair(wallet_seed)[1]
+        # The same key the transport signs with (2.7.0): derive_keypair read
+        # the prefix while 4.x's Wallet.from_seed assumed ED25519.
+        priv = self._wallet(wallet_seed).private_key
         return sign(bytes.fromhex(blob), priv)
 
     async def verify_payment_channel_claim(
@@ -1977,7 +1996,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = EscrowCreate(
                 account=wallet.address,
                 amount=xrp_to_drops(Decimal(amount)),
@@ -2009,7 +2028,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             if enable:
                 tx = AccountSet(
                     account=wallet.address,
@@ -2044,7 +2063,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             if enable:
                 tx = AccountSet(
                     account=wallet.address,
@@ -2082,7 +2101,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             tx = DepositPreauth(
                 account=wallet.address,
                 authorize=authorize or None,
@@ -2123,7 +2142,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(issuer_seed)
+            wallet = self._wallet(issuer_seed)
             tx = AccountSet(
                 account=wallet.address,
                 set_flag=AccountSetAsfFlag.ASF_ALLOW_TRUSTLINE_LOCKING,
@@ -2155,7 +2174,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(source_seed)
+            wallet = self._wallet(source_seed)
             tx = EscrowCreate(
                 account=wallet.address,
                 amount=IssuedCurrencyAmount(
@@ -2193,7 +2212,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(owner_seed)
+            wallet = self._wallet(owner_seed)
             if quorum == 0 and not entries:
                 # Delete: SignerQuorum=0 with SignerEntries OMITTED (the model
                 # rejects a zero quorum WITH entries as malformed).
@@ -2258,7 +2277,7 @@ class XRPLTestnetTransport(Transport):
                 error=f"Invalid amount: {amount!r} — expected a numeric value like '10' or '1.5'",
             )
         try:
-            signer_wallets = [Wallet.from_seed(seed) for seed in signer_seeds]
+            signer_wallets = [self._wallet(seed) for seed in signer_seeds]
             payment = Payment(
                 account=owner_address,
                 destination=destination,
@@ -2406,7 +2425,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = EscrowFinish(
                 account=wallet.address,
                 owner=owner,
@@ -2431,7 +2450,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = EscrowCancel(
                 account=wallet.address,
                 owner=owner,
@@ -2466,7 +2485,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             tx = CheckCreate(
                 account=wallet.address,
                 destination=destination,
@@ -2506,7 +2525,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             tx = CheckCash(
                 account=wallet.address,
                 check_id=check_id,
@@ -2538,7 +2557,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             tx = CheckCancel(account=wallet.address, check_id=check_id)
         except Exception as exc:
             return SubmitResult(
@@ -2552,7 +2571,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = DIDSet(
                 account=wallet.address,
                 uri=str_to_hex(uri) if uri else None,
@@ -2592,7 +2611,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = DIDDelete(account=wallet.address)
         except Exception as exc:
             return SubmitResult(
@@ -2621,7 +2640,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(issuer_seed)
+            wallet = self._wallet(issuer_seed)
             tx = CredentialCreate(
                 account=wallet.address,
                 subject=subject,
@@ -2647,7 +2666,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(subject_seed)
+            wallet = self._wallet(subject_seed)
             tx = CredentialAccept(
                 account=wallet.address,
                 issuer=issuer,
@@ -2672,7 +2691,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             tx = CredentialDelete(
                 account=wallet.address,
                 issuer=issuer,
@@ -2758,7 +2777,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(owner_seed)
+            wallet = self._wallet(owner_seed)
             creds = [
                 PDCredential(issuer=iss, credential_type=ctype)
                 for iss, ctype in accepted_credentials
@@ -2794,7 +2813,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(owner_seed)
+            wallet = self._wallet(owner_seed)
             tx = PermissionedDomainDelete(
                 account=wallet.address,
                 domain_id=domain_id,
@@ -2823,7 +2842,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             offer = OfferCreate(
                 account=wallet.address,
                 taker_pays=self._amount_obj(
@@ -2899,7 +2918,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed)
             tx = MPTokenIssuanceCreate(
                 account=wallet.address,
                 maximum_amount=str(maximum_amount),
@@ -2931,7 +2950,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(holder_seed)
+            wallet = self._wallet(holder_seed)
             tx = MPTokenAuthorize(
                 account=wallet.address,
                 mptoken_issuance_id=issuance_id,
@@ -2955,7 +2974,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = Wallet.from_seed(issuer_seed)
+            wallet = self._wallet(issuer_seed)
             tx = Payment(
                 account=wallet.address,
                 destination=destination,
@@ -3046,7 +3065,7 @@ class XRPLTestnetTransport(Transport):
         # retry resubmits the same logical tx rather than a freshly-built one.
         # (Same idempotency residual as submit_payment — see its comment.)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             offer = OfferCreate(
                 account=wallet.address,
                 taker_pays=self._amount_obj(
@@ -3078,7 +3097,7 @@ class XRPLTestnetTransport(Transport):
         # retry resubmits the same logical tx rather than a freshly-built one.
         # (Same idempotency residual as submit_payment — see its comment.)
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             cancel = OfferCancel(
                 account=wallet.address,
                 offer_sequence=offer_sequence,
@@ -3404,7 +3423,7 @@ class XRPLTestnetTransport(Transport):
         # signing — see _amm_create_fee_drops.
         fee = await self._amm_create_fee_drops()
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             tx = AMMCreate(
                 account=wallet.address,
                 amount=self._amount_obj(asset_a_currency, asset_a_value, asset_a_issuer),
@@ -3438,7 +3457,7 @@ class XRPLTestnetTransport(Transport):
             return _local_failure(guard)
 
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             # Two-asset deposit: the depositor funds BOTH legs at the pool's
             # current ratio and the ledger mints LP-Tokens to match. (The
             # depositor's LP-token trust line to the AMM account is created
@@ -3476,7 +3495,7 @@ class XRPLTestnetTransport(Transport):
             return _local_failure(guard)
 
         try:
-            wallet = Wallet.from_seed(wallet_seed)
+            wallet = self._wallet(wallet_seed, wallet_address)
             asset = self._amm_asset(asset_a_currency, asset_a_issuer)
             asset2 = self._amm_asset(asset_b_currency, asset_b_issuer)
             if lp_token_value:

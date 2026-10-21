@@ -90,8 +90,10 @@ def _try_import_camp_wallet(state: LabState) -> bool:
         if not seed:
             return False
 
-        from xrpl.wallet import Wallet as XWallet
-        wallet = XWallet.from_seed(seed)
+        # Checked against the Camp file's own address (xrpl-py 5, 2.7.0), so
+        # the import lands on the Camp account whichever algorithm made it.
+        from .actions.wallet import wallet_from_seed
+        wallet = wallet_from_seed(seed, data.get("address"), where=str(camp_path))
 
         path = save_wallet(wallet)
         state.wallet_address = wallet.address

@@ -165,7 +165,7 @@ class TestAmmCreateTestnet:
 
         result = await transport.submit_amm_create(
             _SEED, "XRP", "100", "", "LAB", "100", _ISSUER,
-            trading_fee=500, wallet_address="rIGNOREDHINT",
+            trading_fee=500, wallet_address=_EXPECTED_ACCOUNT,
         )
 
         assert result.success is True
@@ -262,7 +262,7 @@ class TestAmmDepositTestnet:
 
         result = await transport.submit_amm_deposit(
             _SEED, "XRP", "10", "", "LAB", "10", _ISSUER,
-            wallet_address="rIGNOREDHINT",
+            wallet_address=_EXPECTED_ACCOUNT,
         )
 
         assert result.success is True

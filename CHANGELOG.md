@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.7.0 — 2026-10-21
+
+### Changed
+
+- **xrpl-py 5.2** (was 4.x; #20 item 10). 5.2 serialises `credential_ids`
+  as `CredentialIDs` itself, so 2.6.1's shim for 4.5 is gone. It needs
+  websockets < 16, so the lock resolves websockets 15.0.1.
+- **A seed signs as the account it's recorded under.** xrpl-py 5 infers a
+  seed's algorithm from its prefix; 4.x derived ED25519 from every seed.
+  Every wallet xrpl-lab creates is `sEd…` and derives the same address on
+  both. A secp256k1 `s…` seed imported under 4.x (an XRPL Camp wallet, say)
+  was recorded under its ED25519 address. One helper, `wallet_from_seed`,
+  now derives by prefix and keeps the ED25519 account when that's the
+  recorded one. It's used by `load_wallet` (against the wallet file's
+  address), the Camp import (against the Camp file's address) and every
+  testnet signing method (against the address the runner or handler bound,
+  else the caller's address). Payment-channel claims are signed with the
+  same key.
+
+### Fixed
+
+- **A seed that matches neither account fails closed.** `load_wallet` used
+  to log a warning and return the other account. It now raises
+  `STATE_WALLET_KEY_MISMATCH` (exit 1), and nothing is signed. It raises
+  rather than returning None, because a caller treats None as "no wallet"
+  and would create a new one over the learner's file.
+
 ## 2.6.2 — 2026-10-21
 
 The 2.6.2 follow-ups from issue #20 (items 8, 9 and 11), found in 2.6.1's
