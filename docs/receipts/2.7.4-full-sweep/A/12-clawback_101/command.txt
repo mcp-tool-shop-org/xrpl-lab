@@ -1,0 +1,4 @@
+cmd: xrpl-lab run  clawback_101  (Enter fed to every prompt)
+xrpl_lab_exit_code: 3 (retried once after a faucet 429)
+wall_seconds: 278
+module_interrupted_lines: 0

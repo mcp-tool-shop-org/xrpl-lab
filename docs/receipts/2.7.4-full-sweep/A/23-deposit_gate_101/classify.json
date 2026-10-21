@@ -1,0 +1,124 @@
+[
+ {
+  "txid": "7DDD13F84732F1317EA57E7E09353039E2ECECBCC110DA44C18E10E54A44CAD9",
+  "type": "AccountSet",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "SetFlag": "asfDepositAuth"
+ },
+ {
+  "txid": "C6FEFC4A0781A96EB0EE430DDD490E56D82C0D81CE18FAA9BFAA0C48910F25B9",
+  "type": "Payment",
+  "account": "rhns7hVYL79fRJHa46Pu8CLC7xBypZWe9Y",
+  "result": "tecNO_PERMISSION",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "49118627A704B94A2580A45A1C6EED9C548C719A72D1F383E4DB07E07C807A6C",
+  "type": null,
+  "account": null,
+  "result": "txnNotFound",
+  "validated": false,
+  "class": "expected_not_on_ledger"
+ },
+ {
+  "txid": "79EAFEE608B4F24060B1568568FF74E3F1E9975E9532E4B298DA412AECCC1E7E",
+  "type": "DepositPreauth",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "3D4FB4E47195ABB0E0747580677FAE9EE5CF139365DF836ADCF8275DD6955656",
+  "type": "DepositPreauth",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tecDUPLICATE",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "C7CCAA1706CD1E28B3E1CC7CB2AE6A5F4082E1D7703D86370097FE1234EE6F9A",
+  "type": "Payment",
+  "account": "rhns7hVYL79fRJHa46Pu8CLC7xBypZWe9Y",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "990BE25BD35F811BEBFDCF450404F8CD90FD64098E41FD7F1137C2C35D015E37",
+  "type": "CredentialCreate",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "FC3D651832E6A93F101AD8164AE54EF07A9B74C7024A1A33B1B1AC03A8FE6091",
+  "type": "CredentialAccept",
+  "account": "rEaSZr7i5RMBNuHt81ADu3jDtYN6zR3Lqk",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "F289231528AB67A7BDAB494B2F5B9D850FFC6A71C6FA5F9252E556992BAF4216",
+  "type": "DepositPreauth",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "CD39E8BD25B9511A5C55F059DDFE08ED4CC6DCF448A165943389D906DD037638",
+  "type": "Payment",
+  "account": "rEaSZr7i5RMBNuHt81ADu3jDtYN6zR3Lqk",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "762B0DA0604F9BE3B5B59D2F9A5ADC42B055DBC00662E901B3AD6FEBDE28B162",
+  "type": "Payment",
+  "account": "r4Se485u3R9ZeXnQ1UN6ZVWPx85htAyouP",
+  "result": "tecNO_PERMISSION",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "7AF1FCBF1B47502F525716D5159B39ED58120CBC292CE24BCA3CD330760366D7",
+  "type": "DepositPreauth",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "0FF194C4C85F14334E4EC3CFBAAB498397559CDFDF0E5B67A948228F5A8D7A4B",
+  "type": "DepositPreauth",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tecNO_ENTRY",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "554C210CFAA3AA645DA6700A31E5A30A5C16EF620361D580D3CBF191028AE7F7",
+  "type": "DepositPreauth",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "CB838ACA51CFE1C6A8C12562C7AFF1666F1EED678A65158EABBE89F749F848B0",
+  "type": "AccountSet",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "ClearFlag": "asfDepositAuth"
+ }
+]

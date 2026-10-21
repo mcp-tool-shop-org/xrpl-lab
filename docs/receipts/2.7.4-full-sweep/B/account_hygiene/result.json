@@ -1,0 +1,9 @@
+{
+ "lesson": "account_hygiene",
+ "exit": 3,
+ "steps": "12 passed, 3 failed",
+ "transactions": "4 successful, 0 failed",
+ "verify_exit": 0,
+ "wall": 44,
+ "retried_429": false
+}

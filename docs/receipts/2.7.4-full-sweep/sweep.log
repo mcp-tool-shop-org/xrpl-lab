@@ -1,0 +1,45 @@
+17:27:06 sweep full-sweep-7e71c67-20261021T2127Z on 7e71c67 xrpl-lab 2.7.4 (PR #29, Argon round 1 PASS) — 32 lessons
+17:27:49 [pre] offline: 32/32 exit 0; failing: []
+17:28:12 [A] 01 receipt_literacy: exit=0 4 passed, 0 failed | 1 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:28:36 [A] 02 failure_literacy: exit=0 5 passed, 0 failed | 1 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:28:36 faucet gap: waiting 13s
+17:29:27 [A] 03 trust_lines_101: exit=0 7 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:29:27 faucet gap: waiting 22s
+17:30:26 [A] 04 trust_line_failures: exit=0 8 passed, 0 failed | 2 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:30:26 faucet gap: waiting 23s
+17:32:38 [A] 05 multisig_treasury_101: exit=0 10 passed, 0 failed | 3 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:33:09 [A] 06 nft_minting_101: exit=0 6 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:34:37 [A] 07 nft_marketplace_101: exit=0 13 passed, 0 failed | 5 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:35:32 [A] 08 dnft_evolving_item_101: exit=0 7 passed, 0 failed | 2 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:35:55 [A] 09 mpt_issuance_101: exit=0 4 passed, 0 failed | 1 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:36:53 [A] 10 mpt_distribution_101: exit=0 8 passed, 0 failed | 3 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:36:53 faucet gap: waiting 2s
+17:38:20 [A] 11 token_freeze_101: exit=0 14 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:43:24 [A] 12 clawback_101: exit=3 12 passed, 0 failed | 4 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:43:59 [A] 13 escrow_101: exit=0 4 passed, 0 failed | 1 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:44:51 [B] clawback_101: exit=0 12 passed, 0 failed | verify=0
+17:44:51 [A] 14 escrow_finish_101: exit=0 9 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:46:57 [A] 15 token_escrow_101: exit=0 15 passed, 0 failed | 5 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:48:36 [A] 16 checks_101: exit=0 13 passed, 0 failed | 4 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:49:42 [A] 17 payment_channel_101: exit=0 13 passed, 0 failed | 3 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:50:31 [A] 18 delivered_amount_101: exit=0 7 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:50:31 faucet gap: waiting 11s
+17:52:00 [A] 19 custodial_crediting_101: exit=0 9 passed, 0 failed | 3 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet ['+asfRequireDest', '-asfRequireDest']
+17:52:53 [A] 20 did_101: exit=0 6 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:54:33 [A] 21 credentials_101: exit=0 10 passed, 0 failed | 3 successful, 3 failed (3 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:56:30 [A] 22 permissioned_domains_101: exit=0 15 passed, 0 failed | 6 successful, 2 failed (2 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+17:59:34 [A] 23 deposit_gate_101: exit=0 20 passed, 0 failed | 10 successful, 5 failed (5 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet ['+asfDepositAuth', '-asfDepositAuth']
+18:00:44 [A] 24 dex_literacy: exit=0 8 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:02:37 [A] 25 dex_market_making_101: exit=0 17 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:04:30 [A] 26 dex_inventory_guardrails: exit=0 16 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:05:36 [A] 27 reserves_101: exit=0 8 passed, 0 failed | 1 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:07:15 [A] 28 account_hygiene: exit=3 12 passed, 3 failed | 4 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:08:03 [B] account_hygiene: exit=3 12 passed, 3 failed | verify=0
+18:08:29 [A] 29 receipt_audit: exit=0 5 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:10:27 [A] 30 amm_liquidity_101: exit=0 18 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:11:29 [A] 31 dex_vs_amm_risk_literacy: exit=0 25 passed, 0 failed | 9 successful, 0 failed | live FAIL 0 | unexpected ['not_validated', 'not_validated', 'not_validated', 'not_validated', 'not_validated', 'not_validated', 'not_validated', 'not_validated', 'not_validated'] | flags on [] | in-lesson AccountSet []
+18:11:30 faucet gap: waiting 59s
+18:12:32 [B] dex_vs_amm_risk_literacy: exit=0 25 passed, 0 failed | verify=0
+18:13:46 [A] 32 game_economy_capstone: exit=0 16 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:14:45 [A] full-pack verify --live: exit 0 {'PASS': 127, 'SKIPPED': 11}
+18:14:45 done: 30/32 exit 0; summary at full-sweep-7e71c67-20261021T2127Z/summary.md

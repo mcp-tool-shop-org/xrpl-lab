@@ -1,0 +1,139 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Audit Mode: Verify Receipts at Scale                                                                                                                        │
+│ Level: intermediate  |  Time: ~10-15 min                                                                                                                    │
+│ Produces: report, audit_pack                                                                                                                                │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Earlier modules taught you to verify one transaction at a time. Now you learn to verify them in batch — the way operators, support teams, and auditors actually
+work.                                                                                                                                                          
+
+You give the audit engine a list of transaction IDs. It fetches each one, checks it against rules (validated? succeeded? correct type? memo present?), and     
+produces a pass/fail report with evidence.                                                                                                                     
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You need a funded wallet so we can create transactions to audit.                                                                                               
+
+
+  → ensure_wallet...
+  Wallet loaded: rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Balance: 129.999230 XRP
+
+Press Enter to continue...Submit a payment                                                                                                                                               
+
+First, let's create a transaction we can audit later. This sends 1 XRP, with a memo tagged for XRPL Lab, to a fresh practice address the lab makes for this run
+(XRPL rejects a payment to your own address).                                                                                                                  
+
+
+  → submit_payment...
+  XRPL rejects a payment to yourself (temREDUNDANT), so practice payments go to a fresh address made for this run:
+  rnZKzEBXk7E3338JoBJVNEvnTYEundp9Ld (your first payment to it creates the account)
+  Payment submitted!
+  TXID: 7FD863B5488C7C4D30E4030A8E41F8A4F6BB2F6CCEC4D57242D074C19F421C75
+  Result: tesSUCCESS
+  Fee: 10 drops
+  Explorer: https://testnet.xrpl.org/transactions/7FD863B5488C7C4D30E4030A8E41F8A4F6BB2F6CCEC4D57242D074C19F421C75
+
+Press Enter to continue...Submit a second payment                                                                                                                                        
+
+One more — so we have multiple transactions to batch-audit.                                                                                                    
+
+
+  → submit_payment...
+  Payment submitted!
+  TXID: 008A6DC9CF5AF8A1A79A85265D4D50814481C356B52D84555D3162730007558F
+  Result: tesSUCCESS
+  Fee: 10 drops
+  Explorer: https://testnet.xrpl.org/transactions/008A6DC9CF5AF8A1A79A85265D4D50814481C356B52D84555D3162730007558F
+
+Press Enter to continue...Run the audit                                                                                                                                                  
+
+Now we'll audit all the transactions from this session. The audit engine fetches each tx, checks that it's validated and successful, and produces a verdict.   
+
+
+  → run_audit...
+  Auditing 2 transaction(s)...
+  Auditing 1/2: 7FD863B5488C7C4D...
+  Auditing 2/2: 008A6DC9CF5AF8A1...
+
+  Checked: 2
+  Pass:    2
+  Fail:    0
+  Missing: 0
+
+  ✓ 7FD863B5488C7C4D... 
+      Transaction exists: 7FD863B5488C7C4D...
+      Transaction is validated
+      Result: tesSUCCESS
+  ✓ 008A6DC9CF5AF8A1... 
+      Transaction exists: 008A6DC9CF5AF8A1...
+      Transaction is validated
+      Result: tesSUCCESS
+
+  Report: .xrpl-lab\reports\audit_1792620454.md
+  Audit pack: .xrpl-lab\proofs\audit_pack_1792620454.json
+
+Press Enter to continue...Understand the results                                                                                                                                         
+
+
+The audit produced three things:                                                                                                                               
+
+ 1 Console summary — total checked, pass, fail, not found                                                                                                      
+ 2 Markdown report — table with per-tx details and failure reasons                                                                                             
+ 3 Audit pack — JSON file with full evidence and SHA-256 integrity hash                                                                                        
+
+The audit pack is what you'd attach to an issue or hand to an auditor. It proves exactly what you checked and what the ledger said.                            
+
+Press Enter to continue...What about failures?                                                                                                                                           
+
+
+Why audits matter. Auditing turns raw transaction data into evidence — a stable artifact that pairs each txid with the expectation you had for it and the      
+verdict the ledger actually returned. That triple (txid + expectation + verdict) is what a facilitator uses to verify a learner's batch run, what an operator  
+uses to confirm a deploy went through cleanly, and what a compliance hand-off attaches to a case file. Crucially, expectations encode intent: "this txid SHOULD
+have failed with tecPATH_DRY because the pool was empty" is a much stronger claim than "this txid failed," and an expectations-aware audit can mark it as a    
+pass. The failure vocabulary below is what those verdicts look like when reality and expectation diverge.                                                      
+
+In a real audit, some transactions might fail checks:                                                                                                          
+
+ • NOT_FOUND — the txid doesn't exist on this network                                                                                                          
+ • NOT_VALIDATED — the tx exists but hasn't been validated yet                                                                                                 
+ • ENGINE_RESULT_MISMATCH — expected tesSUCCESS but got something else                                                                                         
+ • TYPE_DISALLOWED — transaction type not in your allowed list                                                                                                 
+ • MEMO_MISSING — expected a memo prefix but didn't find one                                                                                                   
+
+You can use an expectations file (--expect expect.json) to override defaults per-tx. For example, if you know a specific txid was supposed to fail with        
+tecPATH_DRY, you can mark that in the expectations file and the audit will treat it as a pass.                                                                 
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You just ran a batch audit:                                                                                                                                    
+
+ 1 Created test transactions with memo tags                                                                                                                    
+ 2 Audited them programmatically — not by eyeballing an explorer                                                                                               
+ 3 Generated evidence — report + audit pack with integrity hash                                                                                                
+ 4 Learned the failure vocabulary — the exact reasons a tx can fail audit                                                                                      
+
+Operator takeaway:                                                                                                                                             
+
+ • Batch audits replace manual checks — one command, any number of txids                                                                                       
+ • Expectations let you encode intent — "this one should have failed"                                                                                          
+ • Audit packs are shareable proof — attach to issues, hand to auditors                                                                                        
+ • The CLI command: xrpl-lab audit --txids txids.txt                                                                                                           
+
+This is the skill that turns transaction data into evidence.                                                                                                   
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Audit Mode: Verify Receipts at Scale                                                                                                                        │
+│ Report saved to .xrpl-lab\reports\receipt_audit.md                                                                                                          │
+│ 2 transactions recorded                                                                                                                                     │
+│                                                                                                                                                             │
+│ Verify this run:                                                                                                                                            │
+│   xrpl-lab audit --txids .xrpl-lab\last_run_txids.txt                                                                                                       │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

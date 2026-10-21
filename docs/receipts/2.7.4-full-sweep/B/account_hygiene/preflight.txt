@@ -1,0 +1,2 @@
+RPC/FAUCET env set: False False
+classify_network: testnet | guard: PASS | home_is_scratch: True

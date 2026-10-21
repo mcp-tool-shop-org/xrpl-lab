@@ -1,0 +1,18 @@
+[
+ {
+  "txid": "2D26A50A7E85FB2659B395736A83F16A5D143D19C5A73341F2500D5F5BF36EAC",
+  "type": "NFTokenMint",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "BB19B69CA6A3E28B8A54DE6B14943FE3524EAA3CB21B2B1716C56206F3BCC3BD",
+  "type": "NFTokenBurn",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

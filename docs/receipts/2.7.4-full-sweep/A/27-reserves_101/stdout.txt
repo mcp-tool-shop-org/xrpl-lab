@@ -1,0 +1,136 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Reserves 101: Where Your XRP 'Went'                                                                                                                         │
+│ Level: intermediate  |  Time: ~10-15 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+This is the module that answers the #1 beginner question: "Where did my XRP go?"                                                                               
+
+The short answer: it's not gone. It's locked.                                                                                                                  
+
+The XRPL has two types of reserves:                                                                                                                            
+
+ • Base reserve: the minimum XRP every account must hold to exist on the ledger (currently 1 XRP on mainnet; testnet values may differ).                       
+ • Owner reserve: additional XRP locked per "owned object" — each trust line, open offer, escrow, or other ledger entry you create.                            
+
+Your spendable XRP is your balance minus all reserves. When you create objects, spendable XRP shrinks. When you remove them, it comes back.                    
+
+Reserve values may vary by network and settings. What matters is the concept: owned objects reduce spendable XRP.                                              
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You need a funded wallet with an existing LAB trust line from Trust Lines 101.                                                                                 
+
+
+  → ensure_wallet...
+  Wallet loaded: rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Make sure you have enough XRP for the operations ahead.                                                                                                        
+
+
+  → ensure_funded...
+  Balance: 129.999280 XRP
+
+Press Enter to continue...Snapshot — before                                                                                                                                              
+
+Let's capture your account state right now. This is your "before" picture: balance in drops, owner count, and estimated spendable XRP.                         
+
+
+  → snapshot_account...
+  Account: rpeyDv2a7C9Tz7kJ...
+  Balance: 129.999280 XRP (129999280 drops)
+  Owner count: 12
+  Sequence: 21718475
+
+Press Enter to continue...Create an owned object (OfferCreate)                                                                                                                           
+
+Now we'll create a DEX offer. This adds one owned object to your account, which should increase the owner count and lock more reserve.                         
+
+We need an issuer wallet to reference LAB tokens in the offer.                                                                                                 
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Reusing existing issuer wallet: rBGDfNKgvyoveBcSGaUrjSXTmNXDNrFLVb
+  Workshop hint: This issuer is reused across modules. Leftover trust lines from earlier currencies still lock owner reserve until balance=0 and 
+remove_trust_line runs. Run module account_hygiene for the taught cleanup loop, or re-run remove_trust_line with the leftover currency (use issuer=<peer> for 
+orphaned pre-reuse peers). If owner_count stays high after hygiene, ask your facilitator to inventory trust lines.
+
+Press Enter to continue...Fund the issuer and create the offer                                                                                                                           
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 899.999850 XRP
+
+Press Enter to continue...Set a trust line and place the offer                                                                                                                           
+
+First, set a trust line for a second currency (RSV) to create another owned object. Then place a tiny XRP/RSV offer on the DEX.                                
+
+
+  → set_trust_line...
+  Setting trust line: RSV from issuer rBGDfNKgvyov...
+  Limit: 1000
+  Trust line set!
+  TXID: 1DD78ECA3A7D3ADD8522D1B8873CF1B092B0A6BE48F69E9BE7AFB38D5E73CAEC
+  Explorer: https://testnet.xrpl.org/transactions/1DD78ECA3A7D3ADD8522D1B8873CF1B092B0A6BE48F69E9BE7AFB38D5E73CAEC
+
+Press Enter to continue...Snapshot — after creating objects                                                                                                                              
+
+Let's capture your account state again. You should see:                                                                                                        
+
+ • Owner count increased — each trust line and offer is an owned object                                                                                        
+ • Balance may have decreased slightly (transaction fees)                                                                                                      
+
+
+  → snapshot_account...
+  Account: rpeyDv2a7C9Tz7kJ...
+  Balance: 129.999270 XRP (129999270 drops)
+  Owner count: 13
+  Sequence: 21718476
+
+Press Enter to continue...Compare and explain                                                                                                                                            
+
+Here's what changed between your "before" and "after" snapshots. The owner count delta shows how many objects you added, and the balance delta reflects fees   
+paid.                                                                                                                                                          
+
+
+  → verify_reserve_change...
+  Δ Balance decreased by 0.000010 XRP (10 drops)
+  Δ Owner count increased: 12 -> 13 (+1)
+
+  After after_create: balance decreased by 0.000010 XRP; owner count went from 12 to 13 — each owned object (trust line, offer, etc.) reserves additional XRP.
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You just observed the reserve mechanism in action:                                                                                                             
+
+ 1 Captured a baseline — your account's balance and owner count                                                                                                
+ 2 Created owned objects — trust line + offer increased owner count                                                                                            
+ 3 Measured the impact — each object locks additional reserve XRP                                                                                              
+ 4 Understood the concept — "missing" XRP is locked in reserves                                                                                                
+
+Operator takeaway:                                                                                                                                             
+
+ • Keep enough XRP for reserves — if you create many trust lines or offers, your spendable balance shrinks                                                     
+ • Objects cost reserve — every trust line, offer, escrow, or check locks additional XRP                                                                       
+ • Cancel offers to free reserve — removing objects releases the locked XRP back to spendable                                                                  
+ • Trust lines are sticky — you can only remove a trust line if the balance is zero AND the limit is set to zero                                               
+
+The next module (Account Hygiene) walks you through cleaning up. Run xrpl-lab proof-pack when you're ready to export your work.                                
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Reserves 101: Where Your XRP 'Went'                                                                                                                         │
+│ Report saved to .xrpl-lab\reports\reserves_101.md                                                                                                           │
+│ 1 transaction recorded                                                                                                                                      │
+│                                                                                                                                                             │
+│ Verify this run:                                                                                                                                            │
+│   xrpl-lab audit --txids .xrpl-lab\last_run_txids.txt                                                                                                       │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

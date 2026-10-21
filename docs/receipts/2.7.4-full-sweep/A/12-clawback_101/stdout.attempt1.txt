@@ -1,0 +1,173 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Clawback 101: The Issuer Recall Lever                                                                                                                       │
+│ Level: intermediate  |  Time: ~15-20 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+A live game economy needs an undo button. If an exploit mints a holder a pile of your currency, or a banned account is sitting on ill-gotten gold, you need a  
+way to recall it. On the XRPL that lever is Clawback (XLS-39): an issuer who opted in before issuing can forcibly pull issued tokens back from any holder with 
+a single Clawback transaction.                                                                                                                                 
+
+The opt-in is deliberate and one-way. You set the asfAllowTrustLineClawback AccountSet flag on a fresh issuer, before any tokens exist. You cannot enable it   
+retroactively once balances are outstanding — that is the consent contract: holders can see, at the issuer level, whether their balances are clawable.         
+
+Everything here runs on the testnet — free, disposable, and safe to repeat.                                                                                    
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You are the holder in this module. You need a funded wallet to hold the token.                                                                                 
+
+
+  → ensure_wallet...
+  Wallet loaded: rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Trust lines and payments cost a small fee plus owner reserve (free on testnet).                                                                                
+
+
+  → ensure_funded...
+  Balance: 59.999770 XRP
+
+Press Enter to continue...Create the issuer                                                                                                                                              
+
+We create a second wallet to act as the issuer of a game currency called GLD.                                                                                  
+
+A fresh issuer, not the shared one: most lessons reuse .xrpl-lab/issuer_wallet.json. This one can't. The ledger lets an issuer turn clawback on only while it  
+owns nothing (no trust lines, offers or other objects), and by now the shared issuer owns objects from earlier lessons, so the ledger would refuse with        
+tecOWNERS. This step makes a new issuer for this run only.                                                                                                     
+
+
+  → create_issuer_wallet...
+  Creating a fresh issuer for this lesson...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Issuer wallet created: r94p9o42DVKD7WnKtDuCGuDjzY1GR44Qsf
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+The issuer needs XRP for transaction fees.                                                                                                                     
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Enable clawback on the issuer (BEFORE issuing)                                                                                                                 
+
+This is the load-bearing ordering rule. The issuer sets asfAllowTrustLineClawback now, while it has issued nothing. Try to enable it after issuance and the    
+ledger refuses — the flag is a promise made up front, not a power grabbed later.                                                                               
+
+
+  → enable_clawback...
+  Enabling clawback on the issuer (asfAllowTrustLineClawback) — must precede any issuance...
+  Clawback enabled on the issuer.
+  TXID: CF1CA995A176700ADBCF6EDE97B15BF62295A5F6AE00D8ED8D59E190415495AE
+  Explorer: https://testnet.xrpl.org/transactions/CF1CA995A176700ADBCF6EDE97B15BF62295A5F6AE00D8ED8D59E190415495AE
+
+Press Enter to continue...Set a trust line for GLD                                                                                                                                       
+
+Before you can receive GLD you must opt in by trusting the issuer for up to 1000 GLD.                                                                          
+
+
+  → set_trust_line...
+  Setting trust line: GLD from issuer r94p9o42DVKD...
+  Limit: 1000
+  Trust line set!
+  TXID: 01F9AA46179540D48EDB331E66536FC8643ABBA76FC9962EBB7F9B58E4BAE357
+  Explorer: https://testnet.xrpl.org/transactions/01F9AA46179540D48EDB331E66536FC8643ABBA76FC9962EBB7F9B58E4BAE357
+
+Press Enter to continue...Receive 100 GLD                                                                                                                                                
+
+The issuer sends you 100 GLD. Because the issuer enabled clawback before issuing, your GLD balance is clawable.                                                
+
+
+  → issue_token...
+  Issuing 100 GLD to rpeyDv2a7C9T...
+  100 GLD issued!
+  TXID: 7DF55E12756D848CF6838F0406EA2BE3B30562D1C5C4DC986F95FA64D643E19E
+  Explorer: https://testnet.xrpl.org/transactions/7DF55E12756D848CF6838F0406EA2BE3B30562D1C5C4DC986F95FA64D643E19E
+
+Press Enter to continue...Snapshot your balance                                                                                                                                          
+
+Capture your GLD balance before the recall so we can prove the exact-amount debit.                                                                             
+
+
+  → snapshot_token_balance...
+  Holder GLD balance (before): 100
+
+Press Enter to continue...Claw back 30 GLD                                                                                                                                               
+
+The issuer recalls 30 of your 100 GLD. Note the XRPL quirk taught inline: the Clawback transaction's Amount.issuer sub-field carries the holder address (you), 
+not the issuer — the token is identified by currency plus the clawing account.                                                                                 
+
+
+  → clawback...
+  Clawing back 30 GLD from holder rpeyDv2a7C9T...
+  XRPL quirk: the Clawback Amount.issuer field carries the HOLDER address, not the issuer.
+  Clawback succeeded — tokens recalled to the issuer.
+  TXID: 213EE3A8E355571EBE7B8213D40089E3D232D4BD88AFF6C54557397200C09AB8
+  Explorer: https://testnet.xrpl.org/transactions/213EE3A8E355571EBE7B8213D40089E3D232D4BD88AFF6C54557397200C09AB8
+
+Press Enter to continue...Verify the exact-amount debit                                                                                                                                  
+
+Read your GLD trust line back. Your balance must have dropped by exactly 30 — from 100 to 70. The verifier does the Decimal math and confirms the before/after 
+delta.                                                                                                                                                         
+
+
+  → verify_clawback...
+  Balance before clawback: 100 GLD
+  Clawed back: 30 GLD
+  Balance after: 70 GLD
+  Holder balance dropped by exactly 30 GLD — issuer recall confirmed on-ledger
+  Issuer recall verified — exact-amount debit confirmed.
+
+Press Enter to continue...Set up the failure case                                                                                                                                        
+
+Now the other half of the lesson. We spin up a second issuer that issues you a token (NOC) but never sets the clawback flag — a fresh issuer with no recall    
+power.                                                                                                                                                         
+
+
+  → create_noclaw_issuer...
+  Creating a second issuer (no clawback flag)...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  RUNTIME_FAUCET_RATE_LIMITED: Faucet rate-limited (HTTP 429).
+  Hint: The testnet faucet caps funding requests to keep test XRP available for everyone. Wait at least 60 seconds before retrying, or use --dry-run to 
+practice this module offline without needing a funded testnet wallet.
+
+Press Enter to continue...The failure case — clawback without the flag                                                                                                                   
+
+When that no-flag issuer tries to claw NOC back, the ledger refuses with a tec error — the recall power was never granted, and it cannot be granted            
+retroactively.                                                                                                                                                 
+
+
+  → clawback_expect_fail...
+  Missing no-clawback issuer or holder. Run previous steps first.
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You exercised the issuer recall lever end to end:                                                                                                              
+
+ 1 Opt-in first — asfAllowTrustLineClawback is set on a fresh issuer before any issuance; it cannot be enabled retroactively                                   
+ 2 Clawback — the issuer recalled an exact amount from a holder                                                                                                
+ 3 Exact accounting — the holder's balance dropped by precisely the clawed amount                                                                              
+ 4 No flag, no power — a clawback against an issuer that never opted in is refused at the protocol level                                                       
+
+Key concepts to remember:                                                                                                                                      
+
+ • Clawback is consensual by design: the holder can see the issuer's flag; you can't be silently exposed to recall after the fact                              
+ • The Amount.issuer quirk: in a Clawback, the holder rides in Amount.issuer — get this wrong and the tx is malformed                                          
+ • Clamped to balance: you can't claw back more than the holder actually holds                                                                                 
+ • It is a governance tool, not a backdoor: use it for exploit recovery and compliance, and document it in your game's economy rules                           
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌────────────────────────────────────────────────────────────────── Completed with failures ──────────────────────────────────────────────────────────────────┐
+│ Clawback 101: The Issuer Recall Lever                                                                                                                       │
+│ Not verified: 1 step failed                                                                                                                                 │
+│   - Step 11: Set up the failure case                                                                                                                        │
+│ Report saved to .xrpl-lab\reports\clawback_101.md                                                                                                           │
+│ 4 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+'clawback_101' completed with failed steps; exiting with code 3.
