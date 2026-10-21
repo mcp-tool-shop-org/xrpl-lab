@@ -363,7 +363,8 @@ def _check_windows_dir_permissions() -> Check:
 def _check_last_error() -> Check:
     """Check state for last failed transaction and give a hint."""
     state = load_state()
-    failed = [tx for tx in state.tx_index if not tx.success]
+    # A rejection a lesson set out to cause isn't an error (2.6.2).
+    failed = [tx for tx in state.tx_index if not tx.success and not tx.expected]
     if not failed:
         return Check("Last error", True, "No failed transactions")
 

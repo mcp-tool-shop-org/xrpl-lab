@@ -36,6 +36,9 @@ _PROOF_TOPLEVEL_KEYS = {
     "generated_at", "completed_modules", "capstone", "transactions",
     "receipt_table", "total_transactions", "successful_transactions",
     "failed_transactions", "sha256",
+    # 2.6.2 (#20 item 8): how many failed transactions were a lesson's expected
+    # rejection. A count, non-secret.
+    "expected_failures",
     # RESWARM3 (verified flag + honest pack): top-level honesty flag — True iff
     # every completed module's on-ledger verification passed. Non-secret
     # (derived from the completed-module records), folded into the SHA-256.
@@ -47,8 +50,13 @@ _PROOF_MODULE_KEYS = {
     # True for back-compat.
     "verified",
 }
-_PROOF_TX_KEYS = {"txid", "module_id", "success", "timestamp", "network", "explorer_url"}
-_PROOF_RECEIPT_KEYS = {"txid", "txid_full", "module", "status", "network", "timestamp"}
+# 2.6.2 (#20 item 8): "expected" says a failed tx was the lesson's rejection.
+_PROOF_TX_KEYS = {
+    "txid", "module_id", "success", "timestamp", "network", "explorer_url", "expected",
+}
+_PROOF_RECEIPT_KEYS = {
+    "txid", "txid_full", "module", "status", "network", "timestamp", "expected",
+}
 _CERT_TOPLEVEL_KEYS = {
     "xrpl_lab_certificate", "version", "network", "address", "generated_at",
     "modules_completed", "module_titles", "total_modules",

@@ -403,6 +403,9 @@ async def handle_submit_payment_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
         console.print(f"  Result code: [yellow]{result.result_code}[/]")
         console.print(f"  Error: {result.error}")
     # Only "underfunded" is used by a lesson (failure_literacy) and has a
@@ -3188,6 +3191,11 @@ def _judge_expected_failure(
         newest = state.tx_index[-1] if state is not None and state.tx_index else None
         if state is None or (newest is not None and not newest.success and newest.txid == key):
             context.setdefault("expected_failure_txids", []).append(key)
+            if newest is not None:
+                # The receipt itself now says the rejection was the lesson's
+                # (2.6.2, #20 item 8).
+                newest.expected = True
+                save_state(state)
         return True
     if result.success:
         why = "the transaction succeeded"
@@ -3845,6 +3853,9 @@ async def handle_create_token_escrow_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     save_state(state)
     _judge_expected_failure(
         console, context, result,
@@ -4254,6 +4265,9 @@ async def handle_send_multisig_payment_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     save_state(state)
     _judge_expected_failure(
         console, context, result,
@@ -5263,6 +5277,9 @@ async def handle_send_sender_payment_expect_blocked(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_PERMISSION",),
@@ -5305,6 +5322,9 @@ async def handle_preauthorize_self_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("temCANNOT_PREAUTH_SELF",),
@@ -5380,6 +5400,9 @@ async def handle_authorize_sender_address_duplicate(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecDUPLICATE",),
@@ -5568,6 +5591,9 @@ async def handle_send_outsider_payment_expect_blocked(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_PERMISSION",),
@@ -5632,6 +5658,9 @@ async def handle_unauthorize_sender_address_duplicate(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_ENTRY",),
@@ -6117,6 +6146,9 @@ async def handle_send_untagged_deposit_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecDST_TAG_NEEDED",),
@@ -6704,6 +6736,9 @@ async def handle_accept_nft_offer_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecOBJECT_NOT_FOUND",),
@@ -6880,6 +6915,9 @@ async def handle_modify_nft_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_PERMISSION",),
@@ -7166,6 +7204,9 @@ async def handle_cash_check_wrong_destination_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_PERMISSION",),

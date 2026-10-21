@@ -442,7 +442,8 @@ async def test_accept_nonexistent_offer_expected_failure() -> None:
     ctx = await rig.run(handlers.handle_accept_nft_offer_expect_fail)
     assert "Expected failure:" in rig.out and "tecOBJECT_NOT_FOUND" in rig.out
     assert ctx["failed_txids"][0]["result_code"] == "tecOBJECT_NOT_FOUND"
-    assert rig.records == []
+    assert [r.success for r in rig.records] == [False]  # 2.6.2: the rejection is recorded
+    assert rig.acknowledged == [rig.records[0].txid]  # ...and acknowledged as the lesson
 
 
 async def test_accept_nonexistent_offer_unexpected_success(monkeypatch) -> None:
@@ -590,7 +591,8 @@ async def test_modify_nft_expect_fail_on_dry_run() -> None:
     ctx = await rig.run(handlers.handle_modify_nft_expect_fail)
     assert "Expected failure:" in rig.out
     assert ctx["failed_txids"][0]["result_code"]
-    assert rig.failed_records == []
+    assert len(rig.failed_records) == 1  # 2.6.2: the rejection is recorded
+    assert rig.acknowledged == [rig.failed_records[0].txid]  # ...and acknowledged
 
 
 async def test_modify_nft_expect_fail_prerequisites_and_branches(monkeypatch) -> None:

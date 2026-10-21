@@ -205,12 +205,13 @@ async def test_tagged_deposit_prerequisites_and_failure(monkeypatch) -> None:
     assert [r.success for r in rig.records] == [False]
 
 
-async def test_untagged_deposit_bounces_without_a_failed_record() -> None:
+async def test_untagged_deposit_bounce_is_recorded_and_acknowledged() -> None:
     rig = await _custody_rig()
     ctx = await rig.run(handlers.handle_send_untagged_deposit_expect_fail)
     assert "Expected failure:" in rig.out and "tecDST_TAG_NEEDED" in rig.out
     assert ctx["failed_txids"][0]["result_code"] == "tecDST_TAG_NEEDED"
-    assert rig.failed_records == []
+    assert len(rig.failed_records) == 1  # 2.6.2: the rejection is recorded
+    assert rig.acknowledged == [rig.failed_records[0].txid]  # ...and acknowledged
     assert "txids" not in ctx
     assert "asfRequireDest was not enabled" not in rig.out
 
@@ -248,7 +249,8 @@ async def test_untagged_deposit_wrong_code_is_not_called_expected(monkeypatch) -
     assert "Failed with tecUNFUNDED_PAYMENT" in rig.out
     assert "expected tecDST_TAG_NEEDED" in rig.out
     assert ctx["failed_txids"][0]["result_code"] == "tecUNFUNDED_PAYMENT"
-    assert rig.records == []
+    assert [r.success for r in rig.records] == [False]
+    assert rig.acknowledged == []  # a wrong code is recorded, not acknowledged
 
 
 async def test_untagged_deposit_wrong_code_fails_the_verification(monkeypatch) -> None:
@@ -425,7 +427,8 @@ async def test_outsider_cash_is_refused_for_the_check_destination_rule() -> None
     ctx = await rig.run(handlers.handle_cash_check_wrong_destination_expect_fail)
     assert "Expected failure:" in rig.out and "tecNO_PERMISSION" in rig.out
     assert ctx["failed_txids"][0]["result_code"] == "tecNO_PERMISSION"
-    assert rig.failed_records == []
+    assert len(rig.failed_records) == 1  # 2.6.2: the rejection is recorded
+    assert rig.acknowledged == [rig.failed_records[0].txid]  # ...and acknowledged
     assert ctx["check_id"]  # the Check survives the refused attempt
 
 

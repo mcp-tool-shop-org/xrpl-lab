@@ -70,14 +70,15 @@ async def test_sender_payment_blocked_then_preauthorized_lands() -> None:
     ctx = await rig.run(handlers.handle_send_sender_payment_expect_blocked)
     assert "Expected failure:" in rig.out and "tecNO_PERMISSION" in rig.out
     assert ctx["failed_txids"][0]["result_code"] == "tecNO_PERMISSION"
-    assert rig.records == []  # a deliberate failure leaves no failed TxRecord
+    assert [r.success for r in rig.records] == [False]  # 2.6.2: the rejection is recorded
+    assert rig.acknowledged == [rig.records[0].txid]  # ...and acknowledged as the lesson
     assert "txids" not in ctx
 
     await rig.run(handlers.handle_authorize_sender_address)
     assert "Sender preauthorized" in rig.out
     await rig.run(handlers.handle_send_sender_payment, amount="5")
     assert "address preauthorization admitted it" in rig.out
-    assert [r.success for r in rig.records] == [True, True]
+    assert [r.success for r in rig.records] == [False, True, True]
     assert len(ctx["txids"]) == 2
 
 
@@ -151,7 +152,8 @@ async def test_blocked_payment_wrong_code_is_not_called_expected(
     assert "Failed with tecINSUFFICIENT_RESERVE" in rig.out
     assert "expected tecNO_PERMISSION" in rig.out
     assert ctx["failed_txids"][0]["result_code"] == "tecINSUFFICIENT_RESERVE"
-    assert rig.records == []
+    assert [r.success for r in rig.records] == [False]
+    assert rig.acknowledged == []  # a wrong code is recorded, not acknowledged
 
 
 @pytest.mark.parametrize(
@@ -216,7 +218,9 @@ async def test_authorize_duplicate_expected_on_dry_run() -> None:
     ctx = await rig.run(handlers.handle_authorize_sender_address_duplicate)
     assert "Expected failure:" in rig.out and "tecDUPLICATE" in rig.out
     assert ctx["failed_txids"][-1]["result_code"] == "tecDUPLICATE"
-    assert len(rig.records) == 1  # only the real authorize
+    # The real authorize, then the duplicate's recorded, acknowledged rejection.
+    assert [r.success for r in rig.records] == [True, False]
+    assert rig.acknowledged == [rig.records[-1].txid]
 
 
 async def test_authorize_duplicate_wrong_code_and_unexpected_success(monkeypatch) -> None:
@@ -242,7 +246,8 @@ async def test_unauthorize_then_duplicate_revocation() -> None:
     await rig.run(handlers.handle_unauthorize_sender_address_duplicate)
     assert "Expected failure:" in rig.out and "tecNO_ENTRY" in rig.out
     assert ctx["failed_txids"][-1]["result_code"] == "tecNO_ENTRY"
-    assert len(rig.records) == 2
+    assert [r.success for r in rig.records] == [True, True, False]
+    assert rig.acknowledged == [rig.records[-1].txid]
 
 
 async def test_unauthorize_variants_on_unexpected_results(monkeypatch) -> None:

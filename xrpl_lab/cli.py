@@ -513,7 +513,8 @@ def status(json_output: bool):
         console.print()
         console.print(
             f"Transactions: {ls.total_transactions} "
-            f"({ok} ok, {ls.failed_transactions} failed)"
+            f"({ok} ok, {ls.failed_transactions} failed"
+            f"{f' ({ls.expected_failures} expected)' if ls.expected_failures else ''})"
         )
 
     # On-ledger verification (FT-002): a module can "complete" (the run didn't

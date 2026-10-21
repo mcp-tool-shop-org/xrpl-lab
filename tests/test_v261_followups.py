@@ -171,16 +171,15 @@ def test_cli_fund_waits_for_the_validated_balance(
 # ── 3a. Deliberate failures are asserted, not skipped ─────────────────
 
 
-def test_deliberate_failure_handlers_record_no_failed_tx() -> None:
-    """Argon Low 1: if a deliberate-failure lesson ever records a failed
-    TxRecord, its lesson starts reading as failed. Assert it doesn't."""
+def test_deliberate_failure_handlers_record_their_rejection() -> None:
+    """Argon Low 1 asserted these handlers recorded no failed TxRecord, so the
+    lesson wouldn't read as failed. Since 2.6.1 the judge acknowledges a
+    recorded rejection by txid, and 2.6.2 (#20 item 8) records it, so the
+    report and proof pack carry the tec."""
     from tests.test_live_fire_run2 import _DELIBERATE_FAILURES, _records_a_failure
 
     for name in sorted(_DELIBERATE_FAILURES):
-        assert not _records_a_failure(name), (
-            f"{name} is a deliberate-failure lesson and must not record "
-            "TxRecord(success=False)"
-        )
+        assert _records_a_failure(name), f"{name} doesn't record its rejection"
 
 
 def test_the_run2_sweep_no_longer_skips() -> None:
