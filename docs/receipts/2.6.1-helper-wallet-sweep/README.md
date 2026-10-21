@@ -6,6 +6,39 @@ the funding race (#20 item 1). Each module runs once, standalone, on the release
 No seeds and no wallet files are in this directory. Helper-wallet seeds were held only in memory. Testnet
 addresses and transaction hashes are public on-ledger. Local paths are shown as `<scratch>`.
 
+## Sweep 3 (credentials_101 only): `sweep-9a46584-20261021T0018Z` on `feat/2.6.1` (`9a46584`)
+
+This re-runs the one module that failed sweep 2, on the `feat/2.6.1` head. That head holds:
+- the sweep fixes;
+- the sweep-2 receipts;
+- the dry-run owner-count fix `cf431e0`;
+- the credentials fix: step 4 now attests a fresh `create_wallet()` address that is never funded.
+
+The setup is the same as sweeps 1 and 2. Time: 2026-10-21 00:18 UTC.
+
+| Module | Exit | Report "Steps" | Report "Transactions" |
+|---|---|---|---|
+| credentials_101 | **0** | 10 passed, 0 failed | 3 successful, 3 failed (the three expected tecs) |
+
+All 6 transactions validated, each with the result the lesson teaches:
+
+| Step | Tx | Hash | Result |
+|---|---|---|---|
+| 4: attest an unfunded subject | CredentialCreate (Subject `r4pvF8jvRE2fQ72WgJ3tWpRT3rb3be7fPy`, `actNotFound` on testnet) | `EB8FC14C…` | **tecNO_TARGET**, as taught |
+| 5: create the credential | CredentialCreate | `B662295E…` | tesSUCCESS |
+| 6: duplicate | CredentialCreate | `C9420647…` | tecDUPLICATE, as taught |
+| 7: the wrong party accepts | CredentialAccept | `034078F6…` | tecNO_ENTRY, as taught |
+| 8: the subject accepts | CredentialAccept | `2F61E85F…` | tesSUCCESS |
+| 10: delete | CredentialDelete | `BED7C2CE…` | tesSUCCESS |
+
+stderr is empty. With sweep 2's other nine modules, **all 10 helper-wallet modules now exit 0 on live testnet.**
+The nine were run on `284fcf7`. Four code commits landed between `284fcf7` and `9a46584`, and the nine were not
+re-run on them:
+- `4becc36`: the `verify_nft_offer` message;
+- `71880a4`: send exit code, audit CSV, coverage;
+- `cf431e0`: the dry-run owner count;
+- `9a46584`: the credentials fix.
+
 ## Sweep 2: `sweep-284fcf7-20261020T2351Z` on `fix/2.6.1-sweep` (`284fcf7`)
 
 **Result:** 9 of 10 modules exit 0. The 10th, credentials_101, exits 3 on a defect the sweep-1 fixes uncovered (see
