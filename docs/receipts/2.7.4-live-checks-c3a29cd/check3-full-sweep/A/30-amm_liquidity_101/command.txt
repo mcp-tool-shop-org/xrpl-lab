@@ -1,0 +1,4 @@
+cmd: xrpl-lab run  amm_liquidity_101  (Enter fed to every prompt)
+xrpl_lab_exit_code: 0
+wall_seconds: 60
+module_interrupted_lines: 0

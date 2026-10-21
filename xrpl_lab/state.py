@@ -301,7 +301,21 @@ class LabState(BaseModel):
         report_path: str | None = None,
         verified: bool = True,
     ) -> None:
-        if self.is_module_completed(module_id):
+        existing = next(
+            (m for m in self.completed_modules if m.module_id == module_id), None
+        )
+        if existing is not None:
+            # 2.7.4: a rerun (``run --force``) used to leave the first record
+            # as it was, so a passing retry of a run that had failed still read
+            # verified: false and exited 3 (Book Keeper, 2.7.4 live sweep,
+            # clawback_101 after a faucet 429). The latest run's verdict
+            # stands; the earlier run's txids are kept, never dropped.
+            existing.verified = verified
+            existing.completed_at = time.time()
+            existing.txids = list(dict.fromkeys([*existing.txids, *(txids or [])]))
+            if report_path:
+                existing.report_path = report_path
+            self.updated_at = time.time()
             return
         self.completed_modules.append(
             CompletedModule(

@@ -1,0 +1,97 @@
+{
+  "valid": true,
+  "file": "proof_pack.json",
+  "version": "2.7.4",
+  "address": "r3v5dzPbYMVm41eQTRoE1r6D3n3iBQ1aDf",
+  "network": "dry-run",
+  "modules_completed": 1,
+  "total_transactions": 9,
+  "sha256": "1c5132fff753ee462b722a2ed6ccf3a3d045f87232cee46edb67bd66372ffdb6",
+  "simulated": true,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": true,
+    "no_onledger_txids": true,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 9,
+    "note": "Dry-run pack \u2014 no on-ledger txids to verify. The offline integrity (SHA-256) check is the only applicable proof here.",
+    "tx_results": [
+      {
+        "txid": "5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083",
+        "network": "dry-run",
+        "status": "SKIPPED",
+        "reason": "No on-ledger txid to verify (network='dry-run').",
+        "checks": [],
+        "validated": null
+      },
+      {
+        "txid": "55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D",
+        "network": "dry-run",
+        "status": "SKIPPED",
+        "reason": "No on-ledger txid to verify (network='dry-run').",
+        "checks": [],
+        "validated": null
+      },
+      {
+        "txid": "8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5",
+        "network": "dry-run",
+        "status": "SKIPPED",
+        "reason": "No on-ledger txid to verify (network='dry-run').",
+        "checks": [],
+        "validated": null
+      },
+      {
+        "txid": "FDC71A314DBC370C004773B94C5E18F497B69B585171F86B679A9AE4DCCD7085",
+        "network": "dry-run",
+        "status": "SKIPPED",
+        "reason": "No on-ledger txid to verify (network='dry-run').",
+        "checks": [],
+        "validated": null
+      },
+      {
+        "txid": "511E65CD512E99986CF6B5FEC8B22D43B6D78E7E0F27E169AE0837882A48FD77",
+        "network": "dry-run",
+        "status": "SKIPPED",
+        "reason": "No on-ledger txid to verify (network='dry-run').",
+        "checks": [],
+        "validated": null
+      },
+      {
+        "txid": "6D426EC08DAAB092E90D8BD5DF8CA6DCA9DD7BF16ECC1B7103979D8848B2AAA2",
+        "network": "dry-run",
+        "status": "SKIPPED",
+        "reason": "No on-ledger txid to verify (network='dry-run').",
+        "checks": [],
+        "validated": null
+      },
+      {
+        "txid": "555C0152337D2F9BCBDA34CA6D6D9CF838283435FFAD4E5F2CE81E4F86B6F72C",
+        "network": "dry-run",
+        "status": "SKIPPED",
+        "reason": "No on-ledger txid to verify (network='dry-run').",
+        "checks": [],
+        "validated": null
+      },
+      {
+        "txid": "6D7DD9DCBCF3FFEDD03C20F6734FFDA6D20620A32B396EEA9BCA1D85877E80A5",
+        "network": "dry-run",
+        "status": "SKIPPED",
+        "reason": "No on-ledger txid to verify (network='dry-run').",
+        "checks": [],
+        "validated": null
+      },
+      {
+        "txid": "626AE3C0FB69916B891EBF6A64DDEAD19EFD53F17D0FC930D9F649C0A0B51819",
+        "network": "dry-run",
+        "status": "SKIPPED",
+        "reason": "No on-ledger txid to verify (network='dry-run').",
+        "checks": [],
+        "validated": null
+      }
+    ]
+  },
+  "live_passed": true
+}

@@ -1,0 +1,34 @@
+[
+ {
+  "txid": "D07A78DBF71A066B5E472BE7814EEC58B9CAF07AE89727C6B9AB9CF18CF4B252",
+  "type": "SignerListSet",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "B38025BBBDC4B7BB3C15061DB201D70FBE06A5A7F81A5CFE891A5B915DAC12AD",
+  "type": "Payment",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "EB504367C9B8D70D65253FC17CECD1988D3DEA1E307339DE10785877E63AEC25",
+  "type": "Payment",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": null,
+  "validated": false,
+  "class": "expected_not_on_ledger"
+ },
+ {
+  "txid": "72E8BD4F43E99910BD0ACD120A98F7EAF3452DBB4454E27DF7626D06183F640F",
+  "type": "SignerListSet",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

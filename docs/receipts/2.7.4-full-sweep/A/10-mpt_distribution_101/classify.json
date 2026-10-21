@@ -1,0 +1,26 @@
+[
+ {
+  "txid": "E02875EE539D9861340E3A9B5F1219907592F201B1C6B79BFF72F6956FCE754D",
+  "type": "MPTokenIssuanceCreate",
+  "account": "rBGDfNKgvyoveBcSGaUrjSXTmNXDNrFLVb",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "3F1F84016CA4E4A3A55E7A3F82415F58B07555C44D49B252917C32C3CD3DFB8E",
+  "type": "MPTokenAuthorize",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "C647CB60F8E2B46840DF97E82200CC85E65CC2448A893BA63DF8E7CF82D0AFA7",
+  "type": "Payment",
+  "account": "rBGDfNKgvyoveBcSGaUrjSXTmNXDNrFLVb",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

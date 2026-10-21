@@ -217,7 +217,15 @@ async def handle_ensure_funded(
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
     address = state.wallet_address
-    if address and not await ensure_funded(state, transport, address, console):
+    min_xrp = None
+    if step.action_args.get("min_xrp"):
+        try:
+            min_xrp = Decimal(str(step.action_args["min_xrp"]))
+        except (ValueError, TypeError, InvalidOperation):
+            console.print("  [yellow]Invalid min_xrp, not topping up.[/]")
+    if address and not await ensure_funded(
+        state, transport, address, console, min_xrp=min_xrp
+    ):
         _record_verification(
             context, "ensure_funded", passed=False,
             failures=["wallet not funded on a validated ledger"],
@@ -234,6 +242,19 @@ async def handle_ensure_funded(
             "deposit_gate_101 run left it set), so payments to you will be "
             "refused (tecNO_PERMISSION). Clear it by running: "
             "xrpl-lab run deposit_gate_101 --force[/]"
+        )
+    # 2.7.4 (#28 item 1): the same for RequireDest, which custodial_crediting_101
+    # before 2.7.4 left on.
+    if (
+        address
+        and context.get("module_id") != "custodial_crediting_101"
+        and await transport.get_require_dest(address)
+    ):
+        console.print(
+            "  [yellow]RequireDest is on for your wallet (an earlier "
+            "custodial_crediting_101 run left it set), so payments to you "
+            "without a destination tag will be refused (tecDST_TAG_NEEDED). "
+            "Clear it by running: xrpl-lab run custodial_crediting_101 --force[/]"
         )
     return context
 
@@ -527,6 +548,18 @@ async def handle_create_issuer_wallet(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
+    if str(step.action_args.get("fresh", "")).lower() == "true":
+        # 2.7.4 (#28 item 2): clawback_101 needs an issuer with an empty owner
+        # directory (asfAllowTrustLineClawback is refused tecOWNERS otherwise),
+        # and the shared issuer already owns lines and offers from earlier
+        # lessons. A run-scoped issuer, like create_noclaw_issuer's: not saved
+        # to the shared file, so no other lesson picks it up.
+        console.print("  Creating a fresh issuer for this lesson...")
+        issuer = _new_wallet(transport)
+        console.print(f"  Issuer wallet created: [cyan]{issuer.address}[/]")
+        context["issuer_seed"] = _SecretValue(issuer.seed)
+        context["issuer_address"] = issuer.address
+        return context
     issuer_path = Path(".xrpl-lab") / "issuer_wallet.json"
     # F-c49d009d: resume/re-run must NOT mint a second issuer. A new
     # address orphans the learner's existing trust line (and its
@@ -877,7 +910,7 @@ async def handle_remove_trust_line(
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
     args = step.action_args
-    currency = args.get("currency", "HYGIENE")
+    currency = args.get("currency", "HYG")
     # F-657a12cf / F-2f9d06c3: optional issuer= clears orphaned / foreign peers
     # when context still points at the reused live issuer.
     explicit_issuer = (args.get("issuer") or "").strip()
@@ -937,7 +970,7 @@ async def handle_verify_trust_line_removed(
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
     args = step.action_args
-    currency = args.get("currency", "HYGIENE")
+    currency = args.get("currency", "HYG")
     holder_address = state.wallet_address or ""
     # F-657a12cf / F-2f9d06c3: same optional issuer= override as remove.
     explicit_issuer = (args.get("issuer") or "").strip()
@@ -5857,10 +5890,21 @@ async def handle_create_mpt_issuance(
         console.print("  [yellow]Invalid transfer_fee, using default (0).[/]")
         transfer_fee = 0
     transferable = str(args.get("transferable", "true")).lower() != "false"
-    if "wallet_seed" not in context:
+    if str(args.get("signer", "learner")).lower() == "issuer":
+        # 2.7.4 (#28 item 4): mpt_distribution_101 distributes from a separate
+        # issuer wallet, so that wallet must create the issuance. Signed by the
+        # learner, the learner couldn't opt in to its own MPT (tecNO_PERMISSION)
+        # and the issuer wallet couldn't pay it (tecNO_AUTH).
+        _raw = context.get("issuer_seed", "")
+        seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+        if not seed:
+            console.print("  [red]No issuer wallet in context. Run the issuer step first.[/]")
+            return context
+    elif "wallet_seed" not in context:
         console.print("  [red]No wallet in context. Run the wallet step first.[/]")
         return context
-    seed = context["wallet_seed"].get()
+    else:
+        seed = context["wallet_seed"].get()
     console.print(f"  Creating MPT issuance — max supply [cyan]{maximum_amount}[/], "
                   f"scale [cyan]{asset_scale}[/], transferable [cyan]{transferable}[/]")
     result = await create_mpt_issuance(
@@ -6115,6 +6159,47 @@ async def handle_enable_require_dest(
         console.print(f"  [red]RequireDest enable failed: {result.error}[/]")
         _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
+    return context
+
+
+async def handle_disable_require_dest(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Clear asfRequireDest (AccountSet ClearFlag) and check it's off.
+
+    2.7.4 (#28 item 1): the treasury in this lesson is the learner's own
+    wallet. Left on, every later lesson's untagged payment to the learner was
+    refused with tecDST_TAG_NEEDED (deposit_gate, the DEX lessons, the AMM
+    and the capstone, in the 2.7.3 full sweep).
+    """
+    address = state.wallet_address or ""
+    console.print("  Turning RequireDest off (cleanup)...")
+    result = await enable_require_dest(
+        transport, wallet_seed, wallet_address=address, enable=False
+    )
+    if result.success:
+        console.print("  [green]RequireDest cleared.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+    else:
+        console.print(f"  [red]Clearing it failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    still_on = await transport.get_require_dest(address) if address else None
+    # As disable_deposit_auth: a failed ClearFlag fails the step even when
+    # the read-back can't tell.
+    if still_on is True or not result.success:
+        console.print("  [red]RequireDest may still be on.[/]")
+        _record_verification(
+            context, "disable_require_dest", passed=False,
+            failures=[
+                "lsfRequireDestTag still set after the cleanup" if still_on is True
+                else "ClearFlag asfRequireDest did not succeed"
+            ],
+        )
+    elif still_on is False:
+        console.print("  [green]Checked: untagged payments to your wallet are accepted again.[/]")
+        context.pop("require_dest_enabled", None)
     return context
 
 
@@ -7437,6 +7522,12 @@ def _register_all() -> None:
             name="ensure_funded",
             handler=handle_ensure_funded,
             description="Fund wallet from faucet if empty",
+            payload_fields=[
+                PayloadField(
+                    name="min_xrp", default="",
+                    description="Top up once from the faucet below this balance",
+                ),
+            ],
         ),
         ActionDef(
             name="submit_payment",
@@ -7948,6 +8039,8 @@ def _register_all() -> None:
                              description="Royalty 0-50000; needs transferable"),
                 PayloadField(name="transferable", type="bool", default="true",
                              description="Whether holders can transfer"),
+                PayloadField(name="signer", default="learner",
+                             description="learner, or issuer (the issuer wallet)"),
             ],
         ),
         ActionDef(
@@ -7959,6 +8052,15 @@ def _register_all() -> None:
             name="create_issuer_wallet",
             handler=handle_create_issuer_wallet,
             description="Create a separate issuer wallet",
+            payload_fields=[
+                PayloadField(
+                    name="fresh", default="false",
+                    description=(
+                        "true: a run-scoped issuer with no owned objects, "
+                        "not the shared reused one"
+                    ),
+                ),
+            ],
         ),
         ActionDef(
             name="fund_issuer",
@@ -8012,7 +8114,7 @@ def _register_all() -> None:
             description="Remove a trust line (set limit to 0)",
             wallet_required=True,
             payload_fields=[
-                PayloadField(name="currency", default="HYGIENE"),
+                PayloadField(name="currency", default="HYG"),
                 # F-657a12cf: optional peer override for orphaned / leftover lines.
                 PayloadField(
                     name="issuer",
@@ -8028,7 +8130,7 @@ def _register_all() -> None:
             handler=handle_verify_trust_line_removed,
             description="Verify a trust line was removed",
             payload_fields=[
-                PayloadField(name="currency", default="HYGIENE"),
+                PayloadField(name="currency", default="HYG"),
                 PayloadField(
                     name="issuer",
                     description=(
@@ -8480,6 +8582,12 @@ def _register_all() -> None:
                 "Enable asfRequireDest on the pooled treasury (AccountSet) — "
                 "untagged deposits bounce tecDST_TAG_NEEDED"
             ),
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="disable_require_dest",
+            handler=handle_disable_require_dest,
+            description="Clear asfRequireDest and check it's off (cleanup)",
             wallet_required=True,
         ),
         ActionDef(

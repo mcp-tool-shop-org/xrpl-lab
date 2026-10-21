@@ -50,14 +50,14 @@ Trust lines and payments cost a small fee plus owner reserve (free on testnet).
 
 We create a second wallet to act as the issuer of a game currency called **GLD**.
 
-**Issuer reuse:** this step loads `.xrpl-lab/issuer_wallet.json` when present
-and reuses that issuer — it does not mint a fresh wallet on resume or re-run.
-Minting a new issuer would orphan trust lines (and their owner reserve) against
-the previous address. Leftover lines from earlier currencies still lock reserve
-until balance is 0 and you remove them; run **Account Hygiene**
-(`account_hygiene`) for the taught cleanup loop.
+**A fresh issuer, not the shared one:** most lessons reuse
+`.xrpl-lab/issuer_wallet.json`. This one can't. The ledger lets an issuer turn
+clawback on only while it owns nothing (no trust lines, offers or other
+objects), and by now the shared issuer owns objects from earlier lessons, so
+the ledger would refuse with `tecOWNERS`. This step makes a new issuer for this
+run only.
 
-<!-- action: create_issuer_wallet -->
+<!-- action: create_issuer_wallet fresh=true -->
 
 ## Step 4: Fund the issuer
 

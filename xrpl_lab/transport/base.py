@@ -620,6 +620,15 @@ class Transport(ABC):
         """
         return None
 
+    async def get_require_dest(self, address: str) -> bool | None:
+        """Whether ``address`` has ``lsfRequireDestTag`` set; ``None`` if unknown.
+
+        Concrete. custodial_crediting_101 checks its cleanup with it, and a
+        lesson that will pay the learner warns when an older run left it on
+        (2.7.4, #28 item 1).
+        """
+        return None
+
     def bound_addresses(self) -> list[str]:
         """Every address bound this run: the learner and each helper wallet.
 

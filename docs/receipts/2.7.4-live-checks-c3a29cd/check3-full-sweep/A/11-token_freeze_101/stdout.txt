@@ -1,0 +1,179 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Token Freeze 101: The Issuer's Pause Button                                                                                                                 │
+│ Level: intermediate  |  Time: ~15-20 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Clawback (the previous module) is the issuer's destructive lever — it pulls tokens back. But most of the time you want something gentler first: stop the money 
+moving without taking it. On the XRPL that lever is Freeze, and it comes in two tiers.                                                                         
+
+ • Individual Freeze — the issuer freezes one holder's trust line. That holder can no longer send the token (they can only send it back to the issuer).        
+   Everyone else keeps trading. This is your targeted sanction: a single exploited or banned account, paused, with their balance intact and recoverable.       
+ • Global Freeze — the issuer freezes the whole currency at once. Every holder is paused. This is your economy-wide circuit breaker: an exploit is draining the
+   market and you need to stop all movement while you investigate.                                                                                             
+
+Both are core, mainnet-live features and both are reversible — you set the flag, and you clear it. (There is a third tier, Deep Freeze / XLS-77d, that blocks a
+holder from even returning a frozen token to the issuer — a stricter control for sanctions and compliance. The DeepFreeze amendment went live on XRPL mainnet  
+on 2025-05-05, so it is real today; this module focuses on Individual and Global freeze as the two foundational levers, and notes Deep Freeze as the           
+compliance-grade escalation above them.)                                                                                                                       
+
+Everything here runs on the testnet — free, disposable, and safe to repeat.                                                                                    
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You are the holder in this module — the account whose token gets frozen.                                                                                       
+
+
+  → ensure_wallet...
+  Wallet loaded: rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Balance: 59.999780 XRP
+
+Press Enter to continue...Create the issuer                                                                                                                                              
+
+A second wallet acts as the issuer of a game currency called GLD.                                                                                              
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Reusing existing issuer wallet: rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS
+  Workshop hint: This issuer is reused across modules. Leftover trust lines from earlier currencies still lock owner reserve until balance=0 and 
+remove_trust_line runs. Run module account_hygiene for the taught cleanup loop, or re-run remove_trust_line with the leftover currency (use issuer=<peer> for 
+orphaned pre-reuse peers). If owner_count stays high after hygiene, ask your facilitator to inventory trust lines.
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 299.999950 XRP
+
+Press Enter to continue...Set a trust line for GLD                                                                                                                                       
+
+Before you can hold GLD you opt in by trusting the issuer for up to 1000 GLD.                                                                                  
+
+
+  → set_trust_line...
+  Setting trust line: GLD from issuer rQ3gWRcwXm2P...
+  Limit: 1000
+  Trust line set!
+  TXID: 701EE5CBE902375344FB5C86D1BD868ACA8BA665CD1621D5D6DD0D6CFA8B7AD3
+  Explorer: https://testnet.xrpl.org/transactions/701EE5CBE902375344FB5C86D1BD868ACA8BA665CD1621D5D6DD0D6CFA8B7AD3
+
+Press Enter to continue...Receive 100 GLD                                                                                                                                                
+
+The issuer sends you 100 GLD. You now hold a real balance — the thing freeze will pause.                                                                       
+
+
+  → issue_token...
+  Issuing 100 GLD to rNjYPjKP48H6...
+  100 GLD issued!
+  TXID: 5DD4EFDCB9583D6B5C65C2AA5DCF00CB189B3ADFC395C9BB4127D1C5ADF77626
+  Explorer: https://testnet.xrpl.org/transactions/5DD4EFDCB9583D6B5C65C2AA5DCF00CB189B3ADFC395C9BB4127D1C5ADF77626
+
+Press Enter to continue...Individual Freeze — pause this one holder                                                                                                                      
+
+The issuer freezes your GLD trust line with a TrustSet carrying the tfSetFreeze flag. The freeze is set on the issuer's side of the line: your balance is      
+untouched, but you can no longer move that GLD to anyone except the issuer.                                                                                    
+
+
+  → set_freeze...
+  Freezing the holder's GLD trust line (issuer-side)...
+  Individual freeze set!
+  TXID: F18D51B0FEC8A0189587C92F71BBECEA344BEA9B48E6D8822A25FF4EC203A01A
+  Explorer: https://testnet.xrpl.org/transactions/F18D51B0FEC8A0189587C92F71BBECEA344BEA9B48E6D8822A25FF4EC203A01A
+
+Press Enter to continue...Verify the freeze is on                                                                                                                                        
+
+Read the issuer's view of the line back. The freeze flag must be on.                                                                                           
+
+
+  → verify_freeze...
+  ✓ Individual freeze is ON for the holder's GLD line
+
+Press Enter to continue...Unfreeze — lift the pause                                                                                                                                      
+
+Individual Freeze is reversible. The issuer clears it with a TrustSet carrying tfClearFreeze, and your GLD is liquid again.                                    
+
+
+  → set_freeze...
+  Unfreezing the holder's GLD trust line (issuer-side)...
+  Individual freeze cleared!
+  TXID: 76AF026E83BC8EA0630CF0C31678B3FE71D5DB5EAB535458FA2B3D888C65060D
+  Explorer: https://testnet.xrpl.org/transactions/76AF026E83BC8EA0630CF0C31678B3FE71D5DB5EAB535458FA2B3D888C65060D
+
+Press Enter to continue...Verify the freeze is off                                                                                                                                       
+
+
+  → verify_freeze...
+  ✓ Individual freeze is OFF for the holder's GLD line
+
+Press Enter to continue...Global Freeze — pause the whole currency                                                                                                                       
+
+Now the bigger hammer. The issuer sets asfGlobalFreeze (an AccountSet flag) on its account. Every holder of every token this account issues is now paused at   
+once — the economy-wide circuit breaker.                                                                                                                       
+
+
+  → set_global_freeze...
+  Enabling Global Freeze on the issuer (halts ALL its tokens)...
+  Global freeze enabled!
+  TXID: 52DAE1DA13FABA443C524AE1A14689077342CB7FE57C6C90FBC4020EDA3836F8
+  Explorer: https://testnet.xrpl.org/transactions/52DAE1DA13FABA443C524AE1A14689077342CB7FE57C6C90FBC4020EDA3836F8
+
+Press Enter to continue...Verify Global Freeze is on                                                                                                                                     
+
+Read the issuer's account flags back. Global Freeze must be on.                                                                                                
+
+
+  → verify_freeze...
+  ✓ Global freeze is ON on the issuer account
+
+Press Enter to continue...Clear Global Freeze — resume trading                                                                                                                           
+
+
+  → set_global_freeze...
+  Clearing Global Freeze on the issuer (halts ALL its tokens)...
+  Global freeze cleared!
+  TXID: CD662A1B3826FFBB78A657C6E9A27F0A0A1B1F5D19C036AE4BEE9FA53AA86777
+  Explorer: https://testnet.xrpl.org/transactions/CD662A1B3826FFBB78A657C6E9A27F0A0A1B1F5D19C036AE4BEE9FA53AA86777
+
+Press Enter to continue...Verify Global Freeze is off                                                                                                                                    
+
+
+  → verify_freeze...
+  ✓ Global freeze is OFF on the issuer account
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You exercised both non-destructive issuer sanction levers end to end:                                                                                          
+
+ 1 Individual Freeze — paused one holder's line (tfSetFreeze) and confirmed it on-ledger, then lifted it (tfClearFreeze)                                       
+ 2 Global Freeze — paused the entire currency (asfGlobalFreeze) and confirmed it, then cleared it                                                              
+ 3 Reversible — both flags went on AND off; freeze stops movement, it never destroys a balance                                                                 
+
+Key concepts to remember:                                                                                                                                      
+
+ • Freeze is the rung below clawback: stop the money before you take it. Reach for Individual Freeze first (targeted), Global Freeze when the whole market is  
+   at risk, and Clawback only when you actually need to recall tokens.                                                                                         
+ • A frozen holder can still pay the issuer back: Individual Freeze blocks holder→holder transfers, not holder→issuer — the off-ramp stays open.               
+ • asfNoFreeze is a one-way promise: an issuer can permanently relinquish its freeze power with the NoFreeze flag — a credibility signal to holders that their 
+   balances can never be paused. (We don't set it here; it can't be undone.)                                                                                   
+ • Deep Freeze (XLS-77d) is mainnet-live (DeepFreeze amendment, since 2025-05-05) — the compliance-grade tier above Individual/Global that also blocks the     
+   holder→issuer return path. Learn the two reversible levers here first; reach for Deep Freeze when sanctions/compliance demand a full lock.                  
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Token Freeze 101: The Issuer's Pause Button                                                                                                                 │
+│ Report saved to .xrpl-lab\reports\token_freeze_101.md                                                                                                       │
+│ 6 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

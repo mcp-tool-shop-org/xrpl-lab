@@ -1,0 +1,76 @@
+[
+ {
+  "txid": "CF1CA995A176700ADBCF6EDE97B15BF62295A5F6AE00D8ED8D59E190415495AE",
+  "type": "AccountSet",
+  "account": "r94p9o42DVKD7WnKtDuCGuDjzY1GR44Qsf",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "SetFlag": "asfAllowTrustLineClawback"
+ },
+ {
+  "txid": "01F9AA46179540D48EDB331E66536FC8643ABBA76FC9962EBB7F9B58E4BAE357",
+  "type": "TrustSet",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "7DF55E12756D848CF6838F0406EA2BE3B30562D1C5C4DC986F95FA64D643E19E",
+  "type": "Payment",
+  "account": "r94p9o42DVKD7WnKtDuCGuDjzY1GR44Qsf",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "213EE3A8E355571EBE7B8213D40089E3D232D4BD88AFF6C54557397200C09AB8",
+  "type": "Clawback",
+  "account": "r94p9o42DVKD7WnKtDuCGuDjzY1GR44Qsf",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "2AA7BB238FC76A95BD3D6EAC70C153D5E3629EDA889546D5F991F7AAF37C5014",
+  "type": "AccountSet",
+  "account": "rpiwbbJRK9Z6fbe8XKdt8mnmtuspgFphS9",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "SetFlag": "asfAllowTrustLineClawback"
+ },
+ {
+  "txid": "A13CD230310038DB2C95BA082A16B84C2BD487913C51CA2543A730CE2C6B165E",
+  "type": "TrustSet",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "6A9BC5EE15BAD166CFA93F8B5D31C18B4EC635F6419BE70EAAAC0E82B83795CE",
+  "type": "Payment",
+  "account": "rpiwbbJRK9Z6fbe8XKdt8mnmtuspgFphS9",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "629024BCF8447607B00BC7030979C1182A337F8A223AC7A6E83C81987985D116",
+  "type": "Clawback",
+  "account": "rpiwbbJRK9Z6fbe8XKdt8mnmtuspgFphS9",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "590482436176D5D79C1E5F34BB846C8A6FF14C818A75D37D34C9C241D0C0404F",
+  "type": "Clawback",
+  "account": "rBMAPZ4rbj5Kt7JCx9cRicjhanYj4BQStx",
+  "result": "tecNO_PERMISSION",
+  "validated": true,
+  "class": "expected_validated"
+ }
+]

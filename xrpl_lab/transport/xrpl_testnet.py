@@ -1123,6 +1123,25 @@ class XRPLTestnetTransport(Transport):
         # which also pins the Sequence once (_pin_sequence) before retrying.
         try:
             wallet = self._wallet(wallet_seed, wallet_address)
+            removing = str(limit).strip() in ("0", "0.0", "")
+        except Exception as exc:
+            return SubmitResult(
+                success=False,
+                validated=False, result_code="local_error", error=_friendly_error(exc)
+            )
+        # 2.7.4 (Book Keeper, 2.7.4 live sweep): a limit-0 TrustSet deletes the
+        # line only when it is back in its default state, and that includes
+        # NoRipple matching the account's default (set, unless the account has
+        # DefaultRipple). Without the flag, account_hygiene's HYG line stayed
+        # at balance 0 and limit 0, still holding its owner reserve.
+        flags = None
+        if removing:
+            flags = (
+                TrustSetFlag.TF_CLEAR_NO_RIPPLE
+                if await self.has_default_ripple(wallet.address)
+                else TrustSetFlag.TF_SET_NO_RIPPLE
+            )
+        try:
             trust_set = TrustSet(
                 account=wallet.address,
                 limit_amount=IssuedCurrencyAmount(
@@ -1130,6 +1149,7 @@ class XRPLTestnetTransport(Transport):
                     issuer=issuer,
                     value=limit,
                 ),
+                flags=flags if flags is not None else 0,
             )
         except Exception as exc:
             return SubmitResult(
@@ -3170,6 +3190,23 @@ class XRPLTestnetTransport(Transport):
             return bool(int(acct.get("Flags", 0)) & 0x01000000)  # lsfDepositAuth
         except Exception:
             logger.warning("get_deposit_auth failed for %s", address, exc_info=True)
+            return None
+
+    async def get_require_dest(self, address: str) -> bool | None:
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                response = await asyncio.wait_for(
+                    client.request(
+                        AccountInfo(account=address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+            acct = response.result.get("account_data")
+            if not acct:
+                return None
+            return bool(int(acct.get("Flags", 0)) & 0x00020000)  # lsfRequireDestTag
+        except Exception:
+            logger.warning("get_require_dest failed for %s", address, exc_info=True)
             return None
 
     async def get_account_info(self, address: str) -> AccountSnapshot:

@@ -1,0 +1,18 @@
+[
+ {
+  "txid": "3DA7E27B41D381CF4E62005B604911E60D74D9F08C1E09CFB3FA7CDF80903837",
+  "type": "DIDSet",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "2A2F26D795E89D163EA044639C2A5C0F480548BF4909AAD43128D9C5BE0D3E1A",
+  "type": "DIDDelete",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

@@ -58,7 +58,7 @@ owner count, balance, and sequence number.
 ## Step 4: Create an issuer wallet
 
 We need an issuer to create objects against. This issuer creates a currency
-called HYGIENE — chosen specifically because we won't issue any tokens,
+called HYG — chosen specifically because we won't issue any tokens,
 which means the trust line can be cleanly removed later.
 
 **Issuer reuse:** this step loads `.xrpl-lab/issuer_wallet.json` when present
@@ -76,17 +76,17 @@ that cleanup loop.
 
 ## Step 6: Create two owned objects
 
-First, set a trust line for HYGIENE with a small limit. No tokens will be
+First, set a trust line for HYG with a small limit. No tokens will be
 issued — we're keeping the balance at 0 so removal works cleanly.
 
-Then place a tiny DEX offer (XRP for HYGIENE) to create a second owned
+Then place a tiny DEX offer (XRP for HYG) to create a second owned
 object.
 
-<!-- action: set_trust_line currency=HYGIENE limit=100 -->
+<!-- action: set_trust_line currency=HYG limit=100 -->
 
 ## Step 7: Place the offer
 
-<!-- action: create_offer pays_currency=HYGIENE pays_value=10 gets_currency=XRP gets_value=1 -->
+<!-- action: create_offer pays_currency=HYG pays_value=10 gets_currency=XRP gets_value=1 -->
 
 ## Step 8: Snapshot B — dirty state
 
@@ -111,21 +111,21 @@ release that offer's reserve back to spendable.
 
 ## Step 11: Remove the trust line
 
-Set the HYGIENE trust line limit to 0. Because we never issued any
-HYGIENE tokens, the balance is 0 — so the ledger will delete the trust
+Set the HYG trust line limit to 0. Because we never issued any
+HYG tokens, the balance is 0 — so the ledger will delete the trust
 line object entirely.
 
 If you had a non-zero balance, this would fail. That's the rule: you
 must return or burn all tokens before you can remove a trust line.
 
-<!-- action: remove_trust_line currency=HYGIENE -->
+<!-- action: remove_trust_line currency=HYG -->
 
 ## Step 12: Verify removal
 
-Confirm the HYGIENE trust line no longer appears in your account's
+Confirm the HYG trust line no longer appears in your account's
 trust line list.
 
-<!-- action: verify_trust_line_removed currency=HYGIENE -->
+<!-- action: verify_trust_line_removed currency=HYG -->
 
 ## Step 13: Snapshot C — clean state
 

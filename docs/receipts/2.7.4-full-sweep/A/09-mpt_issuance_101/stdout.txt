@@ -1,0 +1,78 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ MPT Issuance 101: A Game Currency in One Transaction                                                                                                        │
+│ Level: intermediate  |  Time: ~15-20 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+A Multi-Purpose Token (MPT, XLS-33) is the modern way to issue a fungible token on the XRPL — perfect for an in-game soft currency. Unlike trust-line IOUs,    
+MPTs need no trust line per holder, carry native metadata, and define their entire policy — supply cap, decimal scale, an optional transfer fee, and capability
+flags — in a single MPTokenIssuanceCreate transaction. This lesson sets a supply cap, scale, and the transferable flag, and leaves the transfer fee at zero —  
+you can set a transfer fee on a future issuance by passing transfer_fee (an issuance's config is immutable once created, so this mints a new one).             
+
+This runs on testnet — free and disposable.                                                                                                                    
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You need a funded wallet to issue a token. If you completed an earlier module it loads automatically.                                                          
+
+
+  → ensure_wallet...
+  Wallet loaded: rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Issuing an MPT costs a small fee plus an owner reserve for the issuance object (free on testnet).                                                              
+
+
+  → ensure_funded...
+  Balance: 59.999800 XRP
+
+Press Enter to continue...Issue your game currency                                                                                                                                       
+
+Create an MPT issuance with a fixed maximum supply, an asset scale (decimal places), and the transferable flag so players can trade it. The policy you set here
+is largely immutable.                                                                                                                                          
+
+
+  → create_mpt_issuance...
+  Creating MPT issuance — max supply 1000000, scale 2, transferable True
+  MPT issuance created!
+  TXID: 321D46F4EA92AA77579DC15628406144E9C08F21D7589D8D3DA387B77B1F896C
+  Explorer: https://testnet.xrpl.org/transactions/321D46F4EA92AA77579DC15628406144E9C08F21D7589D8D3DA387B77B1F896C
+  Issuance ID: 014B6597122672E5B66C21D77A7199B600A7CCED93A33B77
+
+Press Enter to continue...Verify the issuance                                                                                                                                            
+
+Read it back from the ledger via account_objects. You should see your issuance id, the maximum supply, and that it is transferable.                            
+
+
+  → verify_mpt_issuance...
+  MPT issuance found: 014B6597122672E5B66C21D7...
+  Maximum supply: 1000000
+  Asset scale: 2
+  Transferable: yes
+  MPT issuance verified on-ledger.
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You issued a native fungible token in one transaction and verified it on-ledger:                                                                               
+
+ 1 MPTokenIssuanceCreate — defined supply cap, scale, and flags in a single tx (transfer fee left at zero)                                                     
+ 2 No trust lines — holders opt in with one MPTokenAuthorize, not a per-token trust line                                                                       
+ 3 Verified — account_objects shows the issuance you control                                                                                                   
+
+Key concepts to remember:                                                                                                                                      
+
+ • MPT vs IOU — MPT is the right primitive for a new game soft currency (compact, trust-line-free). Use a trust-line IOU when you need a currency that's       
+   tradeable on the DEX today — MPT DEX trading (XLS-82) is not yet live on mainnet.                                                                           
+ • Policy is set at creation — supply cap, asset scale, and most flags can't change later; choose deliberately.                                                
+ • Hard vs soft money — pair a capped MPT (premium/hard currency) with an uncapped earned currency for a healthy economy.                                      
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ MPT Issuance 101: A Game Currency in One Transaction                                                                                                        │
+│ Report saved to .xrpl-lab\reports\mpt_issuance_101.md                                                                                                       │
+│ 1 transaction recorded                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from decimal import ROUND_HALF_EVEN, ROUND_HALF_UP, Decimal, getcontext
 
 from .base import (
@@ -124,6 +125,38 @@ def _validate_xrp_amount(amount: str) -> int:
         # Covers negatives and any amount that rounds below a single drop.
         raise DryRunAmountError(f"XRP amount {amount} is too small.")
     return drops
+
+
+_ISO_CURRENCY_RE = re.compile(r"^[A-Za-z0-9?!@#$%^&*<>(){}\[\]|]{3}$")
+_HEX_CURRENCY_RE = re.compile(r"^[A-F0-9]{40}$")
+
+
+def _currency_error(*codes: str) -> SubmitResult | None:
+    """Reject a currency code xrpl-py would refuse; None when every one passes.
+
+    2.7.4 (#28 item 7): a code is 3 characters or 40 hex characters. Live,
+    xrpl-py raises before signing ("HYGIENE" in account_hygiene before 2.7.4),
+    which the testnet transport surfaces as a local error; the dry run accepted
+    it, so offline sweeps passed a lesson that could never run live. "XRP" is
+    not a legal issued-currency code either.
+    """
+    for code in codes:
+        c = code or ""
+        if c == "XRP" or not (_ISO_CURRENCY_RE.match(c) or _HEX_CURRENCY_RE.match(c)):
+            return SubmitResult(
+                success=False, result_code="local_error",
+                error=(
+                    f"[dry-run] Invalid currency code {c!r}: a code is 3 "
+                    "characters (not XRP) or 40 hex characters. xrpl-py "
+                    "refuses to build the transaction."
+                ),
+            )
+    return None
+
+
+def _leg_currency_error(*codes: str) -> SubmitResult | None:
+    """``_currency_error`` for amount legs, where "XRP" means the native asset."""
+    return _currency_error(*(c for c in codes if c != "XRP"))
 
 
 def _validate_positive_issued_amount(amount: str) -> Decimal:
@@ -561,6 +594,61 @@ class DryRunTransport(Transport):
     async def get_deposit_auth(self, address: str) -> bool | None:
         return address in self._deposit_auth
 
+    async def get_require_dest(self, address: str) -> bool | None:
+        return address in self._require_dest
+
+    def _tag_gate(
+        self, destination: str, destination_tag: int | None = None,
+    ) -> SubmitResult | None:
+        """tecDST_TAG_NEEDED for an untagged EscrowCreate, CheckCreate or
+        PaymentChannelCreate to a RequireDest account, as the network does.
+
+        2.7.4: in the live sweep, the capstone's reward escrow to the learner
+        failed this way after custodial left RequireDest on.
+        """
+        if destination in self._require_dest and destination_tag is None:
+            return SubmitResult(
+                success=False, txid="", result_code="tecDST_TAG_NEEDED", fee="12",
+                error=(
+                    "[dry-run] The destination requires a DestinationTag "
+                    "(asfRequireDest is set) and this transaction carries none "
+                    "(tecDST_TAG_NEEDED)."
+                ),
+            )
+        return None
+
+    def _incoming_gate(self, destination: str, sender: str) -> SubmitResult | None:
+        """RequireDest and DepositAuth for a token Payment (issued or MPT).
+
+        2.7.4 (Argon, round 1, F1): the network applies both to every incoming
+        Payment, not only XRP ones. These payments carry no DestinationTag, and
+        the XRP-only sub-reserve exemption doesn't apply. Before this, the
+        one-ledger course test passed the DEX lessons, the AMM and the capstone
+        on v2.7.3 although custodial had left RequireDest on.
+        """
+        if destination in self._require_dest:
+            return SubmitResult(
+                success=False, txid="", result_code="tecDST_TAG_NEEDED", fee="12",
+                error=(
+                    "[dry-run] The destination requires a DestinationTag "
+                    "(asfRequireDest is set) and this Payment carries none "
+                    "(tecDST_TAG_NEEDED)."
+                ),
+            )
+        if (
+            destination in self._deposit_auth
+            and destination != sender
+            and not self._deposit_admits(destination, sender, None)
+        ):
+            return SubmitResult(
+                success=False, txid="", result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    "[dry-run] The destination has asfDepositAuth enabled and "
+                    "this sender is not preauthorized (tecNO_PERMISSION)."
+                ),
+            )
+        return None
+
     def bound_addresses(self) -> list[str]:
         return sorted(set(self._bound_seeds.values()))
 
@@ -822,6 +910,9 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] Simulated failure: issuer not found",
             )
+        bad = _currency_error(currency)
+        if bad is not None:
+            return bad
 
         # F-TOKENESC-DRYRUN: key the line under the caller's REAL address when
         # it is known. _address_from_seed collapses every seed to one synthetic
@@ -963,6 +1054,9 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] Simulated failure: no trust line",
             )
+        bad = _currency_error(currency)
+        if bad is not None:
+            return bad
 
         # F-0716549a: the issued VALUE moves on the trust line, not the
         # sender's XRP balance — but the network fee is still XRP, debited
@@ -972,6 +1066,9 @@ class DryRunTransport(Transport):
         guard = self._reserve_guard(sender)
         if guard is not None:
             return guard
+        gate = self._incoming_gate(destination, sender)
+        if gate is not None:
+            return gate
 
         # F-c0be844f (transport-008): validate the amount BEFORE any state read
         # or mutation. A negative issued payment previously returned tesSUCCESS
@@ -1091,6 +1188,9 @@ class DryRunTransport(Transport):
         on-ledger (``temBAD_SEND_XRP_PARTIAL``); this transport rejects them the
         same way so the dry-run stays in parity with testnet.
         """
+        bad = _leg_currency_error(currency)
+        if bad is not None:
+            return bad
         if self._fail_next:
             self._fail_next = False
             return SubmitResult(
@@ -1272,6 +1372,9 @@ class DryRunTransport(Transport):
                 fee="12",
                 error="[dry-run] Simulated failure: unfunded offer",
             )
+        bad = _leg_currency_error(taker_pays_currency, taker_gets_currency)
+        if bad is not None:
+            return bad
 
         # F-0716549a / F-17e7f723: OfferCreate costs fee + one owner-reserve
         # increment (offered amount is not locked here).
@@ -1520,6 +1623,9 @@ class DryRunTransport(Transport):
         trading_fee: int = 500,
         wallet_address: str = "",
     ) -> SubmitResult:
+        bad = _leg_currency_error(asset_a_currency, asset_b_currency)
+        if bad is not None:
+            return bad
         if self._fail_next:
             self._fail_next = False
             return SubmitResult(
@@ -1662,6 +1768,9 @@ class DryRunTransport(Transport):
         asset_b_issuer: str,
         wallet_address: str = "",
     ) -> SubmitResult:
+        bad = _leg_currency_error(asset_a_currency, asset_b_currency)
+        if bad is not None:
+            return bad
         if self._fail_next:
             self._fail_next = False
             return SubmitResult(
@@ -1795,6 +1904,9 @@ class DryRunTransport(Transport):
         lp_token_value: str = "",
         wallet_address: str = "",
     ) -> SubmitResult:
+        bad = _leg_currency_error(asset_a_currency, asset_b_currency)
+        if bad is not None:
+            return bad
         if self._fail_next:
             self._fail_next = False
             return SubmitResult(
@@ -2086,6 +2198,9 @@ class DryRunTransport(Transport):
         currency: str = "XRP",
         issuer: str = "",
     ) -> SubmitResult:
+        bad = _leg_currency_error(currency)
+        if bad is not None:
+            return bad
         if self._fail_next:
             self._fail_next = False
             return SubmitResult(
@@ -2394,6 +2509,19 @@ class DryRunTransport(Transport):
         guard = self._reserve_guard(issuer, code="tecINSUFFICIENT_RESERVE")
         if guard is not None:
             return guard
+        # 2.7.4 (#28 item 2): the network refuses the flag while the issuer's
+        # owner directory holds anything, trust lines to it included (a trust
+        # line sits in both accounts' directories).
+        if self._owner_counts.get(issuer, 0) or any(
+            getattr(tl, "peer", "") == issuer for tl in self._trust_lines
+        ):
+            return SubmitResult(
+                success=False, txid="", result_code="tecOWNERS", fee="12",
+                error=(
+                    "[dry-run] tecOWNERS: asfAllowTrustLineClawback can only be "
+                    "set while the issuer owns no objects"
+                ),
+            )
         self._clawback_enabled.add(issuer)
         self._debit_fee(issuer)
         return SubmitResult(
@@ -2437,6 +2565,9 @@ class DryRunTransport(Transport):
         amount: str,
         issuer_address: str = "",
     ) -> SubmitResult:
+        bad = _leg_currency_error(currency)
+        if bad is not None:
+            return bad
         if self._fail_next:
             self._fail_next = False
             return SubmitResult(
@@ -2525,6 +2656,9 @@ class DryRunTransport(Transport):
         self, issuer_seed: str, holder: str, currency: str,
         freeze: bool, issuer_address: str = "",
     ) -> SubmitResult:
+        bad = _leg_currency_error(currency)
+        if bad is not None:
+            return bad
         if self._fail_next:
             self._fail_next = False
             return SubmitResult(
@@ -2628,6 +2762,9 @@ class DryRunTransport(Transport):
         except DryRunAmountError as exc:
             return SubmitResult(success=False, result_code=exc.result_code, fee="12",
                                 error=f"[dry-run] {exc}")
+        gate = self._tag_gate(destination)
+        if gate is not None:
+            return gate
         owner = self._seed_address(wallet_seed)
         # F-7ec2c90d (XRP conservation): the escrowed value leaves the source's
         # SPENDABLE balance the moment EscrowCreate validates — exactly the
@@ -2961,6 +3098,9 @@ class DryRunTransport(Transport):
         finish_after: int | None = None,
         source_address: str = "",
     ) -> SubmitResult:
+        bad = _leg_currency_error(currency)
+        if bad is not None:
+            return bad
         if self._fail_next:
             self._fail_next = False
             return SubmitResult(
@@ -3326,6 +3466,9 @@ class DryRunTransport(Transport):
                     f"range — tags are 32-bit unsigned integers (0..{_MAX_TAG})."
                 ),
             )
+        gate = self._tag_gate(destination, destination_tag)
+        if gate is not None:
+            return gate
         owner = wallet_address or self._seed_address(wallet_seed)
         # F-CHECKS-NOLOCK: SendMax is NOT locked here — unlike EscrowCreate,
         # CheckCreate only writes an authorization. The writer still pays the
@@ -3893,6 +4036,9 @@ class DryRunTransport(Transport):
         hybrid: bool = False,
         wallet_address: str = "",
     ) -> SubmitResult:
+        bad = _leg_currency_error(taker_pays_currency, taker_gets_currency)
+        if bad is not None:
+            return bad
         if self._fail_next:
             self._fail_next = False
             return SubmitResult(success=False, result_code="tecUNFUNDED_OFFER", fee="12",
@@ -4019,6 +4165,19 @@ class DryRunTransport(Transport):
         guard = self._reserve_guard(holder, code="tecINSUFFICIENT_RESERVE")
         if guard is not None:
             return guard
+        # 2.7.4 (#28 item 4): an issuer can't hold its own MPT; the network
+        # refuses its MPTokenAuthorize with tecNO_PERMISSION. Unbound seeds all
+        # collapse to the synthetic address, which can't tell issuer from holder.
+        if holder != _DRY_RUN_WALLET_ADDRESS and any(
+            m.issuance_id == issuance_id for m in self._mpts.get(holder, [])
+        ):
+            return SubmitResult(
+                success=False, result_code="tecNO_PERMISSION", fee="12",
+                error=(
+                    "[dry-run] tecNO_PERMISSION: the issuer of an MPT can't "
+                    "authorize itself to hold it"
+                ),
+            )
         key = (holder, issuance_id)
         if unauthorize:
             if Decimal(str(self._mpt_balances.get(key, 0))) != 0:
@@ -4062,6 +4221,9 @@ class DryRunTransport(Transport):
         guard = self._reserve_guard(mpt_issuer)
         if guard is not None:
             return guard
+        gate = self._incoming_gate(destination, mpt_issuer)
+        if gate is not None:
+            return gate
         key = (destination, issuance_id)
         # The holder must have authorized the issuance first (the MPT opt-in
         # gate — the lesson's load-bearing concept).
@@ -4114,6 +4276,9 @@ class DryRunTransport(Transport):
                 success=False, result_code=exc.result_code, fee="12",
                 error=f"[dry-run] Invalid channel amount: {exc}",
             )
+        gate = self._tag_gate(destination)
+        if gate is not None:
+            return gate
         source = self._seed_address(wallet_seed)
         # F-7ec2c90d (XRP conservation): the deposit leaves the source's
         # spendable balance the moment PaymentChannelCreate validates. The old

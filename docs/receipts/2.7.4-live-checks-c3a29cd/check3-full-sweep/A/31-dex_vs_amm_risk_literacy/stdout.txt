@@ -1,0 +1,323 @@
+'dex_vs_amm_risk_literacy' is an offline lesson (mode: dry-run); running it in the dry-run sandbox, not on the network.
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ DEX vs AMM Risk Literacy: Comparing Trading Strategies                                                                                                      │
+│ Level: advanced  |  Time: ~25-35 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+You've now used both sides of XRPL trading: the DEX order book (explicit bids and asks) and the AMM pool (passive liquidity provision). This capstone module   
+puts them side by side so you can compare risks, costs, and behavior.                                                                                          
+
+This is not about which is "better." It's about understanding the tradeoffs so you can choose the right tool for the situation. Everything runs in dry-run mode
+— no real assets at risk.                                                                                                                                      
+
+Mental model. A DEX order book makes you a price-setter: you decide the rate, post the offer, and wait for a taker. An AMM pool makes you a formula-follower:  
+you deposit both sides of a pair into a pool that prices itself by a constant-product invariant (x*y=k), and the pool's price moves whenever anyone swaps      
+against it. The differences in the bullets below — control, cost, risk, earnings — are downstream of that one split. Impermanent loss isn't a separate         
+phenomenon you have to learn; it's just what the formula does to your position when the outside price moves and arbitrageurs rebalance the pool.               
+
+DEX order book:                                                                                                                                                
+
+ • You control the exact price                                                                                                                                 
+ • Your offer sits until filled or cancelled                                                                                                                   
+ • You pay a fee per transaction (create + cancel)                                                                                                             
+ • You only trade when someone takes your offer                                                                                                                
+
+AMM pool:                                                                                                                                                      
+
+ • You deposit both assets and earn swap fees                                                                                                                  
+ • The price adjusts automatically (constant product)                                                                                                          
+ • You face impermanent loss if the price ratio changes                                                                                                        
+ • You pay fees to deposit and withdraw                                                                                                                        
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+
+  → ensure_wallet...
+  Wallet loaded: rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create an issuer wallet                                                                                                                                        
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Reusing existing issuer wallet: rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS
+  Workshop hint: This issuer is reused across modules. Leftover trust lines from earlier currencies still lock owner reserve until balance=0 and 
+remove_trust_line runs. Run module account_hygiene for the taught cleanup loop, or re-run remove_trust_line with the leftover currency (use issuer=<peer> for 
+orphaned pre-reuse peers). If owner_count stays high after hygiene, ask your facilitator to inventory trust lines.
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Set trust line for LAB                                                                                                                                         
+
+
+  → set_trust_line...
+  Setting trust line: LAB from issuer rQ3gWRcwXm2P...
+  Limit: 10000
+  Trust line set!
+  TXID: 5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083
+
+Press Enter to continue...Issue LAB tokens                                                                                                                                               
+
+Enough tokens for both the DEX and AMM exercises.                                                                                                              
+
+
+  → issue_token...
+  Issuing 1000 LAB to rNjYPjKP48H6...
+  1000 LAB issued!
+  TXID: 55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D
+
+Press Enter to continue...Snapshot baseline                                                                                                                                              
+
+Capture your position before either strategy runs.                                                                                                             
+
+
+  → snapshot_position...
+  Account: rNjYPjKP48H6txzc...
+  Balance: 99.999988 XRP (99999988 drops)
+  Owner count: 1
+  Open offers: 0
+  Trust lines: 1
+
+Press Enter to continue...DEX strategy — place bid                                                                                                                                       
+
+Place a buy order on the DEX order book.                                                                                                                       
+
+
+  → strategy_offer_bid...
+  BID: pay 1 XRP to get 10 LAB
+  Memo: XRPLLAB|STRAT|DEXVSAMMRISKLITERACY|COMPARE_BID|20261021T231249
+  Bid placed!
+  TXID: 8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5
+  Offer sequence: 100
+
+Press Enter to continue...DEX strategy — place ask                                                                                                                                       
+
+Place a sell order on the DEX order book.                                                                                                                      
+
+
+  → strategy_offer_ask...
+  ASK: sell 10 LAB for 2 XRP
+  Memo: XRPLLAB|STRAT|DEXVSAMMRISKLITERACY|COMPARE_ASK|20261021T231249
+  Ask placed!
+  TXID: FDC71A314DBC370C004773B94C5E18F497B69B585171F86B679A9AE4DCCD7085
+  Offer sequence: 101
+
+Press Enter to continue...Verify DEX offers                                                                                                                                              
+
+Confirm both offers are live on the ledger.                                                                                                                    
+
+
+  → verify_module_offers...
+  ✓ Offer found: seq 100
+  ✓ Taker pays: 10/LAB/rQ3gWRcwXm2P
+  ✓ Taker gets: 1
+  ✓ Offer seq 100 direction OK: bid of LAB
+  ✓ Offer found: seq 101
+  ✓ Taker pays: 2
+  ✓ Taker gets: 10/LAB/rQ3gWRcwXm2P
+  ✓ Offer seq 101 direction OK: ask of LAB
+  All 2 strategy offers verified
+
+Press Enter to continue...Snapshot after DEX                                                                                                                                             
+
+
+  → snapshot_position...
+  Account: rNjYPjKP48H6txzc...
+  Balance: 99.999964 XRP (99999964 drops)
+  Owner count: 3
+  Open offers: 2
+  Trust lines: 1
+
+Press Enter to continue...DEX position delta                                                                                                                                             
+
+See the cost of placing DEX offers: owner count +2, reserve locked.                                                                                            
+
+
+  → verify_position_delta...
+  Δ Owner count increased: 1 -> 3 (+2)
+  Δ Open offers increased: +2
+
+  After after_dex: owner count +2.
+
+Press Enter to continue...Cancel DEX offers                                                                                                                                              
+
+Clean up the DEX side.                                                                                                                                         
+
+
+  → cancel_module_offers...
+  Cancelling 2 offer(s)...
+  ✓ Offer seq 100 cancelled
+  ✓ Offer seq 101 cancelled
+
+Press Enter to continue...Verify DEX offers gone                                                                                                                                         
+
+
+  → verify_module_offers_absent...
+  ✓ No open offers — all cleared
+
+Press Enter to continue...Snapshot after DEX cleanup                                                                                                                                     
+
+
+  → snapshot_position...
+  Account: rNjYPjKP48H6txzc...
+  Balance: 99.999940 XRP (99999940 drops)
+  Owner count: 1
+  Open offers: 0
+  Trust lines: 1
+
+Press Enter to continue...AMM strategy — ensure pool                                                                                                                                     
+
+Create or confirm the XRP/LAB AMM pool.                                                                                                                        
+
+
+  → ensure_amm_pair...
+  Checking for AMM pool: XRP / LAB
+  AMM pool created!
+  TXID: 555C0152337D2F9BCBDA34CA6D6D9CF838283435FFAD4E5F2CE81E4F86B6F72C
+  Pool A: 25
+  Pool B: 25
+  LP token: 475
+  LP issuer: rAMM4752AB9CC0FD...
+
+Press Enter to continue...AMM strategy — deposit                                                                                                                                         
+
+Deposit into the AMM pool.                                                                                                                                     
+
+
+  → amm_deposit...
+  Depositing: 10 XRP + 10 LAB
+  Deposit succeeded!
+  TXID: 6D7DD9DCBCF3FFEDD03C20F6734FFDA6D20620A32B396EEA9BCA1D85877E80A5
+
+Press Enter to continue...Verify LP tokens received                                                                                                                                      
+
+
+  → verify_lp_received...
+  ✓ LP token balance: 35.000000
+  ✓ Pool A: 35.000000
+  ✓ Pool B: 35.000000
+  ✓ LP supply: 35.000000
+
+Press Enter to continue...Snapshot after AMM deposit                                                                                                                                     
+
+
+  → snapshot_position...
+  Account: rNjYPjKP48H6txzc...
+  Balance: 99.999916 XRP (99999916 drops)
+  Owner count: 2
+  Open offers: 0
+  Trust lines: 1
+
+Press Enter to continue...AMM position delta                                                                                                                                             
+
+Compare baseline to after-AMM: owner count may increase (LP trust line), XRP and LAB balances decreased by deposit amounts.                                    
+
+
+  → verify_position_delta...
+  Δ Owner count increased: 1 -> 2 (+1)
+  • Open offers unchanged: 0
+
+  After after_amm: owner count +1.
+
+Press Enter to continue...AMM strategy — withdraw                                                                                                                                        
+
+Return your LP tokens and get your assets back.                                                                                                                
+
+
+  → amm_withdraw...
+  Withdrawing from AMM: XRP / LAB
+  (returning all LP tokens)
+  Withdrawal succeeded!
+  TXID: 626AE3C0FB69916B891EBF6A64DDEAD19EFD53F17D0FC930D9F649C0A0B51819
+
+Press Enter to continue...Verify withdrawal                                                                                                                                              
+
+
+  → verify_withdrawal...
+  ✓ LP tokens decreased: 35.000000 -> 0
+  ✓ All LP tokens returned — full withdrawal
+
+Press Enter to continue...Snapshot final                                                                                                                                                 
+
+
+  → snapshot_position...
+  Account: rNjYPjKP48H6txzc...
+  Balance: 99.999904 XRP (99999904 drops)
+  Owner count: 1
+  Open offers: 0
+  Trust lines: 1
+
+Press Enter to continue...Final comparison                                                                                                                                               
+
+Compare your baseline to your final position. You should be back roughly where you started, minus transaction fees.                                            
+
+
+  → verify_position_delta...
+  • Owner count unchanged: 1
+  • Open offers unchanged: 0
+
+  After final: no significant changes.
+
+Press Enter to continue...Hygiene summary                                                                                                                                                
+
+
+  → hygiene_summary...
+
+┌────────────────────────────────────────────────────────────────────── Hygiene Summary ──────────────────────────────────────────────────────────────────────┐
+│ No open offers remaining                                                                                                                                    │
+│ Owner count returned to baseline                                                                                                                            │
+│ Offers cancelled during cleanup: 2                                                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+  Last run txids: .xrpl-lab\last_run_txids.txt
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You ran both strategies back-to-back and compared the results:                                                                                                 
+
+                                                                     
+ Dimension  DEX Order Book                AMM Pool                   
+ ─────────────────────────────────────────────────────────────────── 
+ Control    Exact price                   Automatic pricing          
+ Cost       Fee per tx (create + cancel)  Fee per deposit + withdraw 
+ Risk       Offer sits unfilled           Impermanent loss           
+ Reserve    +1 owner per offer            +1 owner for LP position   
+ Earnings   Only when filled              Continuous swap fees       
+                                                                     
+
+Operator rules:                                                                                                                                                
+
+ • DEX for precision: when you want a specific price and are willing to wait                                                                                   
+ • AMM for passive income: when you want to earn fees without active management                                                                                
+ • Both cost reserve XRP: owned objects lock reserves                                                                                                          
+ • Both need cleanup: leftover offers or LP positions cost you reserves                                                                                        
+ • Neither is free: you always pay transaction fees to enter and exit                                                                                          
+ • Know your strategy before you start: don't mix approaches without understanding why                                                                         
+
+This completes the XRPL Lab curriculum. Run xrpl-lab proof-pack to seal your completion record, or xrpl-lab last-run to audit this session.                    
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ DEX vs AMM Risk Literacy: Comparing Trading Strategies                                                                                                      │
+│ Report saved to .xrpl-lab\reports\dex_vs_amm_risk_literacy.md                                                                                               │
+│ 7 transactions recorded                                                                                                                                     │
+│                                                                                                                                                             │
+│ Verify this run:                                                                                                                                            │
+│   xrpl-lab audit --txids .xrpl-lab\last_run_txids.txt                                                                                                       │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

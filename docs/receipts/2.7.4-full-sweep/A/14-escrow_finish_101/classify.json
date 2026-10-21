@@ -1,0 +1,18 @@
+[
+ {
+  "txid": "DBA30604DF544B59CD6E577D6C6B3B410BC2D93CD9AA833D260D0A0D71DAF705",
+  "type": "EscrowCreate",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "19BB75C8026AF1012C9177122C11DD0E71980538C9CAF49D07F8A8D76F0D1B55",
+  "type": "EscrowFinish",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

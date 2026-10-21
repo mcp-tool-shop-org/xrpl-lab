@@ -1,0 +1,42 @@
+18:34:02 sweep full-sweep-c3a29cd-20261021T2234Z on c3a29cd xrpl-lab 2.7.4 c3a29cd (Argon round 3 PASS) — 32 lessons
+18:34:44 [pre] offline: 32/32 exit 0; failing: []
+18:35:07 [A] 01 receipt_literacy: exit=0 4 passed, 0 failed | 1 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:35:31 [A] 02 failure_literacy: exit=0 5 passed, 0 failed | 1 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:35:31 faucet gap: waiting 13s
+18:36:16 [A] 03 trust_lines_101: exit=0 7 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:36:16 faucet gap: waiting 28s
+18:37:23 [A] 04 trust_line_failures: exit=0 8 passed, 0 failed | 2 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:37:23 faucet gap: waiting 21s
+18:39:33 [A] 05 multisig_treasury_101: exit=0 10 passed, 0 failed | 3 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:40:00 [A] 06 nft_minting_101: exit=0 6 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:41:22 [A] 07 nft_marketplace_101: exit=0 13 passed, 0 failed | 5 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:42:15 [A] 08 dnft_evolving_item_101: exit=0 7 passed, 0 failed | 2 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:42:42 [A] 09 mpt_issuance_101: exit=0 4 passed, 0 failed | 1 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:43:26 [A] 10 mpt_distribution_101: exit=0 8 passed, 0 failed | 3 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:43:26 faucet gap: waiting 15s
+18:44:56 [A] 11 token_freeze_101: exit=0 14 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:46:24 [A] 12 clawback_101: exit=0 12 passed, 0 failed | 4 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:46:57 [A] 13 escrow_101: exit=0 4 passed, 0 failed | 1 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:47:47 [A] 14 escrow_finish_101: exit=0 9 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:49:53 [A] 15 token_escrow_101: exit=0 15 passed, 0 failed | 5 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:51:30 [A] 16 checks_101: exit=0 13 passed, 0 failed | 4 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:52:38 [A] 17 payment_channel_101: exit=0 13 passed, 0 failed | 3 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:53:28 [A] 18 delivered_amount_101: exit=0 7 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:53:28 faucet gap: waiting 10s
+18:54:50 [A] 19 custodial_crediting_101: exit=0 9 passed, 0 failed | 3 successful, 1 failed (1 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet ['+asfRequireDest', '-asfRequireDest']
+18:55:44 [A] 20 did_101: exit=0 6 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:57:17 [A] 21 credentials_101: exit=0 10 passed, 0 failed | 3 successful, 3 failed (3 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:59:08 [A] 22 permissioned_domains_101: exit=0 15 passed, 0 failed | 6 successful, 2 failed (2 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:02:12 [A] 23 deposit_gate_101: exit=0 20 passed, 0 failed | 10 successful, 5 failed (5 expected) | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet ['+asfDepositAuth', '-asfDepositAuth']
+19:03:19 [A] 24 dex_literacy: exit=0 8 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:05:08 [A] 25 dex_market_making_101: exit=0 17 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:06:58 [A] 26 dex_inventory_guardrails: exit=0 16 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:08:02 [A] 27 reserves_101: exit=0 8 passed, 0 failed | 1 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:09:35 [A] 28 account_hygiene: exit=0 15 passed, 0 failed | 4 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:10:50 [A] 29 receipt_audit: exit=0 5 passed, 0 failed | 2 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:12:48 [A] 30 amm_liquidity_101: exit=0 18 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:13:45 [A] 31 dex_vs_amm_risk_literacy: exit=0 25 passed, 0 failed | 9 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:13:45 faucet gap: waiting 2s
+19:16:03 [A] 32 game_economy_capstone: exit=0 16 passed, 0 failed | 6 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+19:16:59 [A] full-pack verify --live: exit 0 {'PASS': 123, 'SKIPPED': 11}
+19:16:59 done: 32/32 exit 0; summary at full-sweep-c3a29cd-20261021T2234Z/summary.md

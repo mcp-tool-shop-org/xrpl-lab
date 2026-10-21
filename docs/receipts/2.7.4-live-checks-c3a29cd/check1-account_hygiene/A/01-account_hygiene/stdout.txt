@@ -1,0 +1,217 @@
+Warning: This module requires the following to be completed first:
+  - reserves_101
+Run those modules first, or use --force to bypass.
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Account Hygiene: Freeing Reserves and Cleaning Up Objects                                                                                                   │
+│ Level: intermediate  |  Time: ~15-25 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+You learned in Reserves 101 that owned objects lock reserve XRP. Now you learn how to reclaim it.                                                              
+
+This module walks you through creating objects, then systematically removing them — cancelling offers and deleting trust lines — and verifying that your owner 
+count drops back to baseline.                                                                                                                                  
+
+This is routine maintenance, not surgery. Every step is reversible.                                                                                            
+
+The rule is simple:                                                                                                                                            
+
+ • Cancel stale offers to free their reserve                                                                                                                   
+ • Remove unused trust lines by setting limit to 0 (only works if balance is also 0 — you can't delete a trust line while holding tokens)                      
+ • Re-snapshot to confirm reserve was released                                                                                                                 
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You need a funded wallet. If you've completed earlier modules, your existing wallet will be reused.                                                            
+
+
+  → ensure_wallet...
+  No wallet found. Creating a new one...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Wallet created: rDUQE3ktRiTi7KpVtbi9T2Ci6KHeRuLKNW
+  Saved to: 
+<scratch>/check1-hygiene-c3a29cd-20261021T2227Z\A\home\wallet.jso
+n
+
+  Warning: Your wallet seed is stored locally. Never share it or paste it anywhere.
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Make sure you have enough XRP for the operations ahead.                                                                                                        
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Snapshot A — baseline                                                                                                                                          
+
+Capture your current account state. This is your clean starting point: owner count, balance, and sequence number.                                              
+
+
+  → snapshot_account...
+  Account: rDUQE3ktRiTi7KpV...
+  Balance: 100.000000 XRP (100000000 drops)
+  Owner count: 0
+  Sequence: 21719444
+
+Press Enter to continue...Create an issuer wallet                                                                                                                                        
+
+We need an issuer to create objects against. This issuer creates a currency called HYG — chosen specifically because we won't issue any tokens, which means the
+trust line can be cleanly removed later.                                                                                                                       
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them — this module (account_hygiene) teaches that cleanup loop.                                                                    
+
+
+  → create_issuer_wallet...
+  Creating issuer wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Issuer wallet created: r3TyqyTAwCSKaoupU38nsVxnasNq7vR1yh
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create two owned objects                                                                                                                                       
+
+First, set a trust line for HYG with a small limit. No tokens will be issued — we're keeping the balance at 0 so removal works cleanly.                        
+
+Then place a tiny DEX offer (XRP for HYG) to create a second owned object.                                                                                     
+
+
+  → set_trust_line...
+  Setting trust line: HYG from issuer r3TyqyTAwCSK...
+  Limit: 100
+  Trust line set!
+  TXID: 0BECAA32BC7C5187D8684ABDC2B544ED1D7A0CCAC0EC33F6B5FC222A3C94057F
+  Explorer: https://testnet.xrpl.org/transactions/0BECAA32BC7C5187D8684ABDC2B544ED1D7A0CCAC0EC33F6B5FC222A3C94057F
+
+Press Enter to continue...Place the offer                                                                                                                                                
+
+
+  → create_offer...
+  Creating offer: pay 1 XRP to get 10 HYG
+  Offer created!
+  TXID: CDDD1FDB1C1DB61B7924EF167F7E342E1A6518BCE5C6A3A52FCF4E872802FA49
+  Explorer: https://testnet.xrpl.org/transactions/CDDD1FDB1C1DB61B7924EF167F7E342E1A6518BCE5C6A3A52FCF4E872802FA49
+  Offer sequence: 21719445
+
+Press Enter to continue...Snapshot B — dirty state                                                                                                                                       
+
+Two new objects: one trust line + one offer. Your owner count should be higher than baseline.                                                                  
+
+
+  → snapshot_account...
+  Account: rDUQE3ktRiTi7KpV...
+  Balance: 99.999980 XRP (99999980 drops)
+  Owner count: 2
+  Sequence: 21719446
+
+Press Enter to continue...Verify the increase                                                                                                                                            
+
+Compare baseline (A) to dirty state (B). You should see owner count increased by 2 (one trust line + one offer).                                               
+
+
+  → verify_reserve_change...
+  Δ Balance decreased by 0.000020 XRP (20 drops)
+  Δ Owner count increased: 0 -> 2 (+2)
+
+  After dirty: balance decreased by 0.000020 XRP; owner count went from 0 to 2 — each owned object (trust line, offer, etc.) reserves additional XRP.
+
+Press Enter to continue...Cancel the offer                                                                                                                                               
+
+Remove the first object. This should decrement owner count by 1 and release that offer's reserve back to spendable.                                            
+
+
+  → cancel_offer...
+  Cancelling offer seq 21719445...
+  Offer cancelled!
+  TXID: BB489FE62B5B6FE8D91E0A3E50E778FBA2EA86B3D38F3EA65CFF23010D7E0C1D
+  Explorer: https://testnet.xrpl.org/transactions/BB489FE62B5B6FE8D91E0A3E50E778FBA2EA86B3D38F3EA65CFF23010D7E0C1D
+
+Press Enter to continue...Remove the trust line                                                                                                                                          
+
+Set the HYG trust line limit to 0. Because we never issued any HYG tokens, the balance is 0 — so the ledger will delete the trust line object entirely.        
+
+If you had a non-zero balance, this would fail. That's the rule: you must return or burn all tokens before you can remove a trust line.                        
+
+
+  → remove_trust_line...
+  Removing trust line: HYG (setting limit to 0)
+  Trust line removed (limit 0, balance 0)
+  TXID: A53F02A432409C17E2C9EA7AD5E339629685723D27C35D209B3F57F72DEE3551
+  Explorer: https://testnet.xrpl.org/transactions/A53F02A432409C17E2C9EA7AD5E339629685723D27C35D209B3F57F72DEE3551
+
+Press Enter to continue...Verify removal                                                                                                                                                 
+
+Confirm the HYG trust line no longer appears in your account's trust line list.                                                                                
+
+
+  → verify_trust_line_removed...
+  ✓ Trust line for HYG successfully removed
+
+Press Enter to continue...Snapshot C — clean state                                                                                                                                       
+
+Capture your account state one final time. Owner count should be back to where it was at baseline.                                                             
+
+
+  → snapshot_account...
+  Account: rDUQE3ktRiTi7KpV...
+  Balance: 99.999960 XRP (99999960 drops)
+  Owner count: 0
+  Sequence: 21719448
+
+Press Enter to continue...Verify the cleanup                                                                                                                                             
+
+Compare dirty state (B) to clean state (C). Owner count should have decreased by 2 — one for the cancelled offer, one for the removed trust line.              
+
+
+  → verify_reserve_change...
+  Δ Balance decreased by 0.000020 XRP (20 drops)
+  Δ Owner count decreased: 2 -> 0 (-2)
+
+  After clean: balance decreased by 0.000020 XRP; owner count dropped from 2 to 0 — removing objects releases reserve XRP back to spendable.
+
+Press Enter to continue...Full comparison — baseline to clean                                                                                                                            
+
+Compare your original baseline (A) to your final clean state (C). Owner count should be the same. Balance will be slightly lower due to transaction fees, but  
+all reserve XRP is freed.                                                                                                                                      
+
+
+  → verify_reserve_change...
+  Δ Balance decreased by 0.000040 XRP (40 drops)
+  • Owner count unchanged: 0
+
+  After clean: balance decreased by 0.000040 XRP.
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You just performed a complete hygiene cycle:                                                                                                                   
+
+ 1 Captured a baseline — clean starting state (A)                                                                                                              
+ 2 Created 2 owned objects — trust line + offer (B)                                                                                                            
+ 3 Cancelled the offer — freed one reserve slot                                                                                                                
+ 4 Removed the trust line — freed another reserve slot (limit=0, balance=0)                                                                                    
+ 5 Verified cleanup — owner count returned to baseline (C)                                                                                                     
+
+Operator checklist for real accounts:                                                                                                                          
+
+ • Audit owned objects: account_info shows your OwnerCount                                                                                                     
+ • Cancel stale offers: any offer you no longer want is locking reserve                                                                                        
+ • Remove unused trust lines: set limit to 0, but only after balance reaches 0 (send tokens back to issuer or let them expire)                                 
+ • Re-check after cleanup: snapshot before and after to confirm reserve was actually released                                                                  
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Account Hygiene: Freeing Reserves and Cleaning Up Objects                                                                                                   │
+│ Report saved to .xrpl-lab\reports\account_hygiene.md                                                                                                        │
+│ 4 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

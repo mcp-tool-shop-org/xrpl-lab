@@ -1,0 +1,18 @@
+[
+ {
+  "txid": "22732847DFC2D594931998D09F9EE4E2EC37B2B1DB1F7C1D133574843F9F08B2",
+  "type": "Payment",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "8DB562A5114E8A27B5CCCCAFF196BAA4CF0CD978BB5B2C6FFDAB65074A1DD393",
+  "type": "Payment",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

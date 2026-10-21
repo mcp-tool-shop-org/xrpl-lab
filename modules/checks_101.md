@@ -69,7 +69,11 @@ Writing a Check costs a normal transaction fee plus a small owner reserve for
 the Check object (free on testnet). Cashing it later is the player's own
 transaction, on the player's own wallet.
 
-<!-- action: ensure_funded -->
+The player will cash 50 XRP from your wallet, so you need more than that on
+hand. If an earlier lesson's spending left you below 60 XRP, this step asks the
+faucet for a top-up.
+
+<!-- action: ensure_funded min_xrp=60 -->
 
 ## Step 3: Create the player wallet
 

@@ -1,0 +1,61 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.4",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "generated_at": "2026-10-21T22:35:05.738520+00:00",
+  "completed_modules": [
+    {
+      "module_id": "receipt_literacy",
+      "completed_at": "2026-10-21T22:35:03.466038+00:00",
+      "txids": [
+        "E339D323ADA4CD458B91239DCDE0385C17EF4590CD6DD006C41961026EA6E5F5"
+      ],
+      "verified": true,
+      "accounts": [
+        "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R"
+      ],
+      "kb_source": "",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/E339D323ADA4CD458B91239DCDE0385C17EF4590CD6DD006C41961026EA6E5F5"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "E339D323ADA4CD458B91239DCDE0385C17EF4590CD6DD006C41961026EA6E5F5",
+      "module_id": "receipt_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T22:35:03.028168+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/E339D323ADA4CD458B91239DCDE0385C17EF4590CD6DD006C41961026EA6E5F5"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "E339D323ADA4CD45...",
+      "txid_full": "E339D323ADA4CD458B91239DCDE0385C17EF4590CD6DD006C41961026EA6E5F5",
+      "module": "receipt_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:35"
+    }
+  ],
+  "total_transactions": 1,
+  "successful_transactions": 1,
+  "failed_transactions": 0,
+  "expected_failures": 0,
+  "module_accounts": {
+    "receipt_literacy": [
+      "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R"
+    ]
+  },
+  "sha256": "18ea26a33ec4a6a23ce35fb29e33612c0002e4772bfa0033d42d24cc2f85c17d"
+}

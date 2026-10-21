@@ -1,0 +1,94 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ DID 101: On-Ledger Identity                                                                                                                                 │
+│ Level: intermediate  |  Time: ~10-15 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+A Decentralized Identifier (DID, XLS-40) anchors a W3C-conformant identity to your XRPL account. The DIDSet transaction stores a small on-ledger record —      
+typically a URI pointing to an off-chain DID document — that other apps can resolve to verify who controls the account. It's the foundation for player identity
+and credential-gated features.                                                                                                                                 
+
+This runs on testnet — free and disposable.                                                                                                                    
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+
+  → ensure_wallet...
+  Wallet loaded: rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Setting a DID costs a small fee plus an owner reserve for the DID object (free on testnet).                                                                    
+
+
+  → ensure_funded...
+  Balance: 109.999590 XRP
+
+Press Enter to continue...Set your DID                                                                                                                                                   
+
+Anchor a DID URI to your account. In production this URI points to a DID document (hosted on IPFS/HTTPS) describing your keys and service endpoints.           
+
+
+  → set_did...
+  Setting DID — uri did:xrpl:1:example-player
+  DID set!
+  TXID: 3DA7E27B41D381CF4E62005B604911E60D74D9F08C1E09CFB3FA7CDF80903837
+  Explorer: https://testnet.xrpl.org/transactions/3DA7E27B41D381CF4E62005B604911E60D74D9F08C1E09CFB3FA7CDF80903837
+
+Press Enter to continue...Verify your DID                                                                                                                                                
+
+Read it back via account_objects. You should see the DID object with your URI.                                                                                 
+
+
+  → verify_did...
+  DID found for rpeyDv2a7C9Tz7kJ...
+  URI: did:xrpl:1:example-player
+  DID verified on-ledger.
+
+Press Enter to continue...Revoke the DID                                                                                                                                                 
+
+Identity hygiene means knowing how to undo an identity, not just create one. DIDDelete removes the on-ledger DID object — the account no longer claims that    
+identifier — and returns the owner reserve the DID was holding. This mirrors how Account Hygiene closes the trust-line story: every object you create, you     
+should know how to remove.                                                                                                                                     
+
+
+  → delete_did...
+  Deleting DID — revoking on-ledger identity...
+  DID deleted — identity revoked, reserve freed!
+  TXID: 2A2F26D795E89D163EA044639C2A5C0F480548BF4909AAD43128D9C5BE0D3E1A
+  Explorer: https://testnet.xrpl.org/transactions/2A2F26D795E89D163EA044639C2A5C0F480548BF4909AAD43128D9C5BE0D3E1A
+
+Press Enter to continue...Verify it's gone                                                                                                                                               
+
+Read account_objects once more. The DID object should be absent — the identity is revoked and the reserve it held is freed back to spendable.                  
+
+
+  → verify_did_deleted...
+  DID is gone — identity revoked, owner reserve freed
+  Identity hygiene complete — DID removed.
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You anchored a decentralized identifier to your account, verified it, then revoked it on-ledger:                                                               
+
+ 1 DIDSet — created an on-ledger DID record controlled by your account                                                                                         
+ 2 Off-chain document — the on-ledger anchor points to a richer DID document kept off-chain                                                                    
+ 3 Verified — account_objects shows your DID                                                                                                                   
+ 4 DIDDelete — revoked the identity and freed its owner reserve                                                                                                
+
+Key concepts to remember:                                                                                                                                      
+
+ • Anchor on-ledger, document off-ledger — keep the DID document + any credentials off-chain (IPFS/STORJ/HTTPS); the ledger holds only the pointer.            
+ • One DID per account — DIDSet creates or updates it; DIDDelete (Step 5) removes it and frees the reserve.                                                    
+ • PII stays off-ledger — never put personal data on the public ledger; DIDs + Credentials (XLS-70) are designed to keep it private.                           
+ • Pairs with Credentials & Permissioned Domains — DID is the identity anchor; credentials attest facts about it for KYC / region-gated features.              
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ DID 101: On-Ledger Identity                                                                                                                                 │
+│ Report saved to .xrpl-lab\reports\did_101.md                                                                                                                │
+│ 2 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
