@@ -1,0 +1,52 @@
+[
+ {
+  "txid": "701EE5CBE902375344FB5C86D1BD868ACA8BA665CD1621D5D6DD0D6CFA8B7AD3",
+  "type": "TrustSet",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "5DD4EFDCB9583D6B5C65C2AA5DCF00CB189B3ADFC395C9BB4127D1C5ADF77626",
+  "type": "Payment",
+  "account": "rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "F18D51B0FEC8A0189587C92F71BBECEA344BEA9B48E6D8822A25FF4EC203A01A",
+  "type": "TrustSet",
+  "account": "rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "76AF026E83BC8EA0630CF0C31678B3FE71D5DB5EAB535458FA2B3D888C65060D",
+  "type": "TrustSet",
+  "account": "rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "52DAE1DA13FABA443C524AE1A14689077342CB7FE57C6C90FBC4020EDA3836F8",
+  "type": "AccountSet",
+  "account": "rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "SetFlag": "asfGlobalFreeze"
+ },
+ {
+  "txid": "CD662A1B3826FFBB78A657C6E9A27F0A0A1B1F5D19C036AE4BEE9FA53AA86777",
+  "type": "AccountSet",
+  "account": "rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "ClearFlag": "asfGlobalFreeze"
+ }
+]

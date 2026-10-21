@@ -1,0 +1,34 @@
+[
+ {
+  "txid": "0BECAA32BC7C5187D8684ABDC2B544ED1D7A0CCAC0EC33F6B5FC222A3C94057F",
+  "type": "TrustSet",
+  "account": "rDUQE3ktRiTi7KpVtbi9T2Ci6KHeRuLKNW",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "CDDD1FDB1C1DB61B7924EF167F7E342E1A6518BCE5C6A3A52FCF4E872802FA49",
+  "type": "OfferCreate",
+  "account": "rDUQE3ktRiTi7KpVtbi9T2Ci6KHeRuLKNW",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "BB489FE62B5B6FE8D91E0A3E50E778FBA2EA86B3D38F3EA65CFF23010D7E0C1D",
+  "type": "OfferCancel",
+  "account": "rDUQE3ktRiTi7KpVtbi9T2Ci6KHeRuLKNW",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "A53F02A432409C17E2C9EA7AD5E339629685723D27C35D209B3F57F72DEE3551",
+  "type": "TrustSet",
+  "account": "rDUQE3ktRiTi7KpVtbi9T2Ci6KHeRuLKNW",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

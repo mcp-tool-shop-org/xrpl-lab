@@ -1,0 +1,26 @@
+{
+ "sweep_id": "check1-hygiene-c3a29cd-20261021T2227Z",
+ "sha": "c3a29cd3e6347f6255e8026018f3762aa3b46bb0",
+ "label": "2.7.4 c3a29cd check 1",
+ "full_pack_verify_exit": 0,
+ "full_pack_counts": {
+  "PASS": 4
+ },
+ "rows": [
+  {
+   "n": 1,
+   "lesson": "account_hygiene",
+   "exit": 0,
+   "steps": "15 passed, 0 failed",
+   "transactions": "4 successful, 0 failed",
+   "wall": 51,
+   "retried_429": false,
+   "live_fails": 0,
+   "unexpected": [],
+   "prepass_exit": null,
+   "flags_turned_on": [],
+   "accountset_in_lesson": [],
+   "below_floor": null
+  }
+ ]
+}

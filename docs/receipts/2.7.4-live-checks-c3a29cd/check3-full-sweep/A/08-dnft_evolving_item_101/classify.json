@@ -1,0 +1,26 @@
+[
+ {
+  "txid": "ABF30C17C23FD77DCC08375128A88F1627BFFC8826BF77CBFDEF707DE02F8222",
+  "type": "NFTokenMint",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "03D203DFE91E02E89F2A8A069B7420BD88330175074D272C233D298D834C49F3",
+  "type": "NFTokenModify",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "139D325598A5BDF44CAAF49AF6A134CAAA4C6F20C42A80E5143A7556FB70B0EB",
+  "type": "NFTokenModify",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tecNO_PERMISSION",
+  "validated": true,
+  "class": "expected_validated"
+ }
+]
