@@ -1,0 +1,109 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.0",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rP74X3FnQzXTCZE1QE1mXwDgny4afNYffJ",
+  "generated_at": "2026-10-21T04:19:26.742639+00:00",
+  "completed_modules": [
+    {
+      "module_id": "multisig_treasury_101",
+      "completed_at": "2026-10-21T04:19:25.575512+00:00",
+      "txids": [
+        "A3EA89453DF45DD72FDF16288BB34ACA306588DCB03ECA9DF96ABF978E4BFD0E",
+        "66FD0159D1F31D7A0F76444EAF60EC081C5ED08D0A9EB21A25DE1D6FC85104BC",
+        "06E6593C1E181554E3F7C64013ABA8CF2EF22E9CDA2522D93763325D21FBD2BE"
+      ],
+      "verified": true,
+      "kb_source": "multisign-signerlistset",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/A3EA89453DF45DD72FDF16288BB34ACA306588DCB03ECA9DF96ABF978E4BFD0E",
+        "https://testnet.xrpl.org/transactions/66FD0159D1F31D7A0F76444EAF60EC081C5ED08D0A9EB21A25DE1D6FC85104BC",
+        "https://testnet.xrpl.org/transactions/06E6593C1E181554E3F7C64013ABA8CF2EF22E9CDA2522D93763325D21FBD2BE"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "A3EA89453DF45DD72FDF16288BB34ACA306588DCB03ECA9DF96ABF978E4BFD0E",
+      "module_id": "multisig_treasury_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:18:00.157612+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/A3EA89453DF45DD72FDF16288BB34ACA306588DCB03ECA9DF96ABF978E4BFD0E"
+    },
+    {
+      "txid": "66FD0159D1F31D7A0F76444EAF60EC081C5ED08D0A9EB21A25DE1D6FC85104BC",
+      "module_id": "multisig_treasury_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:18:10.199656+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/66FD0159D1F31D7A0F76444EAF60EC081C5ED08D0A9EB21A25DE1D6FC85104BC"
+    },
+    {
+      "txid": "failed",
+      "module_id": "multisig_treasury_101",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T04:19:18.227203+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/failed"
+    },
+    {
+      "txid": "06E6593C1E181554E3F7C64013ABA8CF2EF22E9CDA2522D93763325D21FBD2BE",
+      "module_id": "multisig_treasury_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:19:25.074744+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/06E6593C1E181554E3F7C64013ABA8CF2EF22E9CDA2522D93763325D21FBD2BE"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "A3EA89453DF45DD7...",
+      "txid_full": "A3EA89453DF45DD72FDF16288BB34ACA306588DCB03ECA9DF96ABF978E4BFD0E",
+      "module": "multisig_treasury_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:18"
+    },
+    {
+      "txid": "66FD0159D1F31D7A...",
+      "txid_full": "66FD0159D1F31D7A0F76444EAF60EC081C5ED08D0A9EB21A25DE1D6FC85104BC",
+      "module": "multisig_treasury_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:18"
+    },
+    {
+      "txid": "failed",
+      "txid_full": "failed",
+      "module": "multisig_treasury_101",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:19"
+    },
+    {
+      "txid": "06E6593C1E181554...",
+      "txid_full": "06E6593C1E181554E3F7C64013ABA8CF2EF22E9CDA2522D93763325D21FBD2BE",
+      "module": "multisig_treasury_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:19"
+    }
+  ],
+  "total_transactions": 4,
+  "successful_transactions": 3,
+  "failed_transactions": 1,
+  "expected_failures": 1,
+  "sha256": "cf4d1b2bbae11dab99d2548535e4d1ad70e3926f74816ed61284678e6638692f"
+}

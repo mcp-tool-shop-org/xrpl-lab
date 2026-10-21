@@ -1,0 +1,5 @@
+seed algorithm: secp256k1 (generate_seed(algorithm=SECP256K1)); seed not recorded here
+wallet.json keys: seed, address (the xrpl-py 4.x shape)
+recorded address (ED25519 derivation): rKhWane2oiEpLs391CyoGWetrF7XLGLdAV
+xrpl-py 5 prefix-inferred address (secp256k1): rhRRyFDvzrgjApphzbRkCobQkSNRNL9Msg
+state.json present before run A: False

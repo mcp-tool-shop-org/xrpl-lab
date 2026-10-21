@@ -1,0 +1,8 @@
+cwd: <scratch>/sweep-4deed70-20261021T0400Z/deposit_gate_101/cwd  (outside every repo)
+XRPL_LAB_HOME=<scratch>/sweep-4deed70-20261021T0400Z/deposit_gate_101/home   (wallet.json stays here, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1
+code: mcp-tool-shop-org/xrpl-lab @ 4deed70 (feat/xrpl-py-5, PR #23, xrpl-py 5.2), worktree _worktrees/xrpl-lab-f9-livefire
+cmd:  yes "" | xrpl-lab run  deposit_gate_101
+started_utc: 2026-10-21T04:14:26Z
+xrpl_lab_exit_code: 0   (read from PIPESTATUS[1])
+finished_utc: 2026-10-21T04:16:30Z

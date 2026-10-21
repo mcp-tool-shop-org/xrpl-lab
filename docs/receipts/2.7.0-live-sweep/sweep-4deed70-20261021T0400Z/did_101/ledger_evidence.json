@@ -1,0 +1,80 @@
+{
+  "validated_ledger": {
+    "seq": 21700395,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rUH97vDFstArMp3YCTq4jq1mz5iVYGDDti": {
+      "Balance": "99999980",
+      "Sequence": 21700391,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21700389,
+          "hash": "B31B28F040395A99EE8543CD5E8D72DCD683885783B79374101259B718A0FA37",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rUH97vDFstArMp3YCTq4jq1mz5iVYGDDti",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700391,
+          "hash": "3191BF136F8A890564ED637D2AF38229FDF74C346CF476FC3BDECB2813F2D825",
+          "TransactionType": "DIDSet",
+          "Account": "rUH97vDFstArMp3YCTq4jq1mz5iVYGDDti",
+          "Destination": null,
+          "Sequence": 21700389,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700394,
+          "hash": "F70310F90C846F98FCF119E196CAF4632F9552E1E5F713917541133CD61D0104",
+          "TransactionType": "DIDDelete",
+          "Account": "rUH97vDFstArMp3YCTq4jq1mz5iVYGDDti",
+          "Destination": null,
+          "Sequence": 21700390,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "3191BF136F8A890564ED637D2AF38229FDF74C346CF476FC3BDECB2813F2D825": {
+      "TransactionType": "DIDSet",
+      "Account": "rUH97vDFstArMp3YCTq4jq1mz5iVYGDDti",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21700391,
+      "Sequence": 21700389,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "F70310F90C846F98FCF119E196CAF4632F9552E1E5F713917541133CD61D0104": {
+      "TransactionType": "DIDDelete",
+      "Account": "rUH97vDFstArMp3YCTq4jq1mz5iVYGDDti",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21700394,
+      "Sequence": 21700390,
+      "TransactionResult": "tesSUCCESS"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "3191BF136F8A890564ED637D2AF38229FDF74C346CF476FC3BDECB2813F2D825",
+      "success": true
+    },
+    {
+      "txid": "F70310F90C846F98FCF119E196CAF4632F9552E1E5F713917541133CD61D0104",
+      "success": true
+    }
+  ]
+}

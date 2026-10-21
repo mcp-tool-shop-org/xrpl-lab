@@ -1,0 +1,41 @@
+{
+  "captured_note": "queried after runs A and B2, validated ledger",
+  "accounts": {
+    "recorded_ed25519": {
+      "address": "rKhWane2oiEpLs391CyoGWetrF7XLGLdAV",
+      "Balance": "89999980",
+      "Sequence": 21700424,
+      "account_tx": [
+        {
+          "hash": "3BFB310020B9D9781AF3903D56111B09FF753C79678ACC93A2EF0E73EA343E97",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "TransactionResult": "tesSUCCESS",
+          "ledger_index": null
+        },
+        {
+          "hash": "0353CD7A23CE94A0160DB3D5BE05C15BA811D56100223CD8600EE842CD5B5279",
+          "TransactionType": "Payment",
+          "Account": "rKhWane2oiEpLs391CyoGWetrF7XLGLdAV",
+          "TransactionResult": "tecUNFUNDED_PAYMENT",
+          "ledger_index": null
+        },
+        {
+          "hash": "944D168248387AF085860C88069DB13BAEFDAD9FF6237DAB05295118BFF375F4",
+          "TransactionType": "Payment",
+          "Account": "rKhWane2oiEpLs391CyoGWetrF7XLGLdAV",
+          "TransactionResult": "tesSUCCESS",
+          "ledger_index": null
+        }
+      ]
+    },
+    "prefix_inferred_secp256k1": {
+      "address": "rhRRyFDvzrgjApphzbRkCobQkSNRNL9Msg",
+      "account_info": "actNotFound"
+    },
+    "unrelated_file_address_run_B2": {
+      "address": "r9s62YbGTVsvCCnfdpLc7KoRoD1xipM3NZ",
+      "account_info": "actNotFound"
+    }
+  }
+}

@@ -1,0 +1,242 @@
+{
+  "validated_ledger": {
+    "seq": 21700214,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR": {
+      "Balance": "89999960",
+      "Sequence": 21700198,
+      "OwnerCount": 1,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21700194,
+          "hash": "552E453D0772D75BBD7E04105FC4F03367192A9367755E6EFA16B77A5D32FF75",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700198,
+          "hash": "1E3CE7A00063E7CBCF8132284A6EB34CFDF69AE893C16551D3B1980A5042D2FF",
+          "TransactionType": "NFTokenMint",
+          "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+          "Destination": null,
+          "Sequence": 21700194,
+          "Fee": "10",
+          "Flags": 8,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700200,
+          "hash": "EAF21E9444F1796861E881328443C55D88CCDD2A86FF5E2ADFC9D27D092043ED",
+          "TransactionType": "NFTokenCreateOffer",
+          "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+          "Destination": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+          "Sequence": 21700195,
+          "Fee": "10",
+          "Flags": 1,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700203,
+          "hash": "8096FDD5DC2D256735BC2241F43BAB8E15624000722E283F630797ADD7C06250",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+          "Destination": null,
+          "Sequence": 21700196,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700206,
+          "hash": "AAECC7F7FB7E43AAAC2DE51B1A0513B989912AE039B432D33183DAC00CCB9CFB",
+          "TransactionType": "NFTokenCreateOffer",
+          "Account": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+          "Destination": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+          "Sequence": 21700197,
+          "Fee": "10",
+          "Flags": 1,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700209,
+          "hash": "11BF6F92B99CB1E09F1002237A5DC56E9ED473007BFAFC4831CF47C1579321EC",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+          "Destination": null,
+          "Sequence": 21700196,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700212,
+          "hash": "B674982FC2FE7A6CE2637E81DFAD4981DEEF68A74FAA1648652FB14C5CCE6A5D",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+          "Destination": null,
+          "Sequence": 21700197,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecOBJECT_NOT_FOUND"
+        }
+      ]
+    },
+    "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5": {
+      "Balance": "109999980",
+      "Sequence": 21700198,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21700196,
+          "hash": "F764888BA448FAC9D73881D8C864A7B88D338F6F3951E068486118060E5E68AD",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700200,
+          "hash": "EAF21E9444F1796861E881328443C55D88CCDD2A86FF5E2ADFC9D27D092043ED",
+          "TransactionType": "NFTokenCreateOffer",
+          "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+          "Destination": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+          "Sequence": 21700195,
+          "Fee": "10",
+          "Flags": 1,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700203,
+          "hash": "8096FDD5DC2D256735BC2241F43BAB8E15624000722E283F630797ADD7C06250",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+          "Destination": null,
+          "Sequence": 21700196,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700206,
+          "hash": "AAECC7F7FB7E43AAAC2DE51B1A0513B989912AE039B432D33183DAC00CCB9CFB",
+          "TransactionType": "NFTokenCreateOffer",
+          "Account": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+          "Destination": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+          "Sequence": 21700197,
+          "Fee": "10",
+          "Flags": 1,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700209,
+          "hash": "11BF6F92B99CB1E09F1002237A5DC56E9ED473007BFAFC4831CF47C1579321EC",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+          "Destination": null,
+          "Sequence": 21700196,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "1E3CE7A00063E7CBCF8132284A6EB34CFDF69AE893C16551D3B1980A5042D2FF": {
+      "TransactionType": "NFTokenMint",
+      "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21700198,
+      "Sequence": 21700194,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "EAF21E9444F1796861E881328443C55D88CCDD2A86FF5E2ADFC9D27D092043ED": {
+      "TransactionType": "NFTokenCreateOffer",
+      "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+      "Destination": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+      "validated": true,
+      "ledger_index": 21700200,
+      "Sequence": 21700195,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "8096FDD5DC2D256735BC2241F43BAB8E15624000722E283F630797ADD7C06250": {
+      "TransactionType": "NFTokenAcceptOffer",
+      "Account": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21700203,
+      "Sequence": 21700196,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "AAECC7F7FB7E43AAAC2DE51B1A0513B989912AE039B432D33183DAC00CCB9CFB": {
+      "TransactionType": "NFTokenCreateOffer",
+      "Account": "r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5",
+      "Destination": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+      "validated": true,
+      "ledger_index": 21700206,
+      "Sequence": 21700197,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "11BF6F92B99CB1E09F1002237A5DC56E9ED473007BFAFC4831CF47C1579321EC": {
+      "TransactionType": "NFTokenAcceptOffer",
+      "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21700209,
+      "Sequence": 21700196,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "B674982FC2FE7A6CE2637E81DFAD4981DEEF68A74FAA1648652FB14C5CCE6A5D": {
+      "TransactionType": "NFTokenAcceptOffer",
+      "Account": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21700212,
+      "Sequence": 21700197,
+      "TransactionResult": "tecOBJECT_NOT_FOUND"
+    },
+    "000813888B242EF7B55FA8F77B1D097AC2F85DB4B73AB62FEEC329F6014B1E62": {
+      "error": "txnNotFound"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "1E3CE7A00063E7CBCF8132284A6EB34CFDF69AE893C16551D3B1980A5042D2FF",
+      "success": true
+    },
+    {
+      "txid": "EAF21E9444F1796861E881328443C55D88CCDD2A86FF5E2ADFC9D27D092043ED",
+      "success": true
+    },
+    {
+      "txid": "8096FDD5DC2D256735BC2241F43BAB8E15624000722E283F630797ADD7C06250",
+      "success": true
+    },
+    {
+      "txid": "AAECC7F7FB7E43AAAC2DE51B1A0513B989912AE039B432D33183DAC00CCB9CFB",
+      "success": true
+    },
+    {
+      "txid": "11BF6F92B99CB1E09F1002237A5DC56E9ED473007BFAFC4831CF47C1579321EC",
+      "success": true
+    },
+    {
+      "txid": "B674982FC2FE7A6CE2637E81DFAD4981DEEF68A74FAA1648652FB14C5CCE6A5D",
+      "success": false
+    }
+  ]
+}

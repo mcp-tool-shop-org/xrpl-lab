@@ -1,0 +1,3 @@
+XRPL_LAB_RPC_URL set: False | XRPL_LAB_FAUCET_URL set: False
+rpc_url: https://s.altnet.rippletest.net:51234 | classify_network: testnet | guard: PASS
+home_is_scratch: True

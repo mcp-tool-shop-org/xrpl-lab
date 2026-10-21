@@ -1,0 +1,11 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Receipt Literacy                                                                                                                                            │
+│ Level: beginner  |  Time: ~10-15 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+STATE_WALLET_KEY_MISMATCH: The wallet seed in 
+<scratch>\legacy-wallet-4deed70-20261021T0424Z\home\wallet.json 
+doesn't sign as its recorded address r9s62YbGTVsvCCnfdpLc7KoRoD1xipM3NZ.
+  Hint: The file may be damaged or edited. Restore it from a backup, or import the seed again. Nothing was signed.
