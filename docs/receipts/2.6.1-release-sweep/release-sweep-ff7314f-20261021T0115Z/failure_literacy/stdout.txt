@@ -1,0 +1,123 @@
+Warning: This module requires the following to be completed first:
+  - receipt_literacy
+Run those modules first, or use --force to bypass.
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Failure Literacy                                                                                                                                            │
+│ Level: beginner  |  Time: ~10-15 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Transactions fail. The difference between a beginner and a competent operator is knowing why they fail and how to fix them.                                    
+
+In this module you intentionally break a transaction, read the error, then fix and resubmit it. Everything here is safe — failed transactions on the testnet   
+cost nothing.                                                                                                                                                  
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+
+  → ensure_wallet...
+  No wallet found. Creating a new one...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Wallet created: r9f7H2aEKvfo8KgqHvWvyEFiD7CAQabuMy
+  Saved to: 
+<scratch>\release-sweep-ff7314f-20261021T0115Z\failure_literacy\h
+ome\wallet.json
+
+  Warning: Your wallet seed is stored locally. Never share it or paste it anywhere.
+
+Press Enter to continue...Ensure you have funds                                                                                                                                          
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Submit a failing transaction                                                                                                                                   
+
+We are going to submit a transaction that we know will fail: a payment of more XRP than your wallet holds. This is safe — on the XRPL Testnet a failed         
+transaction costs only test XRP (a tec result still charges its fee) and harms nothing.                                                                        
+
+Common failure modes on XRPL:                                                                                                                                  
+
+ • tecUNFUNDED_PAYMENT — not enough XRP                                                                                                                        
+ • tecNO_DST — destination account doesn't exist                                                                                                               
+ • tefBAD_AUTH — wrong signing key                                                                                                                             
+ • tecPATH_DRY — no liquidity path (for issued currencies)                                                                                                     
+
+Let's trigger one now.                                                                                                                                         
+
+
+  → submit_payment_fail...
+  Intentionally submitting a failing tx (underfunded)...
+  XRPL rejects a payment to yourself (temREDUNDANT), so practice payments go to a fresh address made for this run:
+  rsHWecqbkBkbG2jn2eDGqzYe8VcSf8Dprn (your first payment to it creates the account)
+  Result code: tecUNFUNDED_PAYMENT
+  Error: Sender doesn't have enough XRP. Fund your wallet: xrpl-lab fund
+
+Press Enter to continue...Read the error                                                                                                                                                 
+
+
+Look at the result code above. Every XRPL result code has a prefix that tells you the category:                                                                
+
+                                                                              
+ Prefix  Meaning                                                              
+ ──────────────────────────────────────────────────────────────────────────── 
+ tes     Success                                                              
+ tec     Claimed — tx applied but failed (on the ledger; the fee was charged) 
+ tef     Failed — tx not applied                                              
+ tel     Local — client-side rejection                                        
+ tem     Malformed — invalid tx format                                        
+ ter     Retry — might work later                                             
+                                                                              
+
+The result code tells you what happened. The category tells you how bad.                                                                                       
+
+Press Enter to continue...Fix and resubmit                                                                                                                                               
+
+Now let's submit the same payment correctly. The fix depends on what failed:                                                                                   
+
+ • Underfunded? Fund the wallet or reduce the amount.                                                                                                          
+ • Bad destination? Use a valid address.                                                                                                                       
+ • Auth error? Check the signing wallet.                                                                                                                       
+
+We will send a corrected payment now.                                                                                                                          
+
+
+  → submit_payment...
+  Payment submitted!
+  TXID: 772E824CEEBFEC5911713A567E5F703E0F0E46A7DEB28E3E02DE1C385093394F
+  Result: tesSUCCESS
+  Fee: 10 drops
+  Explorer: https://testnet.xrpl.org/transactions/772E824CEEBFEC5911713A567E5F703E0F0E46A7DEB28E3E02DE1C385093394F
+
+Press Enter to continue...Verify the fix                                                                                                                                                 
+
+Let's confirm the corrected transaction landed.                                                                                                                
+
+
+  → verify_tx...
+  ✓ Result: tesSUCCESS
+  ✓ Fee: 10 drops
+  ✓ Ledger index: 21697013
+  ✓ Validated: yes
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You just completed the debugging workflow:                                                                                                                     
+
+ 1 You submitted a transaction that failed (on purpose)                                                                                                        
+ 2 You read and understood the error code                                                                                                                      
+ 3 You identified the fix                                                                                                                                      
+ 4 You resubmitted successfully                                                                                                                                
+
+Every production system has failures. The question is never "will it fail?" — it's "can you diagnose and recover?" Now you can.                                
+
+Both the failed and successful transactions are in your trail. Run xrpl-lab proof-pack when you're ready to export.                                            
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Failure Literacy                                                                                                                                            │
+│ Report saved to .xrpl-lab\reports\failure_literacy.md                                                                                                       │
+│ 1 transaction recorded                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

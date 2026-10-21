@@ -1,0 +1,229 @@
+{
+  "validated_ledger": {
+    "seq": 21697469,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH": {
+      "Balance": "89999960",
+      "Sequence": 21697452,
+      "OwnerCount": 1,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21697448,
+          "hash": "BB9B2FC5A61F4EA6E139214DC423FDA0D1FE078C32904E60E48B638017D1B736",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697453,
+          "hash": "450A25CD946C96F5E915944A922E257FF347EE82064B41E7994A7FE8CED24EDE",
+          "TransactionType": "NFTokenMint",
+          "Account": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+          "Destination": null,
+          "Sequence": 21697448,
+          "Fee": "10",
+          "Flags": 8,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697455,
+          "hash": "6EB47E2A1220FA60381EFE9BADC93DF0B1E9DE53F795BD3CFBCFF878217ABB91",
+          "TransactionType": "NFTokenCreateOffer",
+          "Account": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+          "Destination": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+          "Sequence": 21697449,
+          "Fee": "10",
+          "Flags": 1,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697458,
+          "hash": "AD018E434ECDB9A75CF068E58489B89D3B54564B3DA8182A0D1DD28CAFEDF4AF",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+          "Destination": null,
+          "Sequence": 21697450,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697461,
+          "hash": "89BFC20DE9B8F86A1EF217B9F67397A2FE76DE5AD1741964BAC7F3D8ACFB3496",
+          "TransactionType": "NFTokenCreateOffer",
+          "Account": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+          "Destination": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+          "Sequence": 21697451,
+          "Fee": "10",
+          "Flags": 1,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697464,
+          "hash": "5D400E009468C398905147EE170FE049FE3DECA5C98900BEAB22D21CD0C9D47C",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+          "Destination": null,
+          "Sequence": 21697450,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697467,
+          "hash": "5A0787DCC44C44D7B235E8741ED63FBF0B1E401B7899F479EAA0B10A32B680CB",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+          "Destination": null,
+          "Sequence": 21697451,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecOBJECT_NOT_FOUND"
+        }
+      ]
+    },
+    "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ": {
+      "Balance": "109999980",
+      "Sequence": 21697452,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21697450,
+          "hash": "6AA93AD93DB6D7EB8F3D24AA981111D76E16CF0D47F21097F8365BCF449CC201",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697455,
+          "hash": "6EB47E2A1220FA60381EFE9BADC93DF0B1E9DE53F795BD3CFBCFF878217ABB91",
+          "TransactionType": "NFTokenCreateOffer",
+          "Account": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+          "Destination": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+          "Sequence": 21697449,
+          "Fee": "10",
+          "Flags": 1,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697458,
+          "hash": "AD018E434ECDB9A75CF068E58489B89D3B54564B3DA8182A0D1DD28CAFEDF4AF",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+          "Destination": null,
+          "Sequence": 21697450,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697461,
+          "hash": "89BFC20DE9B8F86A1EF217B9F67397A2FE76DE5AD1741964BAC7F3D8ACFB3496",
+          "TransactionType": "NFTokenCreateOffer",
+          "Account": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+          "Destination": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+          "Sequence": 21697451,
+          "Fee": "10",
+          "Flags": 1,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697464,
+          "hash": "5D400E009468C398905147EE170FE049FE3DECA5C98900BEAB22D21CD0C9D47C",
+          "TransactionType": "NFTokenAcceptOffer",
+          "Account": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+          "Destination": null,
+          "Sequence": 21697450,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "450A25CD946C96F5E915944A922E257FF347EE82064B41E7994A7FE8CED24EDE": {
+      "TransactionType": "NFTokenMint",
+      "Account": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21697453,
+      "Sequence": 21697448,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "6EB47E2A1220FA60381EFE9BADC93DF0B1E9DE53F795BD3CFBCFF878217ABB91": {
+      "TransactionType": "NFTokenCreateOffer",
+      "Account": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+      "Destination": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+      "validated": true,
+      "ledger_index": 21697455,
+      "Sequence": 21697449,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "AD018E434ECDB9A75CF068E58489B89D3B54564B3DA8182A0D1DD28CAFEDF4AF": {
+      "TransactionType": "NFTokenAcceptOffer",
+      "Account": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21697458,
+      "Sequence": 21697450,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "89BFC20DE9B8F86A1EF217B9F67397A2FE76DE5AD1741964BAC7F3D8ACFB3496": {
+      "TransactionType": "NFTokenCreateOffer",
+      "Account": "rUCuJinVAvpqqFrhwu1Wy79PMBPPTFBiUJ",
+      "Destination": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+      "validated": true,
+      "ledger_index": 21697461,
+      "Sequence": 21697451,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "5D400E009468C398905147EE170FE049FE3DECA5C98900BEAB22D21CD0C9D47C": {
+      "TransactionType": "NFTokenAcceptOffer",
+      "Account": "rMxDLCq6DY14UBWdQtdRUzNj2i6GrBpYYH",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21697464,
+      "Sequence": 21697450,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "00081388E5D3B19A6B960EA8EF369D644CFCE8E72C32061B519F4548014B13A8": {
+      "error": "txnNotFound"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "450A25CD946C96F5E915944A922E257FF347EE82064B41E7994A7FE8CED24EDE",
+      "success": true
+    },
+    {
+      "txid": "6EB47E2A1220FA60381EFE9BADC93DF0B1E9DE53F795BD3CFBCFF878217ABB91",
+      "success": true
+    },
+    {
+      "txid": "AD018E434ECDB9A75CF068E58489B89D3B54564B3DA8182A0D1DD28CAFEDF4AF",
+      "success": true
+    },
+    {
+      "txid": "89BFC20DE9B8F86A1EF217B9F67397A2FE76DE5AD1741964BAC7F3D8ACFB3496",
+      "success": true
+    },
+    {
+      "txid": "5D400E009468C398905147EE170FE049FE3DECA5C98900BEAB22D21CD0C9D47C",
+      "success": true
+    }
+  ]
+}
