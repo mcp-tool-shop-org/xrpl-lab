@@ -1,0 +1,42 @@
+[
+ {
+  "txid": "7B34B82B03AFB6BC2C614527C76C93C81DE0C14670188FF04D2C0213930D8162",
+  "type": "CheckCreate",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "AE661AA8A032A4E19B27A573A223F843805CCB783DE0BDBC7B94795948EB46DD",
+  "type": "CheckCash",
+  "account": "rKUr3nv8vhDBrGTQTdAwhMgZLbqrB2uJnC",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "C644BCF1807975C7AE4DF840B449ED257647BEE3220747425FE74128C8CC1300",
+  "type": "CheckCreate",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "52EB87A83C6AADEF41FBB0824DD5E36E05C97D6005E510B3C44A4545B0A07D55",
+  "type": "CheckCash",
+  "account": "rUzyjK8w9Ew83W5gjfv5Th9c5viubq6329",
+  "result": "tecNO_PERMISSION",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "589C90E60BCAD37D60D6CE17B617B087C8D1D97FC127D5592FB6BC201200545F",
+  "type": "CheckCancel",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

@@ -1,0 +1,9 @@
+{
+ "lesson": "clawback_101",
+ "exit": 0,
+ "steps": "12 passed, 0 failed",
+ "transactions": "4 successful, 1 failed (1 expected)",
+ "verify_exit": 0,
+ "wall": 82,
+ "retried_429": false
+}

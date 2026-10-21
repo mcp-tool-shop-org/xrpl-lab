@@ -1,0 +1,18 @@
+[
+ {
+  "txid": "764B431752E3D653D28E5703DD7830AF2205ECA4609B8BDAD109D157F689D7F8",
+  "type": "OfferCreate",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "C8DF648F4C608DFEE029FF26D1D2F4436E3D4179AFF151E5AAF5A87BF2F3C6D6",
+  "type": "OfferCancel",
+  "account": "rpeyDv2a7C9Tz7kJ4CKX4c8vLN4RwWxvuG",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

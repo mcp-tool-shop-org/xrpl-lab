@@ -1,0 +1,4 @@
+cmd: xrpl-lab run  account_hygiene  (Enter fed to every prompt)
+xrpl_lab_exit_code: 3
+wall_seconds: 42
+module_interrupted_lines: 0
