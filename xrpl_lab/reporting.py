@@ -614,6 +614,9 @@ class TxLiveResult:
     status: str  # LIVE_PASS / LIVE_FAIL / LIVE_SKIPPED
     reason: str
     checks: list[str] = field(default_factory=list)
+    # The pack's own claim that the tx is on a ledger (2.7.1), carried so a
+    # link built from this result can respect it (Argon, 2.7.1 round 2, F1).
+    validated: bool | None = None
 
     @property
     def passed(self) -> bool:
@@ -630,6 +633,7 @@ class TxLiveResult:
             "status": self.status,
             "reason": self.reason,
             "checks": list(self.checks),
+            "validated": self.validated,
         }
 
 
@@ -791,6 +795,7 @@ async def _verify_one_tx_live(
     *,
     expected_account: str = "",
     expected_tx_type: str = "",
+    claim: dict | None = None,
 ) -> TxLiveResult:
     """Re-fetch ONE claimed txid and assert it exists + validated + succeeded.
 
@@ -801,7 +806,43 @@ async def _verify_one_tx_live(
     that the tx TYPE and the acting account MATCH the pack's claims.
     """
     checks: list[str] = []
+    claim = claim or {}
+    validated_claim = claim.get("validated")
+    rejection = claim.get("success") is False and claim.get("expected") is True
+    # 2.7.1: an expected rejection the pack says never reached a ledger (a
+    # tem, a tef) has nothing to anchor. Since 2.6.2 the pack records these,
+    # and live verification failed every honest rejection lesson's pack.
+    if rejection and validated_claim is False:
+        return TxLiveResult(
+            txid=txid, network=network, status=LIVE_SKIPPED,
+            reason="Expected rejection that never reaches a ledger (by design).",
+            validated=False,
+        )
     tx: TxInfo = await transport.fetch_tx(txid)
+    if rejection and not tx.fetch_error:
+        found = bool(tx.result_code) or tx.validated
+        if tx.validated and tx.result_code.startswith("tec"):
+            return TxLiveResult(
+                txid=txid, network=network, status=LIVE_PASS,
+                reason=f"Expected rejection, validated on-ledger: {tx.result_code}.",
+                checks=["Exists on-ledger", "Validated: yes", f"Result: {tx.result_code}"],
+                validated=True,
+            )
+        if not found and validated_claim is None:
+            # A pack from before 2.7.1 doesn't say; a tem/tef is never found.
+            return TxLiveResult(
+                txid=txid, network=network, status=LIVE_SKIPPED,
+                reason="Expected rejection not on the ledger (a tem or tef never is).",
+            )
+        return TxLiveResult(
+            txid=txid, network=network, status=LIVE_FAIL,
+            reason=(
+                "The pack claims an expected rejection validated on-ledger, but "
+                f"the ledger shows {tx.result_code or 'no such transaction'}"
+                f"{'' if tx.validated else ' (not validated)'}."
+            ),
+            validated=validated_claim,
+        )
 
     # A read-back failure is a NETWORK problem, never evidence the tx is fake.
     # Mirror verify_tx (actions/verify.py) / audit.py: surface a distinct,
@@ -945,6 +986,11 @@ def _iter_pack_tx_claims(pack: dict) -> list[dict]:
                 "account": top_address,
                 # Forward-compatible: assert type only if the artifact records it.
                 "tx_type": tx.get("tx_type", "") or "",
+                # 2.7.1: what the record claims, so an expected rejection is
+                # checked as one (not as a success).
+                "success": tx.get("success", True),
+                "expected": tx.get("expected", False),
+                "validated": tx.get("validated"),
             })
         return claims
 
@@ -1028,6 +1074,7 @@ async def verify_proof_pack_live(
             tx_transport,
             expected_account=claim["account"],
             expected_tx_type=claim["tx_type"],
+            claim=claim,
         ))
 
     if not real_seen:
@@ -1120,6 +1167,7 @@ async def verify_certificate_live(
             tx_transport,
             expected_account=claim["account"],
             expected_tx_type=claim["tx_type"],
+            claim=claim,
         ))
 
     if not real_seen:

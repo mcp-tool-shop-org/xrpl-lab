@@ -7,6 +7,15 @@ live sweep.
 
 ### Fixed
 
+- **Live verification of a rejection lesson's proof pack passes.** Since 2.6.2
+  a rejection lesson's pack records its expected `tec`, `tem` or `tef`, and
+  live verification (`proof verify --live`, the dashboard's verify view)
+  checked every claim for `tesSUCCESS`, so an honest pack failed: the `tec`
+  as "not tesSUCCESS", the `tem` as "not found". An expected rejection is
+  now checked as one: a validated `tec` must be on the ledger as one, and a
+  rejection that never reaches a ledger is skipped. A claimed rejection the
+  ledger shows as a success fails. Successes and unexpected failures are
+  checked as before.
 - **A record says whether its transaction is on a ledger.** Transaction
   records carry `validated`: true for a success or a validated `tec`, false
   for one that never reached a ledger (a `tem`, a `tef`, a timeout), unknown
