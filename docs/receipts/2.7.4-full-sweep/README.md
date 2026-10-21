@@ -62,8 +62,9 @@ omitted. `A/drift.jsonl` holds addresses, flags and balances only.
 
 | What | Hash | Expected |
 |---|---|---|
-| custodial_crediting's in-lesson flag pair | see `A/19-custodial_crediting_101/classify.json` (AccountSet SetFlag asfRequireDest, then ClearFlag asfRequireDest) | both tesSUCCESS by the learner |
-| account_hygiene's removal TrustSet (finding 2) | `79DAD508…` (Part B; full hash in `B/account_hygiene/proof_pack.json`) | TrustSet HYG limit 0, tesSUCCESS, with the line still present |
+| custodial_crediting sets RequireDest | `ED1A92791EB62A248B914D2DDDE2DC37EDCCC68C2628923D9A6CB555FC6DB824` | AccountSet SetFlag 1, tesSUCCESS, by the learner |
+| custodial_crediting clears it, same lesson | `0A8D450759B13AA3D0E4834F9352E7CC92864193E66630E7A7551211E72E2CDF` | AccountSet ClearFlag 1, tesSUCCESS, by the learner |
+| account_hygiene's removal TrustSet (finding 2, Part B) | `79DAD50827614423CC37763C2FAA4BD1DF928707ED07B2808637CB6596EFF751` | TrustSet HYG limit 0, tesSUCCESS, with the line still present afterwards |
 
 ## Files
 
