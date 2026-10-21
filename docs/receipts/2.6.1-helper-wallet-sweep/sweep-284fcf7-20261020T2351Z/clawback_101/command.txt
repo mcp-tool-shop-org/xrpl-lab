@@ -1,0 +1,8 @@
+cwd: <scratch>/sweep-284fcf7-20261020T2351Z/clawback_101/cwd  (outside every repo)
+XRPL_LAB_HOME=<scratch>/sweep-284fcf7-20261020T2351Z/clawback_101/home   (wallet.json stays here, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1
+code: mcp-tool-shop-org/xrpl-lab @ 284fcf7 (fix/2.6.1-sweep), worktree _worktrees/xrpl-lab-f9-livefire
+cmd:  yes "" | xrpl-lab run clawback_101
+started_utc: 2026-10-21T00:06:11Z
+xrpl_lab_exit_code: 0   (read from PIPESTATUS[1])
+finished_utc: 2026-10-21T00:07:32Z

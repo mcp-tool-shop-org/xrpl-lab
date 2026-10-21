@@ -1,0 +1,159 @@
+{
+  "validated_ledger": {
+    "seq": 21695489,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rBaGnose8YJ7L1ADuxGgG4hJduzjQQipFk": {
+      "Balance": "84999980",
+      "Sequence": 21695478,
+      "OwnerCount": 1,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21695476,
+          "hash": "452F7CB4D6ED2D81C1628783E1609200EA79A5F0EBBE78E29A1C01CF5A3560C9",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rBaGnose8YJ7L1ADuxGgG4hJduzjQQipFk",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21695482,
+          "hash": "C606AAB14B75543A82F8550DAD9CA10E05F6866CD99795ED600C17FCD14A7425",
+          "TransactionType": "PaymentChannelCreate",
+          "Account": "rBaGnose8YJ7L1ADuxGgG4hJduzjQQipFk",
+          "Destination": "rQHE4PP7FNQinZN4NCjhuDMjWc9XyFZVqV",
+          "Sequence": 21695476,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21695485,
+          "hash": "608A8433391AC60CF7F0EA4DB8856B83EBB58D166D057E02010E927641C816EF",
+          "TransactionType": "PaymentChannelFund",
+          "Account": "rBaGnose8YJ7L1ADuxGgG4hJduzjQQipFk",
+          "Destination": null,
+          "Sequence": 21695477,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21695488,
+          "hash": "3724470D34FF6F03DC660CB769659A909E3A9861CF9CDC21BD72789BAD63697A",
+          "TransactionType": "PaymentChannelClaim",
+          "Account": "rQHE4PP7FNQinZN4NCjhuDMjWc9XyFZVqV",
+          "Destination": null,
+          "Sequence": 21695479,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rQHE4PP7FNQinZN4NCjhuDMjWc9XyFZVqV": {
+      "Balance": "106999990",
+      "Sequence": 21695480,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21695479,
+          "hash": "DBF693B40B30D2DD7A6CF363840D4FBEC049940FBE3FBA264C97773102680BD7",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rQHE4PP7FNQinZN4NCjhuDMjWc9XyFZVqV",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21695482,
+          "hash": "C606AAB14B75543A82F8550DAD9CA10E05F6866CD99795ED600C17FCD14A7425",
+          "TransactionType": "PaymentChannelCreate",
+          "Account": "rBaGnose8YJ7L1ADuxGgG4hJduzjQQipFk",
+          "Destination": "rQHE4PP7FNQinZN4NCjhuDMjWc9XyFZVqV",
+          "Sequence": 21695476,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21695485,
+          "hash": "608A8433391AC60CF7F0EA4DB8856B83EBB58D166D057E02010E927641C816EF",
+          "TransactionType": "PaymentChannelFund",
+          "Account": "rBaGnose8YJ7L1ADuxGgG4hJduzjQQipFk",
+          "Destination": null,
+          "Sequence": 21695477,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21695488,
+          "hash": "3724470D34FF6F03DC660CB769659A909E3A9861CF9CDC21BD72789BAD63697A",
+          "TransactionType": "PaymentChannelClaim",
+          "Account": "rQHE4PP7FNQinZN4NCjhuDMjWc9XyFZVqV",
+          "Destination": null,
+          "Sequence": 21695479,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "C606AAB14B75543A82F8550DAD9CA10E05F6866CD99795ED600C17FCD14A7425": {
+      "TransactionType": "PaymentChannelCreate",
+      "Account": "rBaGnose8YJ7L1ADuxGgG4hJduzjQQipFk",
+      "Destination": "rQHE4PP7FNQinZN4NCjhuDMjWc9XyFZVqV",
+      "validated": true,
+      "ledger_index": 21695482,
+      "Sequence": 21695476,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "608A8433391AC60CF7F0EA4DB8856B83EBB58D166D057E02010E927641C816EF": {
+      "TransactionType": "PaymentChannelFund",
+      "Account": "rBaGnose8YJ7L1ADuxGgG4hJduzjQQipFk",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21695485,
+      "Sequence": 21695477,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "3724470D34FF6F03DC660CB769659A909E3A9861CF9CDC21BD72789BAD63697A": {
+      "TransactionType": "PaymentChannelClaim",
+      "Account": "rQHE4PP7FNQinZN4NCjhuDMjWc9XyFZVqV",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21695488,
+      "Sequence": 21695479,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "2905348AD62CC87FBC77EDADA02B9B1165BF736F2FBA2ACE5BFB0604766B1C7D": {
+      "error": "txnNotFound"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "C606AAB14B75543A82F8550DAD9CA10E05F6866CD99795ED600C17FCD14A7425",
+      "success": true
+    },
+    {
+      "txid": "608A8433391AC60CF7F0EA4DB8856B83EBB58D166D057E02010E927641C816EF",
+      "success": true
+    },
+    {
+      "txid": "3724470D34FF6F03DC660CB769659A909E3A9861CF9CDC21BD72789BAD63697A",
+      "success": true
+    }
+  ]
+}
