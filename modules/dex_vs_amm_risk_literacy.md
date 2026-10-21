@@ -128,7 +128,7 @@ Clean up the DEX side.
 
 Create or confirm the XRP/LAB AMM pool.
 
-<!-- action: ensure_amm_pair a_currency=XRP a_value=100 b_currency=LAB b_value=100 -->
+<!-- action: ensure_amm_pair a_currency=XRP a_value=25 b_currency=LAB b_value=25 -->
 
 ## Step 17: AMM strategy — deposit
 

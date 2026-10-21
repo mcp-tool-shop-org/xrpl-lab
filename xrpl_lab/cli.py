@@ -111,6 +111,21 @@ def _try_import_camp_wallet(state: LabState) -> bool:
         return False
 
 
+def _utf8_stdio() -> None:
+    """On Windows, write stdout/stderr as UTF-8 (replacing what can't be).
+
+    A redirected or legacy console inherits cp1252, which can't encode the
+    lesson text's arrows and marks: custodial_crediting_101 crashed with a
+    UnicodeEncodeError when its output went to a file (2.6.2). ``python -m
+    xrpl_lab`` did this already; the ``xrpl-lab`` entry point now does too.
+    """
+    if sys.platform != "win32":
+        return
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 @click.group()
 @click.version_option(version=__version__, prog_name="xrpl-lab")
 def main():
@@ -127,6 +142,7 @@ def main():
         xrpl-lab doctor          Check your setup
         xrpl-lab serve           Start the web dashboard
     """
+    _utf8_stdio()
 
 
 @main.command()

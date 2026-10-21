@@ -107,7 +107,7 @@ class TestFundWallet:
     async def test_balance_in_result(self, transport):
         result = await fund_wallet(transport, "rTEST123")
         assert result.balance
-        assert "1000" in result.balance
+        assert result.balance == "100.000000"
 
     @pytest.mark.asyncio
     async def test_message_in_result(self, transport):

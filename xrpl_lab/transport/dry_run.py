@@ -76,6 +76,9 @@ def _address_from_seed(wallet_seed: str) -> str:
 # Verified byte-for-byte against xrpl-py 4.5.0's xrp_to_drops over a
 # 100k-value random sweep (see tests/test_reswarm3_transport.py rationale).
 
+# The testnet faucet grants 100 XRP; the dry run grants the same so a lesson
+# sized beyond one grant fails offline too (2.6.2, #20 item 11).
+_FAUCET_GRANT_DROPS = 100_000_000
 _MAX_XRP = Decimal("100000000000")  # 1e11 — xrpl-py's MAX_XRP ceiling
 _ONE_DROP_XRP = Decimal("0.000001")  # 1 drop = 1e-6 XRP
 
@@ -234,8 +237,13 @@ class _PerAddressStore(dict):
 class DryRunTransport(Transport):
     """Offline transport that simulates XRPL responses without network access."""
 
-    def __init__(self, fail_next: bool = False) -> None:
+    def __init__(
+        self, fail_next: bool = False, faucet_grant_drops: int = _FAUCET_GRANT_DROPS,
+    ) -> None:
         self._fail_next = fail_next
+        # What one faucet call grants: testnet's 100 XRP by default. Transport
+        # arithmetic tests that need a larger float pass their own.
+        self._faucet_grant_drops = faucet_grant_drops
         # Seed -> the learner's real address, set by the runner through
         # bind_wallet. Without it every seed collapsed to one synthetic
         # address, so payments, mints and escrows were booked against an
@@ -576,12 +584,12 @@ class DryRunTransport(Transport):
         # F-3d812d44: the real faucet ADDS to an existing account. The old
         # ``= 1_000_000_000`` overwrite silently destroyed any balance the
         # account had accumulated when a learner re-ran a fund step mid-module.
-        self._balances[address] = self._balances.get(address, 0) + 1_000_000_000
+        self._balances[address] = self._balances.get(address, 0) + self._faucet_grant_drops
         return FundResult(
             success=True,
             address=address,
             balance=_drops_to_xrp_str(self._balances[address]),
-            message="[dry-run] Funded with 1000 XRP",
+            message=f"[dry-run] Funded with {_drops_to_xrp_str(self._faucet_grant_drops).rstrip('0').rstrip('.')} XRP",
         )
 
     async def submit_payment(
@@ -1389,7 +1397,7 @@ class DryRunTransport(Transport):
             balance_drops = str(self._balances[address])
         elif address in self._funded_addresses:
             # Backward compat: address funded via direct _funded_addresses manipulation
-            balance_drops = "1000000000"
+            balance_drops = str(self._faucet_grant_drops)
         else:
             balance_drops = "0"
         # Owner count is per-account (TRANSPORT-A-002). Return this address's
@@ -1451,7 +1459,7 @@ class DryRunTransport(Transport):
             # read (see the module design note at the top of the file).
             return _drops_to_xrp_str(drops)
         # Backward compat: address funded via direct _funded_addresses manipulation
-        return "1000.000000" if address in self._funded_addresses else "0"
+        return _drops_to_xrp_str(self._faucet_grant_drops) if address in self._funded_addresses else "0"
 
     # ── AMM methods ──────────────────────────────────────────────────
 

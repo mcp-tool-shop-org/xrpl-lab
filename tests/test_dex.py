@@ -262,5 +262,5 @@ class TestShippedDexVsAmmModule:
         out, _ = await run_shipped_module(
             "dex_vs_amm_risk_literacy.md", tmp_path, monkeypatch
         )
-        assert "LP token balance: 110" in out
-        assert "LP tokens decreased: 110.000000 -> 0" in out
+        assert "LP token balance: 35" in out
+        assert "LP tokens decreased: 35.000000 -> 0" in out

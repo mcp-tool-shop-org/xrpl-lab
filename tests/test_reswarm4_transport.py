@@ -52,9 +52,13 @@ from xrpl.asyncio.transaction import XRPLReliableSubmissionException
 
 from xrpl_lab.transport.base import TrustLineInfo
 from xrpl_lab.transport.dry_run import (
+
     _DRY_RUN_WALLET_ADDRESS,
     DryRunTransport,
 )
+# These conservation checks were written against a 1000 XRP float; testnet's
+# faucet (and the dry run's default since 2.6.2) grants 100.
+_GRANT_1000_XRP = 1_000_000_000
 
 _VALID_TESTNET_SEED = "sEdTM1uX8pu2do5XvTnutH6HsouMaM2"
 
@@ -644,7 +648,7 @@ class TestXrpConservation:
         """fund 1000 → escrow 100 locks it (+fee) → cancel returns the lock
         (−fee). Locked amount is conserved; each tx costs the network fee
         (F-21a14172 — was a false zero-fee invariant)."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
 
         create = await t.submit_escrow_create(
@@ -662,7 +666,7 @@ class TestXrpConservation:
 
     @pytest.mark.asyncio
     async def test_escrow_finish_conserves_total(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         dest = "rESCROWDEST00000000000000000"
 
@@ -679,7 +683,7 @@ class TestXrpConservation:
 
     @pytest.mark.asyncio
     async def test_escrow_create_rejects_underfunded_source(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         r = await t.submit_escrow_create("sSENDER", "2000", "rDEST", finish_after=0)
         assert not r.success
@@ -691,7 +695,7 @@ class TestXrpConservation:
         """create 200 debits source; claim 150 credits destination; the
         remainder returns to the source on close. Deposit amounts conserve;
         each successful claim/create/close also costs the network fee."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         dest = "rCHANDEST0000000000000000000"
 
@@ -724,7 +728,7 @@ class TestXrpConservation:
 
     @pytest.mark.asyncio
     async def test_channel_fund_debits_source(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         create = await t.submit_payment_channel_create(
             "sSENDER", "100", "rDEST", settle_delay=86400, public_key="ED00"
@@ -740,7 +744,7 @@ class TestXrpConservation:
 class TestNegativeAmountsRejected:
     @pytest.mark.asyncio
     async def test_negative_issued_payment_rejected(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, HOLDER, "100")
         r = await t.submit_issued_payment("sISSUER", HOLDER, "GLD", ISSUER, "-40")
         assert not r.success
@@ -750,7 +754,7 @@ class TestNegativeAmountsRejected:
 
     @pytest.mark.asyncio
     async def test_zero_issued_payment_rejected(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, HOLDER, "100")
         r = await t.submit_issued_payment("sISSUER", HOLDER, "GLD", ISSUER, "0")
         assert not r.success
@@ -759,7 +763,7 @@ class TestNegativeAmountsRejected:
     @pytest.mark.asyncio
     async def test_negative_clawback_rejected_no_minting(self) -> None:
         """claw -500 previously MINTED 500 to the holder (100 → 560 class)."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, HOLDER, "100")
         await t.submit_account_set_clawback("sISSUER", ISSUER)
         r = await t.submit_clawback("sISSUER", HOLDER, "GLD", "-500", ISSUER)
@@ -770,7 +774,7 @@ class TestNegativeAmountsRejected:
 
     @pytest.mark.asyncio
     async def test_negative_mpt_payment_rejected(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         iss = await t.submit_mpt_issuance_create("sISSUER", "1000000")
         iid = iss.mpt_issuance_id
         await t.submit_mpt_authorize("sHOLDER", iid)
@@ -782,7 +786,7 @@ class TestNegativeAmountsRejected:
 
     @pytest.mark.asyncio
     async def test_negative_deliver_min_rejected(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, _DRY_RUN_WALLET_ADDRESS, "0")
         r = await t.submit_partial_payment(
             "sISSUER", _DRY_RUN_WALLET_ADDRESS, "GLD", ISSUER,
@@ -795,7 +799,7 @@ class TestNegativeAmountsRejected:
     async def test_deliver_min_above_amount_rejected(self) -> None:
         """F-03f27a6c: DeliverMin > Amount is a contradiction — the old sim
         'delivered' MORE than the claimed cap, an impossible on-ledger state."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, _DRY_RUN_WALLET_ADDRESS, "0")
         r = await t.submit_partial_payment(
             "sISSUER", _DRY_RUN_WALLET_ADDRESS, "GLD", ISSUER,
@@ -808,7 +812,7 @@ class TestNegativeAmountsRejected:
     async def test_partial_payment_respects_trust_line_limit(self) -> None:
         """F-03f27a6c: the delivered credit obeys the same limit rule as a
         plain issued payment."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, _DRY_RUN_WALLET_ADDRESS, "995", limit="1000")
         r = await t.submit_partial_payment(
             "sISSUER", _DRY_RUN_WALLET_ADDRESS, "GLD", ISSUER,
@@ -824,7 +828,7 @@ class TestNegativeAmountsRejected:
 class TestFreezeEnforced:
     @pytest.mark.asyncio
     async def test_individual_freeze_blocks_issued_payment(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, HOLDER, "100")
         await t.submit_set_freeze("sISSUER", HOLDER, "GLD", True, ISSUER)
         status = await t.get_freeze_status(ISSUER, HOLDER, "GLD")
@@ -837,7 +841,7 @@ class TestFreezeEnforced:
 
     @pytest.mark.asyncio
     async def test_unfreeze_restores_payments(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, HOLDER, "100")
         await t.submit_set_freeze("sISSUER", HOLDER, "GLD", True, ISSUER)
         await t.submit_set_freeze("sISSUER", HOLDER, "GLD", False, ISSUER)
@@ -846,7 +850,7 @@ class TestFreezeEnforced:
 
     @pytest.mark.asyncio
     async def test_global_freeze_blocks_issued_payment(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, HOLDER, "100")
         await t.submit_global_freeze("sISSUER", True, ISSUER)
         r = await t.submit_issued_payment("sISSUER", HOLDER, "GLD", ISSUER, "10")
@@ -855,7 +859,7 @@ class TestFreezeEnforced:
 
     @pytest.mark.asyncio
     async def test_frozen_line_blocks_partial_payment_too(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, HOLDER, "0")
         await t.submit_set_freeze("sISSUER", HOLDER, "GLD", True, ISSUER)
         r = await t.submit_partial_payment(
@@ -878,7 +882,7 @@ class TestLockingOptInKeying:
         """Issuer A opts in SEED-ONLY; an escrow of issuer B's IOU must still
         fail tecNO_PERMISSION (previously the collapsed-address fallback made
         EVERY issuer look opted-in)."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         other_issuer = "rOTHERISSUERBBBBBBBBBBBBBBBBBB"
         t._trust_lines.setdefault(HOLDER, []).append(
             TrustLineInfo(account=HOLDER, peer=other_issuer, currency="SLV",
@@ -897,7 +901,7 @@ class TestLockingOptInKeying:
 
     @pytest.mark.asyncio
     async def test_address_keyed_optin_still_works(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         _seed_line(t, HOLDER, "100")
         await t.submit_allow_trustline_locking("sISSUER", ISSUER)
         r = await t.submit_token_escrow_create(
@@ -914,7 +918,7 @@ class TestLockingOptInKeying:
 
 @pytest.mark.asyncio
 async def test_token_escrow_without_finish_after_is_malformed() -> None:
-    t = DryRunTransport()
+    t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
     _seed_line(t, HOLDER, "100")
     await t.submit_allow_trustline_locking("sISSUER", ISSUER)
     r = await t.submit_token_escrow_create(
@@ -936,7 +940,7 @@ class TestEscrowExpiry:
     async def test_finish_after_cancel_after_passed_is_expired(self) -> None:
         """Created INSIDE the window, finished AFTER CancelAfter → expired:
         only EscrowCancel can act (tecNO_PERMISSION)."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         t.set_dry_clock(100)
         create = await t.submit_escrow_create(
             "sSENDER", "10", "rDEST", finish_after=1000, cancel_after=2000
@@ -956,7 +960,7 @@ class TestEscrowExpiry:
 
     @pytest.mark.asyncio
     async def test_finish_inside_window_still_succeeds(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         t.set_dry_clock(100)
         create = await t.submit_escrow_create(
             "sSENDER", "10", "rDEST", finish_after=1000, cancel_after=2000
@@ -972,7 +976,7 @@ class TestEscrowExpiry:
         """An escrow created with the clock ALREADY past its CancelAfter could
         never exist on-network — the sim keeps it finishable so the module
         handlers' wall-clock-derived times keep working offline."""
-        t = DryRunTransport()  # default far-future clock
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)  # default far-future clock
         create = await t.submit_escrow_create(
             "sSENDER", "10", "rDEST", finish_after=900, cancel_after=950
         )
@@ -991,7 +995,7 @@ class TestCredentialExpiration:
 
     @pytest.mark.asyncio
     async def test_create_with_past_expiration_rejected(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(self.SUBJECT)
         # Default clock is far-future; expiration=100 is already past.
         r = await t.submit_credential_create(
@@ -1005,7 +1009,7 @@ class TestCredentialExpiration:
     async def test_expired_credential_fails_domain_gate(self) -> None:
         """Accepted-but-EXPIRED credential no longer satisfies the
         permissioned-domain eligibility gate (tecNO_PERMISSION on-network)."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         t.set_dry_clock(50)
         await t.fund_from_faucet(self.SUBJECT)
         c = await t.submit_credential_create(
@@ -1045,7 +1049,7 @@ class TestCredentialExpiration:
 
 @pytest.mark.asyncio
 async def test_nft_purchase_requires_funded_buyer() -> None:
-    t = DryRunTransport()
+    t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
     buyer = "rBUYER000000000000000000000000"
     t._balances[buyer] = 0  # tracked AND broke
 
@@ -1069,7 +1073,7 @@ async def test_nft_purchase_requires_funded_buyer() -> None:
 class TestChannelClaimSignature:
     @pytest.mark.asyncio
     async def test_garbage_signature_rejected(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         create = await t.submit_payment_channel_create(
             "sSENDER", "10", "rDEST", settle_delay=86400, public_key="ED00"
         )
@@ -1083,7 +1087,7 @@ class TestChannelClaimSignature:
 
     @pytest.mark.asyncio
     async def test_balance_above_signed_amount_rejected(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         create = await t.submit_payment_channel_create(
             "sSENDER", "10", "rDEST", settle_delay=86400, public_key="ED00"
         )
@@ -1101,7 +1105,7 @@ class TestChannelClaimSignature:
         """Close with unclaimed funds + settle_delay schedules expiration
         (channel stays open for the dispute window), then closes for real —
         refunding the remainder — once the window passes."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         t.set_dry_clock(1_000_000)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         create = await t.submit_payment_channel_create(
@@ -1132,7 +1136,7 @@ class TestChannelClaimSignature:
 class TestAmmTerminalStates:
     @pytest.mark.asyncio
     async def test_trading_fee_above_cap_rejected(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         r = await t.submit_amm_create(
             "sFAKE", "XRP", "100", "", "LAB", "100", "rISSUER", trading_fee=1001,
         )
@@ -1141,7 +1145,7 @@ class TestAmmTerminalStates:
 
     @pytest.mark.asyncio
     async def test_full_withdraw_deletes_pool_and_recreate_succeeds(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.submit_amm_create("sFAKE", "XRP", "100", "", "LAB", "100", "rISSUER")
         wd = await t.submit_amm_withdraw("sFAKE", "XRP", "", "LAB", "rISSUER")
         assert wd.success
@@ -1160,7 +1164,7 @@ class TestAmmTerminalStates:
 class TestUnknownTxid:
     @pytest.mark.asyncio
     async def test_unknown_txid_fetches_as_not_found(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         info = await t.fetch_tx("F" * 64)
         assert info.validated is False
         assert info.result_code == ""
@@ -1168,7 +1172,7 @@ class TestUnknownTxid:
 
     @pytest.mark.asyncio
     async def test_issued_txid_still_fetches_validated(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         res = await t.submit_payment("sSENDER", "rDEST", "1")
         info = await t.fetch_tx(res.txid)
         assert info.validated is True
@@ -1178,7 +1182,7 @@ class TestUnknownTxid:
     async def test_fixture_txids_still_win(self) -> None:
         from xrpl_lab.transport.base import TxInfo
 
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         t.set_tx_fixtures({"AA11": TxInfo(txid="AA11", tx_type="Payment",
                                           result_code="tecPATH_DRY")})
         info = await t.fetch_tx("AA11")
@@ -1193,7 +1197,7 @@ class TestReserveFloorAndFee:
     async def test_spend_into_reserve_rejected(self) -> None:
         """fund 1000 → sending 999.5 would dip below the 1 XRP base reserve →
         tecUNFUNDED_PAYMENT (the old sim allowed spending to exactly 0)."""
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         r = await t.submit_payment("sSENDER", "rDEST", "999.5")
         assert not r.success
@@ -1203,7 +1207,7 @@ class TestReserveFloorAndFee:
 
     @pytest.mark.asyncio
     async def test_send_all_is_rejected_like_testnet(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         r = await t.submit_payment("sSENDER", "rDEST", "1000")
         assert not r.success
@@ -1211,7 +1215,7 @@ class TestReserveFloorAndFee:
 
     @pytest.mark.asyncio
     async def test_fee_debited_from_sender(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         r = await t.submit_payment("sSENDER", "rDEST", "10")
         assert r.success
@@ -1222,7 +1226,7 @@ class TestReserveFloorAndFee:
 
     @pytest.mark.asyncio
     async def test_owner_count_raises_the_floor(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
         # 5 owned objects → reserve = 1 + 5*0.2 = 2 XRP.
         t._owner_counts[_DRY_RUN_WALLET_ADDRESS] = 5
@@ -1238,7 +1242,7 @@ class TestReserveFloorAndFee:
 
 @pytest.mark.asyncio
 async def test_refund_adds_instead_of_overwriting() -> None:
-    t = DryRunTransport()
+    t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
     first = await t.fund_from_faucet("rREFUND0000000000000000000000")
     assert first.balance == "1000.000000"
     second = await t.fund_from_faucet("rREFUND0000000000000000000000")
@@ -1251,8 +1255,8 @@ async def test_refund_adds_instead_of_overwriting() -> None:
 
 @pytest.mark.asyncio
 async def test_txids_deterministic_across_identical_sessions() -> None:
-    a = DryRunTransport()
-    b = DryRunTransport()
+    a = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
+    b = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
     ra = await a.submit_payment("sSENDER", "rDEST", "1")
     rb = await b.submit_payment("sSENDER", "rDEST", "1")
     assert ra.txid == rb.txid, (
@@ -1281,7 +1285,7 @@ def test_dry_run_has_no_xrpl_import() -> None:
 class TestSubmitResultSequence:
     @pytest.mark.asyncio
     async def test_dry_run_escrow_create_sequence_matches_ledger(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         create = await t.submit_escrow_create("sSENDER", "10", "rDEST", finish_after=0)
         assert create.sequence is not None
         escrows = await t.get_escrows(_DRY_RUN_WALLET_ADDRESS)
@@ -1289,7 +1293,7 @@ class TestSubmitResultSequence:
 
     @pytest.mark.asyncio
     async def test_dry_run_offer_create_sequence_populated(self) -> None:
-        t = DryRunTransport()
+        t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
         r = await t.submit_offer_create(
             "sSENDER", "GLD", "10", ISSUER, "XRP", "10", ""
         )

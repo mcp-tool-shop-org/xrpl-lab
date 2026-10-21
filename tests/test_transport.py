@@ -23,7 +23,7 @@ class TestDryRunTransport:
         result = await transport.fund_from_faucet("rTEST123")
         assert result.success is True
         assert result.address == "rTEST123"
-        assert "1000" in result.balance
+        assert result.balance == "100.000000"  # testnet's grant
 
     @pytest.mark.asyncio
     async def test_submit_success(self, transport):
@@ -82,7 +82,7 @@ class TestDryRunTransport:
     async def test_balance(self, transport):
         assert await transport.get_balance("rUNFUNDED") == "0"
         await transport.fund_from_faucet("rFUNDED")
-        assert await transport.get_balance("rFUNDED") == "1000.000000"
+        assert await transport.get_balance("rFUNDED") == "100.000000"
 
     @pytest.mark.asyncio
     async def test_unique_txids(self, transport):
@@ -99,7 +99,7 @@ class TestDryRunTransport:
         "0", masking the violation. The fix pre-validates the balance and
         returns tecUNFUNDED_PAYMENT (matching real testnet behavior).
         """
-        # Fund the sender so its balance is tracked (1000 XRP = 1e9 drops).
+        # Fund the sender so its balance is tracked (100 XRP = 1e8 drops).
         from xrpl_lab.transport.dry_run import _DRY_RUN_WALLET_ADDRESS
 
         await transport.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
@@ -118,8 +118,8 @@ class TestDryRunTransport:
 
         # Sender balance must NOT have been debited on rejection.
         balance = await transport.get_balance(_DRY_RUN_WALLET_ADDRESS)
-        # 1000 XRP, untouched.
-        assert balance == "1000.000000"
+        # 100 XRP, untouched.
+        assert balance == "100.000000"
 
 
 # ── XRPLTestnetTransport — real-network paths (mocked, no live calls) ──
