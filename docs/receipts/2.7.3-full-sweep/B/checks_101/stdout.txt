@@ -1,0 +1,222 @@
+Warning: This module requires the following to be completed first:
+  - receipt_literacy
+Run those modules first, or use --force to bypass.
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Checks 101: Deferred Pull-Payments (CheckCreate / CheckCash / CheckCancel)                                                                                  │
+│ Level: intermediate  |  Time: ~20-25 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+A Check is a deferred, PULL-style payment: the sender writes an authorization — a maximum amount (SendMax) and the one account allowed to claim it — and the   
+recipient decides whether, and when, to actually pull the money, by submitting CheckCash themselves. Nothing changes hands at write time. This is the          
+claimable-reward pattern: a studio writes a Check for a battle-pass payout or a tournament prize, and the player cashes it on their own schedule — no payout   
+job to run, no funds sitting in escrow waiting for a timer.                                                                                                    
+
+The rule that separates Checks from Escrow — read this twice: CheckCreate does not lock or set aside any XRP. SendMax is a CEILING, not a reservation. The     
+writer's spendable balance is untouched the moment the Check is written; the only new cost is a small owner reserve for the Check object itself. This means a  
+Check that succeeded at creation can still FAIL at cash time if the writer's balance has since dropped below what's being asked — CheckCreate returning        
+tesSUCCESS is never a guaranteed payout. Contrast this hard with Escrow: EscrowCreate debits and holds the funds the instant it validates; a Check debits      
+NOTHING until CheckCash actually executes.                                                                                                                     
+
+Three transactions make up the lifecycle, all mainnet-live since 2018:                                                                                         
+
+ 1 CheckCreate — write the authorization: Destination, SendMax, and optionally Expiration, DestinationTag, InvoiceID. Creates a Check ledger object (owner     
+   reserve charged to the writer).                                                                                                                             
+ 2 CheckCash — only the named Destination may redeem it, for exactly one of an exact Amount or a flexible DeliverMin (at least this much, up to SendMax).      
+ 3 CheckCancel — voids an unredeemed Check. Either the writer or the Destination may cancel a LIVE Check; once it expires, ANY address may clean it up. Unlike 
+   EscrowCancel, nothing is credited back — a Check never moved anything, so there is nothing to refund.                                                       
+
+This runs on testnet — free and disposable. Your wallet plays the studio (the writer); a second wallet plays the player who claims the reward.                 
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+Your wallet is the studio — the account writing the claimable reward.                                                                                          
+
+
+  → ensure_wallet...
+  No wallet found. Creating a new one...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Wallet created: rLe9k72EGMmRqMmuxwQyfGaSQbBFuYixTE
+  Saved to: 
+<scratch>/full-sweep-8723e95-20261021T1855Z\B\checks_101\home\wal
+let.json
+
+  Warning: Your wallet seed is stored locally. Never share it or paste it anywhere.
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Writing a Check costs a normal transaction fee plus a small owner reserve for the Check object (free on testnet). Cashing it later is the player's own         
+transaction, on the player's own wallet.                                                                                                                       
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create the player wallet                                                                                                                                       
+
+A fresh, funded wallet plays the player — the ONLY account this Check will ever let cash it.                                                                   
+
+
+  → create_recipient_wallet...
+  Creating the player's wallet (the only account this Check will let cash it)...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Player wallet: rfWRjtkqGMqNGY4QMqJvy8yCDmAvtu6JDb
+  Player funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Snapshot your balance before writing the Check                                                                                                                 
+
+Before proving the "no lock" claim, capture a baseline: your current balance and owner count.                                                                  
+
+
+  → snapshot_account...
+  Account: rLe9k72EGMmRqMmu...
+  Balance: 100.000000 XRP (100000000 drops)
+  Owner count: 0
+  Sequence: 21716765
+
+Press Enter to continue...Write the Check — a claimable reward                                                                                                                           
+
+CheckCreate authorizes the player to pull up to 50 XRP (SendMax) whenever they choose. Read that again: it AUTHORIZES, it does not SEND. Nothing has moved yet.
+
+
+  → create_check...
+  Writing a Check authorizing up to 50 XRP (SendMax) to rfWRjtkqGMqN... — no funds move yet.
+  Check written!
+  CheckID: F2092333D862D57137C392B049D8FBC3AD2BF1A3E463A87604E6CC7BD9E13E32
+  TXID: 28379B7E910E6F85207BFCFE0D5CEA0B0ED34AAB6A8480C37583A36F2B3543C1
+  Explorer: https://testnet.xrpl.org/transactions/28379B7E910E6F85207BFCFE0D5CEA0B0ED34AAB6A8480C37583A36F2B3543C1
+
+Press Enter to continue...Snapshot your balance again                                                                                                                                    
+
+
+  → snapshot_account...
+  Account: rLe9k72EGMmRqMmu...
+  Balance: 99.999990 XRP (99999990 drops)
+  Owner count: 1
+  Sequence: 21716766
+
+Press Enter to continue...Prove the funds were never locked                                                                                                                              
+
+Compare the two snapshots. Your owner count went up by one — the Check object itself now costs a reserve slot — but your SPENDABLE BALANCE did not move. Escrow
+would have debited the full 50 XRP right here; a Check debits nothing until CheckCash actually runs.                                                           
+
+
+  → verify_reserve_change...
+  Δ Balance decreased by 0.000010 XRP (10 drops)
+  Δ Owner count increased: 0 -> 1 (+1)
+
+  After after_check: balance decreased by 0.000010 XRP; owner count went from 0 to 1 — each owned object (trust line, offer, etc.) reserves additional XRP.
+
+Press Enter to continue...The player cashes the Check                                                                                                                                    
+
+The player submits CheckCash for the exact amount (Amount). Only the Destination named on the Check can do this — the studio's own key plays no role in this   
+transaction at all.                                                                                                                                            
+
+
+  → cash_check...
+  Player cashing the Check for exactly 50 XRP (CheckCash Amount)...
+  Check cashed!
+  TXID: CFFAE615F88AE6954A751BBBA717C714E3A081A9A17AE9725DC825455A9A3065
+  Explorer: https://testnet.xrpl.org/transactions/CFFAE615F88AE6954A751BBBA717C714E3A081A9A17AE9725DC825455A9A3065
+
+Press Enter to continue...Credit the player from delivered_amount                                                                                                                        
+
+Same receiving discipline as Delivered Amount 101 and Custodial Crediting: read delivered_amount from the validated CheckCash, never the Check's own           
+Amount/SendMax fields. xrpl.org names CheckCash explicitly as a transaction type whose own amount field is not the one to trust — this is why. For a plain XRP 
+exact-cash the two numbers happen to match; a correct backend reads delivered_amount every time anyway, because token checks (with a transfer fee in play) are 
+exactly where they diverge.                                                                                                                                    
+
+
+  → credit_check_cash...
+  ✓ Result: tesSUCCESS
+  ✓ Validated: yes
+  ✓ Amount field (a.k.a. DeliverMax) — the CAP: 50000000
+  ✓ delivered_amount metadata — what ACTUALLY moved: 50000000
+  ✓ delivered_amount equals Amount — full delivery this time; but a correct backend must STILL read delivered_amount, not assume equality.
+  Credited the player 50000000 from delivered_amount — never the Check's own Amount/SendMax fields.
+
+Press Enter to continue...Write a second reward — then change your mind                                                                                                                  
+
+The studio writes another Check, this time deciding to withdraw the offer before the player claims it.                                                         
+
+
+  → create_check...
+  Writing a Check authorizing up to 20 XRP (SendMax) to rfWRjtkqGMqN... — no funds move yet.
+  Check written!
+  CheckID: 0883002CC0B06365802ECE52A8BC0532BE097B8FC8E3681F7802BF83502BDE7F
+  TXID: 7B1CA8A0B980B7ED1AD72F54331AFBB9680864D2F64171038F27F4B611E4474A
+  Explorer: https://testnet.xrpl.org/transactions/7B1CA8A0B980B7ED1AD72F54331AFBB9680864D2F64171038F27F4B611E4474A
+
+Press Enter to continue...Create an outsider wallet                                                                                                                                      
+
+A third wallet — someone who is NOT this Check's Destination — to test the boundary.                                                                           
+
+
+  → create_outsider_wallet...
+  Creating an outsider wallet (not the Check's Destination)...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Outsider wallet: rL7FqZLjyW9UaiXfzQsjwVXLhPhmE3zCRh
+  Outsider funded! Balance: 100.000000 XRP
+
+Press Enter to continue...See the failure — only the Destination may cash                                                                                                                
+
+The outsider tries to cash the still-live Check. It fails: CheckCash checks the SIGNING account against the Check's Destination field, and this signer is not  
+it.                                                                                                                                                            
+
+
+  → cash_check_wrong_destination_expect_fail...
+  Outsider attempting to cash the Check (expecting tecNO_PERMISSION — it is not the Destination)...
+  Expected failure: tecNO_PERMISSION
+  Only the Destination named on CheckCreate may cash a Check — anyone else is refused, no matter how much they know about it.
+  Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION. Check XRPL docs for this specific code
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Cancel the unredeemed Check                                                                                                                                    
+
+The studio voids it with CheckCancel. Notice what does NOT happen: no XRP moves back to the studio, because none was ever taken. Only the owner reserve is     
+freed.                                                                                                                                                         
+
+
+  → cancel_check...
+  Cancelling Check 0883002CC0B06365... — nothing to refund, nothing was ever moved.
+  Check cancelled — reserve freed.
+  TXID: 8D3408F39EB6B6B9EB651929BB4E843FF11126A3BFBDA9D58CC5ABCCC9E5FC15
+  Explorer: https://testnet.xrpl.org/transactions/8D3408F39EB6B6B9EB651929BB4E843FF11126A3BFBDA9D58CC5ABCCC9E5FC15
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You ran the full Check lifecycle — write, prove no lock, cash, credit, and cancel — with receipts for every claim:                                             
+
+ 1 CheckCreate moves nothing — verified on-ledger: your balance was unchanged after writing a 50 XRP authorization; only your owner count rose                 
+ 2 CheckCash (exact Amount) — the player redeemed the Check; tesSUCCESS                                                                                        
+ 3 Credited delivered_amount — never the Check's Amount/SendMax, reusing the Delivered Amount 101 discipline unchanged                                         
+ 4 CheckCancel refunds nothing — a second Check was written and voided; the reserve was freed, but no XRP moved, because none was ever taken                   
+ 5 tecNO_PERMISSION — an outsider's cash attempt was rejected; only the named Destination may ever cash a Check                                                
+
+Key concepts to remember:                                                                                                                                      
+
+ • Check vs Escrow — the one distinction that matters. EscrowCreate locks and reserves funds immediately; CheckCreate only authorizes a ceiling. Never treat   
+   CheckCreate success as a guaranteed payout — the writer's balance can drop below SendMax before the destination cashes it, and CheckCash will then fail     
+   honestly rather than pay out money that isn't there.                                                                                                        
+ • SendMax is a ceiling, not the delivered amount. For token Checks especially, always reconcile against delivered_amount from the CheckCash metadata — never  
+   SendMax, never the CheckCash's own Amount/DeliverMin.                                                                                                       
+ • Only the Destination cashes; either party (or anyone, once expired) cancels. CheckCash from any other account fails tecNO_PERMISSION. CheckCancel is open to
+   the writer or the Destination while the Check is live, and to ANY address once its Expiration has passed — a past-expiry Check can only be cancelled, never 
+   cashed (tecEXPIRED).                                                                                                                                        
+ • A missing or already-consumed CheckID fails tecNO_ENTRY — cashing or cancelling a wrong id, or one already cashed/cancelled by someone else, fails honestly 
+   rather than silently.                                                                                                                                       
+ • Token checks exist too. SendMax/Amount/DeliverMin can carry an issued currency instead of XRP (the destination needs a trust line first, same as any        
+   issued-currency payment) — the reconciliation discipline is identical: read delivered_amount, not the face values on the transactions themselves.           
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Checks 101: Deferred Pull-Payments (CheckCreate / CheckCash / CheckCancel)                                                                                  │
+│ Report saved to .xrpl-lab\reports\checks_101.md                                                                                                             │
+│ 4 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

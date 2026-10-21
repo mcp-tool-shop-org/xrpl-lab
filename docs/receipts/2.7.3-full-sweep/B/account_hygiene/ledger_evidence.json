@@ -1,0 +1,62 @@
+{
+  "validated_ledger": {
+    "seq": 21716959,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rM9nqsArU6BpUTwkeeq4S6Hh7Y3pYBzZvn": {
+      "Balance": "100000000",
+      "Sequence": 21716955,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21716955,
+          "hash": "E8C33F16AF157ECF6333E90C22553C2A53E7F5C83B49DCCB0D79A7CE52182E2A",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rM9nqsArU6BpUTwkeeq4S6Hh7Y3pYBzZvn",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rGT9zzSVaZG88D1uLyn1HmZsEH9Zy3Chuy": {
+      "Balance": "100000000",
+      "Sequence": 21716957,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21716957,
+          "hash": "AA007F0E6E7CD6AAFA2F6B2469DE455ED5470768D3B7202CA5CFB4312E39B1A4",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rGT9zzSVaZG88D1uLyn1HmZsEH9Zy3Chuy",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {},
+  "tx_index": [
+    {
+      "txid": "failed",
+      "success": false
+    },
+    {
+      "txid": "failed",
+      "success": false
+    },
+    {
+      "txid": "failed",
+      "success": false
+    }
+  ]
+}

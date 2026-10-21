@@ -1,0 +1,45 @@
+{
+  "note": "excerpt of state.json (wallet_path omitted)",
+  "wallet_address": "rM9nqsArU6BpUTwkeeq4S6Hh7Y3pYBzZvn",
+  "module_accounts": {
+    "account_hygiene": [
+      "rGT9zzSVaZG88D1uLyn1HmZsEH9Zy3Chuy",
+      "rM9nqsArU6BpUTwkeeq4S6Hh7Y3pYBzZvn"
+    ]
+  },
+  "completed_modules": [
+    [
+      "account_hygiene",
+      false
+    ]
+  ],
+  "tx_index": [
+    {
+      "txid": "failed",
+      "module_id": "account_hygiene",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "explorer_url": "",
+      "network": "testnet"
+    },
+    {
+      "txid": "failed",
+      "module_id": "account_hygiene",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "explorer_url": "",
+      "network": "testnet"
+    },
+    {
+      "txid": "failed",
+      "module_id": "account_hygiene",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "explorer_url": "",
+      "network": "testnet"
+    }
+  ]
+}

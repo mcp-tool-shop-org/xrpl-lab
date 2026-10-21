@@ -1,0 +1,2 @@
+code: mcp-tool-shop-org/xrpl-lab main @ 8723e95 (= v2.7.3), worktree _worktrees/xrpl-lab-f9-livefire
+per lesson: yes "" | xrpl-lab run <m>   (one shared XRPL_LAB_HOME)

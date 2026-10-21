@@ -1,0 +1,33 @@
+{
+  "valid": true,
+  "file": "proof_pack.json",
+  "version": "2.7.3",
+  "address": "rM9nqsArU6BpUTwkeeq4S6Hh7Y3pYBzZvn",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 3,
+  "sha256": "e7feaec080c6b50e5abfe2f37a7ae5bfdeaf65ec14e2233a2599ccc62fc153cc",
+  "simulated": false,
+  "all_verified": false,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "failed",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "Transaction not found on the public ledger \u2014 the pack claims this txid but the live XRPL has no such transaction.",
+        "checks": [],
+        "validated": null
+      }
+    ]
+  },
+  "live_passed": false
+}

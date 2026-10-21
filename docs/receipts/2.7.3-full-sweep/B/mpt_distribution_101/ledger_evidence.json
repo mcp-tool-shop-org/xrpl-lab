@@ -1,0 +1,123 @@
+{
+  "validated_ledger": {
+    "seq": 21716700,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E": {
+      "Balance": "99999980",
+      "Sequence": 21716691,
+      "OwnerCount": 1,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21716689,
+          "hash": "DE85C01B98401B7AB1E3AF1DAFFB0D912B816818FD208A43C861250A98A89E12",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21716693,
+          "hash": "98930C4DF24612A07FA4F9667A170546961240E07C77C281F01F7786CCCEE4F8",
+          "TransactionType": "MPTokenIssuanceCreate",
+          "Account": "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E",
+          "Destination": null,
+          "Sequence": 21716689,
+          "Fee": "10",
+          "Flags": 32,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21716695,
+          "hash": "C6EED5760B69E18F789BDABCD5FE6EC1A015871226558BF543E2C61DDE314F28",
+          "TransactionType": "MPTokenAuthorize",
+          "Account": "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E",
+          "Destination": null,
+          "Sequence": 21716690,
+          "Fee": "10",
+          "Flags": 0,
+          "TransactionResult": "tecNO_PERMISSION"
+        }
+      ]
+    },
+    "rpLsoYPF8NnmJK9GM75eiLhZzcngv1F743": {
+      "Balance": "99999990",
+      "Sequence": 21716692,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21716691,
+          "hash": "B255263C47F3206D3EBD7E45CCEEB8E5AFB810C326FC3EFD1BEFE12DE7C60D61",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rpLsoYPF8NnmJK9GM75eiLhZzcngv1F743",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21716698,
+          "hash": "6CFC4050D9FFBAD238750056564E1440E25C94D87DEBDE2A30D22F09086287D6",
+          "TransactionType": "Payment",
+          "Account": "rpLsoYPF8NnmJK9GM75eiLhZzcngv1F743",
+          "Destination": "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E",
+          "Sequence": 21716691,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecNO_AUTH"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "98930C4DF24612A07FA4F9667A170546961240E07C77C281F01F7786CCCEE4F8": {
+      "TransactionType": "MPTokenIssuanceCreate",
+      "Account": "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21716693,
+      "Sequence": 21716689,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "C6EED5760B69E18F789BDABCD5FE6EC1A015871226558BF543E2C61DDE314F28": {
+      "TransactionType": "MPTokenAuthorize",
+      "Account": "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21716695,
+      "Sequence": 21716690,
+      "TransactionResult": "tecNO_PERMISSION"
+    },
+    "6CFC4050D9FFBAD238750056564E1440E25C94D87DEBDE2A30D22F09086287D6": {
+      "TransactionType": "Payment",
+      "Account": "rpLsoYPF8NnmJK9GM75eiLhZzcngv1F743",
+      "Destination": "rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E",
+      "validated": true,
+      "ledger_index": 21716698,
+      "Sequence": 21716691,
+      "TransactionResult": "tecNO_AUTH"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "98930C4DF24612A07FA4F9667A170546961240E07C77C281F01F7786CCCEE4F8",
+      "success": true
+    },
+    {
+      "txid": "C6EED5760B69E18F789BDABCD5FE6EC1A015871226558BF543E2C61DDE314F28",
+      "success": false
+    },
+    {
+      "txid": "6CFC4050D9FFBAD238750056564E1440E25C94D87DEBDE2A30D22F09086287D6",
+      "success": false
+    }
+  ]
+}
