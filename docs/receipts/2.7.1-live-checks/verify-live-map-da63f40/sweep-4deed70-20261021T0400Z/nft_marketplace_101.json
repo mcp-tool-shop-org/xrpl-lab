@@ -1,0 +1,100 @@
+{
+  "valid": true,
+  "file": "sweep-4deed70-20261021T0400Z\\nft_marketplace_101\\proof_pack.json",
+  "version": "2.7.0",
+  "address": "rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 6,
+  "sha256": "ed89216deea14435dc7a3a3cc00106237e378caf1051f902c3691d52fe1dffa3",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 4,
+    "failed": 2,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "1E3CE7A00063E7CBCF8132284A6EB34CFDF69AE893C16551D3B1980A5042D2FF",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "EAF21E9444F1796861E881328443C55D88CCDD2A86FF5E2ADFC9D27D092043ED",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "8096FDD5DC2D256735BC2241F43BAB8E15624000722E283F630797ADD7C06250",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account does not match the pack's claimed address: pack claims rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR, ledger shows r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "AAECC7F7FB7E43AAAC2DE51B1A0513B989912AE039B432D33183DAC00CCB9CFB",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account does not match the pack's claimed address: pack claims rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR, ledger shows r9VYmEtGU98JRd8ACEgs2qUnhKqYx4WCD5.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "11BF6F92B99CB1E09F1002237A5DC56E9ED473007BFAFC4831CF47C1579321EC",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rDg5GjgEdnGyBQWvrjsyNVfUFWRmgFM1qR"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "B674982FC2FE7A6CE2637E81DFAD4981DEEF68A74FAA1648652FB14C5CCE6A5D",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Expected rejection, validated on-ledger: tecOBJECT_NOT_FOUND.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tecOBJECT_NOT_FOUND"
+        ],
+        "validated": true
+      }
+    ]
+  },
+  "live_passed": false
+}

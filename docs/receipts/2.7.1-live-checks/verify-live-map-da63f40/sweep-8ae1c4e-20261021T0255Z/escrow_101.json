@@ -1,0 +1,38 @@
+{
+  "valid": true,
+  "file": "sweep-8ae1c4e-20261021T0255Z\\escrow_101\\proof_pack.json",
+  "version": "2.6.2",
+  "address": "rLznR9EvH8JL4W6YihHUwQAMaUCHTkRDxX",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 1,
+  "sha256": "9379e9bc316cfc1359b7ba38d19fd4b6b87857934c6b276e0a13dd1debc94848",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": true,
+    "no_onledger_txids": false,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "76DCCC307E4063D5286C3F233C75F5236B6488C9B793C2ED7D47253F10C963CD",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rLznR9EvH8JL4W6YihHUwQAMaUCHTkRDxX"
+        ],
+        "validated": null
+      }
+    ]
+  },
+  "live_passed": true
+}

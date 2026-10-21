@@ -77,8 +77,57 @@ F1) landed after this run and is not covered.
   successful transactions recorded in the learner's pack can never pass `--live`.
 - The check is inconsistent: helper-signed expected `tec`s pass (`F5C418AB…` by `r422taaU…`, `3ADF073E…` by the
   outsider `rPEjTQ98…`), but helper-signed successes fail.
-- Other helper-wallet modules (custodial_crediting, checks, nft_marketplace, payment_channel, …) that record a helper's
-  successful transactions are likely affected the same way. This was not tested here.
+- Every other existing pack was then verified the same way, read-only, to map the defect. See "Map" below.
+
+## Map: `proof verify --live` (`da63f40`) on every existing pack (`verify-live-map-da63f40/`)
+
+The scope is the 2.6.2 live sweep (`8ae1c4e`, 14 packs) and the 2.7.0 live sweep (`4deed70`, 11 packs). Each pack was
+verified once with the `da63f40` verifier, read-only, with no new testnet transactions. The 2.6.1 sweeps have no
+proof packs: the harness only started writing them with 2.6.2.
+
+**Result:**
+- **18 of 25 packs FAIL (exit 1).**
+- **17 of them fail only on "On-ledger account does not match the pack's claimed address"**, 32 transactions in all.
+- **Every one of the 32 is a successful transaction signed by a non-learner account:** an issuer, recipient, subject,
+  buyer, payment-channel receiver or player wallet that the module creates.
+- The 18th, escrow_finish_101 on `4deed70`, fails on its genuine `tecNO_PERMISSION` (the FinishAfter race, fixed in
+  2.7.0). That is a correct FAIL.
+
+| Sweep | Module | Exit | Account-mismatch FAILs (all successes; signer) | Other FAIL | Helper-signed expected `tec`s that PASS |
+|---|---|---|---|---|---|
+| 2.6.2 | checks_101 | 1 | 1: CheckCash (recipient) | none | 1 (outsider's CheckCash) |
+| 2.6.2 | clawback_101 | 1 | 3: AccountSet, Payment, Clawback (issuer) | none | 1 (no-flag issuer's Clawback) |
+| 2.6.2 | credentials_101 | 1 | 2: CredentialAccept, CredentialDelete (subject) | none | none |
+| 2.6.2 | custodial_crediting_101 | 1 | 1: Payment (player) | none | 1 (player's untagged Payment) |
+| 2.6.2 | deposit_gate_101 | 1 | 3: Payment (sender); CredentialAccept, Payment (subject) | none | 2 (sender's and outsider's Payments) |
+| 2.6.2 | nft_marketplace_101 | 1 | 2: NFTokenAcceptOffer, NFTokenCreateOffer (buyer) | none | none |
+| 2.6.2 | permissioned_domains_101 | 1 | 2: CredentialAccept, OfferCreate (subject) | none | 2 (outsider's OfferCreate and PermissionedDomainSet) |
+| 2.6.2 | token_escrow_101 | 1 | 3: AccountSet, Payment (issuer); EscrowFinish (recipient) | none | none |
+| 2.6.2 | trust_line_failures | 1 | 1: Payment (issuer) | none | 1 (Payment tecPATH_DRY) |
+| 2.6.2 | dex_vs_amm_risk_literacy | 0 | none | none | none (all 9 SKIPPED: dry-run) |
+| 2.6.2 | dnft_evolving_item_101, escrow_101, failure_literacy, multisig_treasury_101 | 0 | none | none | none |
+| 2.7.0 | amm_liquidity_101 | 1 | 2: AccountSet, Payment (issuer) | none | none |
+| 2.7.0 | checks_101 | 1 | 1: CheckCash (recipient) | none | 1 |
+| 2.7.0 | clawback_101 | 1 | 3: AccountSet, Payment, Clawback (issuer) | none | 1 |
+| 2.7.0 | deposit_gate_101 | 1 | 3: Payment (sender); CredentialAccept, Payment (subject) | none | 2 |
+| 2.7.0 | dex_market_making_101 | 1 | 1: Payment (issuer) | none | none |
+| 2.7.0 | escrow_finish_101 | 1 | none | 1: EscrowFinish "tecNO_PERMISSION, not tesSUCCESS" (the real race failure) | none |
+| 2.7.0 | nft_marketplace_101 | 1 | 2: NFTokenAcceptOffer, NFTokenCreateOffer (buyer) | none | none |
+| 2.7.0 | payment_channel_101 | 1 | 1: PaymentChannelClaim (receiver) | none | none |
+| 2.7.0 | trust_lines_101 | 1 | 1: Payment (issuer) | none | none |
+| 2.7.0 | did_101, multisig_treasury_101 | 0 | none | none | none |
+
+**What this means:**
+- Every honest pack from a module that creates its own issuer or counterparty fails `--live` today. That includes
+  module #30, amm_liquidity_101, the 2.6.0 acceptance module (its issuer's AccountSet and LAB issue).
+- The only packs that pass are those where the learner signs every success: dnft, escrow_101, failure_literacy,
+  multisig, did, plus dex_vs_amm, which has nothing to check.
+- The verifier is inconsistent: helper-signed expected rejections pass in 7 packs (11 txs), while helper-signed
+  successes fail.
+
+`verify-live-map-da63f40/` holds each pack's `--json` verdict, and `summary.json` (module, exit, status counts,
+mismatch count, other FAIL reasons). The packs themselves are in this directory's and `2.6.2-live-sweep/` /
+`2.7.0-live-sweep/`'s run folders.
 
 `before-after-2.6.2-pack/` holds the 2.6.2 pack and both verifiers' JSON output. The old-release run used a temporary
 worktree at the `v2.6.2` tag, since removed.

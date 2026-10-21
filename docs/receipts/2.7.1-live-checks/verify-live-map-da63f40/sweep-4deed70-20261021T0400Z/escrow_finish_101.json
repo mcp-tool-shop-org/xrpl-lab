@@ -1,0 +1,49 @@
+{
+  "valid": true,
+  "file": "sweep-4deed70-20261021T0400Z\\escrow_finish_101\\proof_pack.json",
+  "version": "2.7.0",
+  "address": "rsyX5MVaAexZjFw829gEyrTzHMyhuWwTzd",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 2,
+  "sha256": "846e0e3d36a66612eb437cfbd24db36b98ff2c9964f7bb98ed42209ea4a6eb0d",
+  "simulated": false,
+  "all_verified": false,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 1,
+    "failed": 1,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "1D4104896B0BCFABB62185AAA55AFF8CB64477125C231272CF89657419E27E70",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rsyX5MVaAexZjFw829gEyrTzHMyhuWwTzd"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "4E18BBE9C27A106C849654FBDE2173FA31168DC56A65AFF47834776C32BA72B1",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger result is tecNO_PERMISSION, not tesSUCCESS.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes"
+        ],
+        "validated": null
+      }
+    ]
+  },
+  "live_passed": false
+}

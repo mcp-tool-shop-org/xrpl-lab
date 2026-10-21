@@ -1,0 +1,101 @@
+{
+  "valid": true,
+  "file": "sweep-4deed70-20261021T0400Z\\amm_liquidity_101\\proof_pack.json",
+  "version": "2.7.0",
+  "address": "rMsjcSG5CNcZaVt71t7FzT31bfKcmtg2AB",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 6,
+  "sha256": "33dce07fe62e47bcf932d16169e2bfe84a1d3705d7123b6b7eb81da78e79b3df",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 4,
+    "failed": 2,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "DFA2F7D7B166B72ABE9CF639E55AB6918DD94BBC9BB03B515EF50281AB86FBB8",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account does not match the pack's claimed address: pack claims rMsjcSG5CNcZaVt71t7FzT31bfKcmtg2AB, ledger shows rPc2aMQ2cCmXxoh55Bx1KAGA3HLB4VttCi.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "DB6D40B926C0E87D1E344F551F4275350CE382C18B7DD5361367AF5965289C0B",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rMsjcSG5CNcZaVt71t7FzT31bfKcmtg2AB"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "7E2A4D239A41B62C5919C9223AD87487AA9590336B22A70B540DAD0A8CE7668C",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account does not match the pack's claimed address: pack claims rMsjcSG5CNcZaVt71t7FzT31bfKcmtg2AB, ledger shows rPc2aMQ2cCmXxoh55Bx1KAGA3HLB4VttCi.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "5C30A60EE60C104858B60B44886D2C6633C20C92753B04BFA9CD2F8D0E32FD5B",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rMsjcSG5CNcZaVt71t7FzT31bfKcmtg2AB"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "F417F66A9F923373A3FB67BDE3870E8DFC8896DF2A515B899E8E78C607871514",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rMsjcSG5CNcZaVt71t7FzT31bfKcmtg2AB"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "56E14636CDEB4CF0D5CBA41CF1092A26A58C63704A533E1E8BCFBD0D7F7A70C6",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rMsjcSG5CNcZaVt71t7FzT31bfKcmtg2AB"
+        ],
+        "validated": null
+      }
+    ]
+  },
+  "live_passed": false
+}
