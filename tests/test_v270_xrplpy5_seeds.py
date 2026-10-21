@@ -140,3 +140,109 @@ async def test_a_channel_claim_is_signed_by_the_account_key() -> None:
 
     blob = encode_for_signing_claim({"channel": channel, "amount": "1000000"})
     assert is_valid_message(bytes.fromhex(blob), bytes.fromhex(sig), legacy.public_key)
+
+
+# ── Argon, 2.7.0 round 1, F1 and F2 ───────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_ensure_wallet_syncs_the_recorded_address(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F1: the wallet_path branch left state.wallet_address empty or stale, so
+    the runner bound nothing (or the wrong address) and signing went unchecked."""
+    import io
+
+    from rich.console import Console
+
+    import xrpl_lab.runtime as runtime
+    from xrpl_lab.state import LabState
+    from xrpl_lab.transport.dry_run import DryRunTransport
+
+    path = _write(tmp_path / "wallet.json", SECP, LEGACY_ADDR)
+    monkeypatch.setattr(runtime, "save_state", lambda state: None)
+    for recorded in ("", "rSTALEADDRESSxxxxxxxxxxxxxxxxxxxx"):
+        state = LabState(wallet_path=str(path), wallet_address=recorded)
+        state, _ = await runtime.ensure_wallet(
+            state, DryRunTransport(), Console(file=io.StringIO()),
+        )
+        assert state.wallet_address == LEGACY_ADDR
+
+
+@pytest.mark.asyncio
+async def test_the_runner_loads_and_binds_the_configured_wallet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F1: run_module loaded only the default path and didn't bind the wallet."""
+    import io
+
+    from rich.console import Console
+
+    import xrpl_lab.runner as runner_mod
+    import xrpl_lab.state as state_mod
+    from xrpl_lab.modules import ModuleDef
+    from xrpl_lab.state import LabState
+    from xrpl_lab.transport.dry_run import DryRunTransport
+
+    monkeypatch.setattr(state_mod, "DEFAULT_HOME_DIR", tmp_path)
+    (tmp_path / "ws").mkdir()
+    monkeypatch.setattr(state_mod, "DEFAULT_WORKSPACE_DIR", tmp_path / "ws")
+    custom = _write(tmp_path / "custom-wallet.json", SECP, LEGACY_ADDR)
+    monkeypatch.setattr(runner_mod, "load_state", lambda: LabState(wallet_path=str(custom)))
+
+    bound: list[tuple[str, str]] = []
+
+    class _Recording(DryRunTransport):
+        def bind_wallet(self, wallet_seed, address):
+            bound.append((wallet_seed, address))
+            super().bind_wallet(wallet_seed, address)
+
+    mod = ModuleDef(id="f1_mod", title="f1", time="1 min", level="beginner",
+                    requires=[], produces=[], checks=[], raw_body="", steps=[])
+    await runner_mod.run_module(mod, _Recording(), dry_run=True,
+                                console=Console(file=io.StringIO()))
+    assert (SECP, LEGACY_ADDR) in bound
+
+
+def test_every_role_address_reaches_the_signer_check() -> None:
+    """F2: 13 methods took the signer's address under a role name and dropped it."""
+    import ast
+    import inspect
+    import textwrap
+
+    pairs = {"issuer_seed": "issuer_address", "source_seed": "source_address",
+             "owner_seed": "owner_address", "subject_seed": "subject_address",
+             "holder_seed": "holder_address", "wallet_seed": "issuer_address"}
+    checked = 0
+    for name, fn in inspect.getmembers(XRPLTestnetTransport, inspect.iscoroutinefunction):
+        if name == "submit_multisigned_payment":  # owner_address isn't the co-signers'
+            continue
+        tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+        params = {a.arg for a in tree.body[0].args.args + tree.body[0].args.kwonlyargs}
+        for call in ast.walk(tree):
+            if not (isinstance(call, ast.Call) and getattr(call.func, "attr", "") == "_wallet"):
+                continue
+            seed = getattr(call.args[0], "id", "")
+            role = pairs.get(seed)
+            if role in params and "wallet_address" not in params:
+                assert len(call.args) == 2 and getattr(call.args[1], "id", "") == role, name
+                checked += 1
+    assert checked == 13
+
+
+@pytest.mark.asyncio
+async def test_an_unbound_seed_with_a_wrong_role_address_signs_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    t = XRPLTestnetTransport()
+
+    async def _guard(*args, **kwargs):
+        return None
+
+    async def _no_submit(*args, **kwargs):
+        raise AssertionError("signed with a mismatched key")
+
+    monkeypatch.setattr(t, "_guard_write", _guard, raising=False)
+    monkeypatch.setattr(t, "_submit_tx", _no_submit)
+    result = await t.submit_default_ripple(SECP, issuer_address=OTHER_ADDR)
+    assert result.success is False and "doesn't sign as its recorded address" in result.error

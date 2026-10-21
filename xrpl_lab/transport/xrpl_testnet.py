@@ -1107,7 +1107,8 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``wallet_address`` is a dry-run-only storage hint — on a real network
         # the TrustSet's Account is derived from the signing seed, so it is
-        # accepted for signature parity and deliberately ignored here.
+        # accepted for signature parity and not used to derive the account.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
@@ -1506,11 +1507,12 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``issuer_address`` is a dry-run aid (see base contract); the testnet
         # path derives the account from the seed and ignores it.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(wallet_seed)
+            wallet = self._wallet(wallet_seed, issuer_address)
             tx = AccountSet(
                 account=wallet.address,
                 set_flag=AccountSetAsfFlag.ASF_ALLOW_TRUSTLINE_CLAWBACK,
@@ -1529,11 +1531,12 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``issuer_address`` is a dry-run aid (see base contract); the testnet
         # path derives the account from the seed and ignores it.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(wallet_seed)
+            wallet = self._wallet(wallet_seed, issuer_address)
             tx = AccountSet(
                 account=wallet.address,
                 set_flag=AccountSetAsfFlag.ASF_DEFAULT_RIPPLE,
@@ -1575,11 +1578,12 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``issuer_address`` is a dry-run aid (see base contract); the testnet
         # path derives the clawing account from the seed and ignores it.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(issuer_seed)
+            wallet = self._wallet(issuer_seed, issuer_address)
             # XRPL quirk (XLS-39): the Amount sub-object's ``issuer`` field
             # carries the HOLDER address, not the issuer. The token being
             # recalled is identified by currency + the clawing account (this
@@ -1751,12 +1755,13 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``issuer_address`` is a dry-run aid (see base contract); the testnet
         # path derives the account from the seed and ignores it.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
         flag = TrustSetFlag.TF_SET_FREEZE if freeze else TrustSetFlag.TF_CLEAR_FREEZE
         try:
-            wallet = self._wallet(issuer_seed)
+            wallet = self._wallet(issuer_seed, issuer_address)
             # Individual freeze: the issuer sets tfSetFreeze on ITS side of the
             # (currency, holder) trust line. LimitAmount.issuer carries the
             # HOLDER (the counterparty); the issuer side keeps value 0.
@@ -1784,7 +1789,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(issuer_seed)
+            wallet = self._wallet(issuer_seed, issuer_address)
             if enable:
                 tx = AccountSet(
                     account=wallet.address,
@@ -2138,11 +2143,12 @@ class XRPLTestnetTransport(Transport):
         # tecNO_PERMISSION. ``issuer_address`` is a dry-run aid; the testnet path
         # derives the account from the seed and ignores it. Signs a real tx, so
         # the testnet-only invariant applies — guard BEFORE Wallet.from_seed.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(issuer_seed)
+            wallet = self._wallet(issuer_seed, issuer_address)
             tx = AccountSet(
                 account=wallet.address,
                 set_flag=AccountSetAsfFlag.ASF_ALLOW_TRUSTLINE_LOCKING,
@@ -2170,11 +2176,12 @@ class XRPLTestnetTransport(Transport):
         # mandatory on-ledger; the issuer opt-in and issuer-as-source rules are
         # enforced by rippled (returning tecNO_PERMISSION). ``source_address`` is
         # a dry-run aid; the testnet path derives the source from the seed.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(source_seed)
+            wallet = self._wallet(source_seed, source_address)
             tx = EscrowCreate(
                 account=wallet.address,
                 amount=IssuedCurrencyAmount(
@@ -2212,7 +2219,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(owner_seed)
+            wallet = self._wallet(owner_seed, owner_address)
             if quorum == 0 and not entries:
                 # Delete: SignerQuorum=0 with SignerEntries OMITTED (the model
                 # rejects a zero quorum WITH entries as malformed).
@@ -2640,7 +2647,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(issuer_seed)
+            wallet = self._wallet(issuer_seed, issuer_address)
             tx = CredentialCreate(
                 account=wallet.address,
                 subject=subject,
@@ -2666,7 +2673,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(subject_seed)
+            wallet = self._wallet(subject_seed, subject_address)
             tx = CredentialAccept(
                 account=wallet.address,
                 issuer=issuer,
@@ -2777,7 +2784,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(owner_seed)
+            wallet = self._wallet(owner_seed, owner_address)
             creds = [
                 PDCredential(issuer=iss, credential_type=ctype)
                 for iss, ctype in accepted_credentials
@@ -2813,7 +2820,7 @@ class XRPLTestnetTransport(Transport):
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(owner_seed)
+            wallet = self._wallet(owner_seed, owner_address)
             tx = PermissionedDomainDelete(
                 account=wallet.address,
                 domain_id=domain_id,
@@ -2945,12 +2952,13 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``holder_address`` is a dry-run-only storage hint — on a real
         # network the MPTokenAuthorize's Account is derived from the signing
-        # seed, so it is accepted for signature parity and ignored here.
+        # seed, so it is accepted for signature parity, not used to derive the account.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
         try:
-            wallet = self._wallet(holder_seed)
+            wallet = self._wallet(holder_seed, holder_address)
             tx = MPTokenAuthorize(
                 account=wallet.address,
                 mptoken_issuance_id=issuance_id,
@@ -3055,7 +3063,7 @@ class XRPLTestnetTransport(Transport):
         taker_gets_currency: str,
         taker_gets_value: str,
         taker_gets_issuer: str,
-        wallet_address: str = "",  # dry-run-only storage hint; ignored on a real network
+        wallet_address: str = "",  # dry-run storage hint; on testnet, the signer check (_wallet)
     ) -> SubmitResult:
         guard = await self._guard_write()
         if guard is not None:
@@ -3087,7 +3095,7 @@ class XRPLTestnetTransport(Transport):
         self,
         wallet_seed: str,
         offer_sequence: int,
-        wallet_address: str = "",  # dry-run-only storage hint; ignored on a real network
+        wallet_address: str = "",  # dry-run storage hint; on testnet, the signer check (_wallet)
     ) -> SubmitResult:
         guard = await self._guard_write()
         if guard is not None:
@@ -3414,7 +3422,8 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``wallet_address`` is a dry-run-only storage hint — on a real network
         # the AMMCreate's Account is derived from the signing seed, so the hint
-        # is accepted for signature parity and deliberately ignored here.
+        # is accepted for signature parity and not used to derive the account.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
@@ -3451,7 +3460,8 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``wallet_address`` is a dry-run-only storage hint — on a real network
         # the AMMDeposit's Account is derived from the signing seed, so the
-        # hint is accepted for signature parity and deliberately ignored here.
+        # hint is accepted for signature parity and not used to derive the account.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)
@@ -3489,7 +3499,8 @@ class XRPLTestnetTransport(Transport):
     ) -> SubmitResult:
         # ``wallet_address`` is a dry-run-only storage hint — on a real network
         # the AMMWithdraw's Account is derived from the signing seed, so the
-        # hint is accepted for signature parity and deliberately ignored here.
+        # hint is accepted for signature parity and not used to derive the account.
+        # 2.7.0: also the expected signer address when the seed isn't bound (_wallet).
         guard = await self._guard_write()
         if guard is not None:
             return _local_failure(guard)

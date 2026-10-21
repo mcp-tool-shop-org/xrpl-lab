@@ -16,8 +16,11 @@
   recorded one. It's used by `load_wallet` (against the wallet file's
   address), the Camp import (against the Camp file's address) and every
   testnet signing method (against the address the runner or handler bound,
-  else the caller's address). Payment-channel claims are signed with the
-  same key.
+  else the caller's address, including the role-named ones such as
+  `issuer_address`). Payment-channel claims are signed with the same key.
+- **The configured wallet is the one checked.** Loading a wallet from its
+  configured path now updates the recorded address, and a run loads and
+  binds that wallet at its start, so signing is never left unchecked.
 
 ### Fixed
 

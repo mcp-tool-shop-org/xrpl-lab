@@ -177,7 +177,7 @@ class TestAmmCreateTestnet:
         tx = submitted[0]
         assert type(tx).__name__ == "AMMCreate"
         # Account derives from the signing seed — the dry-run wallet_address
-        # hint is deliberately ignored on a real network.
+        # hint is the signer check when the seed isn't bound (2.7.0).
         assert tx.account == _EXPECTED_ACCOUNT
         # The XLS-30 special fee: EXACTLY the incremental owner reserve,
         # pinned before signing — not the standard 10-drop fee.
@@ -469,7 +469,7 @@ class TestDefaultRippleTestnet:
         self, transport, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         submitted = _patch_network(monkeypatch, _FakeClient({}))
-        result = await transport.submit_default_ripple(_SEED, "rIGNORED-DRY-RUN-AID")
+        result = await transport.submit_default_ripple(_SEED, _EXPECTED_ACCOUNT)
         assert result.success is True
         assert result.result_code == "tesSUCCESS"
         (tx,) = submitted

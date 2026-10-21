@@ -253,14 +253,20 @@ async def run_module(
     # recorded address stops the run before anything is signed (2.7.0).
     from .errors import LabException
 
+    # Argon, 2.7.0 round 1, F1: load the configured wallet (state.wallet_path
+    # when it exists, else the default) and bind it at once.
+    configured = Path(state.wallet_path) if state.wallet_path else None
     try:
-        wallet = load_wallet()
+        wallet = load_wallet(
+            configured if configured is not None and configured.exists() else None
+        )
     except LabException as exc:
         console.print(f"[red]{exc.error.code}:[/] {exc.error.message}")
         console.print(f"  [yellow]Hint:[/] {exc.error.hint}")
         return False
     if wallet:
         context["wallet_seed"] = _SecretValue(wallet.seed)
+        transport.bind_wallet(wallet.seed, wallet.address)
 
     report_sections: list[tuple[str, str]] = []
 
