@@ -1,0 +1,80 @@
+{
+  "validated_ledger": {
+    "seq": 21700989,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "r9jeeu7pToieBZ6FtaYvc55XDDq3QrCUdy": {
+      "Balance": "99999980",
+      "Sequence": 21700982,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21700980,
+          "hash": "3EF279BDAB45369896AE018EF788CC01B0F2DF6C231B7701CBF7AB4A3E93D3CF",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "r9jeeu7pToieBZ6FtaYvc55XDDq3QrCUdy",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700982,
+          "hash": "8D609DCA5A2A04B51D8E220636120170682A8591A1340678F296757E651778EA",
+          "TransactionType": "EscrowCreate",
+          "Account": "r9jeeu7pToieBZ6FtaYvc55XDDq3QrCUdy",
+          "Destination": "r9jeeu7pToieBZ6FtaYvc55XDDq3QrCUdy",
+          "Sequence": 21700980,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21700987,
+          "hash": "5F83C4AEB38F170A71E44361D25A86C06FA62741D972083A608828569DFFD24E",
+          "TransactionType": "EscrowFinish",
+          "Account": "r9jeeu7pToieBZ6FtaYvc55XDDq3QrCUdy",
+          "Destination": null,
+          "Sequence": 21700981,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "8D609DCA5A2A04B51D8E220636120170682A8591A1340678F296757E651778EA": {
+      "TransactionType": "EscrowCreate",
+      "Account": "r9jeeu7pToieBZ6FtaYvc55XDDq3QrCUdy",
+      "Destination": "r9jeeu7pToieBZ6FtaYvc55XDDq3QrCUdy",
+      "validated": true,
+      "ledger_index": 21700982,
+      "Sequence": 21700980,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "5F83C4AEB38F170A71E44361D25A86C06FA62741D972083A608828569DFFD24E": {
+      "TransactionType": "EscrowFinish",
+      "Account": "r9jeeu7pToieBZ6FtaYvc55XDDq3QrCUdy",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21700987,
+      "Sequence": 21700981,
+      "TransactionResult": "tesSUCCESS"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "8D609DCA5A2A04B51D8E220636120170682A8591A1340678F296757E651778EA",
+      "success": true
+    },
+    {
+      "txid": "5F83C4AEB38F170A71E44361D25A86C06FA62741D972083A608828569DFFD24E",
+      "success": true
+    }
+  ]
+}

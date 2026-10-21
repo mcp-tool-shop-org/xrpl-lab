@@ -11,7 +11,10 @@ No seeds and no wallet files are in this directory. The 4.x-shape test's seed wa
 never printed, logged or copied. An exact-match search of the raw folder found no seed. Testnet addresses and hashes
 are public on-ledger. Local paths are shown as `<scratch>`.
 
-**Verdict:**
+**Verdict (round 2, `0f1f264`):** the four findings below are fixed and pass live; see "Round 2". The round-1
+verdict follows.
+
+**Verdict (round 1, `4deed70`):**
 - **Part 1:** 10 of 11 modules pass, unchanged from 2.6.x. **escrow_finish_101 fails** on a pre-existing timing race,
   not a 2.7.0 regression.
 - **Part 2:** the 4.x-shape wallet signs as its recorded ED25519 account, and a mismatched file fails closed. Nothing

@@ -1,0 +1,71 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.0",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "r9jeeu7pToieBZ6FtaYvc55XDDq3QrCUdy",
+  "generated_at": "2026-10-21T04:56:07.468569+00:00",
+  "completed_modules": [
+    {
+      "module_id": "escrow_finish_101",
+      "completed_at": "2026-10-21T04:56:06.341468+00:00",
+      "txids": [
+        "8D609DCA5A2A04B51D8E220636120170682A8591A1340678F296757E651778EA",
+        "5F83C4AEB38F170A71E44361D25A86C06FA62741D972083A608828569DFFD24E"
+      ],
+      "verified": true,
+      "kb_source": "escrow-finish-permission-reserve",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/8D609DCA5A2A04B51D8E220636120170682A8591A1340678F296757E651778EA",
+        "https://testnet.xrpl.org/transactions/5F83C4AEB38F170A71E44361D25A86C06FA62741D972083A608828569DFFD24E"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "8D609DCA5A2A04B51D8E220636120170682A8591A1340678F296757E651778EA",
+      "module_id": "escrow_finish_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:55:48.820674+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/8D609DCA5A2A04B51D8E220636120170682A8591A1340678F296757E651778EA"
+    },
+    {
+      "txid": "5F83C4AEB38F170A71E44361D25A86C06FA62741D972083A608828569DFFD24E",
+      "module_id": "escrow_finish_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:56:04.942765+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/5F83C4AEB38F170A71E44361D25A86C06FA62741D972083A608828569DFFD24E"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "8D609DCA5A2A04B5...",
+      "txid_full": "8D609DCA5A2A04B51D8E220636120170682A8591A1340678F296757E651778EA",
+      "module": "escrow_finish_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:55"
+    },
+    {
+      "txid": "5F83C4AEB38F170A...",
+      "txid_full": "5F83C4AEB38F170A71E44361D25A86C06FA62741D972083A608828569DFFD24E",
+      "module": "escrow_finish_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:56"
+    }
+  ],
+  "total_transactions": 2,
+  "successful_transactions": 2,
+  "failed_transactions": 0,
+  "expected_failures": 0,
+  "sha256": "75681c109eb24b93be092e1e115c42febc1ff9d78f1366a70e8c89f82a6fefab"
+}

@@ -1,0 +1,5 @@
+cmd: yes "" | xrpl-lab run receipt_literacy   (code 0f1f264; wallet.json address r9s62YbGTVsvCCnfdpLc7KoRoD1xipM3NZ, unrelated; state wallet_address = ED rKhWane2oiEpLs391CyoGWetrF7XLGLdAV)
+ED Sequence before: 21700424
+xrpl_lab_exit_code: 1
+ED Sequence after: 21700424
+wallet.json byte-identical: True

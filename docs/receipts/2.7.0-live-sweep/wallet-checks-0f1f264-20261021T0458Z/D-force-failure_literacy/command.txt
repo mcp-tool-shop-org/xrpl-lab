@@ -1,0 +1,4 @@
+cmd: yes "" | xrpl-lab run --force failure_literacy   (code 0f1f264; failure_literacy completed in run A; wallet.json address restored to ED)
+ED Sequence before: 21700424
+xrpl_lab_exit_code: 0
+ED Sequence after: 21700426
