@@ -1,0 +1,63 @@
+{
+  "valid": true,
+  "file": "sweep-8ae1c4e-20261021T0255Z\\dnft_evolving_item_101\\proof_pack.json",
+  "version": "2.6.2",
+  "address": "r9qfV4TG6633pHMxqmJxFQexNoLEKbWd55",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 3,
+  "sha256": "5e3ce81f1937a3d02c0f46225bec5feeeada6ef7e532290bd9cf8b9a8b934389",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": true,
+    "no_onledger_txids": false,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "C4B447A82E4E274555D6EDC6EAAD5CA44C66FE9FA32D4B68DC8D067AC2374379",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: r9qfV4TG6633pHMxqmJxFQexNoLEKbWd55"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "389CB3AE9032FA5D01D4208F658842AE1A6A6C28AE1CD3F21CACCC438F53D0B7",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: r9qfV4TG6633pHMxqmJxFQexNoLEKbWd55"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "E1F8BD07F6EE79F9CACD1665C3903C630B332037EF53537DDAEFD7AB40BD1BA7",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Expected rejection, validated on-ledger: tecNO_PERMISSION.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tecNO_PERMISSION"
+        ],
+        "validated": true
+      }
+    ]
+  },
+  "live_passed": true
+}

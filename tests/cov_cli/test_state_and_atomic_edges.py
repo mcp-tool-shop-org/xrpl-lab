@@ -285,7 +285,7 @@ def test_reset_module_reports_when_the_report_file_cannot_be_removed(lab, monkey
 
 def test_reset_module_rejects_a_module_that_was_never_completed(lab):
     st.save_state(st.LabState())
-    with pytest.raises(ValueError, match="not in completed_modules"):
+    with pytest.raises(ValueError, match="nothing to reset"):
         st.reset_module("never_done")
 
 

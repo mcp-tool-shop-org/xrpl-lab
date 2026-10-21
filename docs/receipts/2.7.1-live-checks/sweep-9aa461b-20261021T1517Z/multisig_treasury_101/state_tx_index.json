@@ -1,0 +1,46 @@
+{
+  "note": "tx_index excerpt from state.json (wallet_path omitted: it carries the local home path)",
+  "wallet_address": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+  "tx_index": [
+    {
+      "txid": "7BFADB51EE8B50958C77B52A37EFD1EB29323F6C02774AFFF423527B2AA6B671",
+      "module_id": "multisig_treasury_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/7BFADB51EE8B50958C77B52A37EFD1EB29323F6C02774AFFF423527B2AA6B671",
+      "network": "testnet",
+      "timestamp": 1792596167.0896122
+    },
+    {
+      "txid": "2EC78CBACCDF1D34A01DCDDA58222AB718332B34D53921806606EC9364A06ECF",
+      "module_id": "multisig_treasury_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/2EC78CBACCDF1D34A01DCDDA58222AB718332B34D53921806606EC9364A06ECF",
+      "network": "testnet",
+      "timestamp": 1792596178.1132307
+    },
+    {
+      "txid": "98307BEA37883BE3BADB37B2201C12A3326BC2EDEBDBB9FACDFC962725004D41",
+      "module_id": "multisig_treasury_101",
+      "success": false,
+      "expected": true,
+      "validated": false,
+      "explorer_url": "",
+      "network": "testnet",
+      "timestamp": 1792596247.8954635
+    },
+    {
+      "txid": "4B78F778353EDA285150ED15B4C330018C5A82444D513B3AE90C614A7D1EEB87",
+      "module_id": "multisig_treasury_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/4B78F778353EDA285150ED15B4C330018C5A82444D513B3AE90C614A7D1EEB87",
+      "network": "testnet",
+      "timestamp": 1792596254.8277988
+    }
+  ]
+}

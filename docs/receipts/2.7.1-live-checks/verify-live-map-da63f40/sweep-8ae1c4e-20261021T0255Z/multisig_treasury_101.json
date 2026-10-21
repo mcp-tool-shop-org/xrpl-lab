@@ -1,0 +1,72 @@
+{
+  "valid": true,
+  "file": "sweep-8ae1c4e-20261021T0255Z\\multisig_treasury_101\\proof_pack.json",
+  "version": "2.6.2",
+  "address": "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 4,
+  "sha256": "15d786907c9c6292ccd2c705bba13b58e287d43f479f89cf343d615566739af7",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": true,
+    "no_onledger_txids": false,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 1,
+    "note": "Mixed pack \u2014 verified 3 real-network txid(s); skipped 1 dry-run/local txid(s).",
+    "tx_results": [
+      {
+        "txid": "7FA884B0BBC317650171843739E1E0BA8C0A4CA7A75FA7B0ABC599A469E6FF9D",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "429ABD4109D5A0D1B2972F55B05DA01FE1C9E55F0A9E2D78364FF2FA7F1BEDA9",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "failed",
+        "network": "testnet",
+        "status": "SKIPPED",
+        "reason": "Expected rejection not on the ledger (a tem or tef never is).",
+        "checks": [],
+        "validated": null
+      },
+      {
+        "txid": "9C3262B02C8ADCB2CFC2C5240C7687A3AB2EA549B9D2BF04ACE2E6CD1C8E3B6C",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE"
+        ],
+        "validated": null
+      }
+    ]
+  },
+  "live_passed": true
+}

@@ -1,5 +1,64 @@
 # Changelog
 
+## 2.7.1 — 2026-10-21
+
+The last two 2.6.x follow-ups from issue #20 (items 12 and 13), from the 2.6.2
+live sweep.
+
+### Fixed
+
+- **Live verification of a rejection lesson's proof pack passes.** Since 2.6.2
+  a rejection lesson's pack records its expected `tec`, `tem` or `tef`, and
+  live verification (`proof verify --live`, the dashboard's verify view)
+  checked every claim for `tesSUCCESS`, so an honest pack failed: the `tec`
+  as "not tesSUCCESS", the `tem` as "not found". An expected rejection is
+  now checked as one: a validated `tec` must be on the ledger as one, and a
+  rejection that never reaches a ledger is skipped. A claimed rejection the
+  ledger shows as a success fails. Successes and unexpected failures are
+  checked as before.
+- **Live verification accepts the lesson's own helper wallets.** It required
+  every success to be signed by the learner, so a lesson that creates its own
+  issuer or counterparty could never pass: 17 of 25 honest packs from the
+  2.6.2 and 2.7.0 release sweeps failed, all on helper-signed successes
+  (module #30's issuer among them). Every run of a lesson, finished or
+  stopped, now records the accounts it used (the learner and its helper
+  wallets); the proof pack carries them, and a transaction from the learner
+  or one of that lesson's recorded accounts is accepted, for successes and
+  expected rejections alike. Records made before 2.7.1 name no helper
+  accounts and keep the learner-only check: reset that lesson with
+  `xrpl-lab reset --module <id>` and run it again to make its pack
+  verifiable. Nothing is deleted without that command.
+- **A record says whether its transaction is on a ledger.** Transaction
+  records carry `validated`: true for a success or a validated `tec`, false
+  for one that never reached a ledger (a `tem`, a `tef`, a timeout), unknown
+  for older records. The proof pack carries it per transaction and receipt
+  row, and gives no explorer link for a transaction that never validated or
+  for the `failed` placeholder: deposit_gate's `tem` linked to a page for a
+  transaction on no ledger, and multisig's `tef` linked to
+  `/transactions/failed`.
+- **A multisigned transaction keeps its hash.** The fully signed
+  transaction was sent to be signed again with no wallet, so its hash was
+  lost, and a `tefBAD_QUORUM` was recorded as `failed`.
+- **An offline lesson stays offline.** A lesson marked `mode: dry-run` now
+  runs in the dry-run sandbox whatever it's started with, with a note.
+  `xrpl-lab run dex_vs_amm_risk_literacy` without `--dry-run` went to
+  testnet.
+- **The record and the dry run agree on what reached a ledger.** A failure
+  whose code can't be on a ledger (`tem`, `tef`, `ter`, `tel`, a local
+  error) is never marked validated, so the dry run's `tem`/`tef` read the
+  same as testnet's. A record that never validated stores no explorer link,
+  the dashboard's verify view builds none, and its session shows an offline
+  lesson as a dry run.
+
+### Known issues
+
+- **deposit_gate_101 leaves deposit authorization on the learner's wallet,**
+  so a later lesson in the same home that pays the learner is refused
+  (`tecNO_PERMISSION`), and the lesson can't be re-run on the same wallet
+  after `reset --module` (its earlier authorization gives `tecDUPLICATE`).
+  Both predate 2.7.1 and are fixed in 2.7.2 (#20 items 15 and 16). Until
+  then, run deposit_gate_101 last, or in its own home.
+
 ## 2.7.0 — 2026-10-21
 
 ### Changed

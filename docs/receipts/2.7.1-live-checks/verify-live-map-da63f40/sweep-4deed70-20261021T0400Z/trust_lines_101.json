@@ -1,0 +1,50 @@
+{
+  "valid": true,
+  "file": "sweep-4deed70-20261021T0400Z\\trust_lines_101\\proof_pack.json",
+  "version": "2.7.0",
+  "address": "rG3cu7UdEmi5d6DpEu4XvT2BE3bLwaXBiF",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 2,
+  "sha256": "041471b048c7a8e346b6b906dffc2ad22bf6fbb861d20a2459164563ade3ff36",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 1,
+    "failed": 1,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "19EE64EBAAB5BF872F805D2AC4EF199ADF4FD52ECA24F4ADC9CF7E022B315784",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rG3cu7UdEmi5d6DpEu4XvT2BE3bLwaXBiF"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "95B3E92558C2528A8F2E84BE64F56E79EB7D2E4A6BEA11C3427487B761FFC2A7",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account does not match the pack's claimed address: pack claims rG3cu7UdEmi5d6DpEu4XvT2BE3bLwaXBiF, ledger shows rsYnKDGy8r8WrtoR8uh8D8NmM47gEYfvGQ.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS"
+        ],
+        "validated": null
+      }
+    ]
+  },
+  "live_passed": false
+}

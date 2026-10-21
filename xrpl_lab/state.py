@@ -225,6 +225,10 @@ def _merge_append_only(target: LabState, on_disk: LabState) -> None:
             known_tx_keys.add(key)
     target.tx_index.sort(key=lambda t: t.timestamp)
 
+    # 2.7.1: the accounts each module's runs bound, unioned like the lists.
+    for module_id, accounts in on_disk.module_accounts.items():
+        target.remember_accounts(module_id, accounts)
+
     # Preserve the earliest known creation time across both copies.
     target.created_at = min(target.created_at, on_disk.created_at)
 
@@ -260,6 +264,11 @@ class TxRecord(BaseModel):
     # A rejection its lesson set out to cause, acknowledged by the step's
     # judge (2.6.2, #20 item 8). Only ever True on a failed record.
     expected: bool = False
+    # Whether the transaction is on a validated ledger (2.7.1, #20 item 12):
+    # True for a success or a validated tec, False for one that never reached
+    # a ledger (a tem, a tef, a timeout, a local error), None when unknown
+    # (records from before 2.7.1, and handlers that record without a result).
+    validated: bool | None = None
 
 
 class LabState(BaseModel):
@@ -276,6 +285,9 @@ class LabState(BaseModel):
     wallet_address: str | None = None
     completed_modules: list[CompletedModule] = Field(default_factory=list)
     tx_index: list[TxRecord] = Field(default_factory=list)
+    # module_id -> the accounts bound in its runs (the learner and its helper
+    # wallets), so live verification can accept a helper-signed tx (2.7.1).
+    module_accounts: dict[str, list[str]] = Field(default_factory=dict)
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
 
@@ -302,6 +314,18 @@ class LabState(BaseModel):
         )
         self.updated_at = time.time()
 
+    def remember_accounts(self, module_id: str, accounts: list[str]) -> None:
+        """Add the accounts bound in a run of ``module_id`` (2.7.1).
+
+        Every run adds to the module's set, completed or not, so a retry's or
+        an interrupted run's helper-signed txs stay verifiable (Argon, 2.7.1
+        round 5, F1).
+        """
+        if module_id and accounts:
+            known = set(self.module_accounts.get(module_id, []))
+            self.module_accounts[module_id] = sorted(known | set(accounts))
+            self.updated_at = time.time()
+
     def record_tx(
         self,
         txid: str,
@@ -309,7 +333,15 @@ class LabState(BaseModel):
         network: str,
         success: bool,
         explorer_url: str = "",
+        validated: bool | None = None,
     ) -> None:
+        # A success is on a validated ledger (testnet submits wait for it).
+        if validated is None and success:
+            validated = True
+        # No stored link for a tx on no ledger or for the "failed" placeholder
+        # (Argon, 2.7.1 round 1, F2; the proof pack already drops them).
+        if validated is False or txid == "failed":
+            explorer_url = ""
         self.tx_index.append(
             TxRecord(
                 txid=txid,
@@ -318,6 +350,7 @@ class LabState(BaseModel):
                 network=network,
                 success=success,
                 explorer_url=explorer_url,
+                validated=validated,
             )
         )
         self.updated_at = time.time()
@@ -624,13 +657,21 @@ def reset_module(module_id: str) -> dict:
          "report_removed": bool}
 
     Raises:
-        ValueError: if module_id is not currently in completed_modules.
+        ValueError: if module_id has nothing to reset (not completed, no
+            tx_index records, no recorded accounts).
     """
     state = load_state()
-    if not state.is_module_completed(module_id):
+    # A stopped attempt leaves records without completing; it can be reset
+    # too (Argon, 2.7.1 round 6, F1).
+    has_records = (
+        state.is_module_completed(module_id)
+        or any(tx.module_id == module_id for tx in state.tx_index)
+        or module_id in state.module_accounts
+    )
+    if not has_records:
         raise ValueError(
-            f"Module '{module_id}' is not in completed_modules — "
-            "nothing to reset for that ID."
+            f"Module '{module_id}' has no completion, transaction records or "
+            "accounts — nothing to reset for that ID."
         )
 
     # Filter out target module from completed list
@@ -641,6 +682,8 @@ def reset_module(module_id: str) -> dict:
     # Filter tx_index — keep records from other modules
     before_tx = len(state.tx_index)
     state.tx_index = [tx for tx in state.tx_index if tx.module_id != module_id]
+    # Its runs' accounts go with its records (2.7.1).
+    state.module_accounts.pop(module_id, None)
     cleared_tx = before_tx - len(state.tx_index)
 
     state.updated_at = time.time()

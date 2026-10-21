@@ -1,0 +1,62 @@
+{
+  "valid": true,
+  "file": "sweep-8ae1c4e-20261021T0255Z\\custodial_crediting_101\\proof_pack.json",
+  "version": "2.6.2",
+  "address": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 3,
+  "sha256": "a91821ce8cb7d04cedcf605c542d598d21762386e9d37411cfa905857dba5527",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 2,
+    "failed": 1,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "FADDB4102982A905CD85444AF9CA5A99970701190F473322F81B4DB17FEE9B95",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account does not match the pack's claimed address: pack claims rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE, ledger shows rL6MXqohDe4C4Wcfbm5wPJu8u9s97X8byK.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "BB1D3182270045871DE8D40C4649E3FB5ADE6A342AF6CA43F1C087A0AAC54358",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Expected rejection, validated on-ledger: tecDST_TAG_NEEDED.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tecDST_TAG_NEEDED"
+        ],
+        "validated": true
+      }
+    ]
+  },
+  "live_passed": false
+}

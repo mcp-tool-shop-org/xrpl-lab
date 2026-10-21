@@ -1,0 +1,174 @@
+{
+  "valid": true,
+  "file": "<scratch>\\accounts-check-e32d090-20261021T1639Z\\B\\1-before\\proof_pack.json",
+  "version": "2.7.1",
+  "address": "rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 13,
+  "sha256": "5d07aec9ca64cd9e3f976ce8d2361818bb767ae7b557b576f44cfc82b10cb1cc",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 7,
+    "failed": 5,
+    "skipped": 1,
+    "note": "Mixed pack \u2014 verified 12 real-network txid(s); skipped 1 dry-run/local txid(s).",
+    "tx_results": [
+      {
+        "txid": "B077564C47532D62B178FC678C82BB423F0E9C448BE033084358035472641108",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "F5C418ABE21882F4B2463EB6A20078FCC9FB15C47490EEF2F55592CD22197681",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account r422taaUtx5842fkuMHFdKRptQJHcmkCyU is not the learner or one of this module's recorded helper wallets.",
+        "checks": [],
+        "validated": true
+      },
+      {
+        "txid": "12D008E70484ACEECC7BB662F31C8058349E565D6237394D2D5AD921C0BD0A6F",
+        "network": "testnet",
+        "status": "SKIPPED",
+        "reason": "Expected rejection that never reaches a ledger (by design).",
+        "checks": [],
+        "validated": false
+      },
+      {
+        "txid": "EAAB7AB1402DFC4D9A216548A8E2DC073022D747EF8E4410FAA204DBB8BA16FC",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "6E1F0490E42F5A786DD6C09258EE2572072626C1A0ED380112B4BBA6C9697316",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Expected rejection, validated on-ledger: tecDUPLICATE.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tecDUPLICATE"
+        ],
+        "validated": true
+      },
+      {
+        "txid": "213B629D3DFE85501E24E8B160EF10B23CE5352C07DFB57F42451ABDF6BB9564",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account does not match the pack's claimed address: pack claims rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h, ledger shows r422taaUtx5842fkuMHFdKRptQJHcmkCyU.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "684418E726D872CBBF9493212F7DDC80FA39095C53DE722657C2DAB85BF77EBF",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "8A52D055F52B96571AAC140218182F9D260D61D521D3C9C869943FD95C034757",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account does not match the pack's claimed address: pack claims rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h, ledger shows rJi5XTfLh5sTyuRoCQCkL5cmUBfZrXBFN2.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "88B5E523BA2411BA01BB2BB0B9A3AEBE8ECC21028AF5B52DC58AC44D35F2C2E2",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "0842B07BCAEAA3E430240C962942FA0FFEE63CCAA2D62FD8CDDC94DEBEEC015F",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account does not match the pack's claimed address: pack claims rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h, ledger shows rJi5XTfLh5sTyuRoCQCkL5cmUBfZrXBFN2.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "3ADF073EAB94F89CBA1C43642CAFF9166B66923DC4DDADF5A84B64E424BCCD82",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "On-ledger account rPEjTQ98UGbVqm9PKuGfg753DxdJG5oxEY is not the learner or one of this module's recorded helper wallets.",
+        "checks": [],
+        "validated": true
+      },
+      {
+        "txid": "184BA68A2A340185FB987FD3A9F7FF8A318E6F9A847463E1D5D72344C807F308",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "36D4CB228099B8891645FFBC343FF69CA067D15FB2B303C57FC3FFF2831284E4",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Expected rejection, validated on-ledger: tecNO_ENTRY.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tecNO_ENTRY"
+        ],
+        "validated": true
+      }
+    ]
+  },
+  "live_passed": false
+}

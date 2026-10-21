@@ -558,6 +558,9 @@ class DryRunTransport(Transport):
         if wallet_seed and address:
             self._bound_seeds[wallet_seed] = address
 
+    def bound_addresses(self) -> list[str]:
+        return sorted(set(self._bound_seeds.values()))
+
     def _seed_address(self, wallet_seed: str) -> str:
         """The address a seed acts as: its bound real address, or the
         offline synthetic one for seeds nobody bound (helper wallets)."""

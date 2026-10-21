@@ -43,10 +43,15 @@ _EXPLORER_BASES = {
 }
 
 
-def _explorer_url(txid: str, network: str) -> str:
-    """Build an explorer URL for a txid on ``network``, or "" if none applies."""
+def _explorer_url(txid: str, network: str, validated: bool | None = None) -> str:
+    """Build an explorer URL for a txid on ``network``, or "" if none applies.
+
+    2.7.1 (#20 item 12): no link for a placeholder txid ("failed" made a dead
+    ``/transactions/failed`` link) or for a tx that never reached a ledger (a
+    tem or tef has a hash but no ledger page).
+    """
     base = _EXPLORER_BASES.get(network)
-    if not base or not txid:
+    if not base or not txid or txid == "failed" or validated is False:
         return ""
     return f"{base}/{txid}"
 
@@ -131,9 +136,12 @@ def _tx_detail(tx_record: TxRecord) -> dict:
         "module_id": tx_record.module_id,
         "success": tx_record.success,
         "expected": tx_record.expected,
+        "validated": tx_record.validated,
         "timestamp": datetime.fromtimestamp(tx_record.timestamp, tz=UTC).isoformat(),
         "network": tx_record.network,
-        "explorer_url": _explorer_url(tx_record.txid, tx_record.network),
+        "explorer_url": _explorer_url(
+            tx_record.txid, tx_record.network, tx_record.validated
+        ),
     }
 
 
@@ -189,6 +197,9 @@ def generate_proof_pack(state: LabState) -> dict:
                 # FAILED on-ledger carries verified=False — the pack is honest
                 # rather than claiming a completion it never verified.
                 "verified": cm.verified,
+                # 2.7.1: the accounts bound in this module's runs (learner and
+                # helpers); public addresses, not secrets.
+                "accounts": state.module_accounts.get(cm.module_id, []),
                 "kb_source": mod.kb_source if mod else "",
                 "explorer_urls": [
                     _explorer_url(txid, tx_net.get(txid, state.network))
@@ -209,6 +220,7 @@ def generate_proof_pack(state: LabState) -> dict:
             "module": tx.module_id,
             "status": "ok" if tx.success else "FAIL",
             "expected": tx.expected,
+            "validated": tx.validated,
             "network": tx.network,
             "timestamp": datetime.fromtimestamp(
                 tx.timestamp, tz=UTC
@@ -259,6 +271,9 @@ def generate_proof_pack(state: LabState) -> dict:
         "successful_transactions": sum(1 for tx in state.tx_index if tx.success),
         "failed_transactions": sum(1 for tx in state.tx_index if not tx.success),
         "expected_failures": sum(1 for tx in state.tx_index if tx.expected),
+        # 2.7.1: module_id -> accounts bound in its runs, for live verification
+        # of helper-signed txs (public addresses).
+        "module_accounts": dict(state.module_accounts),
     }
 
     # Add integrity hash (hash of the pack content without the hash field itself)
@@ -605,6 +620,9 @@ class TxLiveResult:
     status: str  # LIVE_PASS / LIVE_FAIL / LIVE_SKIPPED
     reason: str
     checks: list[str] = field(default_factory=list)
+    # The pack's own claim that the tx is on a ledger (2.7.1), carried so a
+    # link built from this result can respect it (Argon, 2.7.1 round 2, F1).
+    validated: bool | None = None
 
     @property
     def passed(self) -> bool:
@@ -621,6 +639,7 @@ class TxLiveResult:
             "status": self.status,
             "reason": self.reason,
             "checks": list(self.checks),
+            "validated": self.validated,
         }
 
 
@@ -782,6 +801,7 @@ async def _verify_one_tx_live(
     *,
     expected_account: str = "",
     expected_tx_type: str = "",
+    claim: dict | None = None,
 ) -> TxLiveResult:
     """Re-fetch ONE claimed txid and assert it exists + validated + succeeded.
 
@@ -792,7 +812,58 @@ async def _verify_one_tx_live(
     that the tx TYPE and the acting account MATCH the pack's claims.
     """
     checks: list[str] = []
+    claim = claim or {}
+    validated_claim = claim.get("validated")
+    # Who may have signed it: the learner, plus the module's recorded helpers.
+    allowed = {a for a in [expected_account, *claim.get("accounts", [])] if a}
+    rejection = claim.get("success") is False and claim.get("expected") is True
+    # 2.7.1: an expected rejection the pack says never reached a ledger (a
+    # tem, a tef) has nothing to anchor. Since 2.6.2 the pack records these,
+    # and live verification failed every honest rejection lesson's pack.
+    # The "failed" placeholder (a 2.6.x multisig tef) has no hash to fetch
+    # (Argon, 2.7.1 round 3, F1).
+    if rejection and (validated_claim is False or txid == "failed"):
+        return TxLiveResult(
+            txid=txid, network=network, status=LIVE_SKIPPED,
+            reason="Expected rejection that never reaches a ledger (by design).",
+            validated=False,
+        )
     tx: TxInfo = await transport.fetch_tx(txid)
+    if rejection and not tx.fetch_error:
+        found = bool(tx.result_code) or tx.validated
+        if allowed and tx.account and tx.account not in allowed:
+            return TxLiveResult(
+                txid=txid, network=network, status=LIVE_FAIL,
+                reason=(
+                    f"On-ledger account {tx.account} is not the learner or one of "
+                    "this module's recorded helper wallets."
+                ),
+                validated=tx.validated,
+            )
+        if tx.validated and tx.result_code.startswith("tec"):
+            return TxLiveResult(
+                txid=txid, network=network, status=LIVE_PASS,
+                reason=f"Expected rejection, validated on-ledger: {tx.result_code}.",
+                checks=["Exists on-ledger", "Validated: yes", f"Result: {tx.result_code}"],
+                validated=True,
+            )
+        if not found and validated_claim is None:
+            # A pack from before 2.7.1 doesn't say; a tem/tef is never found.
+            return TxLiveResult(
+                txid=txid, network=network, status=LIVE_SKIPPED,
+                reason="Expected rejection not on the ledger (a tem or tef never is).",
+                validated=False,
+            )
+        return TxLiveResult(
+            txid=txid, network=network, status=LIVE_FAIL,
+            reason=(
+                "The pack claims an expected rejection validated on-ledger, but "
+                f"the ledger shows {tx.result_code or 'no such transaction'}"
+                f"{'' if tx.validated else ' (not validated)'}."
+            ),
+            # What the ledger shows, not the claim: no link for a tx it lacks.
+            validated=tx.validated,
+        )
 
     # A read-back failure is a NETWORK problem, never evidence the tx is fake.
     # Mirror verify_tx (actions/verify.py) / audit.py: surface a distinct,
@@ -856,9 +927,9 @@ async def _verify_one_tx_live(
     # The pack's top-level ``address`` is the learner's wallet; their own
     # transactions are sent FROM that account, so a mismatch means the txid
     # belongs to someone else (a borrowed/forged receipt).
-    if expected_account:
-        if tx.account == expected_account:
-            checks.append(f"Account matches: {expected_account}")
+    if allowed:
+        if tx.account in allowed:
+            checks.append(f"Account matches: {tx.account}")
         else:
             return TxLiveResult(
                 txid=txid,
@@ -866,8 +937,9 @@ async def _verify_one_tx_live(
                 status=LIVE_FAIL,
                 reason=(
                     "On-ledger account does not match the pack's claimed "
-                    f"address: pack claims {expected_account}, ledger shows "
-                    f"{tx.account or '(none)'}."
+                    f"address: pack claims {expected_account}"
+                    f"{' or a recorded helper' if len(allowed) > 1 else ''}, ledger "
+                    f"shows {tx.account or '(none)'}."
                 ),
                 checks=checks,
             )
@@ -919,6 +991,15 @@ def _iter_pack_tx_claims(pack: dict) -> list[dict]:
 
     claims: list[dict] = []
     seen: set[str] = set()
+    # 2.7.1: the accounts each module's runs bound (learner and helpers). A tx
+    # is accepted from any of them; a module without them (an older pack, or
+    # records from before 2.7.1) keeps the learner-only check.
+    module_accounts: dict[str, list[str]] = {}
+    pack_map = pack.get("module_accounts")
+    if isinstance(pack_map, dict):
+        for mid, accounts in pack_map.items():
+            if isinstance(accounts, list):
+                module_accounts[str(mid)] = [str(a) for a in accounts]
 
     transactions = pack.get("transactions")
     if isinstance(transactions, list) and transactions:
@@ -936,6 +1017,12 @@ def _iter_pack_tx_claims(pack: dict) -> list[dict]:
                 "account": top_address,
                 # Forward-compatible: assert type only if the artifact records it.
                 "tx_type": tx.get("tx_type", "") or "",
+                # 2.7.1: what the record claims, so an expected rejection is
+                # checked as one (not as a success).
+                "success": tx.get("success", True),
+                "expected": tx.get("expected", False),
+                "validated": tx.get("validated"),
+                "accounts": module_accounts.get(tx.get("module_id", ""), []),
             })
         return claims
 
@@ -1019,6 +1106,7 @@ async def verify_proof_pack_live(
             tx_transport,
             expected_account=claim["account"],
             expected_tx_type=claim["tx_type"],
+            claim=claim,
         ))
 
     if not real_seen:
@@ -1111,6 +1199,7 @@ async def verify_certificate_live(
             tx_transport,
             expected_account=claim["account"],
             expected_tx_type=claim["tx_type"],
+            claim=claim,
         ))
 
     if not real_seen:

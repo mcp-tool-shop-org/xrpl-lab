@@ -1,0 +1,99 @@
+{
+  "validated_ledger": {
+    "seq": 21712090,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rNjwwcnSXhAfz5At9ycUSq5mB5UqEfcZss": {
+      "Balance": "89999980",
+      "Sequence": 21712085,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21712083,
+          "hash": "CAA9997278DC7020D7A77162E4028F5BDD636EE9363802F83896F94E90499567",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rNjwwcnSXhAfz5At9ycUSq5mB5UqEfcZss",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21712086,
+          "hash": "1E784AD72619D2CB63C6291DAD1A221D2702BFC865CD315DBC8F28715B2B1100",
+          "TransactionType": "Payment",
+          "Account": "rNjwwcnSXhAfz5At9ycUSq5mB5UqEfcZss",
+          "Destination": "rDAZvHfgjYMiB4aYvsT2XiSKtVyvyrpHci",
+          "Sequence": 21712083,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecUNFUNDED_PAYMENT"
+        },
+        {
+          "ledger_index": 21712089,
+          "hash": "2483F45BC701D4D95C3FF39AAB707E8D63E924829E3C740986CC00C01FDB7E03",
+          "TransactionType": "Payment",
+          "Account": "rNjwwcnSXhAfz5At9ycUSq5mB5UqEfcZss",
+          "Destination": "rDAZvHfgjYMiB4aYvsT2XiSKtVyvyrpHci",
+          "Sequence": 21712084,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rDAZvHfgjYMiB4aYvsT2XiSKtVyvyrpHci": {
+      "Balance": "10000000",
+      "Sequence": 21712089,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21712089,
+          "hash": "2483F45BC701D4D95C3FF39AAB707E8D63E924829E3C740986CC00C01FDB7E03",
+          "TransactionType": "Payment",
+          "Account": "rNjwwcnSXhAfz5At9ycUSq5mB5UqEfcZss",
+          "Destination": "rDAZvHfgjYMiB4aYvsT2XiSKtVyvyrpHci",
+          "Sequence": 21712084,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "1E784AD72619D2CB63C6291DAD1A221D2702BFC865CD315DBC8F28715B2B1100": {
+      "TransactionType": "Payment",
+      "Account": "rNjwwcnSXhAfz5At9ycUSq5mB5UqEfcZss",
+      "Destination": "rDAZvHfgjYMiB4aYvsT2XiSKtVyvyrpHci",
+      "validated": true,
+      "ledger_index": 21712086,
+      "Sequence": 21712083,
+      "TransactionResult": "tecUNFUNDED_PAYMENT"
+    },
+    "2483F45BC701D4D95C3FF39AAB707E8D63E924829E3C740986CC00C01FDB7E03": {
+      "TransactionType": "Payment",
+      "Account": "rNjwwcnSXhAfz5At9ycUSq5mB5UqEfcZss",
+      "Destination": "rDAZvHfgjYMiB4aYvsT2XiSKtVyvyrpHci",
+      "validated": true,
+      "ledger_index": 21712089,
+      "Sequence": 21712084,
+      "TransactionResult": "tesSUCCESS"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "1E784AD72619D2CB63C6291DAD1A221D2702BFC865CD315DBC8F28715B2B1100",
+      "success": false
+    },
+    {
+      "txid": "2483F45BC701D4D95C3FF39AAB707E8D63E924829E3C740986CC00C01FDB7E03",
+      "success": true
+    }
+  ]
+}

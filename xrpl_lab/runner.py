@@ -172,6 +172,23 @@ def _step_heading(step, index: int) -> str:
     return f"{label}: {title}"
 
 
+def _remember_run_accounts(module_id: str, transport: Transport) -> None:
+    """Record the accounts this run bound, for a run that stops early (2.7.1).
+
+    A stopped run's helper-signed txs are already in tx_index; without their
+    accounts, live verification couldn't accept them later.
+    """
+    accounts = list(getattr(transport, "bound_addresses", lambda: [])())
+    if not accounts:
+        return
+    try:
+        st = load_state()
+        st.remember_accounts(module_id, accounts)
+        save_state(st)
+    except Exception:  # noqa: BLE001 — best-effort bookkeeping on an early stop
+        logger.warning("could not record accounts for %s", module_id, exc_info=True)
+
+
 # Why the last run_module() in this process stopped early (False), as an exit
 # code, for the CLI: a script must not read an early stop as success (Book
 # Keeper, 2.7.0 live sweep). None when it didn't stop early. The CLI runs one
@@ -206,6 +223,19 @@ async def run_module(
     last_stop_exit_code = None
     if console is None:
         console = globals()["console"]
+    # 2.7.1 (#20 item 13): a module marked ``mode: dry-run`` runs offline,
+    # whichever transport it was handed. `run` ignored the frontmatter, so a
+    # learner running dex_vs_amm_risk_literacy without --dry-run went to
+    # testnet. Here, so `run`, `start` and the dashboard all honour it.
+    if module.dry_run_only and transport.network_name != "dry-run":
+        from .transport.dry_run import DryRunTransport
+
+        console.print(
+            f"[yellow]'{module.id}' is an offline lesson (mode: dry-run); "
+            "running it in the dry-run sandbox, not on the network.[/]"
+        )
+        transport = DryRunTransport()
+        dry_run = True
     state = load_state()
     # Stamp the run's REAL network onto state so every TxRecord this run
     # records (handlers persist via record_tx(network=state.network)) and the
@@ -462,6 +492,7 @@ async def run_module(
                 last_stop_exit_code = (
                     exc.exit_code if isinstance(exc, LabException) else 2
                 )
+                _remember_run_accounts(module.id, transport)
                 return False
 
             # Fire tx callback for any new transactions from this step.
@@ -538,6 +569,7 @@ async def run_module(
             except (EOFError, KeyboardInterrupt):
                 console.print("\n[yellow]Module interrupted.[/]")
                 last_stop_exit_code = 130
+                _remember_run_accounts(module.id, transport)
                 return False
 
         # Collect report material. COREBCD-001: registry-derived predicate —
@@ -618,6 +650,11 @@ async def run_module(
         # on-ledger verification this run failed, so the proof pack's
         # per-module `verified` + top-level `all_verified` tell the truth.
         verified=all_verified,
+    )
+    # 2.7.1: who signed in this run (every run adds), for live verification of
+    # helper-signed txs.
+    state.remember_accounts(
+        module.id, list(getattr(transport, "bound_addresses", lambda: [])())
     )
     # B-BACKEND-005: guard the completion save like the recovery save. The
     # module already ran and its report is on disk, so a save failure here

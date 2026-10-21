@@ -72,6 +72,15 @@ class SubmitResult:
     # meaning.
     validated: bool = True
 
+    def __post_init__(self) -> None:
+        # A failure whose code can't be on a ledger (tem, tef, ter, tel, a
+        # local error) is never validated, on either transport (Argon, 2.7.1
+        # round 1, F3: the dry run recorded its tem/tef as validated).
+        if not self.success and self.result_code.startswith(
+            ("tem", "tef", "ter", "tel", "local_error")
+        ):
+            self.validated = False
+
 
 @dataclass
 class TxInfo:
@@ -601,6 +610,14 @@ class Transport(ABC):
         is a no-op there; the dry-run transport, which has no key derivation,
         uses it to book the learner's writes against the funded address.
         """
+
+    def bound_addresses(self) -> list[str]:
+        """Every address bound this run: the learner and each helper wallet.
+
+        The runner records them on the completed module, so live verification
+        can accept a tx a lesson's helper signed (2.7.1). Concrete: ``[]``.
+        """
+        return []
 
     async def get_reserves(self) -> tuple[int, int] | None:
         """The validated ledger's ``(reserve_base, reserve_inc)`` in drops.

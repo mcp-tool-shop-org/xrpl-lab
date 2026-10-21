@@ -301,7 +301,7 @@ def test_reset_module_not_completed_is_exit_1(lab):
     make_state(completed=[])
     r = invoke(["reset", "--module", ORDER[0], "--confirm"])
     assert r.exit_code == 1
-    assert "not in completed_modules" in r.stdout
+    assert "nothing to reset" in r.stdout
 
 
 def test_reset_module_with_confirm_clears_only_that_module(lab):

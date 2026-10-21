@@ -735,6 +735,9 @@ class XRPLTestnetTransport(Transport):
         # down) is retried on the next write.
         self._local_chain_verdicts: dict[str, str | None] = {}
 
+    def bound_addresses(self) -> list[str]:
+        return sorted(set(self._bound_addresses.values()))
+
     def bind_wallet(self, wallet_seed: str, address: str) -> None:
         """Record the address a seed is known by, so signing can check it.
 
@@ -1610,6 +1613,10 @@ class XRPLTestnetTransport(Transport):
         the network. A pinned Sequence is kept (autofill fills only what's
         missing), so F-ad982e08's retry protection still holds.
         """
+        if wallet is None and tx.is_signed():
+            # 2.7.1 (#20 item 12): a multisigned tx arrives fully signed; use it
+            # as it is, so its hash is known (a tefBAD_QUORUM kept no hash).
+            return tx
         try:
             async with _rpc_client(self._rpc_url) as client:
                 filled = await asyncio.wait_for(autofill(tx, client), timeout=RPC_TIMEOUT)

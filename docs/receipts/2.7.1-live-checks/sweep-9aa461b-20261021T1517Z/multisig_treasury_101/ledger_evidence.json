@@ -1,0 +1,142 @@
+{
+  "validated_ledger": {
+    "seq": 21712062,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79": {
+      "Balance": "89999950",
+      "Sequence": 21712034,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21712031,
+          "hash": "4886BC3860924BA1545D5B2438ED8047A2D63514C6FCCFDFF008E56C048574C1",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21712034,
+          "hash": "7BFADB51EE8B50958C77B52A37EFD1EB29323F6C02774AFFF423527B2AA6B671",
+          "TransactionType": "SignerListSet",
+          "Account": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+          "Destination": null,
+          "Sequence": 21712031,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21712037,
+          "hash": "2EC78CBACCDF1D34A01DCDDA58222AB718332B34D53921806606EC9364A06ECF",
+          "TransactionType": "Payment",
+          "Account": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+          "Destination": "rfbGRm3e9LxRsogPjzzd1aiASyPdq5E6xt",
+          "Sequence": 21712032,
+          "Fee": "30",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21712060,
+          "hash": "4B78F778353EDA285150ED15B4C330018C5A82444D513B3AE90C614A7D1EEB87",
+          "TransactionType": "SignerListSet",
+          "Account": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+          "Destination": null,
+          "Sequence": 21712033,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rfbGRm3e9LxRsogPjzzd1aiASyPdq5E6xt": {
+      "Balance": "10000000",
+      "Sequence": 21712037,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21712037,
+          "hash": "2EC78CBACCDF1D34A01DCDDA58222AB718332B34D53921806606EC9364A06ECF",
+          "TransactionType": "Payment",
+          "Account": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+          "Destination": "rfbGRm3e9LxRsogPjzzd1aiASyPdq5E6xt",
+          "Sequence": 21712032,
+          "Fee": "30",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "r3bquEpUJCXZYAtDARAFJq2FaHSGj6TS53": {
+      "error": "actNotFound"
+    },
+    "rsosv5ezsWP1z6tjSNFGjoXTWi46dv4E8s": {
+      "error": "actNotFound"
+    }
+  },
+  "tx_lookup": {
+    "7BFADB51EE8B50958C77B52A37EFD1EB29323F6C02774AFFF423527B2AA6B671": {
+      "TransactionType": "SignerListSet",
+      "Account": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21712034,
+      "Sequence": 21712031,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "2EC78CBACCDF1D34A01DCDDA58222AB718332B34D53921806606EC9364A06ECF": {
+      "TransactionType": "Payment",
+      "Account": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+      "Destination": "rfbGRm3e9LxRsogPjzzd1aiASyPdq5E6xt",
+      "validated": true,
+      "ledger_index": 21712037,
+      "Sequence": 21712032,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "98307BEA37883BE3BADB37B2201C12A3326BC2EDEBDBB9FACDFC962725004D41": {
+      "TransactionType": "Payment",
+      "Account": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+      "Destination": "rfbGRm3e9LxRsogPjzzd1aiASyPdq5E6xt",
+      "validated": false,
+      "ledger_index": null,
+      "Sequence": 21712033,
+      "TransactionResult": null
+    },
+    "4B78F778353EDA285150ED15B4C330018C5A82444D513B3AE90C614A7D1EEB87": {
+      "TransactionType": "SignerListSet",
+      "Account": "rA7V7GdVH6upBWTR4nUB9Y7apm3ghez79",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21712060,
+      "Sequence": 21712033,
+      "TransactionResult": "tesSUCCESS"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "7BFADB51EE8B50958C77B52A37EFD1EB29323F6C02774AFFF423527B2AA6B671",
+      "success": true
+    },
+    {
+      "txid": "2EC78CBACCDF1D34A01DCDDA58222AB718332B34D53921806606EC9364A06ECF",
+      "success": true
+    },
+    {
+      "txid": "98307BEA37883BE3BADB37B2201C12A3326BC2EDEBDBB9FACDFC962725004D41",
+      "success": false
+    },
+    {
+      "txid": "4B78F778353EDA285150ED15B4C330018C5A82444D513B3AE90C614A7D1EEB87",
+      "success": true
+    }
+  ]
+}

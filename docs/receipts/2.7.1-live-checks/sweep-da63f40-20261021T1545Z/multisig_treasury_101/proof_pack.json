@@ -1,0 +1,117 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.1",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rp1zoCCgbz593jsCR1J6uuE3sKEjFcVhpa",
+  "generated_at": "2026-10-21T15:51:09.721815+00:00",
+  "completed_modules": [
+    {
+      "module_id": "multisig_treasury_101",
+      "completed_at": "2026-10-21T15:51:08.632640+00:00",
+      "txids": [
+        "9B5BA3CD319B93C95E2B32B341F48810B928ABBC43804E9440CB3441E986AD65",
+        "2B23841F90785346EBBD0F1BD22F077A6798C674B2377A6A8DBEDBF5BC4AA8D5",
+        "F79F53B1CD00722DDF063B727D6D26DBAE9BCC780370A2E562B78C935DD456DE"
+      ],
+      "verified": true,
+      "kb_source": "multisign-signerlistset",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/9B5BA3CD319B93C95E2B32B341F48810B928ABBC43804E9440CB3441E986AD65",
+        "https://testnet.xrpl.org/transactions/2B23841F90785346EBBD0F1BD22F077A6798C674B2377A6A8DBEDBF5BC4AA8D5",
+        "https://testnet.xrpl.org/transactions/F79F53B1CD00722DDF063B727D6D26DBAE9BCC780370A2E562B78C935DD456DE"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "9B5BA3CD319B93C95E2B32B341F48810B928ABBC43804E9440CB3441E986AD65",
+      "module_id": "multisig_treasury_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:49:34.384496+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/9B5BA3CD319B93C95E2B32B341F48810B928ABBC43804E9440CB3441E986AD65"
+    },
+    {
+      "txid": "2B23841F90785346EBBD0F1BD22F077A6798C674B2377A6A8DBEDBF5BC4AA8D5",
+      "module_id": "multisig_treasury_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:49:45.190679+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/2B23841F90785346EBBD0F1BD22F077A6798C674B2377A6A8DBEDBF5BC4AA8D5"
+    },
+    {
+      "txid": "DAFCE065598B9ABF989D1711C9A23101686DC144250E6C84DF66538B03573AB6",
+      "module_id": "multisig_treasury_101",
+      "success": false,
+      "expected": true,
+      "validated": false,
+      "timestamp": "2026-10-21T15:50:57.548052+00:00",
+      "network": "testnet",
+      "explorer_url": ""
+    },
+    {
+      "txid": "F79F53B1CD00722DDF063B727D6D26DBAE9BCC780370A2E562B78C935DD456DE",
+      "module_id": "multisig_treasury_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:51:08.180245+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/F79F53B1CD00722DDF063B727D6D26DBAE9BCC780370A2E562B78C935DD456DE"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "9B5BA3CD319B93C9...",
+      "txid_full": "9B5BA3CD319B93C95E2B32B341F48810B928ABBC43804E9440CB3441E986AD65",
+      "module": "multisig_treasury_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 15:49"
+    },
+    {
+      "txid": "2B23841F90785346...",
+      "txid_full": "2B23841F90785346EBBD0F1BD22F077A6798C674B2377A6A8DBEDBF5BC4AA8D5",
+      "module": "multisig_treasury_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 15:49"
+    },
+    {
+      "txid": "DAFCE065598B9ABF...",
+      "txid_full": "DAFCE065598B9ABF989D1711C9A23101686DC144250E6C84DF66538B03573AB6",
+      "module": "multisig_treasury_101",
+      "status": "FAIL",
+      "expected": true,
+      "validated": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 15:50"
+    },
+    {
+      "txid": "F79F53B1CD00722D...",
+      "txid_full": "F79F53B1CD00722DDF063B727D6D26DBAE9BCC780370A2E562B78C935DD456DE",
+      "module": "multisig_treasury_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 15:51"
+    }
+  ],
+  "total_transactions": 4,
+  "successful_transactions": 3,
+  "failed_transactions": 1,
+  "expected_failures": 1,
+  "sha256": "7794f80bea8289bc7a7015f349b8066555167c4e6f2cbc4afcbfd5ea137d0549"
+}

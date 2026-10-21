@@ -1,0 +1,281 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.6.2",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rnBtcoWEahQy2dhJ2HDUumofut9NCBaEV9",
+  "generated_at": "2026-10-21T03:03:32.134390+00:00",
+  "completed_modules": [
+    {
+      "module_id": "deposit_gate_101",
+      "completed_at": "2026-10-21T03:03:30.928771+00:00",
+      "txids": [
+        "713D5219A96A7D7BA213F2F1135E994AB1AE2BE84568E902D08245B255F39454",
+        "B5CA6E1EC23FD1788E0F06185F23F21674F4C8A8E0061E6CFCB6985F7B446B0E",
+        "59B0B4034DE05B1E6BAA776566A29B36B87D275A83C0963B895D87ED74CC3D9B",
+        "6AC5D2B3C9E3A418E377FF877395C51E17D61306A82564D42F47145A1F48E40A",
+        "0F8AF8213096466F1850F9CE33BE98ED1659F9A648D34533F0E391F83E3E9989",
+        "BD56ACCE42322E5D3B5CB20320CABD8F4832AC8ECCD7472CB1BA01D997C91810",
+        "A1493A232976C72CCD53271D0BFDB44C5D14BCF0EF1DF48204CB7306DC3D5065",
+        "AD01563D9E6FAA510CE3B796569C9195CC30D1C9A0137CBF7BDD1E835CB7CAD2"
+      ],
+      "verified": true,
+      "kb_source": "deposit-auth-credential-preauth",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/713D5219A96A7D7BA213F2F1135E994AB1AE2BE84568E902D08245B255F39454",
+        "https://testnet.xrpl.org/transactions/B5CA6E1EC23FD1788E0F06185F23F21674F4C8A8E0061E6CFCB6985F7B446B0E",
+        "https://testnet.xrpl.org/transactions/59B0B4034DE05B1E6BAA776566A29B36B87D275A83C0963B895D87ED74CC3D9B",
+        "https://testnet.xrpl.org/transactions/6AC5D2B3C9E3A418E377FF877395C51E17D61306A82564D42F47145A1F48E40A",
+        "https://testnet.xrpl.org/transactions/0F8AF8213096466F1850F9CE33BE98ED1659F9A648D34533F0E391F83E3E9989",
+        "https://testnet.xrpl.org/transactions/BD56ACCE42322E5D3B5CB20320CABD8F4832AC8ECCD7472CB1BA01D997C91810",
+        "https://testnet.xrpl.org/transactions/A1493A232976C72CCD53271D0BFDB44C5D14BCF0EF1DF48204CB7306DC3D5065",
+        "https://testnet.xrpl.org/transactions/AD01563D9E6FAA510CE3B796569C9195CC30D1C9A0137CBF7BDD1E835CB7CAD2"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "713D5219A96A7D7BA213F2F1135E994AB1AE2BE84568E902D08245B255F39454",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:01:43.534382+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/713D5219A96A7D7BA213F2F1135E994AB1AE2BE84568E902D08245B255F39454"
+    },
+    {
+      "txid": "9A20E05063569377C27982AA0FB2FC5DF4986CEE48868E25BA561658FD8FFA3D",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T03:02:02.304119+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/9A20E05063569377C27982AA0FB2FC5DF4986CEE48868E25BA561658FD8FFA3D"
+    },
+    {
+      "txid": "2EFBD2D48E23F440783E8044D73E4AAE9A6009A253D862533E9ACA6966B48048",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T03:02:04.816375+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/2EFBD2D48E23F440783E8044D73E4AAE9A6009A253D862533E9ACA6966B48048"
+    },
+    {
+      "txid": "B5CA6E1EC23FD1788E0F06185F23F21674F4C8A8E0061E6CFCB6985F7B446B0E",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:02:11.598461+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/B5CA6E1EC23FD1788E0F06185F23F21674F4C8A8E0061E6CFCB6985F7B446B0E"
+    },
+    {
+      "txid": "C1A1C5EE4536570E86CC217B7ED615D1285D2CB63142DE55C2F26173D4996F82",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T03:02:19.784578+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/C1A1C5EE4536570E86CC217B7ED615D1285D2CB63142DE55C2F26173D4996F82"
+    },
+    {
+      "txid": "59B0B4034DE05B1E6BAA776566A29B36B87D275A83C0963B895D87ED74CC3D9B",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:02:29.860586+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/59B0B4034DE05B1E6BAA776566A29B36B87D275A83C0963B895D87ED74CC3D9B"
+    },
+    {
+      "txid": "6AC5D2B3C9E3A418E377FF877395C51E17D61306A82564D42F47145A1F48E40A",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:02:42.739164+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/6AC5D2B3C9E3A418E377FF877395C51E17D61306A82564D42F47145A1F48E40A"
+    },
+    {
+      "txid": "0F8AF8213096466F1850F9CE33BE98ED1659F9A648D34533F0E391F83E3E9989",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:02:49.197178+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/0F8AF8213096466F1850F9CE33BE98ED1659F9A648D34533F0E391F83E3E9989"
+    },
+    {
+      "txid": "BD56ACCE42322E5D3B5CB20320CABD8F4832AC8ECCD7472CB1BA01D997C91810",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:02:55.234006+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/BD56ACCE42322E5D3B5CB20320CABD8F4832AC8ECCD7472CB1BA01D997C91810"
+    },
+    {
+      "txid": "A1493A232976C72CCD53271D0BFDB44C5D14BCF0EF1DF48204CB7306DC3D5065",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:03:01.829010+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/A1493A232976C72CCD53271D0BFDB44C5D14BCF0EF1DF48204CB7306DC3D5065"
+    },
+    {
+      "txid": "30986BB5B4E00E526E58D0C537E05F419ABCC9CBDA29BF15E3FE07B5DC740A54",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T03:03:18.382777+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/30986BB5B4E00E526E58D0C537E05F419ABCC9CBDA29BF15E3FE07B5DC740A54"
+    },
+    {
+      "txid": "AD01563D9E6FAA510CE3B796569C9195CC30D1C9A0137CBF7BDD1E835CB7CAD2",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:03:24.445439+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/AD01563D9E6FAA510CE3B796569C9195CC30D1C9A0137CBF7BDD1E835CB7CAD2"
+    },
+    {
+      "txid": "6ACEDE570FFABE29D5525DA9D4AD3AE55157223299A7E88FC5966F8570C4364F",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T03:03:30.878183+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/6ACEDE570FFABE29D5525DA9D4AD3AE55157223299A7E88FC5966F8570C4364F"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "713D5219A96A7D7B...",
+      "txid_full": "713D5219A96A7D7BA213F2F1135E994AB1AE2BE84568E902D08245B255F39454",
+      "module": "deposit_gate_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:01"
+    },
+    {
+      "txid": "9A20E05063569377...",
+      "txid_full": "9A20E05063569377C27982AA0FB2FC5DF4986CEE48868E25BA561658FD8FFA3D",
+      "module": "deposit_gate_101",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:02"
+    },
+    {
+      "txid": "2EFBD2D48E23F440...",
+      "txid_full": "2EFBD2D48E23F440783E8044D73E4AAE9A6009A253D862533E9ACA6966B48048",
+      "module": "deposit_gate_101",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:02"
+    },
+    {
+      "txid": "B5CA6E1EC23FD178...",
+      "txid_full": "B5CA6E1EC23FD1788E0F06185F23F21674F4C8A8E0061E6CFCB6985F7B446B0E",
+      "module": "deposit_gate_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:02"
+    },
+    {
+      "txid": "C1A1C5EE4536570E...",
+      "txid_full": "C1A1C5EE4536570E86CC217B7ED615D1285D2CB63142DE55C2F26173D4996F82",
+      "module": "deposit_gate_101",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:02"
+    },
+    {
+      "txid": "59B0B4034DE05B1E...",
+      "txid_full": "59B0B4034DE05B1E6BAA776566A29B36B87D275A83C0963B895D87ED74CC3D9B",
+      "module": "deposit_gate_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:02"
+    },
+    {
+      "txid": "6AC5D2B3C9E3A418...",
+      "txid_full": "6AC5D2B3C9E3A418E377FF877395C51E17D61306A82564D42F47145A1F48E40A",
+      "module": "deposit_gate_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:02"
+    },
+    {
+      "txid": "0F8AF8213096466F...",
+      "txid_full": "0F8AF8213096466F1850F9CE33BE98ED1659F9A648D34533F0E391F83E3E9989",
+      "module": "deposit_gate_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:02"
+    },
+    {
+      "txid": "BD56ACCE42322E5D...",
+      "txid_full": "BD56ACCE42322E5D3B5CB20320CABD8F4832AC8ECCD7472CB1BA01D997C91810",
+      "module": "deposit_gate_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:02"
+    },
+    {
+      "txid": "A1493A232976C72C...",
+      "txid_full": "A1493A232976C72CCD53271D0BFDB44C5D14BCF0EF1DF48204CB7306DC3D5065",
+      "module": "deposit_gate_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:03"
+    },
+    {
+      "txid": "30986BB5B4E00E52...",
+      "txid_full": "30986BB5B4E00E526E58D0C537E05F419ABCC9CBDA29BF15E3FE07B5DC740A54",
+      "module": "deposit_gate_101",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:03"
+    },
+    {
+      "txid": "AD01563D9E6FAA51...",
+      "txid_full": "AD01563D9E6FAA510CE3B796569C9195CC30D1C9A0137CBF7BDD1E835CB7CAD2",
+      "module": "deposit_gate_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:03"
+    },
+    {
+      "txid": "6ACEDE570FFABE29...",
+      "txid_full": "6ACEDE570FFABE29D5525DA9D4AD3AE55157223299A7E88FC5966F8570C4364F",
+      "module": "deposit_gate_101",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:03"
+    }
+  ],
+  "total_transactions": 13,
+  "successful_transactions": 8,
+  "failed_transactions": 5,
+  "expected_failures": 5,
+  "sha256": "dffe6a7aa15119045bd65fb3fad32e525268d82feb2827388550b99f73260dc7"
+}

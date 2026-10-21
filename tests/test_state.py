@@ -709,5 +709,5 @@ class TestResetModule:
         s.complete_module("A", txids=["TX_A1"])
         save_state(s)
 
-        with pytest.raises(ValueError, match="not in completed_modules"):
+        with pytest.raises(ValueError, match="nothing to reset"):
             reset_module("does_not_exist")
