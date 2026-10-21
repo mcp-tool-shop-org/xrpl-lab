@@ -174,3 +174,30 @@ def test_the_state_merge_unions_accounts(tmp_path: Path, monkeypatch) -> None:
     mine.remember_accounts("m", [LEARNER])
     state_mod.save_state(mine)
     assert state_mod.load_state().module_accounts["m"] == sorted([HELPER, LEARNER])
+
+
+def test_reset_module_resets_a_stopped_attempt(tmp_path: Path, monkeypatch) -> None:
+    """Argon, 2.7.1 round 6, F1: an attempt that stopped before completing left
+    records; reset --module refused it until the learner finished the module."""
+    import xrpl_lab.state as state_mod
+
+    monkeypatch.setattr(state_mod, "DEFAULT_HOME_DIR", tmp_path)
+    (tmp_path / "ws").mkdir()
+    monkeypatch.setattr(state_mod, "DEFAULT_WORKSPACE_DIR", tmp_path / "ws")
+    state = LabState()
+    state.record_tx(txid=A, module_id="m", network="testnet", success=True)
+    state_mod.save_state(state)
+    summary = state_mod.reset_module("m")
+    assert summary["tx_records_cleared"] == 1
+    assert state_mod.load_state().tx_index == []
+
+
+def test_complete_module_bumps_updated_at() -> None:
+    """Argon, 2.7.1 round 6, F2."""
+    state = LabState()
+    state.updated_at = 0.0
+    state.complete_module("m")
+    assert state.updated_at > 0.0
+    state.updated_at = 0.0
+    state.remember_accounts("m", [])
+    assert state.updated_at == 0.0  # nothing to add, nothing changed

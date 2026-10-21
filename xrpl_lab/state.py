@@ -312,6 +312,7 @@ class LabState(BaseModel):
                 verified=verified,
             )
         )
+        self.updated_at = time.time()
 
     def remember_accounts(self, module_id: str, accounts: list[str]) -> None:
         """Add the accounts bound in a run of ``module_id`` (2.7.1).
@@ -323,7 +324,7 @@ class LabState(BaseModel):
         if module_id and accounts:
             known = set(self.module_accounts.get(module_id, []))
             self.module_accounts[module_id] = sorted(known | set(accounts))
-        self.updated_at = time.time()
+            self.updated_at = time.time()
 
     def record_tx(
         self,
@@ -656,13 +657,21 @@ def reset_module(module_id: str) -> dict:
          "report_removed": bool}
 
     Raises:
-        ValueError: if module_id is not currently in completed_modules.
+        ValueError: if module_id has nothing to reset (not completed, no
+            tx_index records, no recorded accounts).
     """
     state = load_state()
-    if not state.is_module_completed(module_id):
+    # A stopped attempt leaves records without completing; it can be reset
+    # too (Argon, 2.7.1 round 6, F1).
+    has_records = (
+        state.is_module_completed(module_id)
+        or any(tx.module_id == module_id for tx in state.tx_index)
+        or module_id in state.module_accounts
+    )
+    if not has_records:
         raise ValueError(
-            f"Module '{module_id}' is not in completed_modules — "
-            "nothing to reset for that ID."
+            f"Module '{module_id}' has no completion, transaction records or "
+            "accounts — nothing to reset for that ID."
         )
 
     # Filter out target module from completed list
