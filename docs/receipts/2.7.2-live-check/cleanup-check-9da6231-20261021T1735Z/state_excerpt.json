@@ -1,0 +1,190 @@
+{
+  "note": "excerpt of state.json (wallet_path omitted)",
+  "wallet_address": "rNqAHBdAypisqfogzYnKw65uXXiV68FNTF",
+  "module_accounts": {
+    "amm_liquidity_101": [
+      "rNqAHBdAypisqfogzYnKw65uXXiV68FNTF",
+      "rnYqX1DLUjdyJcnfmYkaU29YRZr4jVAkHa"
+    ],
+    "deposit_gate_101": [
+      "r9pVDKW3RVqHm7qcTzXEYH7ekRNgfypzcB",
+      "rGv9Phn27E15cvvdPGa2sb9tCS1uZ5Bahj",
+      "rNqAHBdAypisqfogzYnKw65uXXiV68FNTF",
+      "rUMvtt1LZZeGduucQAaThuE3GkrH1tfqAU"
+    ]
+  },
+  "completed_modules": [
+    "amm_liquidity_101",
+    "deposit_gate_101"
+  ],
+  "tx_index": [
+    {
+      "txid": "A8D93FD9A9C8B47F592A1E1110A5992EF91DCF54F686D9C8AF8C452DA854EC7E",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "224737876C689B23D79B4256E3718273A1BBCE5E5FCC0CC8CC75ED53D3EE6E60",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "0DC5AC47A5F3F2A12C4829ADC1646A00D91C76C234F83A74E8224EA4D6B84371",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "83B45C01C58EFB9EE247EC3ADA9E42D0FD120E4845E1D95806E943E8F9729EDE",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "E06E90DB167A2164A1224F01F0C036BAC6AEADC444CDB7351BC24B734207B1F6",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "E244770D975C375D4B6391770A73A2D249C90D45A0B0279B367796499DCD4837",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "679D50C1048A97ED40A534B8CE69DF93C0143147D5A99AF8BA688BEC2D6EBEFD",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "F64A993F2D59C2E8D31203782B7C7B91922449051DBCB86DBA93C7D00225F7CF",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "454EF7FC179C2DEB497402D66391215F8F4BBF66984EC8921C8AA60040678CB7",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": false,
+      "network": "testnet"
+    },
+    {
+      "txid": "555820046A8D94496B24779494D15B6A125A747B0D68197EC4151569B5BB2317",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "E701D748A7BF9E1FC66928B9058C4EC0339A9D559CE274E23EC260B301AA9594",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "2F537C81E9485CFE992AE069D61F811948C4975AD804121999992280C4355F84",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "FF152B9A9E97E53B199F3E12BC7986455B97A5567D96568C7D0A6B972CF9A24E",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "738F1FA5254C634E5294A854D46BBF45305728FE008B3F17C00BF845AC6A211E",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "ED1853C79183E1613F1DA03A501B4A8641768961AE520A2AE7548E83CCFCFE73",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "547142FDAFA2FD22B6DBC2023C966F366824611524792761B179E9FE1A2EBEF7",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "F8D78977E4BED3611917ED8F531590DA0C16325FDF1F543002DB22220BD47145",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "66E672BD8247FE55A770A9C1698603EC6A605DF18BF452E804F6D9003F90416D",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "0DDCDEBFD7EE808AE837735245A5C1085ACDFD68B953FB4273DE700FC6A6DCC5",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "742BE3C292FA2CEA4A88CD6A9DEDF9337BF2D4B83D17FD1F4B20E487C6A5D930",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    },
+    {
+      "txid": "8ED67661D5426604CDB8660F81837F20D8EB4D72A2287DF72B423221E2352A8D",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "network": "testnet"
+    }
+  ]
+}

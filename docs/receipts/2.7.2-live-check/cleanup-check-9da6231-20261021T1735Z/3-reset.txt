@@ -1,0 +1,2 @@
+Module 'deposit_gate_101' reset. Cleared 15 tx record(s); report removed: True.
+reset_exit_code: 0

@@ -558,6 +558,9 @@ class DryRunTransport(Transport):
         if wallet_seed and address:
             self._bound_seeds[wallet_seed] = address
 
+    async def get_deposit_auth(self, address: str) -> bool | None:
+        return address in self._deposit_auth
+
     def bound_addresses(self) -> list[str]:
         return sorted(set(self._bound_seeds.values()))
 

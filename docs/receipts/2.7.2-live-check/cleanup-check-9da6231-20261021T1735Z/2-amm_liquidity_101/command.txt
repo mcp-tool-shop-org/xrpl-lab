@@ -1,0 +1,2 @@
+cmd: yes "" | xrpl-lab run amm_liquidity_101   (code 9da6231; one shared home)
+xrpl_lab_exit_code: 0

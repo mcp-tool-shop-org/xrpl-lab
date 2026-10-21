@@ -1,0 +1,2 @@
+cmd: yes "" | xrpl-lab run deposit_gate_101   (code 9da6231; one shared home)
+xrpl_lab_exit_code: 0
