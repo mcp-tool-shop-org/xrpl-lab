@@ -20,9 +20,13 @@ from xrpl_lab.transport.dry_run import (
     DryRunTransport,
 )
 
+# These conservation checks were written against a 1000 XRP float; testnet's
+# faucet (and the dry run's default since 2.6.2) grants 100.
+_GRANT_1000_XRP = 1_000_000_000
+
 
 async def _funded() -> DryRunTransport:
-    t = DryRunTransport()
+    t = DryRunTransport(faucet_grant_drops=_GRANT_1000_XRP)
     await t.fund_from_faucet(_DRY_RUN_WALLET_ADDRESS)
     return t
 

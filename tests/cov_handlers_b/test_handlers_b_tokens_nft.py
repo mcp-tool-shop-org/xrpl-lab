@@ -299,9 +299,9 @@ async def test_create_buyer_wallet() -> None:
 
 async def test_first_sale_list_verify_accept_verify() -> None:
     rig = await _nft_rig()
-    ctx = await rig.run(handlers.handle_list_nft_sell_offer, amount="100")
+    ctx = await rig.run(handlers.handle_list_nft_sell_offer, amount="10")
     assert ctx["nft_sell_offer"]
-    assert ctx["nft_offer_price"] == "100" and ctx["nft_offer_seller_role"] == "creator"
+    assert ctx["nft_offer_price"] == "10" and ctx["nft_offer_seller_role"] == "creator"
     assert "Sell offer listed!" in rig.out
 
     await rig.run(handlers.handle_verify_nft_offer, expected_min="1")
@@ -326,11 +326,11 @@ async def test_first_sale_list_verify_accept_verify() -> None:
 
 async def test_resale_to_creator_enforces_the_royalty() -> None:
     rig = await _nft_rig(transfer_fee=5000)
-    await rig.run(handlers.handle_list_nft_sell_offer, amount="100")
+    await rig.run(handlers.handle_list_nft_sell_offer, amount="10")
     await rig.run(handlers.handle_accept_nft_offer)
     rig.context["nft_transfer_fee"] = 5000
 
-    await rig.run(handlers.handle_list_nft_sell_offer, amount="200", seller="buyer")
+    await rig.run(handlers.handle_list_nft_sell_offer, amount="20", seller="buyer")
     assert rig.context["nft_offer_seller_role"] == "buyer"
     await rig.run(handlers.handle_accept_nft_offer, buyer="creator")
     assert rig.context["nft_prev_owner"] == rig.context["buyer_address"]
@@ -338,8 +338,8 @@ async def test_resale_to_creator_enforces_the_royalty() -> None:
 
     rig.clear()
     await rig.run(handlers.handle_verify_nft_trade)
-    assert "Royalty (TransferFee) enforced on this resale: 10" in rig.out
-    assert "of the 200 XRP price" in " ".join(rig.out.split())
+    assert "Royalty (TransferFee) enforced on this resale: 1 XRP" in rig.out
+    assert "of the 20 XRP price" in " ".join(rig.out.split())
     assert rig.verdicts("verify_nft_trade")[-1]["passed"] is True
 
 
@@ -442,7 +442,8 @@ async def test_accept_nonexistent_offer_expected_failure() -> None:
     ctx = await rig.run(handlers.handle_accept_nft_offer_expect_fail)
     assert "Expected failure:" in rig.out and "tecOBJECT_NOT_FOUND" in rig.out
     assert ctx["failed_txids"][0]["result_code"] == "tecOBJECT_NOT_FOUND"
-    assert rig.records == []
+    assert [r.success for r in rig.records] == [False]  # 2.6.2: the rejection is recorded
+    assert rig.acknowledged == [rig.records[0].txid]  # ...and acknowledged as the lesson
 
 
 async def test_accept_nonexistent_offer_unexpected_success(monkeypatch) -> None:
@@ -590,7 +591,8 @@ async def test_modify_nft_expect_fail_on_dry_run() -> None:
     ctx = await rig.run(handlers.handle_modify_nft_expect_fail)
     assert "Expected failure:" in rig.out
     assert ctx["failed_txids"][0]["result_code"]
-    assert rig.failed_records == []
+    assert len(rig.failed_records) == 1  # 2.6.2: the rejection is recorded
+    assert rig.acknowledged == [rig.failed_records[0].txid]  # ...and acknowledged
 
 
 async def test_modify_nft_expect_fail_prerequisites_and_branches(monkeypatch) -> None:

@@ -29,7 +29,7 @@ async def test_bound_seed_debits_the_funded_address() -> None:
     for _ in range(2):  # two payments, as receipt_audit makes
         r = await t.submit_payment("sLEARNERSEED", OTHER, "1", "m")
         assert r.success, r.error
-    assert t._balances[REAL] == 1_000_000_000 - 2 * 1_000_000 - 2 * 12
+    assert t._balances[REAL] == 100_000_000 - 2 * 1_000_000 - 2 * 12
     assert all(v >= 0 for v in t._balances.values()), t._balances
 
 

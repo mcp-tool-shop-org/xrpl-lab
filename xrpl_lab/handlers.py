@@ -403,6 +403,9 @@ async def handle_submit_payment_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
         console.print(f"  Result code: [yellow]{result.result_code}[/]")
         console.print(f"  Error: {result.error}")
     # Only "underfunded" is used by a lesson (failure_literacy) and has a
@@ -491,6 +494,19 @@ async def handle_verify_tx(
 # ---------------------------------------------------------------------------
 
 
+def _new_wallet(transport: Transport):
+    """Create a helper wallet and bind its seed to its address on the transport.
+
+    The dry run maps an unbound seed to one synthetic address, so a buyer's,
+    sender's or issuer's writes were booked against an account the faucet
+    never funded (#20 item 9). Binding is a no-op on testnet.
+    """
+    wallet = create_wallet()
+    if hasattr(transport, "bind_wallet"):  # test doubles may not have it
+        transport.bind_wallet(wallet.seed, wallet.address)
+    return wallet
+
+
 async def handle_create_issuer_wallet(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -518,12 +534,14 @@ async def handle_create_issuer_wallet(
             "If owner_count stays high after hygiene, ask your facilitator "
             "to inventory trust lines."
         )
+        if hasattr(transport, "bind_wallet"):
+            transport.bind_wallet(existing.seed, existing.address)
         context["issuer_seed"] = _SecretValue(existing.seed)
         context["issuer_address"] = existing.address
         return context
 
     console.print("  Creating issuer wallet...")
-    issuer = create_wallet()
+    issuer = _new_wallet(transport)
     # DD-1: this is a workspace-rooted seed file. save_wallet() will
     # call _ensure_secure_parent which tightens the parent to 0o700 —
     # that's intentional because the issuer wallet IS a secret, even
@@ -1105,7 +1123,7 @@ async def handle_create_channel_receiver(
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
     console.print("  Creating the receiver (merchant) wallet...")
-    receiver = create_wallet()
+    receiver = _new_wallet(transport)
     context["receiver_seed"] = _SecretValue(receiver.seed)
     context["receiver_address"] = receiver.address
     console.print(f"  Receiver wallet: [cyan]{receiver.address}[/]")
@@ -3188,6 +3206,11 @@ def _judge_expected_failure(
         newest = state.tx_index[-1] if state is not None and state.tx_index else None
         if state is None or (newest is not None and not newest.success and newest.txid == key):
             context.setdefault("expected_failure_txids", []).append(key)
+            if newest is not None:
+                # The receipt itself now says the rejection was the lesson's
+                # (2.6.2, #20 item 8).
+                newest.expected = True
+                save_state(state)
         return True
     if result.success:
         why = "the transaction succeeded"
@@ -3540,7 +3563,7 @@ async def handle_create_token_recipient(
         return context
 
     console.print("  Creating the recipient (third-party) wallet...")
-    recipient = create_wallet()
+    recipient = _new_wallet(transport)
     context["recipient_seed"] = _SecretValue(recipient.seed)
     context["recipient_address"] = recipient.address
     console.print(f"  Recipient wallet: [cyan]{recipient.address}[/]")
@@ -3584,7 +3607,7 @@ async def handle_create_noopt_issuer(
     console.print(
         "  Creating a second issuer (never sets asfAllowTrustLineLocking)..."
     )
-    issuer = create_wallet()
+    issuer = _new_wallet(transport)
     if not await _fund_new_wallet(
         transport, issuer.address, "Issuer", console, context,
         "create_noopt_issuer", quiet=True,
@@ -3845,6 +3868,9 @@ async def handle_create_token_escrow_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     save_state(state)
     _judge_expected_failure(
         console, context, result,
@@ -3982,7 +4008,7 @@ async def handle_create_signer_wallets(
     seeds: list[_SecretValue] = []
     addresses: list[str] = []
     for i in range(count):
-        signer = create_wallet()
+        signer = _new_wallet(transport)
         seeds.append(_SecretValue(signer.seed))
         addresses.append(signer.address)
         console.print(f"  Signer {i + 1}: [cyan]{signer.address}[/]")
@@ -4254,6 +4280,9 @@ async def handle_send_multisig_payment_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     save_state(state)
     _judge_expected_failure(
         console, context, result,
@@ -4449,7 +4478,7 @@ async def handle_create_subject_wallet(
     on a separate, intentionally-unfunded address below).
     """
     console.print("  Creating the subject (player) wallet...")
-    subject = create_wallet()
+    subject = _new_wallet(transport)
     context["subject_seed"] = _SecretValue(subject.seed)
     context["subject_address"] = subject.address
     console.print(f"  Subject wallet: [cyan]{subject.address}[/]")
@@ -4861,7 +4890,7 @@ async def handle_create_uncredentialed_wallet(
     will be REJECTED because it holds no credential the domain accepts.
     """
     console.print("  Creating an un-credentialed (outsider) wallet...")
-    outsider = create_wallet()
+    outsider = _new_wallet(transport)
     context["outsider_seed"] = _SecretValue(outsider.seed)
     context["outsider_address"] = outsider.address
     console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
@@ -5194,7 +5223,7 @@ async def handle_create_sender_wallet(
         "  Creating the sender's wallet (a random player with no "
         "preauthorization yet)..."
     )
-    sender = create_wallet()
+    sender = _new_wallet(transport)
     context["sender_seed"] = _SecretValue(sender.seed)
     context["sender_address"] = sender.address
     console.print(f"  Sender wallet: [cyan]{sender.address}[/]")
@@ -5263,6 +5292,9 @@ async def handle_send_sender_payment_expect_blocked(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_PERMISSION",),
@@ -5305,6 +5337,9 @@ async def handle_preauthorize_self_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("temCANNOT_PREAUTH_SELF",),
@@ -5380,6 +5415,9 @@ async def handle_authorize_sender_address_duplicate(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecDUPLICATE",),
@@ -5568,6 +5606,9 @@ async def handle_send_outsider_payment_expect_blocked(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_PERMISSION",),
@@ -5632,6 +5673,9 @@ async def handle_unauthorize_sender_address_duplicate(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_ENTRY",),
@@ -5930,7 +5974,7 @@ async def handle_create_player_wallet(
     Payment into the pool, exactly like production traffic.
     """
     console.print("  Creating the player's wallet (the depositor)...")
-    player = create_wallet()
+    player = _new_wallet(transport)
     context["player_seed"] = _SecretValue(player.seed)
     context["player_address"] = player.address
     console.print(f"  Player wallet: [cyan]{player.address}[/]")
@@ -6117,6 +6161,9 @@ async def handle_send_untagged_deposit_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecDST_TAG_NEEDED",),
@@ -6465,7 +6512,7 @@ async def handle_create_noclaw_issuer(
     currency = args.get("currency", "NOC")
     amount = args.get("amount", "50")
     console.print("  Creating a second issuer (no clawback flag)...")
-    issuer = create_wallet()
+    issuer = _new_wallet(transport)
     if not await _fund_new_wallet(
         transport, issuer.address, "Issuer", console, context,
         "create_noclaw_issuer", quiet=True,
@@ -6505,7 +6552,7 @@ async def handle_create_buyer_wallet(
 ) -> dict:
     """Create + fund a second wallet to act as the marketplace counterparty."""
     console.print("  Creating a second player wallet (buyer/reseller)...")
-    buyer = create_wallet()
+    buyer = _new_wallet(transport)
     await _fund_new_wallet(
         transport, buyer.address, "Buyer", console, context,
         "create_buyer_wallet",
@@ -6704,6 +6751,9 @@ async def handle_accept_nft_offer_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecOBJECT_NOT_FOUND",),
@@ -6880,6 +6930,9 @@ async def handle_modify_nft_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_PERMISSION",),
@@ -6945,7 +6998,7 @@ async def handle_create_recipient_wallet(
         "  Creating the player's wallet (the only account this Check will "
         "let cash it)..."
     )
-    recipient = create_wallet()
+    recipient = _new_wallet(transport)
     context["recipient_seed"] = _SecretValue(recipient.seed)
     context["recipient_address"] = recipient.address
     console.print(f"  Player wallet: [cyan]{recipient.address}[/]")
@@ -7106,7 +7159,7 @@ async def handle_create_outsider_wallet(
     console.print(
         "  Creating an outsider wallet (not the Check's Destination)..."
     )
-    outsider = create_wallet()
+    outsider = _new_wallet(transport)
     context["outsider_seed"] = _SecretValue(outsider.seed)
     context["outsider_address"] = outsider.address
     console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
@@ -7166,6 +7219,9 @@ async def handle_cash_check_wrong_destination_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+        # 2.6.2 (#20 item 8): record the rejection, so the report and the proof
+        # pack carry it; the judge below acknowledges it by txid.
+        _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
         ("tecNO_PERMISSION",),

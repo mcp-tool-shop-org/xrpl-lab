@@ -122,7 +122,7 @@ class TestSnapshotPosition:
         snap = await snapshot_position(transport, _FAKE_ADDRESS)
 
         assert snap.account.address == _FAKE_ADDRESS
-        assert snap.xrp_balance == "1000000000"
+        assert snap.xrp_balance == "100000000"
         assert snap.owner_count == 2
         assert snap.offer_count == 1
         assert len(snap.trust_lines) == 1

@@ -130,6 +130,7 @@ def _tx_detail(tx_record: TxRecord) -> dict:
         "txid": tx_record.txid,
         "module_id": tx_record.module_id,
         "success": tx_record.success,
+        "expected": tx_record.expected,
         "timestamp": datetime.fromtimestamp(tx_record.timestamp, tz=UTC).isoformat(),
         "network": tx_record.network,
         "explorer_url": _explorer_url(tx_record.txid, tx_record.network),
@@ -207,6 +208,7 @@ def generate_proof_pack(state: LabState) -> dict:
             "txid_full": tx.txid,
             "module": tx.module_id,
             "status": "ok" if tx.success else "FAIL",
+            "expected": tx.expected,
             "network": tx.network,
             "timestamp": datetime.fromtimestamp(
                 tx.timestamp, tz=UTC
@@ -256,6 +258,7 @@ def generate_proof_pack(state: LabState) -> dict:
         "total_transactions": len(state.tx_index),
         "successful_transactions": sum(1 for tx in state.tx_index if tx.success),
         "failed_transactions": sum(1 for tx in state.tx_index if not tx.success),
+        "expected_failures": sum(1 for tx in state.tx_index if tx.expected),
     }
 
     # Add integrity hash (hash of the pack content without the hash field itself)

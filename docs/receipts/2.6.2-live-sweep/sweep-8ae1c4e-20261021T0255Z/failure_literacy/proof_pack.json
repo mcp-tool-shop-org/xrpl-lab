@@ -1,0 +1,69 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.6.2",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rH4QSdsXN1DaJQpKGMuJd1zr1YQYLbaKB3",
+  "generated_at": "2026-10-21T02:57:21.287560+00:00",
+  "completed_modules": [
+    {
+      "module_id": "failure_literacy",
+      "completed_at": "2026-10-21T02:57:20.132370+00:00",
+      "txids": [
+        "C3D7EC3AA79316D1C4795638D601544D18200DB67BE4F528D614B6AD182C5EE3"
+      ],
+      "verified": true,
+      "kb_source": "",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/C3D7EC3AA79316D1C4795638D601544D18200DB67BE4F528D614B6AD182C5EE3"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "27FC47908A3991A2F98194AC6A86B7DFA742297EE32A34208AC116068C0D3EE4",
+      "module_id": "failure_literacy",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T02:57:12.642971+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/27FC47908A3991A2F98194AC6A86B7DFA742297EE32A34208AC116068C0D3EE4"
+    },
+    {
+      "txid": "C3D7EC3AA79316D1C4795638D601544D18200DB67BE4F528D614B6AD182C5EE3",
+      "module_id": "failure_literacy",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T02:57:19.460443+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/C3D7EC3AA79316D1C4795638D601544D18200DB67BE4F528D614B6AD182C5EE3"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "27FC47908A3991A2...",
+      "txid_full": "27FC47908A3991A2F98194AC6A86B7DFA742297EE32A34208AC116068C0D3EE4",
+      "module": "failure_literacy",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 02:57"
+    },
+    {
+      "txid": "C3D7EC3AA79316D1...",
+      "txid_full": "C3D7EC3AA79316D1C4795638D601544D18200DB67BE4F528D614B6AD182C5EE3",
+      "module": "failure_literacy",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 02:57"
+    }
+  ],
+  "total_transactions": 2,
+  "successful_transactions": 1,
+  "failed_transactions": 1,
+  "expected_failures": 1,
+  "sha256": "c56b124a32b0da6faedc271d6490af6f860346e08fc47abc87099786bc5ff643"
+}

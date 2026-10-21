@@ -83,7 +83,8 @@ def generate_feedback() -> str:
             pass
 
     # Last error
-    failed = [tx for tx in state.tx_index if not tx.success]
+    # A rejection a lesson set out to cause isn't an error (2.6.2).
+    failed = [tx for tx in state.tx_index if not tx.success and not tx.expected]
     if failed:
         last = failed[-1]
         lines.append("### Last Error")
@@ -99,7 +100,11 @@ def generate_feedback() -> str:
     lines.append(f"- Modules completed: {len(state.completed_modules)}")
     total_tx = len(state.tx_index)
     ok_tx = sum(1 for tx in state.tx_index if tx.success)
-    lines.append(f"- Transactions: {total_tx} ({ok_tx} ok, {total_tx - ok_tx} failed)")
+    expected_tx = sum(1 for tx in state.tx_index if tx.expected)
+    note = f" ({expected_tx} expected)" if expected_tx else ""
+    lines.append(
+        f"- Transactions: {total_tx} ({ok_tx} ok, {total_tx - ok_tx} failed{note})"
+    )
     lines.append("")
 
     # Footer

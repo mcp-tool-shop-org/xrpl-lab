@@ -116,14 +116,9 @@ def test_the_registry_has_submitting_handlers() -> None:
 def test_every_submitting_handler_records_a_failed_submit(
     action: str, handler_name: str,
 ) -> None:
-    if handler_name in _DELIBERATE_FAILURES:
-        # Argon (round 2, Low 1): assert, don't skip. A deliberate-failure
-        # lesson that records a failed TxRecord would start reading as failed.
-        assert not _records_a_failure(handler_name), (
-            f"{handler_name} is a deliberate-failure lesson and must not "
-            "record TxRecord(success=False)"
-        )
-        return
+    # 2.6.2 (#20 item 8): deliberate-failure handlers record their rejection
+    # too; the judge acknowledges it by txid, so the lesson still passes
+    # (tests/test_v262_rejections_recorded.py).
     assert _records_a_failure(handler_name), (
         f"{handler_name} ({action}) submits a transaction but never records a "
         "failed one (record_tx(success=False) or _record_submit), so the runner "

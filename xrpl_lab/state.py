@@ -257,6 +257,9 @@ class TxRecord(BaseModel):
     network: str
     success: bool
     explorer_url: str = ""
+    # A rejection its lesson set out to cause, acknowledged by the step's
+    # judge (2.6.2, #20 item 8). Only ever True on a failed record.
+    expected: bool = False
 
 
 class LabState(BaseModel):

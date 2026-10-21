@@ -1,0 +1,215 @@
+{
+  "validated_ledger": {
+    "seq": 21699196,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1": {
+      "Balance": "99999980",
+      "Sequence": 21699173,
+      "OwnerCount": 2,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21699171,
+          "hash": "2128239FF38851A3F95D0D87406FDAACA814C03219424BEE490099F84EEBF72E",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699178,
+          "hash": "A69C9ABA3E1186060A70150ADA1605235D3131D82423F447330F8D7B02DA2257",
+          "TransactionType": "TrustSet",
+          "Account": "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1",
+          "Destination": null,
+          "Sequence": 21699171,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699181,
+          "hash": "71C5D92EB9345A88993476A49DEF512261A076590B7835272D88B4C4EEED5C02",
+          "TransactionType": "Payment",
+          "Account": "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F",
+          "Destination": "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1",
+          "Sequence": 21699174,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699184,
+          "hash": "42435D143364CC2B5BE8203329DC8862196DC21F3FF16631C2600C5CD170808F",
+          "TransactionType": "Clawback",
+          "Account": "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F",
+          "Destination": null,
+          "Sequence": 21699175,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699188,
+          "hash": "7A23DCB7C9212FD5CEDDB2E394629CAE084B30901EBF34AF815764E031E75C07",
+          "TransactionType": "TrustSet",
+          "Account": "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1",
+          "Destination": null,
+          "Sequence": 21699172,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699191,
+          "hash": "73A4A0B82811B0FCD4F1C02CF3E8AA8DC850041D9628BBFB0720280ABC7AB541",
+          "TransactionType": "Payment",
+          "Account": "rDXpNooTSVVjHxz6en7xSj2DVhhEjaxS45",
+          "Destination": "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1",
+          "Sequence": 21699186,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F": {
+      "Balance": "99999970",
+      "Sequence": 21699176,
+      "OwnerCount": 0,
+      "Flags": 2147483648,
+      "account_tx": [
+        {
+          "ledger_index": 21699173,
+          "hash": "EDE0DD8509BE45EED7C2E812C968135D4612D69F283D0E88747DAC27F11BCC82",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699176,
+          "hash": "632497E98F6EA689B66364C64A563DC28E23EACE3A8694FD6309215165B062A0",
+          "TransactionType": "AccountSet",
+          "Account": "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F",
+          "Destination": null,
+          "Sequence": 21699173,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699178,
+          "hash": "A69C9ABA3E1186060A70150ADA1605235D3131D82423F447330F8D7B02DA2257",
+          "TransactionType": "TrustSet",
+          "Account": "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1",
+          "Destination": null,
+          "Sequence": 21699171,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699181,
+          "hash": "71C5D92EB9345A88993476A49DEF512261A076590B7835272D88B4C4EEED5C02",
+          "TransactionType": "Payment",
+          "Account": "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F",
+          "Destination": "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1",
+          "Sequence": 21699174,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699184,
+          "hash": "42435D143364CC2B5BE8203329DC8862196DC21F3FF16631C2600C5CD170808F",
+          "TransactionType": "Clawback",
+          "Account": "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F",
+          "Destination": null,
+          "Sequence": 21699175,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "632497E98F6EA689B66364C64A563DC28E23EACE3A8694FD6309215165B062A0": {
+      "TransactionType": "AccountSet",
+      "Account": "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699176,
+      "Sequence": 21699173,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "A69C9ABA3E1186060A70150ADA1605235D3131D82423F447330F8D7B02DA2257": {
+      "TransactionType": "TrustSet",
+      "Account": "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699178,
+      "Sequence": 21699171,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "71C5D92EB9345A88993476A49DEF512261A076590B7835272D88B4C4EEED5C02": {
+      "TransactionType": "Payment",
+      "Account": "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F",
+      "Destination": "rEc4QQcgvRKY8fa2mTYuV7UU8iquumEoP1",
+      "validated": true,
+      "ledger_index": 21699181,
+      "Sequence": 21699174,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "42435D143364CC2B5BE8203329DC8862196DC21F3FF16631C2600C5CD170808F": {
+      "TransactionType": "Clawback",
+      "Account": "r3rTuHxW4X4LiYxgyq36BxWXeQKgY1qL4F",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699184,
+      "Sequence": 21699175,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "49CF57B4A0C858D0CD145B3ADA691535725E7090983B5A20441C7DBBC2C81E3E": {
+      "TransactionType": "Clawback",
+      "Account": "rDXpNooTSVVjHxz6en7xSj2DVhhEjaxS45",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699194,
+      "Sequence": 21699187,
+      "TransactionResult": "tecNO_PERMISSION"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "632497E98F6EA689B66364C64A563DC28E23EACE3A8694FD6309215165B062A0",
+      "success": true
+    },
+    {
+      "txid": "A69C9ABA3E1186060A70150ADA1605235D3131D82423F447330F8D7B02DA2257",
+      "success": true
+    },
+    {
+      "txid": "71C5D92EB9345A88993476A49DEF512261A076590B7835272D88B4C4EEED5C02",
+      "success": true
+    },
+    {
+      "txid": "42435D143364CC2B5BE8203329DC8862196DC21F3FF16631C2600C5CD170808F",
+      "success": true
+    },
+    {
+      "txid": "49CF57B4A0C858D0CD145B3ADA691535725E7090983B5A20441C7DBBC2C81E3E",
+      "success": false
+    }
+  ]
+}

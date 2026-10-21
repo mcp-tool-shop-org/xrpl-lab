@@ -82,6 +82,9 @@ class LearnerStatus:
     all_verified: bool
     unverified_modules: list[str]
 
+    # Of the failed transactions, the rejections a lesson set out to cause (2.6.2).
+    expected_failures: int = 0
+
     def to_dict(self) -> dict:
         """Serialize to plain dict for JSON output."""
         return {
@@ -111,6 +114,7 @@ class LearnerStatus:
             "last_module": self.last_module,
             "total_transactions": self.total_transactions,
             "failed_transactions": self.failed_transactions,
+            "expected_failures": self.expected_failures,
             "has_proof_pack": self.has_proof_pack,
             "has_certificate": self.has_certificate,
             "report_count": self.report_count,
@@ -218,6 +222,7 @@ def get_learner_status(state: LabState | None = None) -> LearnerStatus:
         last_module=last_module,
         total_transactions=len(state.tx_index),
         failed_transactions=len(failed),
+        expected_failures=sum(1 for tx in failed if tx.expected),
         has_proof_pack=has_proof_pack,
         has_certificate=has_certificate,
         report_count=report_count,
@@ -325,12 +330,17 @@ class SupportBundle:
         lines.append(
             f"- Total: {ls.total_transactions} "
             f"({ls.total_transactions - ls.failed_transactions} ok, "
-            f"{ls.failed_transactions} failed)"
+            f"{ls.failed_transactions} failed"
+            f"{f' ({ls.expected_failures} expected)' if ls.expected_failures else ''})"
         )
         if self.recent_transactions:
             lines.append("- Recent:")
             for tx in self.recent_transactions[-5:]:
-                icon = "ok" if tx.get("success") else "FAIL"
+                # Argon, 2.6.2 round 1, F1: an expected rejection isn't an error.
+                if tx.get("success"):
+                    icon = "ok"
+                else:
+                    icon = "FAIL (expected)" if tx.get("expected") else "FAIL"
                 lines.append(f"  - [{icon}] {tx.get('txid', '?')[:24]}... ({tx.get('module_id')})")
         lines.append("")
 
@@ -390,6 +400,7 @@ def generate_support_bundle(state: LabState | None = None) -> SupportBundle:
             "txid": tx.txid,
             "module_id": tx.module_id,
             "success": tx.success,
+            "expected": tx.expected,
             "network": tx.network,
             "timestamp": datetime.fromtimestamp(tx.timestamp, tz=UTC).isoformat(),
         }
@@ -615,7 +626,9 @@ def diagnose_recovery(state: LabState | None = None) -> list[RecoveryHint]:
                 pass
 
     # Failed transactions in recent history
-    recent_failed = [tx for tx in state.tx_index[-10:] if not tx.success]
+    recent_failed = [
+        tx for tx in state.tx_index[-10:] if not tx.success and not tx.expected
+    ]
     if len(recent_failed) >= 3:
         hints.append(RecoveryHint(
             situation="Several recent transaction failures",

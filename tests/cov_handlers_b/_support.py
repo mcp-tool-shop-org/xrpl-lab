@@ -89,6 +89,11 @@ class Rig:
     def failed_records(self):
         return [r for r in self.state.tx_index if not r.success]
 
+    @property
+    def acknowledged(self) -> list[str]:
+        """The failed TxRecords the judge acknowledged as the lesson (by txid)."""
+        return self.context.get("expected_failure_txids", [])
+
     def verdicts(self, action: str | None = None) -> list[dict]:
         vs = self.context.get("verifications", [])
         return [v for v in vs if action is None or v["action"] == action]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from ..transport.base import EscrowInfo, SubmitResult, Transport
 
@@ -115,7 +116,12 @@ async def verify_escrow(
     else:
         match = escrows[-1]
 
-    checks.append(f"Escrow found: {match.amount} drops -> {match.destination[:16]}...")
+    if match.amount.isdigit():  # XRP, in drops
+        shown = f"{(Decimal(match.amount) / 1_000_000).normalize():f}"
+        amount = f"{shown} XRP ({match.amount} drops)"
+    else:  # a token escrow's "value/currency/issuer"
+        amount = match.amount
+    checks.append(f"Escrow found: {amount} -> {match.destination[:16]}...")
     if match.finish_after:
         checks.append(f"FinishAfter (ripple time): {match.finish_after}")
     if match.cancel_after:

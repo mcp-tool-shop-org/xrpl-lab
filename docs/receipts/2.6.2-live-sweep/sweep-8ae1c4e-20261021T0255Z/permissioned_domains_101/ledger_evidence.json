@@ -1,0 +1,298 @@
+{
+  "validated_ledger": {
+    "seq": 21699283,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas": {
+      "Balance": "99999960",
+      "Sequence": 21699261,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21699257,
+          "hash": "25414EEC6570AD5807EF1140DC397144EDFFA2C77FF89CD8C099186B9630038C",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699262,
+          "hash": "1CF5C50EB3AEF32F069F6D6C08DEA7E920156E1B7237F4A9C7AAA2E0C26C1C39",
+          "TransactionType": "CredentialCreate",
+          "Account": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+          "Destination": null,
+          "Sequence": 21699257,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699265,
+          "hash": "D2310F21F2690D1FE02F419FB7F297DE226418C9A19316A3BDFB66DF8CCB1D09",
+          "TransactionType": "CredentialAccept",
+          "Account": "rsEXKF5EGeE5eAoSZN8A3hXfyNA7tGDmB7",
+          "Destination": null,
+          "Sequence": 21699259,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699267,
+          "hash": "2DF7CCBAF45D0035549605C4AD0108EE72C35B02DC142B294E4941443D63EBC2",
+          "TransactionType": "PermissionedDomainSet",
+          "Account": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+          "Destination": null,
+          "Sequence": 21699258,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699269,
+          "hash": "FBF877AD1765E2E67E447C953B53721C38F313AE5252610997852D779EA06FD7",
+          "TransactionType": "OfferCreate",
+          "Account": "rsEXKF5EGeE5eAoSZN8A3hXfyNA7tGDmB7",
+          "Destination": null,
+          "Sequence": 21699260,
+          "Fee": "10",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699278,
+          "hash": "5E6E2E78119AC3A50A0B1152163E01D638248BDB7BEB330DF150D91B75344DAB",
+          "TransactionType": "PermissionedDomainSet",
+          "Account": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+          "Destination": null,
+          "Sequence": 21699259,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699280,
+          "hash": "C8653534091ABD31C323A13FF94A81915C841CDDFFD62F43FD3399A6444FC7B0",
+          "TransactionType": "PermissionedDomainDelete",
+          "Account": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+          "Destination": null,
+          "Sequence": 21699260,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rsEXKF5EGeE5eAoSZN8A3hXfyNA7tGDmB7": {
+      "Balance": "99999980",
+      "Sequence": 21699261,
+      "OwnerCount": 2,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21699259,
+          "hash": "ABB598CB5F9DF833C7751376B74F1E5A32609C342D69C0D0B8DEA75CB7EFC28E",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rsEXKF5EGeE5eAoSZN8A3hXfyNA7tGDmB7",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699262,
+          "hash": "1CF5C50EB3AEF32F069F6D6C08DEA7E920156E1B7237F4A9C7AAA2E0C26C1C39",
+          "TransactionType": "CredentialCreate",
+          "Account": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+          "Destination": null,
+          "Sequence": 21699257,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699265,
+          "hash": "D2310F21F2690D1FE02F419FB7F297DE226418C9A19316A3BDFB66DF8CCB1D09",
+          "TransactionType": "CredentialAccept",
+          "Account": "rsEXKF5EGeE5eAoSZN8A3hXfyNA7tGDmB7",
+          "Destination": null,
+          "Sequence": 21699259,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699269,
+          "hash": "FBF877AD1765E2E67E447C953B53721C38F313AE5252610997852D779EA06FD7",
+          "TransactionType": "OfferCreate",
+          "Account": "rsEXKF5EGeE5eAoSZN8A3hXfyNA7tGDmB7",
+          "Destination": null,
+          "Sequence": 21699260,
+          "Fee": "10",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rnK9n5XH9HHkovMBp5Vmcth7M9ayvDbHuR": {
+      "Balance": "99999980",
+      "Sequence": 21699273,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21699271,
+          "hash": "E04265FA8C61630D6009F569BD724BBD0642ACB84C0D9A4C8A6522E03BA7910E",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rnK9n5XH9HHkovMBp5Vmcth7M9ayvDbHuR",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699273,
+          "hash": "79A0B686162790ECF1FE662B662F40D9F2D8F47AD4132CD952EF46CDCFF21B6A",
+          "TransactionType": "OfferCreate",
+          "Account": "rnK9n5XH9HHkovMBp5Vmcth7M9ayvDbHuR",
+          "Destination": null,
+          "Sequence": 21699271,
+          "Fee": "10",
+          "Flags": 0,
+          "TransactionResult": "tecNO_PERMISSION"
+        },
+        {
+          "ledger_index": 21699275,
+          "hash": "CA77FF1D1BED2F7E8899DB320C35DC3C46A2FD9B25EB27BFEE6D2F1CC928A783",
+          "TransactionType": "PermissionedDomainSet",
+          "Account": "rnK9n5XH9HHkovMBp5Vmcth7M9ayvDbHuR",
+          "Destination": null,
+          "Sequence": 21699272,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecNO_PERMISSION"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "1CF5C50EB3AEF32F069F6D6C08DEA7E920156E1B7237F4A9C7AAA2E0C26C1C39": {
+      "TransactionType": "CredentialCreate",
+      "Account": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699262,
+      "Sequence": 21699257,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "D2310F21F2690D1FE02F419FB7F297DE226418C9A19316A3BDFB66DF8CCB1D09": {
+      "TransactionType": "CredentialAccept",
+      "Account": "rsEXKF5EGeE5eAoSZN8A3hXfyNA7tGDmB7",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699265,
+      "Sequence": 21699259,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "2DF7CCBAF45D0035549605C4AD0108EE72C35B02DC142B294E4941443D63EBC2": {
+      "TransactionType": "PermissionedDomainSet",
+      "Account": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699267,
+      "Sequence": 21699258,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "FBF877AD1765E2E67E447C953B53721C38F313AE5252610997852D779EA06FD7": {
+      "TransactionType": "OfferCreate",
+      "Account": "rsEXKF5EGeE5eAoSZN8A3hXfyNA7tGDmB7",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699269,
+      "Sequence": 21699260,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "79A0B686162790ECF1FE662B662F40D9F2D8F47AD4132CD952EF46CDCFF21B6A": {
+      "TransactionType": "OfferCreate",
+      "Account": "rnK9n5XH9HHkovMBp5Vmcth7M9ayvDbHuR",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699273,
+      "Sequence": 21699271,
+      "TransactionResult": "tecNO_PERMISSION"
+    },
+    "CA77FF1D1BED2F7E8899DB320C35DC3C46A2FD9B25EB27BFEE6D2F1CC928A783": {
+      "TransactionType": "PermissionedDomainSet",
+      "Account": "rnK9n5XH9HHkovMBp5Vmcth7M9ayvDbHuR",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699275,
+      "Sequence": 21699272,
+      "TransactionResult": "tecNO_PERMISSION"
+    },
+    "5E6E2E78119AC3A50A0B1152163E01D638248BDB7BEB330DF150D91B75344DAB": {
+      "TransactionType": "PermissionedDomainSet",
+      "Account": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699278,
+      "Sequence": 21699259,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "C8653534091ABD31C323A13FF94A81915C841CDDFFD62F43FD3399A6444FC7B0": {
+      "TransactionType": "PermissionedDomainDelete",
+      "Account": "rJYgBGx8WCPrCSxThQGLGxZKzp4QJNnCas",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699280,
+      "Sequence": 21699260,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "7D7EC7DF691FAFB0D920B86BE02C4B22A80F5C614D4954A0E21C9543B438CBFE": {
+      "error": "txnNotFound"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "1CF5C50EB3AEF32F069F6D6C08DEA7E920156E1B7237F4A9C7AAA2E0C26C1C39",
+      "success": true
+    },
+    {
+      "txid": "D2310F21F2690D1FE02F419FB7F297DE226418C9A19316A3BDFB66DF8CCB1D09",
+      "success": true
+    },
+    {
+      "txid": "2DF7CCBAF45D0035549605C4AD0108EE72C35B02DC142B294E4941443D63EBC2",
+      "success": true
+    },
+    {
+      "txid": "FBF877AD1765E2E67E447C953B53721C38F313AE5252610997852D779EA06FD7",
+      "success": true
+    },
+    {
+      "txid": "79A0B686162790ECF1FE662B662F40D9F2D8F47AD4132CD952EF46CDCFF21B6A",
+      "success": false
+    },
+    {
+      "txid": "CA77FF1D1BED2F7E8899DB320C35DC3C46A2FD9B25EB27BFEE6D2F1CC928A783",
+      "success": false
+    },
+    {
+      "txid": "5E6E2E78119AC3A50A0B1152163E01D638248BDB7BEB330DF150D91B75344DAB",
+      "success": true
+    },
+    {
+      "txid": "C8653534091ABD31C323A13FF94A81915C841CDDFFD62F43FD3399A6444FC7B0",
+      "success": true
+    }
+  ]
+}

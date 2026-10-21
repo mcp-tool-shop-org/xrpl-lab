@@ -1,0 +1,82 @@
+{
+  "validated_ledger": {
+    "seq": 21698816,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rDZzvJAYenKd1ouj8DHHiAd3oZb68Bwtss": {
+      "error": "actNotFound"
+    },
+    "rfX5ZzFZQTZ66ZeJgbDDPhcMEggxszioPv": {
+      "error": "actNotFound"
+    }
+  },
+  "tx_lookup": {
+    "5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083": {
+      "error": "txnNotFound"
+    },
+    "55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D": {
+      "error": "txnNotFound"
+    },
+    "8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5": {
+      "error": "txnNotFound"
+    },
+    "FDC71A314DBC370C004773B94C5E18F497B69B585171F86B679A9AE4DCCD7085": {
+      "error": "txnNotFound"
+    },
+    "511E65CD512E99986CF6B5FEC8B22D43B6D78E7E0F27E169AE0837882A48FD77": {
+      "error": "txnNotFound"
+    },
+    "6D426EC08DAAB092E90D8BD5DF8CA6DCA9DD7BF16ECC1B7103979D8848B2AAA2": {
+      "error": "txnNotFound"
+    },
+    "555C0152337D2F9BCBDA34CA6D6D9CF838283435FFAD4E5F2CE81E4F86B6F72C": {
+      "error": "txnNotFound"
+    },
+    "6D7DD9DCBCF3FFEDD03C20F6734FFDA6D20620A32B396EEA9BCA1D85877E80A5": {
+      "error": "txnNotFound"
+    },
+    "626AE3C0FB69916B891EBF6A64DDEAD19EFD53F17D0FC930D9F649C0A0B51819": {
+      "error": "txnNotFound"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083",
+      "success": true
+    },
+    {
+      "txid": "55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D",
+      "success": true
+    },
+    {
+      "txid": "8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5",
+      "success": true
+    },
+    {
+      "txid": "FDC71A314DBC370C004773B94C5E18F497B69B585171F86B679A9AE4DCCD7085",
+      "success": true
+    },
+    {
+      "txid": "511E65CD512E99986CF6B5FEC8B22D43B6D78E7E0F27E169AE0837882A48FD77",
+      "success": true
+    },
+    {
+      "txid": "6D426EC08DAAB092E90D8BD5DF8CA6DCA9DD7BF16ECC1B7103979D8848B2AAA2",
+      "success": true
+    },
+    {
+      "txid": "555C0152337D2F9BCBDA34CA6D6D9CF838283435FFAD4E5F2CE81E4F86B6F72C",
+      "success": true
+    },
+    {
+      "txid": "6D7DD9DCBCF3FFEDD03C20F6734FFDA6D20620A32B396EEA9BCA1D85877E80A5",
+      "success": true
+    },
+    {
+      "txid": "626AE3C0FB69916B891EBF6A64DDEAD19EFD53F17D0FC930D9F649C0A0B51819",
+      "success": true
+    }
+  ]
+}

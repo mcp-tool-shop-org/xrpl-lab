@@ -211,6 +211,8 @@ class TestSupportBundle:
             # non-secret module-verification status (module ids + a bool) —
             # reviewed and allowlisted here per this gate's purpose.
             "all_verified", "unverified_modules",
+            # 2.6.2: a count of expected rejections, non-secret.
+            "expected_failures",
         }
         assert set(d) == allowed
 

@@ -155,7 +155,7 @@ def test_fund_dry_run_reports_the_validated_balance(lab):
     make_state(wallet="rFUNDME")
     r = invoke(["fund", "--dry-run"])
     assert r.exit_code == 0, r.output
-    assert "Funded! Balance: 1000" in r.stdout
+    assert "Funded! Balance: 100.000000 XRP" in r.stdout
 
 
 def test_fund_accepted_but_not_yet_validated_exits_non_zero(lab, monkeypatch):

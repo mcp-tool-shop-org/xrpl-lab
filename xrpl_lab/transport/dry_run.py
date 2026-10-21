@@ -76,6 +76,9 @@ def _address_from_seed(wallet_seed: str) -> str:
 # Verified byte-for-byte against xrpl-py 4.5.0's xrp_to_drops over a
 # 100k-value random sweep (see tests/test_reswarm3_transport.py rationale).
 
+# The testnet faucet grants 100 XRP; the dry run grants the same so a lesson
+# sized beyond one grant fails offline too (2.6.2, #20 item 11).
+_FAUCET_GRANT_DROPS = 100_000_000
 _MAX_XRP = Decimal("100000000000")  # 1e11 — xrpl-py's MAX_XRP ceiling
 _ONE_DROP_XRP = Decimal("0.000001")  # 1 drop = 1e-6 XRP
 
@@ -234,8 +237,13 @@ class _PerAddressStore(dict):
 class DryRunTransport(Transport):
     """Offline transport that simulates XRPL responses without network access."""
 
-    def __init__(self, fail_next: bool = False) -> None:
+    def __init__(
+        self, fail_next: bool = False, faucet_grant_drops: int = _FAUCET_GRANT_DROPS,
+    ) -> None:
         self._fail_next = fail_next
+        # What one faucet call grants: testnet's 100 XRP by default. Transport
+        # arithmetic tests that need a larger float pass their own.
+        self._faucet_grant_drops = faucet_grant_drops
         # Seed -> the learner's real address, set by the runner through
         # bind_wallet. Without it every seed collapsed to one synthetic
         # address, so payments, mints and escrows were booked against an
@@ -576,12 +584,12 @@ class DryRunTransport(Transport):
         # F-3d812d44: the real faucet ADDS to an existing account. The old
         # ``= 1_000_000_000`` overwrite silently destroyed any balance the
         # account had accumulated when a learner re-ran a fund step mid-module.
-        self._balances[address] = self._balances.get(address, 0) + 1_000_000_000
+        self._balances[address] = self._balances.get(address, 0) + self._faucet_grant_drops
         return FundResult(
             success=True,
             address=address,
             balance=_drops_to_xrp_str(self._balances[address]),
-            message="[dry-run] Funded with 1000 XRP",
+            message=f"[dry-run] Funded with {self._faucet_grant_drops / 1_000_000:g} XRP",
         )
 
     async def submit_payment(
@@ -1389,7 +1397,7 @@ class DryRunTransport(Transport):
             balance_drops = str(self._balances[address])
         elif address in self._funded_addresses:
             # Backward compat: address funded via direct _funded_addresses manipulation
-            balance_drops = "1000000000"
+            balance_drops = str(self._faucet_grant_drops)
         else:
             balance_drops = "0"
         # Owner count is per-account (TRANSPORT-A-002). Return this address's
@@ -1451,7 +1459,9 @@ class DryRunTransport(Transport):
             # read (see the module design note at the top of the file).
             return _drops_to_xrp_str(drops)
         # Backward compat: address funded via direct _funded_addresses manipulation
-        return "1000.000000" if address in self._funded_addresses else "0"
+        if address in self._funded_addresses:
+            return _drops_to_xrp_str(self._faucet_grant_drops)
+        return "0"
 
     # ── AMM methods ──────────────────────────────────────────────────
 
@@ -2638,7 +2648,10 @@ class DryRunTransport(Transport):
         # EscrowCreate costs the locked amount PLUS the network fee.
         self._debit_fee(owner)
         self._escrows.setdefault(owner, []).append(
-            EscrowInfo(sequence=seq, amount=amount, destination=destination,
+            # Drops, as testnet's account_objects reports it (EscrowInfo's
+            # contract); it held the XRP value, which verify_escrow printed as
+            # "10 drops" for a 10 XRP escrow (#20 item 9).
+            EscrowInfo(sequence=seq, amount=str(drops), destination=destination,
                        finish_after=finish_after, cancel_after=cancel_after)
         )
         # F-cbc476b3: remember WHEN (sim time) this escrow was created so the
@@ -3204,12 +3217,11 @@ class DryRunTransport(Transport):
             return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
                                 fee="12", ledger_index=99999999, explorer_url="")
         # Release the locked XRP to the destination, then remove the object.
-        # target.amount is the XRP value the create handler passed (e.g. "10").
-        # Credit the destination so the lifecycle test can observe the release.
-        # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
+        # target.amount is the locked amount in drops (2.6.2). Credit the
+        # destination so the lifecycle test can observe the release.
         try:
-            drops = _validate_xrp_amount(target.amount)
-        except DryRunAmountError:
+            drops = int(target.amount)
+        except ValueError:
             drops = 0
         if target.destination:
             self._balances[target.destination] = (
@@ -3258,11 +3270,10 @@ class DryRunTransport(Transport):
             self._debit_fee(canceller)
             return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
                                 fee="12", ledger_index=99999999, explorer_url="")
-        # Cancel returns the locked XRP to the OWNER (reclaim path), then removes.
-        # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
+        # Cancel returns the locked XRP (drops) to the OWNER, then removes.
         try:
-            drops = _validate_xrp_amount(target.amount)
-        except DryRunAmountError:
+            drops = int(target.amount)
+        except ValueError:
             drops = 0
         self._balances[owner] = self._balances.get(owner, 0) + drops
         self._remove_escrow(owner, target)

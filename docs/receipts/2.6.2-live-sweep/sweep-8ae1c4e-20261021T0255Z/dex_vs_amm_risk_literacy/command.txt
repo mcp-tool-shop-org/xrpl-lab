@@ -1,0 +1,8 @@
+cwd: <scratch>/sweep-8ae1c4e-20261021T0255Z/dex_vs_amm_risk_literacy/cwd  (outside every repo)
+XRPL_LAB_HOME=<scratch>/sweep-8ae1c4e-20261021T0255Z/dex_vs_amm_risk_literacy/home   (wallet.json stays here, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1
+code: mcp-tool-shop-org/xrpl-lab @ 8ae1c4e (feat/2.6.2, PR #22), worktree _worktrees/xrpl-lab-f9-livefire
+cmd:  yes "" | xrpl-lab run --dry-run dex_vs_amm_risk_literacy
+started_utc: 2026-10-21T02:55:45Z
+xrpl_lab_exit_code: 0   (read from PIPESTATUS[1])
+finished_utc: 2026-10-21T02:55:47Z
