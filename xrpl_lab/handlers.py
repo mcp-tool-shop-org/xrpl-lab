@@ -352,6 +352,7 @@ async def handle_submit_payment(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
@@ -687,6 +688,7 @@ async def handle_set_trust_line(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -735,6 +737,7 @@ async def handle_issue_token(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -817,6 +820,7 @@ async def handle_issue_token_expect_fail(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     _judge_expected_failure(
@@ -922,6 +926,7 @@ async def handle_remove_trust_line(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -1023,6 +1028,7 @@ async def handle_set_freeze(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -1062,6 +1068,7 @@ async def handle_set_global_freeze(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -1230,6 +1237,7 @@ async def handle_open_channel(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -1264,6 +1272,7 @@ async def handle_fund_channel(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -1365,6 +1374,7 @@ async def handle_redeem_claim(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -1572,6 +1582,7 @@ async def handle_create_offer(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -1659,6 +1670,7 @@ async def handle_cancel_offer(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -2187,6 +2199,7 @@ async def handle_amm_deposit(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -2293,6 +2306,7 @@ async def handle_amm_withdraw(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -2438,6 +2452,7 @@ async def handle_strategy_offer_bid(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -2523,6 +2538,7 @@ async def handle_strategy_offer_ask(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -2881,6 +2897,7 @@ async def handle_place_safe_sides(
                 network=state.network,
                 success=False,
                 validated=getattr(result, "validated", None),
+                explorer_url=getattr(result, "explorer_url", ""),
             )
         save_state(state)
     else:
@@ -2944,6 +2961,7 @@ async def handle_place_safe_sides(
                 network=state.network,
                 success=False,
                 validated=getattr(result, "validated", None),
+                explorer_url=getattr(result, "explorer_url", ""),
             )
         save_state(state)
     else:
@@ -3082,6 +3100,7 @@ async def handle_mint_nft(
             network=state.network,
             success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
     return context
@@ -3273,6 +3292,7 @@ def _record_submit(state: LabState, context: dict, result) -> None:
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
     save_state(state)
 
@@ -6622,6 +6642,7 @@ async def handle_clawback_expect_fail(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
             validated=getattr(result, "validated", None),
+            explorer_url=getattr(result, "explorer_url", ""),
         )
         save_state(state)
     _judge_expected_failure(
