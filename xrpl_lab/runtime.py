@@ -214,12 +214,21 @@ async def _top_up(
     transport: Transport, address: str, held: Decimal, min_xrp: Decimal,
     console: Console,
 ) -> None:
-    """One faucet call for a wallet below ``min_xrp``; wait for the new balance."""
+    """A faucet top-up for a wallet below ``min_xrp``; wait for the new balance.
+
+    Retries like first funding (Argon, 2.7.4 round 1, F3): in a back-to-back
+    sweep a transient 429 or timeout would otherwise leave the lesson short.
+    """
     console.print(
         f"  [yellow]This lesson needs at least {min_xrp} XRP and your wallet "
         f"holds {held}. Asking the testnet faucet for a top-up...[/]"
     )
-    result = await transport.fund_from_faucet(address)
+    for attempt, delay in enumerate(_FAUCET_RETRY_DELAYS_S, start=1):
+        result = await transport.fund_from_faucet(address)
+        if result.success or getattr(result, "code", "") == "CONFIG_NON_TESTNET":
+            break
+        if attempt < len(_FAUCET_RETRY_DELAYS_S):
+            await asyncio.sleep(delay)
     if not result.success:
         console.print(
             "  [yellow]The faucet didn't top the wallet up; the lesson may "

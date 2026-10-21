@@ -255,11 +255,30 @@ async def test_a_wallet_at_the_floor_is_left_alone() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_refused_top_up_still_runs_the_lesson() -> None:
+async def test_a_refused_top_up_still_runs_the_lesson(monkeypatch) -> None:
+    monkeypatch.setattr(runtime.asyncio, "sleep", _no_sleep)
     t = _Faucet(["40"], ok=False)
     console, buf = _console()
     assert await runtime.ensure_funded(LabState(), t, LEARNER, console, min_xrp=Decimal(60))
+    assert t.calls == 3  # retried like first funding (Argon, round 1, F3)
     assert "didn't top the wallet up" in buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_a_top_up_retries_a_transient_failure(monkeypatch) -> None:
+    monkeypatch.setattr(runtime.asyncio, "sleep", _no_sleep)
+    t = _Faucet(["40", "40", "140"])
+    answers = iter([False, True])
+
+    async def _flaky(address):
+        t.calls += 1
+        return FundResult(success=next(answers), address=address)
+
+    t.fund_from_faucet = _flaky
+    console, buf = _console()
+    assert await runtime.ensure_funded(LabState(), t, LEARNER, console, min_xrp=Decimal(60))
+    assert t.calls == 2
+    assert "Topped up! Balance: 140 XRP" in buf.getvalue()
 
 
 @pytest.mark.asyncio
@@ -370,3 +389,73 @@ async def test_a_never_submitted_record_has_a_clear_reason() -> None:
         "failed", "testnet", DryRunTransport(), claim={"success": False})
     assert r.status == LIVE_FAIL
     assert "before its transaction reached the network" in r.reason
+
+
+# ── Argon, 2.7.4 round 1: F1 and F2 ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("gate", "code"), [
+    ("_require_dest", "tecDST_TAG_NEEDED"), ("_deposit_auth", "tecNO_PERMISSION"),
+])
+async def test_token_payments_respect_the_destination_flags(gate, code) -> None:
+    """F1: the network gates every incoming Payment, issued and MPT included."""
+    t = DryRunTransport()
+    t.bind_wallet("sISSUER", "rISSUER")
+    getattr(t, gate).add(LEARNER)
+    issued = await t.submit_issued_payment("sISSUER", LEARNER, "GLD", "rISSUER", "10")
+    mpt = await t.submit_mpt_payment("sISSUER", LEARNER, "0" * 48, "10")
+    assert (issued.result_code, mpt.result_code) == (code, code)
+
+
+@pytest.mark.asyncio
+async def test_a_preauthorized_issuer_passes_deposit_auth() -> None:
+    t = DryRunTransport()
+    t.bind_wallet("sISSUER", "rISSUER")
+    t._deposit_auth.add(LEARNER)
+    t._deposit_preauth_addr.setdefault(LEARNER, set()).add("rISSUER")
+    r = await t.submit_issued_payment("sISSUER", LEARNER, "GLD", "rISSUER", "10")
+    assert r.result_code != "tecNO_PERMISSION"
+
+
+@pytest.mark.asyncio
+async def test_more_token_paths_check_currency_codes() -> None:
+    """F2: clawback, freeze, token escrow and AMM legs refuse a bad code too."""
+    t = DryRunTransport()
+    results = [
+        await t.submit_clawback("sISSUER", "rHOLDER", "GOLD", "1"),
+        await t.submit_set_freeze("sISSUER", "rHOLDER", "GOLD", True),
+        await t.submit_amm_create("sSEED", "XRP", "10", "", "GOLD", "10", "rISSUER"),
+        await t.submit_amm_deposit("sSEED", "XRP", "10", "", "GOLD", "10", "rISSUER"),
+        await t.submit_amm_withdraw("sSEED", "XRP", "", "GOLD", "rISSUER"),
+        await t.submit_partial_payment(
+            "sISSUER", "rHOLDER", "GOLD", "rISSUER", "10", "1", "1"),
+        await t.submit_token_escrow_create(
+            "sSEED", "GOLD", "rISSUER", "1", "rDEST", 9_999_999_999),
+        await t.submit_permissioned_offer_create(
+            "sSEED", "GOLD", "1", "rISSUER", "XRP", "1", "", "D" * 64),
+        await t.submit_nft_create_offer("sSEED", "0" * 64, "1", currency="GOLD"),
+    ]
+    assert [r.result_code for r in results] == ["local_error"] * 9
+
+
+def test_an_xrp_leg_is_not_a_currency_code() -> None:
+    from xrpl_lab.transport.dry_run import _leg_currency_error
+
+    assert _leg_currency_error("XRP", "GLD") is None
+    assert _leg_currency_error("XRP", "GOLD").result_code == "local_error"
+
+
+@pytest.mark.asyncio
+async def test_untagged_creates_to_a_require_dest_account_fail() -> None:
+    """EscrowCreate, CheckCreate and PaymentChannelCreate are gated too."""
+    t = DryRunTransport()
+    t._require_dest.add(LEARNER)
+    results = [
+        await t.submit_escrow_create("sSEED", "10", LEARNER, 9_999_999_999),
+        await t.submit_check_create("sSEED", LEARNER, "10"),
+        await t.submit_payment_channel_create("sSEED", "10", LEARNER, 60, "ED" + "0" * 64),
+    ]
+    assert [r.result_code for r in results] == ["tecDST_TAG_NEEDED"] * 3
+    tagged = await t.submit_check_create("sSEED", LEARNER, "10", destination_tag=7)
+    assert tagged.result_code != "tecDST_TAG_NEEDED"
