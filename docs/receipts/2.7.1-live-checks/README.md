@@ -48,6 +48,41 @@ What does happen is the reverse:
 2.6.2's `state.json` behaved the same, so this is not a 2.7.1 change. If `state.json` should match the proof pack, a
 validated expected `tec` needs its URL there too.
 
+## Live proof verification on `da63f40` (`sweep-da63f40-20261021T1545Z`)
+
+**The defect `da63f40` addresses** (released in 2.6.2 and 2.7.0): `proof verify --live` checked every claim for
+`tesSUCCESS`. So a rejection lesson's honest pack failed live verification: each expected `tec` as "not
+tesSUCCESS", and each `tem` as "not found". `da63f40` checks an expected rejection as one. `ca8e968` (Argon round 3,
+F1) landed after this run and is not covered.
+
+**What was run:**
+- deposit_gate_101 and multisig_treasury_101 live on `da63f40`, each with a fresh `XRPL_LAB_HOME` and the same setup
+  as above. deposit_gate: exit 0, 18/0, "8 successful, 5 failed (5 expected)". multisig: exit 0, 10/0, "3 successful,
+  1 failed (1 expected)". stderr empty.
+- Then `xrpl-lab proof verify --live proof_pack.json` on each pack (`verify_live.txt`; deposit_gate also with `--json`,
+  `verify_live.json`).
+
+| Pack | Verifier | Exit | Overall | Per-tx verdicts |
+|---|---|---|---|---|
+| multisig_treasury_101 (2.7.1) | `da63f40` | **0** | **PASS**: 3 verified, 1 skipped | 3 successes PASS. The `tefBAD_QUORUM` `DAFCE065…` is SKIP: "Expected rejection that never reaches a ledger (by design)." |
+| deposit_gate_101 (2.7.1) | `da63f40` | **1** | **FAIL**: 3 failed, 9 verified, 1 skipped | **The 4 expected `tec`s PASS** as "Expected rejection, validated on-ledger: tecNO_PERMISSION / tecDUPLICATE / tecNO_PERMISSION / tecNO_ENTRY" (`F5C418AB…`, `6E1F0490…`, `3ADF073E…`, `36D4CB22…`). The `temCANNOT_PREAUTH_SELF` `12D008E7…` is SKIP ("never reaches a ledger (by design)"). The learner's 6 successes PASS. **3 successes FAIL**: "On-ledger account does not match the pack's claimed address". These are the sender's preauthorized Payment `213B629D…` (signed by helper `r422taaU…`), and the subject's CredentialAccept `8A52D055…` and KYC Payment `0842B07B…` (signed by helper `rJi5XTfL…`). |
+| deposit_gate_101 from the **2.6.2** sweep (`8ae1c4e`) | **old v2.6.2** (`d075b96`) | **1** | FAIL | The released defect: **the 4 `tec`s FAIL** "On-ledger result is tec…, not tesSUCCESS"; **the `tem` FAILs** "Transaction not found on the public ledger". Plus the same 3 helper-signed successes FAIL the address check. |
+| the same 2.6.2 pack | `da63f40` | **1** | FAIL | The 4 `tec`s now PASS ("Expected rejection, validated on-ledger"), and the `tem` is SKIPPED ("a tem or tef never is"). **The 3 helper-signed successes still FAIL the address check.** |
+
+**Result:**
+- **`da63f40` fixes the released rejection defect.** On both the 2.7.1 and the 2.6.2 deposit_gate packs, every
+  expected `tec` now PASSes as an expected rejection, and every `tem`/`tef` is SKIPPED. multisig's pack passes overall.
+- **A second, pre-existing defect still fails deposit_gate's honest pack** on every release tested. Live verify
+  requires each success to be signed by the pack's single `address` (the learner). A module whose helper wallets sign
+  successful transactions recorded in the learner's pack can never pass `--live`.
+- The check is inconsistent: helper-signed expected `tec`s pass (`F5C418AB…` by `r422taaU…`, `3ADF073E…` by the
+  outsider `rPEjTQ98…`), but helper-signed successes fail.
+- Other helper-wallet modules (custodial_crediting, checks, nft_marketplace, payment_channel, …) that record a helper's
+  successful transactions are likely affected the same way. This was not tested here.
+
+`before-after-2.6.2-pack/` holds the 2.6.2 pack and both verifiers' JSON output. The old-release run used a temporary
+worktree at the `v2.6.2` tag, since removed.
+
 ## Files
 
 `sweep-9aa461b-20261021T1517Z/<module>/` holds:

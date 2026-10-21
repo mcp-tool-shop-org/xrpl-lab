@@ -1,0 +1,22 @@
+`proof verify` is deprecated, use `verify-artifact`.
+
+  ✅ PASS — Proof pack integrity verified.
+
+  File:         proof_pack.json
+  Version:      2.7.1
+  Address:      rp1zoCCgbz593jsCR1J6uuE3sKEjFcVhpa
+  Network:      testnet
+  Modules:      1
+  Transactions: 4
+  SHA-256:      7794f80bea8289bc7a7015f349b8066555167c4e6f2cbc4afcbfd5ea137d0549
+
+  On-ledger verification:
+  ✓ PASS 9B5BA3CD319B93C95E2B…  (testnet)
+  ✓ PASS 2B23841F90785346EBBD…  (testnet)
+  · SKIP DAFCE065598B9ABF989D…  (Expected rejection that never reaches a ledger (by design).)
+  ✓ PASS F79F53B1CD00722DDF06…  (testnet)
+
+  On-ledger verdict: PASS — 3 verified, 1 skipped.
+  Mixed pack — verified 3 real-network txid(s); skipped 1 dry-run/local txid(s).
+
+exit_code: 0
