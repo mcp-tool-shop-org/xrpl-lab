@@ -156,3 +156,30 @@ def test_doctor_and_feedback_skip_an_expected_rejection(
     ))
     assert doctor._check_last_error().detail.startswith("Last failure in 'm'")
     assert "- TXID: `T2`" in feedback.generate_feedback()
+
+
+def test_support_bundle_and_last_module_check_mark_expected_rejections(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    """Argon, 2.6.2 round 1, F1 (and the same gap in doctor's last-module check)."""
+    import xrpl_lab.doctor as doctor
+    import xrpl_lab.workshop as workshop
+    from xrpl_lab.state import LabState, TxRecord
+
+    state = LabState()
+    state.tx_index.append(TxRecord(
+        txid="AAAAAAAAAAAAAAAAAAAAAAAAAAAA", module_id="deposit_gate_101", timestamp=1.0,
+        network="testnet", success=False, expected=True,
+    ))
+    monkeypatch.setattr(doctor, "load_state", lambda: state)
+    monkeypatch.setattr(doctor, "state_path", lambda: tmp_path)
+    detail = doctor._check_last_module_state().detail
+    assert "in-flight: deposit_gate_101" in detail and "last failed tx" not in detail
+
+    async def _no_checks():
+        return doctor.DoctorReport()
+
+    monkeypatch.setattr(doctor, "run_doctor", _no_checks)  # imported inside the function
+    md = workshop.generate_support_bundle(state).to_markdown()
+    assert "[FAIL (expected)] AAAAAAAAAAAAAAAAAAAAAAAA..." in md
+    assert "[FAIL] " not in md

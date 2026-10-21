@@ -450,7 +450,7 @@ def _check_last_module_state() -> Check:
         module_id = last_incomplete_attempt.module_id
         module_failures = [
             tx for tx in state.tx_index
-            if tx.module_id == module_id and not tx.success
+            if tx.module_id == module_id and not tx.success and not tx.expected
         ]
         last_err = module_failures[-1] if module_failures else None
         txid_short = (

@@ -20,7 +20,8 @@ live sweeps and coverage work.
   carries the flag per transaction and receipt row, with an
   `expected_failures` count; `feedback`, the workshop status and `xrpl-lab
   status` say "N failed (M expected)"; `doctor`'s last-error check,
-  feedback's Last Error and the repeated-failures hint skip them.
+  feedback's Last Error, the repeated-failures hint and doctor's last-module
+  check skip them, and the support bundle lists them as `FAIL (expected)`.
 - **The `xrpl-lab` command writes UTF-8 on Windows.** With its output
   redirected under cp1252, custodial_crediting_101 crashed on an arrow in its
   text. `python -m xrpl_lab` already did this.

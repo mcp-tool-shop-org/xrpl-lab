@@ -336,7 +336,11 @@ class SupportBundle:
         if self.recent_transactions:
             lines.append("- Recent:")
             for tx in self.recent_transactions[-5:]:
-                icon = "ok" if tx.get("success") else "FAIL"
+                # Argon, 2.6.2 round 1, F1: an expected rejection isn't an error.
+                if tx.get("success"):
+                    icon = "ok"
+                else:
+                    icon = "FAIL (expected)" if tx.get("expected") else "FAIL"
                 lines.append(f"  - [{icon}] {tx.get('txid', '?')[:24]}... ({tx.get('module_id')})")
         lines.append("")
 
