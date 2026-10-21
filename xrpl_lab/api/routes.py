@@ -435,7 +435,9 @@ def _verify_explorer_url(tx: dict) -> str:
     derive it from the tx's recorded network (testnet/devnet → link, everything
     else → "") so a forged pack can't smuggle a misleading link into the table.
     """
-    return _explorer_url(tx.get("txid", "") or "", tx.get("network", "") or "")
+    return _explorer_url(
+        tx.get("txid", "") or "", tx.get("network", "") or "", tx.get("validated")
+    )
 
 
 def _live_to_schema(live) -> VerifyLiveResult:

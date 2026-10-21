@@ -72,6 +72,15 @@ class SubmitResult:
     # meaning.
     validated: bool = True
 
+    def __post_init__(self) -> None:
+        # A failure whose code can't be on a ledger (tem, tef, ter, tel, a
+        # local error) is never validated, on either transport (Argon, 2.7.1
+        # round 1, F3: the dry run recorded its tem/tef as validated).
+        if not self.success and self.result_code.startswith(
+            ("tem", "tef", "ter", "tel", "local_error")
+        ):
+            self.validated = False
+
 
 @dataclass
 class TxInfo:

@@ -22,6 +22,12 @@ live sweep.
   runs in the dry-run sandbox whatever it's started with, with a note.
   `xrpl-lab run dex_vs_amm_risk_literacy` without `--dry-run` went to
   testnet.
+- **The record and the dry run agree on what reached a ledger.** A failure
+  whose code can't be on a ledger (`tem`, `tef`, `ter`, `tel`, a local
+  error) is never marked validated, so the dry run's `tem`/`tef` read the
+  same as testnet's. A record that never validated stores no explorer link,
+  the dashboard's verify view builds none, and its session shows an offline
+  lesson as a dry run.
 
 ## 2.7.0 — 2026-10-21
 

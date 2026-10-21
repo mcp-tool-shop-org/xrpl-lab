@@ -319,6 +319,10 @@ class LabState(BaseModel):
         # A success is on a validated ledger (testnet submits wait for it).
         if validated is None and success:
             validated = True
+        # No stored link for a tx on no ledger or for the "failed" placeholder
+        # (Argon, 2.7.1 round 1, F2; the proof pack already drops them).
+        if validated is False or txid == "failed":
+            explorer_url = ""
         self.tx_index.append(
             TxRecord(
                 txid=txid,

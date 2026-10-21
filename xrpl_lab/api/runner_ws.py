@@ -869,6 +869,10 @@ async def _run_module_task(session: ModuleRunSession) -> None:
     else:
         from ..transport.xrpl_testnet import XRPLTestnetTransport
         transport = XRPLTestnetTransport()
+    # run_module runs a mode: dry-run module offline whatever it's handed; the
+    # session's mode follows (Argon, 2.7.1 round 1, F1).
+    if mod.dry_run_only:
+        session.dry_run = True
 
     # Session was already created in ``running`` (see ModuleRunSession.status
     # / TXBCD-007). This assignment is now idempotent — kept as a defensive
