@@ -35,7 +35,7 @@ class TestEscrowTransport:
         es = await transport.get_escrows("rANY")
         assert len(es) == 1
         assert es[0].destination == "rDEST"
-        assert es[0].amount == "10"
+        assert es[0].amount == "10000000"  # drops, as testnet reports it (2.6.2)
         assert es[0].finish_after == FINISH
 
 

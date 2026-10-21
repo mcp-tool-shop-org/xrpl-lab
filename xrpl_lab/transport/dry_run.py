@@ -2648,7 +2648,10 @@ class DryRunTransport(Transport):
         # EscrowCreate costs the locked amount PLUS the network fee.
         self._debit_fee(owner)
         self._escrows.setdefault(owner, []).append(
-            EscrowInfo(sequence=seq, amount=amount, destination=destination,
+            # Drops, as testnet's account_objects reports it (EscrowInfo's
+            # contract); it held the XRP value, which verify_escrow printed as
+            # "10 drops" for a 10 XRP escrow (#20 item 9).
+            EscrowInfo(sequence=seq, amount=str(drops), destination=destination,
                        finish_after=finish_after, cancel_after=cancel_after)
         )
         # F-cbc476b3: remember WHEN (sim time) this escrow was created so the
@@ -3214,12 +3217,11 @@ class DryRunTransport(Transport):
             return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
                                 fee="12", ledger_index=99999999, explorer_url="")
         # Release the locked XRP to the destination, then remove the object.
-        # target.amount is the XRP value the create handler passed (e.g. "10").
-        # Credit the destination so the lifecycle test can observe the release.
-        # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
+        # target.amount is the locked amount in drops (2.6.2). Credit the
+        # destination so the lifecycle test can observe the release.
         try:
-            drops = _validate_xrp_amount(target.amount)
-        except DryRunAmountError:
+            drops = int(target.amount)
+        except ValueError:
             drops = 0
         if target.destination:
             self._balances[target.destination] = (
@@ -3268,11 +3270,10 @@ class DryRunTransport(Transport):
             self._debit_fee(canceller)
             return SubmitResult(success=True, txid=txid, result_code="tesSUCCESS",
                                 fee="12", ledger_index=99999999, explorer_url="")
-        # Cancel returns the locked XRP to the OWNER (reclaim path), then removes.
-        # TR-003: round (HALF_EVEN via the shared helper), don't truncate.
+        # Cancel returns the locked XRP (drops) to the OWNER, then removes.
         try:
-            drops = _validate_xrp_amount(target.amount)
-        except DryRunAmountError:
+            drops = int(target.amount)
+        except ValueError:
             drops = 0
         self._balances[owner] = self._balances.get(owner, 0) + drops
         self._remove_escrow(owner, target)

@@ -494,6 +494,19 @@ async def handle_verify_tx(
 # ---------------------------------------------------------------------------
 
 
+def _new_wallet(transport: Transport):
+    """Create a helper wallet and bind its seed to its address on the transport.
+
+    The dry run maps an unbound seed to one synthetic address, so a buyer's,
+    sender's or issuer's writes were booked against an account the faucet
+    never funded (#20 item 9). Binding is a no-op on testnet.
+    """
+    wallet = create_wallet()
+    if hasattr(transport, "bind_wallet"):  # test doubles may not have it
+        transport.bind_wallet(wallet.seed, wallet.address)
+    return wallet
+
+
 async def handle_create_issuer_wallet(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -521,12 +534,14 @@ async def handle_create_issuer_wallet(
             "If owner_count stays high after hygiene, ask your facilitator "
             "to inventory trust lines."
         )
+        if hasattr(transport, "bind_wallet"):
+            transport.bind_wallet(existing.seed, existing.address)
         context["issuer_seed"] = _SecretValue(existing.seed)
         context["issuer_address"] = existing.address
         return context
 
     console.print("  Creating issuer wallet...")
-    issuer = create_wallet()
+    issuer = _new_wallet(transport)
     # DD-1: this is a workspace-rooted seed file. save_wallet() will
     # call _ensure_secure_parent which tightens the parent to 0o700 —
     # that's intentional because the issuer wallet IS a secret, even
@@ -1108,7 +1123,7 @@ async def handle_create_channel_receiver(
     wallet_seed: str, context: dict, console: Console,
 ) -> dict:
     console.print("  Creating the receiver (merchant) wallet...")
-    receiver = create_wallet()
+    receiver = _new_wallet(transport)
     context["receiver_seed"] = _SecretValue(receiver.seed)
     context["receiver_address"] = receiver.address
     console.print(f"  Receiver wallet: [cyan]{receiver.address}[/]")
@@ -3548,7 +3563,7 @@ async def handle_create_token_recipient(
         return context
 
     console.print("  Creating the recipient (third-party) wallet...")
-    recipient = create_wallet()
+    recipient = _new_wallet(transport)
     context["recipient_seed"] = _SecretValue(recipient.seed)
     context["recipient_address"] = recipient.address
     console.print(f"  Recipient wallet: [cyan]{recipient.address}[/]")
@@ -3592,7 +3607,7 @@ async def handle_create_noopt_issuer(
     console.print(
         "  Creating a second issuer (never sets asfAllowTrustLineLocking)..."
     )
-    issuer = create_wallet()
+    issuer = _new_wallet(transport)
     if not await _fund_new_wallet(
         transport, issuer.address, "Issuer", console, context,
         "create_noopt_issuer", quiet=True,
@@ -3993,7 +4008,7 @@ async def handle_create_signer_wallets(
     seeds: list[_SecretValue] = []
     addresses: list[str] = []
     for i in range(count):
-        signer = create_wallet()
+        signer = _new_wallet(transport)
         seeds.append(_SecretValue(signer.seed))
         addresses.append(signer.address)
         console.print(f"  Signer {i + 1}: [cyan]{signer.address}[/]")
@@ -4463,7 +4478,7 @@ async def handle_create_subject_wallet(
     on a separate, intentionally-unfunded address below).
     """
     console.print("  Creating the subject (player) wallet...")
-    subject = create_wallet()
+    subject = _new_wallet(transport)
     context["subject_seed"] = _SecretValue(subject.seed)
     context["subject_address"] = subject.address
     console.print(f"  Subject wallet: [cyan]{subject.address}[/]")
@@ -4875,7 +4890,7 @@ async def handle_create_uncredentialed_wallet(
     will be REJECTED because it holds no credential the domain accepts.
     """
     console.print("  Creating an un-credentialed (outsider) wallet...")
-    outsider = create_wallet()
+    outsider = _new_wallet(transport)
     context["outsider_seed"] = _SecretValue(outsider.seed)
     context["outsider_address"] = outsider.address
     console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
@@ -5208,7 +5223,7 @@ async def handle_create_sender_wallet(
         "  Creating the sender's wallet (a random player with no "
         "preauthorization yet)..."
     )
-    sender = create_wallet()
+    sender = _new_wallet(transport)
     context["sender_seed"] = _SecretValue(sender.seed)
     context["sender_address"] = sender.address
     console.print(f"  Sender wallet: [cyan]{sender.address}[/]")
@@ -5959,7 +5974,7 @@ async def handle_create_player_wallet(
     Payment into the pool, exactly like production traffic.
     """
     console.print("  Creating the player's wallet (the depositor)...")
-    player = create_wallet()
+    player = _new_wallet(transport)
     context["player_seed"] = _SecretValue(player.seed)
     context["player_address"] = player.address
     console.print(f"  Player wallet: [cyan]{player.address}[/]")
@@ -6497,7 +6512,7 @@ async def handle_create_noclaw_issuer(
     currency = args.get("currency", "NOC")
     amount = args.get("amount", "50")
     console.print("  Creating a second issuer (no clawback flag)...")
-    issuer = create_wallet()
+    issuer = _new_wallet(transport)
     if not await _fund_new_wallet(
         transport, issuer.address, "Issuer", console, context,
         "create_noclaw_issuer", quiet=True,
@@ -6537,7 +6552,7 @@ async def handle_create_buyer_wallet(
 ) -> dict:
     """Create + fund a second wallet to act as the marketplace counterparty."""
     console.print("  Creating a second player wallet (buyer/reseller)...")
-    buyer = create_wallet()
+    buyer = _new_wallet(transport)
     await _fund_new_wallet(
         transport, buyer.address, "Buyer", console, context,
         "create_buyer_wallet",
@@ -6983,7 +6998,7 @@ async def handle_create_recipient_wallet(
         "  Creating the player's wallet (the only account this Check will "
         "let cash it)..."
     )
-    recipient = create_wallet()
+    recipient = _new_wallet(transport)
     context["recipient_seed"] = _SecretValue(recipient.seed)
     context["recipient_address"] = recipient.address
     console.print(f"  Player wallet: [cyan]{recipient.address}[/]")
@@ -7144,7 +7159,7 @@ async def handle_create_outsider_wallet(
     console.print(
         "  Creating an outsider wallet (not the Check's Destination)..."
     )
-    outsider = create_wallet()
+    outsider = _new_wallet(transport)
     context["outsider_seed"] = _SecretValue(outsider.seed)
     context["outsider_address"] = outsider.address
     console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
