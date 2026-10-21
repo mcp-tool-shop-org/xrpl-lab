@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.7.3 — 2026-10-21
+
+### Fixed
+
+- **A validated failure keeps its explorer link in the saved record**
+  (#20 item 14). Every expected-failure record in `state.json` had an empty
+  link, validated `tec`s included, while the proof pack (which builds its
+  own links) had them. The failed-record sites now pass the result's link
+  through; a transaction that never reached a ledger still stores none.
+
 ## 2.7.2 — 2026-10-21
 
 The two deposit_gate_101 defects 2.7.1 listed as known issues (#20 items 15
