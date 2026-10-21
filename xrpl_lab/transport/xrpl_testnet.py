@@ -1610,6 +1610,10 @@ class XRPLTestnetTransport(Transport):
         the network. A pinned Sequence is kept (autofill fills only what's
         missing), so F-ad982e08's retry protection still holds.
         """
+        if wallet is None and tx.is_signed():
+            # 2.7.1 (#20 item 12): a multisigned tx arrives fully signed; use it
+            # as it is, so its hash is known (a tefBAD_QUORUM kept no hash).
+            return tx
         try:
             async with _rpc_client(self._rpc_url) as client:
                 filled = await asyncio.wait_for(autofill(tx, client), timeout=RPC_TIMEOUT)

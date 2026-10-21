@@ -337,6 +337,7 @@ async def handle_submit_payment(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
@@ -671,6 +672,7 @@ async def handle_set_trust_line(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -718,6 +720,7 @@ async def handle_issue_token(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -799,6 +802,7 @@ async def handle_issue_token_expect_fail(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     _judge_expected_failure(
@@ -903,6 +907,7 @@ async def handle_remove_trust_line(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -1003,6 +1008,7 @@ async def handle_set_freeze(
         state.record_tx(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -1041,6 +1047,7 @@ async def handle_set_global_freeze(
         state.record_tx(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -1208,6 +1215,7 @@ async def handle_open_channel(
         state.record_tx(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -1241,6 +1249,7 @@ async def handle_fund_channel(
         state.record_tx(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -1341,6 +1350,7 @@ async def handle_redeem_claim(
         state.record_tx(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -1547,6 +1557,7 @@ async def handle_create_offer(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -1633,6 +1644,7 @@ async def handle_cancel_offer(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -2052,6 +2064,7 @@ async def handle_ensure_amm_pair(
             network=state.network,
             success=False,
             explorer_url=create_result.explorer_url,
+            validated=getattr(create_result, "validated", None),
         )
         context.setdefault("failed_txids", []).append(
             {"result_code": create_result.result_code, "error": create_result.error}
@@ -2159,6 +2172,7 @@ async def handle_amm_deposit(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -2264,6 +2278,7 @@ async def handle_amm_withdraw(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -2408,6 +2423,7 @@ async def handle_strategy_offer_bid(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -2492,6 +2508,7 @@ async def handle_strategy_offer_ask(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -2849,6 +2866,7 @@ async def handle_place_safe_sides(
                 module_id=context.get("module_id", ""),
                 network=state.network,
                 success=False,
+                validated=getattr(result, "validated", None),
             )
         save_state(state)
     else:
@@ -2911,6 +2929,7 @@ async def handle_place_safe_sides(
                 module_id=context.get("module_id", ""),
                 network=state.network,
                 success=False,
+                validated=getattr(result, "validated", None),
             )
         save_state(state)
     else:
@@ -3048,6 +3067,7 @@ async def handle_mint_nft(
             module_id=context.get("module_id", ""),
             network=state.network,
             success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
     return context
@@ -3238,6 +3258,7 @@ def _record_submit(state: LabState, context: dict, result) -> None:
         state.record_tx(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
+            validated=getattr(result, "validated", None),
         )
     save_state(state)
 
@@ -6507,6 +6528,7 @@ async def handle_clawback_expect_fail(
         state.record_tx(
             txid=result.txid or "failed", module_id=context.get("module_id", ""),
             network=state.network, success=False,
+            validated=getattr(result, "validated", None),
         )
         save_state(state)
     _judge_expected_failure(

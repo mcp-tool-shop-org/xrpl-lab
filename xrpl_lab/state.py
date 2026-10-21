@@ -260,6 +260,11 @@ class TxRecord(BaseModel):
     # A rejection its lesson set out to cause, acknowledged by the step's
     # judge (2.6.2, #20 item 8). Only ever True on a failed record.
     expected: bool = False
+    # Whether the transaction is on a validated ledger (2.7.1, #20 item 12):
+    # True for a success or a validated tec, False for one that never reached
+    # a ledger (a tem, a tef, a timeout, a local error), None when unknown
+    # (records from before 2.7.1, and handlers that record without a result).
+    validated: bool | None = None
 
 
 class LabState(BaseModel):
@@ -309,7 +314,11 @@ class LabState(BaseModel):
         network: str,
         success: bool,
         explorer_url: str = "",
+        validated: bool | None = None,
     ) -> None:
+        # A success is on a validated ledger (testnet submits wait for it).
+        if validated is None and success:
+            validated = True
         self.tx_index.append(
             TxRecord(
                 txid=txid,
@@ -318,6 +327,7 @@ class LabState(BaseModel):
                 network=network,
                 success=success,
                 explorer_url=explorer_url,
+                validated=validated,
             )
         )
         self.updated_at = time.time()

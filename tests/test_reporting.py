@@ -53,9 +53,11 @@ _PROOF_MODULE_KEYS = {
 # 2.6.2 (#20 item 8): "expected" says a failed tx was the lesson's rejection.
 _PROOF_TX_KEYS = {
     "txid", "module_id", "success", "timestamp", "network", "explorer_url", "expected",
+    "validated",  # 2.7.1 (#20 item 12): whether the tx is on a ledger; non-secret
 }
 _PROOF_RECEIPT_KEYS = {
     "txid", "txid_full", "module", "status", "network", "timestamp", "expected",
+    "validated",
 }
 _CERT_TOPLEVEL_KEYS = {
     "xrpl_lab_certificate", "version", "network", "address", "generated_at",

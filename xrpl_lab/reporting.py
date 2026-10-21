@@ -43,10 +43,15 @@ _EXPLORER_BASES = {
 }
 
 
-def _explorer_url(txid: str, network: str) -> str:
-    """Build an explorer URL for a txid on ``network``, or "" if none applies."""
+def _explorer_url(txid: str, network: str, validated: bool | None = None) -> str:
+    """Build an explorer URL for a txid on ``network``, or "" if none applies.
+
+    2.7.1 (#20 item 12): no link for a placeholder txid ("failed" made a dead
+    ``/transactions/failed`` link) or for a tx that never reached a ledger (a
+    tem or tef has a hash but no ledger page).
+    """
     base = _EXPLORER_BASES.get(network)
-    if not base or not txid:
+    if not base or not txid or txid == "failed" or validated is False:
         return ""
     return f"{base}/{txid}"
 
@@ -131,9 +136,12 @@ def _tx_detail(tx_record: TxRecord) -> dict:
         "module_id": tx_record.module_id,
         "success": tx_record.success,
         "expected": tx_record.expected,
+        "validated": tx_record.validated,
         "timestamp": datetime.fromtimestamp(tx_record.timestamp, tz=UTC).isoformat(),
         "network": tx_record.network,
-        "explorer_url": _explorer_url(tx_record.txid, tx_record.network),
+        "explorer_url": _explorer_url(
+            tx_record.txid, tx_record.network, tx_record.validated
+        ),
     }
 
 
@@ -209,6 +217,7 @@ def generate_proof_pack(state: LabState) -> dict:
             "module": tx.module_id,
             "status": "ok" if tx.success else "FAIL",
             "expected": tx.expected,
+            "validated": tx.validated,
             "network": tx.network,
             "timestamp": datetime.fromtimestamp(
                 tx.timestamp, tz=UTC
