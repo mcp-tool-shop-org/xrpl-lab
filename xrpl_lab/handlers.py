@@ -43,6 +43,7 @@ from .actions.deposit_gate import (
     get_credential_id,
     send_gated_payment,
     unauthorize_deposit_address,
+    unauthorize_deposit_credential,
 )
 from .actions.dex import (
     cancel_offer,
@@ -220,6 +221,19 @@ async def handle_ensure_funded(
         _record_verification(
             context, "ensure_funded", passed=False,
             failures=["wallet not funded on a validated ledger"],
+        )
+    # 2.7.2 (#20 item 15): deposit_gate_101 before 2.7.2 left deposit
+    # authorization on, and then every payment to the learner is refused.
+    if (
+        address
+        and context.get("module_id") != "deposit_gate_101"
+        and await transport.get_deposit_auth(address)
+    ):
+        console.print(
+            "  [yellow]Deposit authorization is on for your wallet (an earlier "
+            "deposit_gate_101 run left it set), so payments to you will be "
+            "refused (tecNO_PERMISSION). Clear it by running: "
+            "xrpl-lab run deposit_gate_101 --force[/]"
         )
     return context
 
@@ -5529,10 +5543,84 @@ async def handle_authorize_kyc_credential(
         console.print(f"  TXID: [cyan]{result.txid}[/]")
         if result.explorer_url:
             console.print(f"  Explorer: [blue]{result.explorer_url}[/]")
+        _record_submit(state, context, result)
+    elif result.result_code == "tecDUPLICATE":
+        # 2.7.2 (#20 item 16): a run before 2.7.2 never removed it, and
+        # `reset --module` clears only local state. It's the same
+        # authorization, so the lesson goes on.
+        console.print(
+            "  [green]Already installed[/] by an earlier run of this lesson "
+            "(tecDUPLICATE): the same preauthorization is in place."
+        )
+        _record_submit(state, context, result)
+        _judge_expected_failure(
+            console, context, result, ("tecDUPLICATE",),
+            "authorize_kyc_credential", state=state,
+        )
     else:
         console.print(f"  [red]Credential preauthorization failed: {result.error}[/]")
         _explain_failure(console, result.result_code)
+        _record_submit(state, context, result)
+    return context
+
+
+async def handle_unauthorize_kyc_credential(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Remove the credential preauthorization (DepositPreauth UnauthorizeCredentials).
+
+    2.7.2 (#20 items 15 and 16): the lesson cleans up after itself, freeing the
+    reserve and letting the lesson run again on the same wallet.
+    """
+    address = state.wallet_address or ""
+    credential_type = context.get("credential_type", "kyc-deposit")
+    issuer_address = context.get("credential_issuer", address)
+    console.print("  Removing the credential preauthorization (cleanup)...")
+    result = await unauthorize_deposit_credential(
+        transport, wallet_seed, issuer_address, credential_type, wallet_address=address
+    )
+    if result.success:
+        console.print("  [green]Credential preauthorization removed.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+    else:
+        console.print(f"  [red]Removing it failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
+    return context
+
+
+async def handle_disable_deposit_auth(
+    step: ModuleStep, state: LabState, transport: Transport,
+    wallet_seed: str, context: dict, console: Console,
+) -> dict:
+    """Clear asfDepositAuth (AccountSet ClearFlag) and check it's off.
+
+    2.7.2 (#20 item 15): left on, it refused every later lesson's payment to
+    the learner (amm_liquidity_101's issuer couldn't issue LAB).
+    """
+    address = state.wallet_address or ""
+    console.print("  Turning deposit authorization off (cleanup)...")
+    result = await enable_deposit_auth(
+        transport, wallet_seed, wallet_address=address, enable=False
+    )
+    if result.success:
+        console.print("  [green]Deposit authorization cleared.[/]")
+        console.print(f"  TXID: [cyan]{result.txid}[/]")
+    else:
+        console.print(f"  [red]Clearing it failed: {result.error}[/]")
+        _explain_failure(console, result.result_code)
+    _record_submit(state, context, result)
+    still_on = await transport.get_deposit_auth(address) if address else None
+    if still_on is True:
+        console.print("  [red]Deposit authorization is still on.[/]")
+        _record_verification(
+            context, "disable_deposit_auth", passed=False,
+            failures=["lsfDepositAuth still set after the cleanup"],
+        )
+    elif still_on is False:
+        console.print("  [green]Checked: payments to your wallet are accepted again.[/]")
+        context.pop("deposit_auth_enabled", None)
     return context
 
 
@@ -7777,6 +7865,18 @@ def _register_all() -> None:
             name="authorize_kyc_credential",
             handler=handle_authorize_kyc_credential,
             description="Preauthorize BY CREDENTIAL (DepositPreauth AuthorizeCredentials)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="unauthorize_kyc_credential",
+            handler=handle_unauthorize_kyc_credential,
+            description="Remove the credential preauthorization (cleanup)",
+            wallet_required=True,
+        ),
+        ActionDef(
+            name="disable_deposit_auth",
+            handler=handle_disable_deposit_auth,
+            description="Clear asfDepositAuth and check it's off (cleanup)",
             wallet_required=True,
         ),
         ActionDef(

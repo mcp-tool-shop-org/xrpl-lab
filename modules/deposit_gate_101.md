@@ -216,6 +216,24 @@ failure, not a silent no-op.
 
 <!-- action: unauthorize_sender_address_duplicate -->
 
+## Step 19: Remove the credential preauthorization
+
+Clean up the other clearance path too. `UnauthorizeCredentials` removes the
+credential-based preauthorization from Step 13 and frees its owner reserve.
+Leaving it would also make this lesson fail if you ran it again on the same
+wallet: the same authorization would already exist (`tecDUPLICATE`).
+
+<!-- action: unauthorize_kyc_credential -->
+
+## Step 20: Turn deposit authorization off
+
+Clear `asfDepositAuth` so your wallet accepts payments again. Left on, it
+would refuse every unsolicited payment to you, including the ones later
+lessons send you (an issuer issuing you tokens, say). The step reads the
+account back to check the flag is gone.
+
+<!-- action: disable_deposit_auth -->
+
 ## Checkpoint: What you proved
 
 You ran the full DepositAuth + DepositPreauth gate, both clearance paths, and
@@ -234,6 +252,8 @@ their guardrails, with receipts for every claim:
 10. **Outsider stays blocked** — neither policy covers it; `tecNO_PERMISSION` again
 11. **`Unauthorize`** — the compensator; reserve freed
 12. **`tecNO_ENTRY`** — revoking a non-existent preauthorization fails honestly
+13. **Cleanup** — the credential preauthorization removed and `asfDepositAuth`
+    cleared, so your wallet accepts payments again
 
 Key concepts to remember:
 

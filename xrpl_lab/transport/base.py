@@ -611,6 +611,15 @@ class Transport(ABC):
         uses it to book the learner's writes against the funded address.
         """
 
+    async def get_deposit_auth(self, address: str) -> bool | None:
+        """Whether ``address`` has ``lsfDepositAuth`` set; ``None`` if unknown.
+
+        Concrete. deposit_gate_101 checks its cleanup with it, and a lesson
+        that will pay the learner warns when an older run left it on (2.7.2,
+        #20 items 15 and 16).
+        """
+        return None
+
     def bound_addresses(self) -> list[str]:
         """Every address bound this run: the learner and each helper wallet.
 

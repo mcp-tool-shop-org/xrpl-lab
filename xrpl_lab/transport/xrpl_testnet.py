@@ -3155,6 +3155,23 @@ class XRPLTestnetTransport(Transport):
             logger.warning("get_account_offers failed for %s", address, exc_info=True)
             return []
 
+    async def get_deposit_auth(self, address: str) -> bool | None:
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                response = await asyncio.wait_for(
+                    client.request(
+                        AccountInfo(account=address, ledger_index="validated")
+                    ),
+                    timeout=RPC_TIMEOUT,
+                )
+            acct = response.result.get("account_data")
+            if not acct:
+                return None
+            return bool(int(acct.get("Flags", 0)) & 0x01000000)  # lsfDepositAuth
+        except Exception:
+            logger.warning("get_deposit_auth failed for %s", address, exc_info=True)
+            return None
+
     async def get_account_info(self, address: str) -> AccountSnapshot:
         try:
             async with _rpc_client(self._rpc_url) as client:
