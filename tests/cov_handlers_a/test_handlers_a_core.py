@@ -125,12 +125,15 @@ async def test_submit_payment_failure_without_hash_is_indexed_failed(env: Env) -
 
 
 @pytest.mark.asyncio
-async def test_submit_payment_with_no_destination_sends_to_self(env: Env) -> None:
+async def test_submit_payment_with_no_destination_uses_a_practice_address(env: Env) -> None:
+    """2.6.1: XRPL rejects a payment to yourself (temREDUNDANT), so the
+    practice payment goes to a fresh address made for the run."""
     calls = env.stub("send_payment", ok())
     await env.run("handle_submit_payment")
     (args, _), = calls
-    assert args[2] == "rLEARNER"
-    assert "Sending to self for practice: rLEARNER" in env.out
+    assert args[2] != "rLEARNER" and args[2].startswith("r")
+    assert args[2] == env.ctx["practice_recipient"]
+    assert "temREDUNDANT" in env.out
 
 
 @pytest.mark.asyncio

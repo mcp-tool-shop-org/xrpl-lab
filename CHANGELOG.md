@@ -46,6 +46,37 @@ Its receipts are in `docs/receipts/2.6.1-helper-wallet-sweep/`.
 - **The NFT lessons fit one faucet grant.** The marketplace and the capstone
   listed an NFT at 100 XRP to a buyer funded once with 100 XRP; listings are
   now 10 XRP (resale 20).
+- **The unfunded-subject credential step uses a fresh address.** Its fixed
+  default was an example address that is funded on testnet, so the step
+  succeeded instead of teaching `tecNO_TARGET`.
+
+### Fixed (the first lessons, and the dry run)
+
+- **The first lessons' practice payments work on the ledger.**
+  - `receipt_literacy`, `failure_literacy` and `receipt_audit` paid
+    `destination=self`. Nothing resolved "self", so testnet couldn't sign the
+    payment.
+  - Paying your own address wouldn't work either, because XRPL rejects that
+    as `temREDUNDANT`.
+  - Practice payments now go to a fresh address made once per run; the payment
+    creates it.
+  - `failure_literacy`'s deliberate failure now really is underfunded (more XRP
+    than the wallet holds, `tecUNFUNDED_PAYMENT`). The lesson text is
+    corrected.
+- **Every module passes in dry-run.** Five failed their own checks offline,
+  also on 2.6.0: `account_hygiene`, `dex_market_making_101`,
+  `escrow_finish_101`, `receipt_audit` and the capstone.
+  - The dry-run transport booked most of the learner's writes against a
+    synthetic address the faucet never funded. So owner counts missed offers,
+    and an escrow couldn't be found to finish.
+  - It also let that address's balance go negative, and charged a royalty on
+    the creator's own sale.
+  - The runner now binds the learner's seed to their real address
+    (`Transport.bind_wallet`, a no-op on testnet), and offers take the same
+    address hint as trust lines.
+- **`xrpl-lab send` exits 2 on a failed payment,** like `fund`.
+- **`audit --csv` writes one line ending per row on Windows** (it wrote
+  CR CR LF).
 
 ## 2.6.0 — 2026-10-20
 

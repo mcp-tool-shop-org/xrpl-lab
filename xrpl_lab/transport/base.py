@@ -594,6 +594,14 @@ class Transport(ABC):
     async def get_account_info(self, address: str) -> AccountSnapshot:
         """Get account info including balance, owner count, and sequence."""
 
+    def bind_wallet(self, wallet_seed: str, address: str) -> None:  # noqa: B027
+        """Tell the transport which address a seed signs as.
+
+        A network transport derives the sender from the seed itself, so this
+        is a no-op there; the dry-run transport, which has no key derivation,
+        uses it to book the learner's writes against the funded address.
+        """
+
     async def get_reserves(self) -> tuple[int, int] | None:
         """The validated ledger's ``(reserve_base, reserve_inc)`` in drops.
 

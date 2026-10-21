@@ -229,6 +229,37 @@ async def handle_ensure_funded(
 # ---------------------------------------------------------------------------
 
 
+def _fresh_address() -> str:
+    """A new, never-funded classic address. Its seed is discarded: nothing
+    signs for it, so no wallet file and no testnet-only warning."""
+    from xrpl.wallet import Wallet
+
+    return Wallet.create().address
+
+
+def _practice_recipient(context: dict, console: Console) -> str:
+    """The run's practice recipient: a fresh address, created once per run.
+
+    2.6.1: the first lessons sent their practice payment to "self", which
+    nothing resolved, so testnet couldn't even sign it. Paying your own
+    address wouldn't work either: XRPL rejects an XRP payment to yourself
+    (temREDUNDANT). The first payment of at least the base reserve (1 XRP)
+    to this address creates the account.
+    """
+    address = context.get("practice_recipient", "")
+    if not address:
+        address = _fresh_address()
+        context["practice_recipient"] = address
+        console.print(
+            "  XRPL rejects a payment to yourself (temREDUNDANT), so practice "
+            "payments go to a fresh address made for this run:"
+        )
+        console.print(
+            f"  [cyan]{address}[/] (your first payment to it creates the account)"
+        )
+    return address
+
+
 async def handle_submit_payment(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -239,10 +270,10 @@ async def handle_submit_payment(
     memo = args.get("memo", context.get("memo", ""))
     memo = memo.replace("{timestamp}", str(int(time.time())))
 
-    if not dest:
-        dest = state.wallet_address or ""
-        if dest:
-            console.print(f"  Sending to self for practice: [cyan]{dest}[/]")
+    if (not dest or dest == "self") and state.wallet_address:
+        dest = _practice_recipient(context, console)
+    elif dest == "self":
+        dest = ""
 
     # F-BACKEND-B-001: after self-send fallback, dest may still be empty
     # if no wallet is available. Surface this as a structured error
@@ -256,7 +287,7 @@ async def handle_submit_payment(
                 hint=(
                     "Pass `destination: r...` in the module step, set context "
                     "destination, or run 'xrpl-lab wallet create' so the "
-                    "self-send practice fallback has a target address."
+                    "practice payment has a sender."
                 ),
             )
         )
@@ -307,8 +338,18 @@ async def handle_submit_payment_fail(
     if hasattr(transport, "set_fail_next"):
         transport.set_fail_next(True)
 
-    dest = args.get("destination", state.wallet_address or "")
+    dest = args.get("destination") or _practice_recipient(context, console)
     amount = args.get("amount", "10")
+    if fail_reason == "underfunded" and "amount" not in args:
+        # 2.6.1: really underfunded on a live ledger: more XRP than the wallet
+        # holds, so the answer is tecUNFUNDED_PAYMENT. It used to send 10 XRP
+        # to the learner's own address, which testnet rejects as temREDUNDANT
+        # (a self-payment), not the failure the lesson teaches.
+        try:
+            held = Decimal(await transport.get_balance(state.wallet_address or ""))
+        except (ValueError, TypeError, InvalidOperation):
+            held = Decimal("0")
+        amount = str(int(held) + 1000)
     result = await send_payment(
         transport, wallet_seed, dest, amount, memo="XRPLLAB|FAIL_TEST"
     )
@@ -345,7 +386,11 @@ async def handle_submit_payment_fail(
         )
         console.print(f"  Result code: [yellow]{result.result_code}[/]")
         console.print(f"  Error: {result.error}")
-    _judge_expected_failure(console, context, result, (), "submit_payment_fail")
+    _judge_expected_failure(
+        console, context, result,
+        ("tecUNFUNDED_PAYMENT",) if fail_reason == "underfunded" else (),
+        "submit_payment_fail",
+    )
     return context
 
 
@@ -4390,7 +4435,7 @@ async def handle_create_credential_unfunded(
     # was a well-known example address that IS funded on testnet, so the
     # CredentialCreate succeeded instead of teaching tecNO_TARGET
     # (helper-wallet sweep 2).
-    unfunded = args.get("subject") or create_wallet().address
+    unfunded = args.get("subject") or _fresh_address()
     if "wallet_seed" not in context:
         console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
         return context

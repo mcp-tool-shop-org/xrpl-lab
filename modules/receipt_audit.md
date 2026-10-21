@@ -39,8 +39,9 @@ You need a funded wallet so we can create transactions to audit.
 
 ## Step 3: Submit a payment
 
-First, let's create a transaction we can audit later. This sends a small
-amount to yourself with a memo tagged for XRPL Lab.
+First, let's create a transaction we can audit later. This sends 1 XRP, with
+a memo tagged for XRPL Lab, to a fresh practice address the lab makes for this
+run (XRPL rejects a payment to your own address).
 
 <!-- action: submit_payment destination=self amount=1 memo=XRPLLAB|AUDIT_TEST -->
 

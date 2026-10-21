@@ -119,6 +119,10 @@ async def _execute_action(
     # Resolve wallet_seed safely from context
     _raw = context.get('wallet_seed', wallet_seed) or wallet_seed
     wallet_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    # Book the learner's writes against the address the faucet funded (a
+    # no-op on a network transport; see Transport.bind_wallet). 2.6.1.
+    if wallet_seed and state.wallet_address:
+        transport.bind_wallet(wallet_seed, state.wallet_address)
 
     # Look up action in the registry
     try:
