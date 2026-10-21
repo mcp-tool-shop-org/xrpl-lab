@@ -3399,15 +3399,35 @@ async def _wait_for_finish_after(
         remaining = int(finish_after) - (int(time.time()) - _RIPPLE_EPOCH)
     except (TypeError, ValueError):
         return
-    if remaining <= 0:
+    waited = 0
+    if remaining > 0:
+        # +2s margin: rippled gates on the ledger's close time, which can
+        # trail wall-clock by a close interval.
+        wait = min(remaining + 2, max_wait)
+        console.print(
+            f"  Waiting ~{wait}s for FinishAfter to elapse (the time-lock)..."
+        )
+        await asyncio.sleep(wait)
+        waited = wait
+    # Book Keeper, 2.7.0 live sweep: the wall clock read past FinishAfter while
+    # the validated close time was still equal to it (this rig leads it by
+    # 1-2 s), so the finish went out at once and failed tecNO_PERMISSION. The
+    # ledger decides: wait until a validated ledger closed strictly after
+    # FinishAfter, so the next ledger's parent close time is past it.
+    close_time = getattr(transport, "get_validated_close_time", None)
+    if close_time is None:
         return
-    # +2s margin: rippled gates on the ledger's close time, which can trail
-    # wall-clock by a close interval.
-    wait = min(remaining + 2, max_wait)
-    console.print(
-        f"  Waiting ~{wait}s for FinishAfter to elapse (the time-lock)..."
-    )
-    await asyncio.sleep(wait)
+    target = int(finish_after)
+    announced = False
+    while waited < max_wait:
+        closed = await close_time()
+        if closed is None or closed > target:
+            return
+        if not announced:
+            console.print("  Waiting for a validated ledger past FinishAfter...")
+            announced = True
+        await asyncio.sleep(2)
+        waited += 2
 
 
 def _resolve_escrow_target(state: LabState, context: dict) -> tuple[str, int | None]:

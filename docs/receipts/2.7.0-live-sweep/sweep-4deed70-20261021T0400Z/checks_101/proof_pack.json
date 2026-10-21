@@ -1,0 +1,129 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.0",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rH67CQLnXwo6nBSiAZFsW68yrd7WQ8DoTE",
+  "generated_at": "2026-10-21T04:11:01.975979+00:00",
+  "completed_modules": [
+    {
+      "module_id": "checks_101",
+      "completed_at": "2026-10-21T04:11:00.784446+00:00",
+      "txids": [
+        "0BA0CA6B9AEA824910FDD68F59192121ADA5E0BE95F31D409BFC3BD3E7AC74A8",
+        "62D5CC14EA6EA5F341D98FD2D2AC73E086D5B1F4D30182E1C6BD594812E1C034",
+        "6B58883DA0763D52F05606B754923222F1FF9FEC6ABFF157DB79D4605DA19433",
+        "4FEBE23C063B2CBBFA8C3E56CA8BBBF7AC45A7B3BC639F6667796E2D6414B0FE"
+      ],
+      "verified": true,
+      "kb_source": "checks-deferred-pull-payment",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/0BA0CA6B9AEA824910FDD68F59192121ADA5E0BE95F31D409BFC3BD3E7AC74A8",
+        "https://testnet.xrpl.org/transactions/62D5CC14EA6EA5F341D98FD2D2AC73E086D5B1F4D30182E1C6BD594812E1C034",
+        "https://testnet.xrpl.org/transactions/6B58883DA0763D52F05606B754923222F1FF9FEC6ABFF157DB79D4605DA19433",
+        "https://testnet.xrpl.org/transactions/4FEBE23C063B2CBBFA8C3E56CA8BBBF7AC45A7B3BC639F6667796E2D6414B0FE"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "0BA0CA6B9AEA824910FDD68F59192121ADA5E0BE95F31D409BFC3BD3E7AC74A8",
+      "module_id": "checks_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:10:17.950258+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/0BA0CA6B9AEA824910FDD68F59192121ADA5E0BE95F31D409BFC3BD3E7AC74A8"
+    },
+    {
+      "txid": "62D5CC14EA6EA5F341D98FD2D2AC73E086D5B1F4D30182E1C6BD594812E1C034",
+      "module_id": "checks_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:10:24.498470+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/62D5CC14EA6EA5F341D98FD2D2AC73E086D5B1F4D30182E1C6BD594812E1C034"
+    },
+    {
+      "txid": "6B58883DA0763D52F05606B754923222F1FF9FEC6ABFF157DB79D4605DA19433",
+      "module_id": "checks_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:10:31.621454+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/6B58883DA0763D52F05606B754923222F1FF9FEC6ABFF157DB79D4605DA19433"
+    },
+    {
+      "txid": "75A2CCEA145490CC2FA277E50BFE935DB9D2595452560B6C1F812DCDD28E3EFD",
+      "module_id": "checks_101",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T04:10:50.223667+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/75A2CCEA145490CC2FA277E50BFE935DB9D2595452560B6C1F812DCDD28E3EFD"
+    },
+    {
+      "txid": "4FEBE23C063B2CBBFA8C3E56CA8BBBF7AC45A7B3BC639F6667796E2D6414B0FE",
+      "module_id": "checks_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:11:00.754528+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/4FEBE23C063B2CBBFA8C3E56CA8BBBF7AC45A7B3BC639F6667796E2D6414B0FE"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "0BA0CA6B9AEA8249...",
+      "txid_full": "0BA0CA6B9AEA824910FDD68F59192121ADA5E0BE95F31D409BFC3BD3E7AC74A8",
+      "module": "checks_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:10"
+    },
+    {
+      "txid": "62D5CC14EA6EA5F3...",
+      "txid_full": "62D5CC14EA6EA5F341D98FD2D2AC73E086D5B1F4D30182E1C6BD594812E1C034",
+      "module": "checks_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:10"
+    },
+    {
+      "txid": "6B58883DA0763D52...",
+      "txid_full": "6B58883DA0763D52F05606B754923222F1FF9FEC6ABFF157DB79D4605DA19433",
+      "module": "checks_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:10"
+    },
+    {
+      "txid": "75A2CCEA145490CC...",
+      "txid_full": "75A2CCEA145490CC2FA277E50BFE935DB9D2595452560B6C1F812DCDD28E3EFD",
+      "module": "checks_101",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:10"
+    },
+    {
+      "txid": "4FEBE23C063B2CBB...",
+      "txid_full": "4FEBE23C063B2CBBFA8C3E56CA8BBBF7AC45A7B3BC639F6667796E2D6414B0FE",
+      "module": "checks_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:11"
+    }
+  ],
+  "total_transactions": 5,
+  "successful_transactions": 4,
+  "failed_transactions": 1,
+  "expected_failures": 1,
+  "sha256": "248c841a49be30d89b916d235636df31d28da0307de09621d171fc7fb17d53fc"
+}

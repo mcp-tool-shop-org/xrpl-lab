@@ -181,12 +181,21 @@ async def test_the_first_practice_payment_carries_the_base_reserve(monkeypatch) 
     assert sent[1] == "1"  # later payments send what the lesson says
 
 
-# ── The CredentialIDs shim stays wired ────────────────────────────────
+# ── Credential-gated payments serialise (xrpl-py 5.2, no shim) ────────
 
 
-def test_the_credential_ids_abbreviation_is_registered() -> None:
-    import xrpl.models.base_model as base_model
+def test_a_payment_with_credential_ids_serialises() -> None:
+    """2.6.1 shimmed xrpl-py 4.5, which wrote "CredentialIds" and failed to
+    sign deposit_gate's KYC payment. 2.7.0 requires 5.2, which writes
+    "CredentialIDs" itself."""
+    from xrpl.core.binarycodec import decode, encode
+    from xrpl.models.transactions import Payment
 
-    import xrpl_lab.transport.xrpl_testnet  # noqa: F401  (installs the shim)
-
-    assert base_model.ABBREVIATIONS.get("ids") == "IDs"
+    tx = Payment(
+        account="rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+        destination="rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
+        amount="1000000",
+        credential_ids=["A" * 64],
+    )
+    blob = encode(tx.to_xrpl())
+    assert decode(blob)["CredentialIDs"] == ["A" * 64]

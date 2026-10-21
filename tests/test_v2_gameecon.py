@@ -449,11 +449,11 @@ class TestTransportParity:
         guard_pos = src.find("_guard_write")
         if guard_pos == -1:
             guard_pos = src.find("_network_guard")
-        wallet_pos = src.find("Wallet.from_seed")
+        wallet_pos = src.find("self._wallet(")
         assert guard_pos != -1, f"{method} must call the write guard"
         assert wallet_pos != -1, f"{method} must build a wallet"
         assert guard_pos < wallet_pos, (
-            f"{method}: the write guard must run BEFORE Wallet.from_seed"
+            f"{method}: the write guard must run BEFORE self._wallet"
         )
 
     def test_clawback_amount_issuer_carries_holder_on_testnet(self):

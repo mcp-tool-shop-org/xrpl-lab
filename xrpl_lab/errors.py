@@ -64,6 +64,23 @@ def module_not_found(module_id: str) -> LabError:
     )
 
 
+def wallet_key_mismatch(expected_address: str, where: str = "") -> LabError:
+    """A seed that signs as neither its own prefix's account nor (for a wallet
+    imported under xrpl-py 4.x) the ED25519 one, against a known address."""
+    place = f" in {where}" if where else ""
+    return LabError(
+        code="STATE_WALLET_KEY_MISMATCH",
+        message=(
+            f"The wallet seed{place} doesn't sign as its recorded address "
+            f"{expected_address}."
+        ),
+        hint=(
+            "The file may be damaged or edited. Restore it from a backup, or "
+            "import the seed again. Nothing was signed."
+        ),
+    )
+
+
 def no_wallet() -> LabError:
     return LabError(
         code="STATE_NO_WALLET",

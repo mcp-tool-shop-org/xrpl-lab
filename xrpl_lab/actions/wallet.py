@@ -13,10 +13,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from xrpl.constants import CryptoAlgorithm
 from xrpl.wallet import Wallet
 
 from .._atomic import atomic_write_json
-from ..errors import LabError, LabException
+from ..errors import LabError, LabException, wallet_key_mismatch
 from ..state import get_home_dir
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,30 @@ _TESTNET_ONLY_WARNING = (
     "This wallet is for TESTNET use only. "
     "Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext."
 )
+
+
+def wallet_from_seed(
+    seed: str, expected_address: str | None = None, where: str = "",
+) -> Wallet:
+    """The wallet a seed signs as, checked against a known address.
+
+    xrpl-py 5 infers the algorithm from the seed's prefix (``sEd…`` ED25519,
+    other ``s…`` secp256k1); 4.x derived ED25519 from every seed. Every wallet
+    xrpl-lab creates is ``sEd…`` and derives the same address on both. A
+    secp256k1 seed imported under 4.x (an XRPL Camp wallet, say) was recorded
+    under its ED25519 address, so when the prefix's account doesn't match the
+    expected one, the ED25519 account is tried and kept if it matches.
+
+    Fails closed: with an expected address that neither derivation matches,
+    it raises STATE_WALLET_KEY_MISMATCH rather than sign with another key.
+    """
+    wallet = Wallet.from_seed(seed)
+    if not expected_address or wallet.address == expected_address:
+        return wallet
+    legacy = Wallet.from_seed(seed, algorithm=CryptoAlgorithm.ED25519)
+    if legacy.address == expected_address:
+        return legacy
+    raise LabException(wallet_key_mismatch(expected_address, where))
 
 
 def default_wallet_path() -> Path:
@@ -322,10 +347,12 @@ def load_wallet(path: Path | None = None) -> Wallet | None:
 
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
-        derived = Wallet.from_seed(data["seed"])
-        if derived.address != data.get("address"):
-            logger.warning("Wallet address mismatch — file may be corrupted")
-        return derived
+        # xrpl-py 5 (2.7.0): checked against the stored address, so a wallet
+        # imported under 4.x keeps its account, and a seed that matches
+        # neither derivation raises STATE_WALLET_KEY_MISMATCH. It used to log
+        # a warning and return the other account. Raising, not returning
+        # None: a caller treats None as "no wallet" and would make a new one.
+        return wallet_from_seed(data["seed"], data.get("address"), where=str(p))
     except (json.JSONDecodeError, KeyError, ValueError):
         return None
 

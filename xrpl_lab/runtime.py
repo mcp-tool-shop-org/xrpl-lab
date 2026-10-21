@@ -76,6 +76,12 @@ async def ensure_wallet(
         wallet = load_wallet(wallet_path)
         if wallet:
             console.print(f"  Wallet loaded: [cyan]{wallet.address}[/]")
+            # Argon, 2.7.0 round 1, F1: keep the recorded address in step with
+            # the file, as the default-path branch below does. The runner binds
+            # the seed to state.wallet_address, which signing checks against.
+            if state.wallet_address != wallet.address:
+                state.wallet_address = wallet.address
+                save_state(state)
             return state, _SecretValue(wallet.seed)
     elif wallet_exists():
         wallet = load_wallet()

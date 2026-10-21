@@ -610,6 +610,14 @@ class Transport(ABC):
         """
         return None
 
+    async def get_validated_close_time(self) -> int | None:
+        """The latest validated ledger's close time, in Ripple-epoch seconds.
+
+        A time-locked escrow can finish only once a ledger's parent close time
+        is strictly past its FinishAfter. Concrete: ``None`` where unknown.
+        """
+        return None
+
     @abstractmethod
     async def fetch_tx(self, txid: str) -> TxInfo:
         """Fetch full transaction details by txid."""

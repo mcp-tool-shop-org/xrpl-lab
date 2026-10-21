@@ -1,0 +1,71 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.0",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rUH97vDFstArMp3YCTq4jq1mz5iVYGDDti",
+  "generated_at": "2026-10-21T04:23:26.005332+00:00",
+  "completed_modules": [
+    {
+      "module_id": "did_101",
+      "completed_at": "2026-10-21T04:23:24.858658+00:00",
+      "txids": [
+        "3191BF136F8A890564ED637D2AF38229FDF74C346CF476FC3BDECB2813F2D825",
+        "F70310F90C846F98FCF119E196CAF4632F9552E1E5F713917541133CD61D0104"
+      ],
+      "verified": true,
+      "kb_source": "did-transactions",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/3191BF136F8A890564ED637D2AF38229FDF74C346CF476FC3BDECB2813F2D825",
+        "https://testnet.xrpl.org/transactions/F70310F90C846F98FCF119E196CAF4632F9552E1E5F713917541133CD61D0104"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "3191BF136F8A890564ED637D2AF38229FDF74C346CF476FC3BDECB2813F2D825",
+      "module_id": "did_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:23:15.166051+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/3191BF136F8A890564ED637D2AF38229FDF74C346CF476FC3BDECB2813F2D825"
+    },
+    {
+      "txid": "F70310F90C846F98FCF119E196CAF4632F9552E1E5F713917541133CD61D0104",
+      "module_id": "did_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T04:23:24.142525+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/F70310F90C846F98FCF119E196CAF4632F9552E1E5F713917541133CD61D0104"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "3191BF136F8A8905...",
+      "txid_full": "3191BF136F8A890564ED637D2AF38229FDF74C346CF476FC3BDECB2813F2D825",
+      "module": "did_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:23"
+    },
+    {
+      "txid": "F70310F90C846F98...",
+      "txid_full": "F70310F90C846F98FCF119E196CAF4632F9552E1E5F713917541133CD61D0104",
+      "module": "did_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 04:23"
+    }
+  ],
+  "total_transactions": 2,
+  "successful_transactions": 2,
+  "failed_transactions": 0,
+  "expected_failures": 0,
+  "sha256": "ac199c2212d824563bcf298b18d8eae6ac2b1498c1dc1653d486a513157b34c3"
+}
