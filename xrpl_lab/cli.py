@@ -2286,6 +2286,9 @@ def send(destination: str, amount: str, memo: str, dry_run: bool):
     else:
         console.print(f"[red]Payment failed:[/] {result.error}")
         console.print(f"  Result code: {result.result_code}")
+        # Like fund (PC-003): a failed payment exits non-zero, so
+        # `xrpl-lab send && next-step` stops (found by the 2.6.1 coverage work).
+        raise SystemExit(2)
 
 
 @main.command()

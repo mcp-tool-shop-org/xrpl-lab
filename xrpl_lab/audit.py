@@ -454,7 +454,10 @@ def write_audit_report_csv(report: AuditReport, path: Path) -> Path:
             "Produced with --dry-run (offline sandbox); verdicts are "
             "fabricated and prove nothing about the real XRPL ledger.\n"
         )
-    writer = csv.writer(buf)
+    # Rows end in a bare LF: the file is written in text mode, which turns
+    # each LF into the platform's line ending. csv's default CRLF came out
+    # as CR CR LF on Windows (found by the 2.6.1 coverage work).
+    writer = csv.writer(buf, lineterminator="\n")
     writer.writerow([
         "txid", "status", "tx_type", "result_code",
         "account", "destination", "fee", "validated",

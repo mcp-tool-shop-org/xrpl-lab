@@ -1,15 +1,13 @@
-# The bar is 90% (the org's coverage standard).
-# - Patch coverage is enforced at 90% now: the lines a pull request changes
-#   must be 90% covered by tests.
-# - Project coverage is informational until the repository measures 90%
-#   (78% at 2.6.0). It's enforced at 90% from then on, with a 1% threshold.
+# The bar is 90% (the org's coverage standard), enforced.
+# - Project coverage must stay at 90% or above, with a 1% threshold
+#   (96.5% at 2.6.1; 78% at 2.6.0).
+# - Patch coverage: the lines a pull request changes must be 90% covered.
 coverage:
   status:
     project:
       default:
         target: 90%
         threshold: 1%
-        informational: true
     patch:
       default:
         target: 90%

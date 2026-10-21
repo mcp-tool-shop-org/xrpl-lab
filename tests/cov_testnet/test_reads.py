@@ -659,11 +659,7 @@ async def test_get_lp_token_balance_failure(monkeypatch):
     ({"currency": "LAB", "issuer": ISSUER, "value": "7.5"}, "7.5"),
     ({"currency": "LAB"}, "0"),
     (42, "42"),
-    pytest.param("not-drops", "not-drops", marks=pytest.mark.xfail(
-        strict=True,
-        reason="BUG: _parse_amm_amount catches (ValueError, TypeError, InvalidOperation) "
-               "but drops_to_xrp raises XRPRangeException, so a non-numeric string "
-               "leg escapes get_amm_info instead of being returned as-is")),
+    ("not-drops", "not-drops"),  # fixed in 2.6.1 (XRPRangeException)
 ])
 async def test_parse_amm_amount(amt, expected):
     from xrpl_lab.transport.xrpl_testnet import XRPLTestnetTransport

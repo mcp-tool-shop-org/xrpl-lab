@@ -262,14 +262,6 @@ def test_send_dry_run_payment_prints_the_receipt(lab, monkeypatch):
     assert "Result: tesSUCCESS" in r.stdout
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "BUG: cli.send prints 'Payment failed' but exits 0 (only the amount and "
-        "wallet guards exit non-zero), so a script's `send && next` treats a "
-        "failed payment as success - the same defect PC-003 fixed for `fund`"
-    ),
-)
 def test_send_failed_payment_exits_non_zero(lab, monkeypatch):
     w = _real_wallet(lab)
     t = DryRunTransport()

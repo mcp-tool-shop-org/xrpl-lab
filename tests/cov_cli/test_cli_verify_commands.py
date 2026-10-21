@@ -12,7 +12,6 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -683,13 +682,6 @@ def test_seal_helper_matches_the_generators_hash_recipe():
     assert verify_certificate(cert) == (True, "Integrity verified")
 
 
-@pytest.mark.xfail(
-    sys.platform == "win32", strict=True,
-    reason=(
-        "BUG: audit.write_audit_report_csv builds CRLF rows then reporting."
-        "_atomic_write_text uses text-mode write_text, so Windows doubles the CR"
-    ),
-)
 def test_audit_csv_has_no_doubled_carriage_returns(lab, monkeypatch):
     _audit_ledger(monkeypatch)
     f = _txids_file(lab, GOOD_TX)

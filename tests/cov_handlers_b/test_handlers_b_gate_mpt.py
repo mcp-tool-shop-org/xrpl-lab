@@ -154,11 +154,6 @@ async def test_blocked_payment_wrong_code_is_not_called_expected(
     assert rig.records == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: a non-expected (e.g. non-validated) result is treated as the "
-    "expected tec; the deliberate handler records no failed verification",
-)
 @pytest.mark.parametrize(
     "handler",
     [

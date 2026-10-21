@@ -686,53 +686,62 @@ async def test_verify_permissioned_offer_failure(monkeypatch) -> None:
     assert rig.verdicts()[0]["passed"] is False
 
 
-# ── expected-failure lessons must not leave a FAILED TxRecord ─────────
-# The runner counts a failed TxRecord as a failed step, so a correct lesson
-# reads as failed. Known defect (fix in flight): strict xfail until it lands.
+# ── expected-failure lessons are acknowledged ────────────────────────
+# The runner counts a failed TxRecord as a failed step unless the lesson
+# acknowledged it as its expected outcome (fixed in 2.6.1).
 
-_BUG_EXPECTED_FAILURE_RECORDED = (
-    "BUG: the expected tec is recorded with success=False via _record_submit, "
-    "so the runner counts the correct lesson as failed"
-)
-
-
-@pytest.mark.xfail(strict=True, reason=_BUG_EXPECTED_FAILURE_RECORDED)
-async def test_unfunded_credential_lesson_records_no_failed_tx() -> None:
+async def test_unfunded_credential_lesson_is_acknowledged() -> None:
     rig = Rig()
     await rig.fund()
     await rig.run(handlers.handle_create_credential_unfunded)
-    assert rig.failed_records == []
+    # The tec IS on the ledger, so it stays a failed TxRecord; the lesson
+    # acknowledges it as its expected outcome (handlers._judge_expected_failure).
+    assert len(rig.failed_records) <= rig.context.get("expected_failures", 0)
+    assert rig.context.get("expected_failures", 0) >= 1
+    assert not [v for v in rig.verdicts() if not v["passed"]]
 
 
-@pytest.mark.xfail(strict=True, reason=_BUG_EXPECTED_FAILURE_RECORDED)
-async def test_duplicate_credential_lesson_records_no_failed_tx() -> None:
+async def test_duplicate_credential_lesson_is_acknowledged() -> None:
     rig = await _credential_rig()
     await rig.run(handlers.handle_create_credential, credential_type="kyc")
     await rig.run(handlers.handle_create_credential_duplicate)
-    assert rig.failed_records == []
+    # The tec IS on the ledger, so it stays a failed TxRecord; the lesson
+    # acknowledges it as its expected outcome (handlers._judge_expected_failure).
+    assert len(rig.failed_records) <= rig.context.get("expected_failures", 0)
+    assert rig.context.get("expected_failures", 0) >= 1
+    assert not [v for v in rig.verdicts() if not v["passed"]]
 
 
-@pytest.mark.xfail(strict=True, reason=_BUG_EXPECTED_FAILURE_RECORDED)
-async def test_wrong_party_accept_lesson_records_no_failed_tx(monkeypatch) -> None:
+async def test_wrong_party_accept_lesson_is_acknowledged(monkeypatch) -> None:
     rig = Rig()
     patch_action(monkeypatch, "accept_credential", fail_result("tecNO_ENTRY"))
     await rig.run(handlers.handle_accept_credential_wrong_party)
-    assert rig.failed_records == []
+    # The tec IS on the ledger, so it stays a failed TxRecord; the lesson
+    # acknowledges it as its expected outcome (handlers._judge_expected_failure).
+    assert len(rig.failed_records) <= rig.context.get("expected_failures", 0)
+    assert rig.context.get("expected_failures", 0) >= 1
+    assert not [v for v in rig.verdicts() if not v["passed"]]
 
 
-@pytest.mark.xfail(strict=True, reason=_BUG_EXPECTED_FAILURE_RECORDED)
-async def test_uncredentialed_offer_lesson_records_no_failed_tx() -> None:
+async def test_uncredentialed_offer_lesson_is_acknowledged() -> None:
     rig = await _domain_rig()
     await rig.run(handlers.handle_create_permissioned_domain)
     await rig.run(handlers.handle_create_uncredentialed_wallet)
     await rig.run(handlers.handle_create_permissioned_offer_uncredentialed)
-    assert rig.failed_records == []
+    # The tec IS on the ledger, so it stays a failed TxRecord; the lesson
+    # acknowledges it as its expected outcome (handlers._judge_expected_failure).
+    assert len(rig.failed_records) <= rig.context.get("expected_failures", 0)
+    assert rig.context.get("expected_failures", 0) >= 1
+    assert not [v for v in rig.verdicts() if not v["passed"]]
 
 
-@pytest.mark.xfail(strict=True, reason=_BUG_EXPECTED_FAILURE_RECORDED)
-async def test_nonowner_modify_lesson_records_no_failed_tx() -> None:
+async def test_nonowner_modify_lesson_is_acknowledged() -> None:
     rig = await _domain_rig()
     await rig.run(handlers.handle_create_permissioned_domain)
     await rig.run(handlers.handle_create_uncredentialed_wallet)
     await rig.run(handlers.handle_modify_domain_nonowner)
-    assert rig.failed_records == []
+    # The tec IS on the ledger, so it stays a failed TxRecord; the lesson
+    # acknowledges it as its expected outcome (handlers._judge_expected_failure).
+    assert len(rig.failed_records) <= rig.context.get("expected_failures", 0)
+    assert rig.context.get("expected_failures", 0) >= 1
+    assert not [v for v in rig.verdicts() if not v["passed"]]

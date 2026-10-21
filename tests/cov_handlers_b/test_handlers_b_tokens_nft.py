@@ -256,17 +256,16 @@ async def test_clawback_expect_fail_prints_code_and_error(monkeypatch) -> None:
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: the expected tecNO_PERMISSION clawback is recorded with "
-    "success=False, so the runner counts the correct lesson as failed",
-)
-async def test_clawback_expect_fail_records_no_failed_tx(monkeypatch) -> None:
+async def test_clawback_expect_fail_is_acknowledged(monkeypatch) -> None:
     rig = Rig()
     rig.context.update(noclaw_issuer_seed=_SecretValue("sN"), noclaw_issuer_address="rN")
     patch_action(monkeypatch, "clawback_tokens", fail_result("tecNO_PERMISSION"))
     await rig.run(handlers.handle_clawback_expect_fail)
-    assert rig.failed_records == []
+    # The tec IS on the ledger, so it stays a failed TxRecord; the lesson
+    # acknowledges it as its expected outcome (handlers._judge_expected_failure).
+    assert len(rig.failed_records) <= rig.context.get("expected_failures", 0)
+    assert rig.context.get("expected_failures", 0) >= 1
+    assert not [v for v in rig.verdicts() if not v["passed"]]
 
 
 # ── NFT marketplace ───────────────────────────────────────────────────
@@ -392,11 +391,6 @@ async def test_verify_nft_offer_variants(monkeypatch) -> None:
     assert v["failures"] == ["invalid expected_min: 'two' (expected an integer)"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: a malformed expected_min fails the verification but the "
-    "reason is never printed (the print loop sits inside the expected_min branch)",
-)
 async def test_verify_nft_offer_malformed_bound_is_explained_to_the_learner() -> None:
     rig = Rig()
     rig.context["nft_id"] = NFT_ID

@@ -251,11 +251,6 @@ async def test_untagged_deposit_wrong_code_is_not_called_expected(monkeypatch) -
     assert rig.records == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: a non-expected (e.g. non-validated) result is treated as the "
-    "expected tec; the deliberate handler records no failed verification",
-)
 async def test_untagged_deposit_wrong_code_fails_the_verification(monkeypatch) -> None:
     rig = Rig()
     rig.context.update(player_seed=_SecretValue("sP"), require_dest_enabled=True)
@@ -456,11 +451,6 @@ async def test_outsider_cash_wrong_code_is_not_called_expected(monkeypatch) -> N
     assert ctx["failed_txids"][0]["result_code"] == "tecNO_ENTRY"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: the outsider CheckCash accepts any failure as the expected "
-    "tecNO_PERMISSION; a mismatch records no failed verification",
-)
 async def test_outsider_cash_wrong_code_fails_the_verification(monkeypatch) -> None:
     rig = Rig()
     rig.context.update(check_id="CHK1", outsider_seed=_SecretValue("sO"))
