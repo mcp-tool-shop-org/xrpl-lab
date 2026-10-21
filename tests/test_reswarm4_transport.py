@@ -52,10 +52,10 @@ from xrpl.asyncio.transaction import XRPLReliableSubmissionException
 
 from xrpl_lab.transport.base import TrustLineInfo
 from xrpl_lab.transport.dry_run import (
-
     _DRY_RUN_WALLET_ADDRESS,
     DryRunTransport,
 )
+
 # These conservation checks were written against a 1000 XRP float; testnet's
 # faucet (and the dry run's default since 2.6.2) grants 100.
 _GRANT_1000_XRP = 1_000_000_000

@@ -589,7 +589,7 @@ class DryRunTransport(Transport):
             success=True,
             address=address,
             balance=_drops_to_xrp_str(self._balances[address]),
-            message=f"[dry-run] Funded with {_drops_to_xrp_str(self._faucet_grant_drops).rstrip('0').rstrip('.')} XRP",
+            message=f"[dry-run] Funded with {self._faucet_grant_drops / 1_000_000:g} XRP",
         )
 
     async def submit_payment(
@@ -1459,7 +1459,9 @@ class DryRunTransport(Transport):
             # read (see the module design note at the top of the file).
             return _drops_to_xrp_str(drops)
         # Backward compat: address funded via direct _funded_addresses manipulation
-        return _drops_to_xrp_str(self._faucet_grant_drops) if address in self._funded_addresses else "0"
+        if address in self._funded_addresses:
+            return _drops_to_xrp_str(self._faucet_grant_drops)
+        return "0"
 
     # ── AMM methods ──────────────────────────────────────────────────
 
