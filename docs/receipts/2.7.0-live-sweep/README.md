@@ -21,7 +21,25 @@ verdict follows.
   was signed and the file was left unchanged. **But the run exits 0, not 1.** Along the way, `run --force` turned out
   not to re-run a completed testnet module.
 
-## Setup
+## Round 2: the fixes, re-run on `0f1f264` (Argon round 3 GO)
+
+**All four checks PASS.** `0f1f264` carries the fixes for this run's findings. `c67cdf8` (report ordering) landed
+after round 2 and is not covered.
+
+The setup is the same as round 1: a worktree pinned at `0f1f264`, a fresh `XRPL_LAB_HOME`, preflight checks, the
+`PIPESTATUS` exit code. Time: 2026-10-21 04:55–05:00 UTC.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | escrow_finish_101, live (`sweep-0f1f264-20261021T0455Z`) | **PASS.** Exit 0; "Steps: 9 passed, 0 failed"; "Transactions: 2 successful, 0 failed". EscrowCreate `8D609DCA…` was tesSUCCESS (ledger 21700982), FinishAfter 845873751. stdout shows "Waiting ~4s for FinishAfter to elapse…" **and "Waiting for a validated ledger past FinishAfter…"**. EscrowFinish `5F83C4AE…` validated **tesSUCCESS** in ledger 21700987, whose **parent close time is 845873761, 10 s after FinishAfter**. |
+| 2 | Wallet mismatch (`wallet-checks-0f1f264-20261021T0458Z/C-…`): the 4.x-shape file with the unrelated address `r9s62YbG…`; state from run A; `run receipt_literacy` (not yet completed) | **PASS.** `STATE_WALLET_KEY_MISMATCH` … "Nothing was signed"; **exit 1**. The ED25519 account's Sequence is 21700424 before and after; the file is byte-identical. |
+| 3 | `run --force failure_literacy` (completed in run A; the file's address restored to `rKhWane2…` first) (`D-…`) | **PASS.** It re-ran (no "already completed"). Exit 0; "Steps: 5 passed, 0 failed"; "Transactions: 1 successful, 1 failed (1 expected)". On the ledger, two new txs from the ED25519 account: tecUNFUNDED_PAYMENT `17041D58…` (Sequence 21700424) and tesSUCCESS `461FD9E3…` (21700425). |
+| 4 | dex_market_making_101, live | **PASS.** Exit 0; "Steps: 17 passed, 0 failed". The report summary reads **"Transactions: 6 successful, 0 failed"** and lists all 6 TXIDs, including both OfferCancels (`1BC0757D…`, `A2EEED83…`). That matches `tx_index` (6) and the proof pack (6 transactions, `total_transactions` 6). All 6 validated tesSUCCESS. |
+
+stderr is empty in all four. The raw wallet-checks folder holds no seed (an exact-match search found none).
+`state.json` is left out because it carries the local home path.
+
+## Setup (round 1)
 
 - One clean worktree pinned at `4deed70` (xrpl-lab 2.7.0, xrpl-py 5.2.0).
 - A fresh `XRPL_LAB_HOME` per run, outside every repo.
