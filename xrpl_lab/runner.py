@@ -273,6 +273,7 @@ async def run_module(
     # the failure-literacy lessons record no failed TxRecord, so they don't.
     failed_steps: list[str] = []
     action_steps = 0
+    expected_tx_count = 0  # failed records a lesson acknowledged as expected
     _run_tx_start = len(state.tx_index)
     _run_started = time.time()
 
@@ -316,7 +317,7 @@ async def run_module(
             # can't be blamed for an earlier step's verdict.
             _prev_verif_count = len(context.get("verifications", []))
             _prev_tx_count = len(state.tx_index)
-            _prev_expected = context.get("expected_failures", 0)
+            _prev_ack = len(context.get("expected_failure_txids", []))
             _step_started = time.time()
             action_steps += 1
             try:
@@ -465,12 +466,20 @@ async def run_module(
             # (it IS on the ledger) and acknowledges it through
             # handlers._judge_expected_failure; only failures beyond those
             # acknowledged count (helper-wallet sweep 1 on 2.6.0).
-            failed_records = sum(
-                1 for record in state.tx_index[_prev_tx_count:]
-                if not record.success and record.timestamp >= _step_started
-            )
-            acknowledged = context.get("expected_failures", 0) - _prev_expected
-            step_submit_failed = failed_records > acknowledged
+            # Match acknowledgements to failed records BY TXID: a judged
+            # failure that wrote no record (a local tem) must not hide a
+            # genuine failed record in the same step (R&D review, L2).
+            acknowledged = list(context.get("expected_failure_txids", [])[_prev_ack:])
+            unexpected = 0
+            for record in state.tx_index[_prev_tx_count:]:
+                if record.success or record.timestamp < _step_started:
+                    continue
+                if record.txid in acknowledged:
+                    acknowledged.remove(record.txid)
+                    expected_tx_count += 1
+                else:
+                    unexpected += 1
+            step_submit_failed = unexpected > 0
             if step_verify_failed or step_submit_failed:
                 all_verified = False
                 failed_steps.append(_step_heading(step, i))
@@ -539,9 +548,11 @@ async def run_module(
         1 for record in state.tx_index[_run_tx_start:]
         if not record.success and record.timestamp >= _run_started
     )
+    expected_note = f" ({expected_tx_count} expected)" if expected_tx_count else ""
     summary_lines = [
         f"Steps: {action_steps - len(failed_steps)} passed, {len(failed_steps)} failed",
-        f"Transactions: {len(context['txids'])} successful, {failed_tx_count} failed",
+        f"Transactions: {len(context['txids'])} successful, "
+        f"{failed_tx_count} failed{expected_note}",
     ]
     if failed_steps:
         summary_lines.append("Failed steps:")

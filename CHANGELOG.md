@@ -30,8 +30,11 @@ Its receipts are in `docs/receipts/2.6.1-helper-wallet-sweep/`.
   2.6.0 counts a step failed when it records a failed transaction, so a
   lesson that teaches `tecDUPLICATE` or `tecNO_PERMISSION` read as failed
   (credentials, permissioned domains, clawback). The 19 expected-failure
-  steps now judge their outcome through `_judge_expected_failure`: the
-  expected code acknowledges the step, and anything else is a failed step.
+  steps now judge their outcome through `_judge_expected_failure`. Each is
+  pinned to the code its lesson teaches, as seen live or in the verified KB:
+  the expected code acknowledges the step, and anything else is a failed
+  step. The runner matches each acknowledgement to its failed transaction by
+  hash, and the report says "N failed (M expected)".
 - **An expected `tec` must be on the ledger.** The checks lesson's outsider
   "got" its expected `tecNO_PERMISSION` from a transaction that never
   validated, because its window closed on a preliminary result. Results now

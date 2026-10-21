@@ -272,6 +272,23 @@ async def handle_submit_payment(
 
     if (not dest or dest == "self") and state.wallet_address:
         dest = _practice_recipient(context, console)
+        if not context.get("practice_recipient_created"):
+            # The first payment creates the account, so it must carry at least
+            # the ledger's base reserve (1 XRP today); below it the ledger
+            # answers tecNO_DST_INSUF_XRP. Read the reserve, don't assume it.
+            reserves = await transport.get_reserves()
+            if reserves is not None:
+                base_xrp = Decimal(reserves[0]) / Decimal(1_000_000)
+                try:
+                    short = Decimal(str(amount)) < base_xrp
+                except (ValueError, TypeError, InvalidOperation):
+                    short = False
+                if short:
+                    amount = format(base_xrp.normalize(), "f")
+                    console.print(
+                        f"  Sending {amount} XRP: the first payment to a new "
+                        "address must carry the base reserve, which creates it."
+                    )
     elif dest == "self":
         dest = ""
 
@@ -294,6 +311,8 @@ async def handle_submit_payment(
 
     result = await send_payment(transport, wallet_seed, dest, amount, memo)
     context["last_submit"] = result
+    if result.success and dest == context.get("practice_recipient"):
+        context["practice_recipient_created"] = True
 
     if result.success:
         console.print("  [green]Payment submitted![/]")
@@ -386,6 +405,9 @@ async def handle_submit_payment_fail(
         )
         console.print(f"  Result code: [yellow]{result.result_code}[/]")
         console.print(f"  Error: {result.error}")
+    # Only "underfunded" is used by a lesson (failure_literacy) and has a
+    # real ledger counterpart; other reasons exist only as the dry run's
+    # simulated failure, whose code is not a lesson's claim.
     _judge_expected_failure(
         console, context, result,
         ("tecUNFUNDED_PAYMENT",) if fail_reason == "underfunded" else (),
@@ -760,7 +782,7 @@ async def handle_issue_token_expect_fail(
             success=False,
         )
     save_state(state)
-    _judge_expected_failure(console, context, result, (), "issue_token_expect_fail")
+    _judge_expected_failure(console, context, result, ("tecPATH_DRY",), "issue_token_expect_fail")
     return context
 
 
@@ -3151,6 +3173,11 @@ def _judge_expected_failure(
     definitive = validated or not code.startswith("tec")
     if not result.success and matches and definitive:
         context["expected_failures"] = context.get("expected_failures", 0) + 1
+        # The failed TxRecord this acknowledges, matched by txid in the runner
+        # (handlers record a hashless failure as "failed").
+        context.setdefault("expected_failure_txids", []).append(
+            getattr(result, "txid", "") or "failed"
+        )
         return True
     if result.success:
         why = "the transaction succeeded"
@@ -4592,7 +4619,7 @@ async def handle_accept_credential_wrong_party(
     _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
-        ("tecNO_ENTRY", "temMALFORMED"),
+        ("tecNO_ENTRY",),
         "accept_credential_wrong_party",
     )
     return context
@@ -4884,7 +4911,7 @@ async def handle_create_permissioned_offer_uncredentialed(
     _record_submit(state, context, result)
     _judge_expected_failure(
         console, context, result,
-        (),
+        ("tecNO_PERMISSION",),
         "create_permissioned_offer_uncredentialed",
     )
     return context
@@ -4981,7 +5008,11 @@ async def handle_modify_domain_nonowner(
             "rotate a domain's policy.[/]"
         )
     _record_submit(state, context, result)
-    _judge_expected_failure(console, context, result, (), "modify_domain_nonowner")
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "modify_domain_nonowner",
+    )
     return context
 
 
@@ -6386,7 +6417,7 @@ async def handle_clawback_expect_fail(
             network=state.network, success=False,
         )
         save_state(state)
-    _judge_expected_failure(console, context, result, (), "clawback_expect_fail")
+    _judge_expected_failure(console, context, result, ("tecNO_PERMISSION",), "clawback_expect_fail")
     return context
 
 
@@ -6642,7 +6673,11 @@ async def handle_accept_nft_offer_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
-    _judge_expected_failure(console, context, result, (), "accept_nft_offer_expect_fail")
+    _judge_expected_failure(
+        console, context, result,
+        ("tecOBJECT_NOT_FOUND",),
+        "accept_nft_offer_expect_fail",
+    )
     return context
 
 
@@ -6813,7 +6848,11 @@ async def handle_modify_nft_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
-    _judge_expected_failure(console, context, result, (), "modify_nft_expect_fail")
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "modify_nft_expect_fail",
+    )
     return context
 
 
