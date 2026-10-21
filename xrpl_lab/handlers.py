@@ -412,6 +412,7 @@ async def handle_submit_payment_fail(
         console, context, result,
         ("tecUNFUNDED_PAYMENT",) if fail_reason == "underfunded" else (),
         "submit_payment_fail",
+        state=state,
     )
     return context
 
@@ -782,7 +783,12 @@ async def handle_issue_token_expect_fail(
             success=False,
         )
     save_state(state)
-    _judge_expected_failure(console, context, result, ("tecPATH_DRY",), "issue_token_expect_fail")
+    _judge_expected_failure(
+        console, context, result,
+        ("tecPATH_DRY",),
+        "issue_token_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -3148,7 +3154,7 @@ def _explain_failure(console: Console, result_code: str) -> None:
 
 def _judge_expected_failure(
     console: Console, context: dict, result, expected_codes: tuple[str, ...],
-    action: str,
+    action: str, state: LabState | None = None,
 ) -> bool:
     """Judge a lesson step whose point is a rejected transaction.
 
@@ -3174,10 +3180,14 @@ def _judge_expected_failure(
     if not result.success and matches and definitive:
         context["expected_failures"] = context.get("expected_failures", 0) + 1
         # The failed TxRecord this acknowledges, matched by txid in the runner
-        # (handlers record a hashless failure as "failed").
-        context.setdefault("expected_failure_txids", []).append(
-            getattr(result, "txid", "") or "failed"
-        )
+        # (handlers record a hashless failure as "failed"). Register it only
+        # when the handler actually recorded this failure, the newest record:
+        # an unrecorded "failed" acknowledgement could otherwise consume a
+        # genuine hashless failure in the same step (Argon, 2.6.1 round 1, F1).
+        key = getattr(result, "txid", "") or "failed"
+        newest = state.tx_index[-1] if state is not None and state.tx_index else None
+        if state is None or (newest is not None and not newest.success and newest.txid == key):
+            context.setdefault("expected_failure_txids", []).append(key)
         return True
     if result.success:
         why = "the transaction succeeded"
@@ -3535,10 +3545,11 @@ async def handle_create_token_recipient(
     context["recipient_address"] = recipient.address
     console.print(f"  Recipient wallet: [cyan]{recipient.address}[/]")
 
-    await _fund_new_wallet(
+    if not await _fund_new_wallet(
         transport, recipient.address, "Recipient", console, context,
         "create_token_recipient",
-    )
+    ):
+        return context  # the helper isn't on a ledger; nothing it would sign can land
     console.print(f"  Recipient trusting the issuer for [cyan]{currency}[/]...")
     ts = await set_trust_line(
         transport, recipient.seed, issuer_address, currency, limit,
@@ -3574,10 +3585,11 @@ async def handle_create_noopt_issuer(
         "  Creating a second issuer (never sets asfAllowTrustLineLocking)..."
     )
     issuer = create_wallet()
-    await _fund_new_wallet(
+    if not await _fund_new_wallet(
         transport, issuer.address, "Issuer", console, context,
         "create_noopt_issuer", quiet=True,
-    )
+    ):
+        return context  # the helper isn't on a ledger; nothing it would sign can land
     context["noopt_issuer_seed"] = _SecretValue(issuer.seed)
     context["noopt_issuer_address"] = issuer.address
     context["noopt_currency"] = currency
@@ -3838,6 +3850,7 @@ async def handle_create_token_escrow_expect_fail(
         console, context, result,
         ("tecNO_PERMISSION",),
         "create_token_escrow_expect_fail",
+        state=state,
     )
     return context
 
@@ -4246,6 +4259,7 @@ async def handle_send_multisig_payment_expect_fail(
         console, context, result,
         ("tefBAD_QUORUM",),
         "send_multisig_payment_expect_fail",
+        state=state,
     )
     return context
 
@@ -4491,6 +4505,7 @@ async def handle_create_credential_unfunded(
         console, context, result,
         ("tecNO_TARGET",),
         "create_credential_unfunded",
+        state=state,
     )
     return context
 
@@ -4575,6 +4590,7 @@ async def handle_create_credential_duplicate(
         console, context, result,
         ("tecDUPLICATE",),
         "create_credential_duplicate",
+        state=state,
     )
     return context
 
@@ -4621,6 +4637,7 @@ async def handle_accept_credential_wrong_party(
         console, context, result,
         ("tecNO_ENTRY",),
         "accept_credential_wrong_party",
+        state=state,
     )
     return context
 
@@ -4913,6 +4930,7 @@ async def handle_create_permissioned_offer_uncredentialed(
         console, context, result,
         ("tecNO_PERMISSION",),
         "create_permissioned_offer_uncredentialed",
+        state=state,
     )
     return context
 
@@ -5012,6 +5030,7 @@ async def handle_modify_domain_nonowner(
         console, context, result,
         ("tecNO_PERMISSION",),
         "modify_domain_nonowner",
+        state=state,
     )
     return context
 
@@ -5248,6 +5267,7 @@ async def handle_send_sender_payment_expect_blocked(
         console, context, result,
         ("tecNO_PERMISSION",),
         "send_sender_payment_expect_blocked",
+        state=state,
     )
     return context
 
@@ -5289,6 +5309,7 @@ async def handle_preauthorize_self_expect_fail(
         console, context, result,
         ("temCANNOT_PREAUTH_SELF",),
         "preauthorize_self_expect_fail",
+        state=state,
     )
     return context
 
@@ -5363,6 +5384,7 @@ async def handle_authorize_sender_address_duplicate(
         console, context, result,
         ("tecDUPLICATE",),
         "authorize_sender_address_duplicate",
+        state=state,
     )
     return context
 
@@ -5550,6 +5572,7 @@ async def handle_send_outsider_payment_expect_blocked(
         console, context, result,
         ("tecNO_PERMISSION",),
         "send_outsider_payment_expect_blocked",
+        state=state,
     )
     return context
 
@@ -5613,6 +5636,7 @@ async def handle_unauthorize_sender_address_duplicate(
         console, context, result,
         ("tecNO_ENTRY",),
         "unauthorize_sender_address_duplicate",
+        state=state,
     )
     return context
 
@@ -6097,6 +6121,7 @@ async def handle_send_untagged_deposit_expect_fail(
         console, context, result,
         ("tecDST_TAG_NEEDED",),
         "send_untagged_deposit_expect_fail",
+        state=state,
     )
     return context
 
@@ -6417,7 +6442,12 @@ async def handle_clawback_expect_fail(
             network=state.network, success=False,
         )
         save_state(state)
-    _judge_expected_failure(console, context, result, ("tecNO_PERMISSION",), "clawback_expect_fail")
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "clawback_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -6436,10 +6466,11 @@ async def handle_create_noclaw_issuer(
     amount = args.get("amount", "50")
     console.print("  Creating a second issuer (no clawback flag)...")
     issuer = create_wallet()
-    await _fund_new_wallet(
+    if not await _fund_new_wallet(
         transport, issuer.address, "Issuer", console, context,
         "create_noclaw_issuer", quiet=True,
-    )
+    ):
+        return context  # the helper isn't on a ledger; nothing it would sign can land
     context["noclaw_issuer_seed"] = _SecretValue(issuer.seed)
     context["noclaw_issuer_address"] = issuer.address
     context["noclaw_currency"] = currency
@@ -6677,6 +6708,7 @@ async def handle_accept_nft_offer_expect_fail(
         console, context, result,
         ("tecOBJECT_NOT_FOUND",),
         "accept_nft_offer_expect_fail",
+        state=state,
     )
     return context
 
@@ -6852,6 +6884,7 @@ async def handle_modify_nft_expect_fail(
         console, context, result,
         ("tecNO_PERMISSION",),
         "modify_nft_expect_fail",
+        state=state,
     )
     return context
 
@@ -7137,6 +7170,7 @@ async def handle_cash_check_wrong_destination_expect_fail(
         console, context, result,
         ("tecNO_PERMISSION",),
         "cash_check_wrong_destination_expect_fail",
+        state=state,
     )
     return context
 

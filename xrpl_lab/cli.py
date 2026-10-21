@@ -2198,6 +2198,8 @@ def fund(dry_run: bool):
                 "[yellow]The faucet accepted the request, but the wallet isn't on a "
                 "validated ledger yet. Check again in a minute.[/]"
             )
+            # Not funded yet: exit non-zero so `fund && send` stops (Argon F3).
+            raise SystemExit(2)
         return
     # F-BRIDGE-PH8-001: structured ``code`` drives richer CLI behavior than
     # printing ``message`` alone — the rate-limited path gets a dedicated

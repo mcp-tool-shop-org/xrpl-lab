@@ -77,7 +77,16 @@ Its receipts are in `docs/receipts/2.6.1-helper-wallet-sweep/`.
   - The runner now binds the learner's seed to their real address
     (`Transport.bind_wallet`, a no-op on testnet), and offers take the same
     address hint as trust lines.
-- **`xrpl-lab send` exits 2 on a failed payment,** like `fund`.
+- **`xrpl-lab send` exits 2 on a failed payment,** like `fund`. `fund`
+  also exits 2 when the faucet answered but the wallet isn't on a validated
+  ledger yet.
+- **From Argon's review:**
+  - an expected failure is acknowledged only when its failed transaction
+    was recorded, so it can't hide a genuine one;
+  - `validated` is opt-in on the testnet transport (only a validated ledger
+    outcome sets it);
+  - the three helpers that submit right after funding their wallet stop if
+    the wallet never appears.
 - **`audit --csv` writes one line ending per row on Windows** (it wrote
   CR CR LF).
 

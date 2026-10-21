@@ -158,13 +158,15 @@ def test_fund_dry_run_reports_the_validated_balance(lab):
     assert "Funded! Balance: 1000" in r.stdout
 
 
-def test_fund_accepted_but_not_yet_validated_is_a_soft_notice(lab, monkeypatch):
+def test_fund_accepted_but_not_yet_validated_exits_non_zero(lab, monkeypatch):
+    """2.6.1 (Argon, round 1, F3): not on a validated ledger yet means not
+    funded, so `fund && next-step` must stop."""
     _no_sleep(monkeypatch)
     make_state(wallet="rFUNDME")
     t = _Faucet(FundResult(success=True, address="rFUNDME"), balance="0")
     _use(monkeypatch, t)
     r = invoke(["fund"])
-    assert r.exit_code == 0
+    assert r.exit_code == 2
     assert t.requests == ["rFUNDME"]
     assert "isn't on a validated ledger yet" in " ".join(r.stdout.split())
     assert "Funded!" not in r.stdout
