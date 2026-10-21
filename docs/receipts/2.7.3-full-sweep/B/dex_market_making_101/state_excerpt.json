@@ -1,0 +1,72 @@
+{
+  "note": "excerpt of state.json (wallet_path omitted)",
+  "wallet_address": "rUTyoQnBqedt8iRhrpjV7am5BXMeA6VLJV",
+  "module_accounts": {
+    "dex_market_making_101": [
+      "rGRrELLspC7CzhAN1SUS65y44DHHttn4Bx",
+      "rUTyoQnBqedt8iRhrpjV7am5BXMeA6VLJV"
+    ]
+  },
+  "completed_modules": [
+    [
+      "dex_market_making_101",
+      true
+    ]
+  ],
+  "tx_index": [
+    {
+      "txid": "A5878602985ADCFFF0D48AE39B08738A7A75720CE999B9206EF00704E3A8CD4E",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/A5878602985ADCFFF0D48AE39B08738A7A75720CE999B9206EF00704E3A8CD4E",
+      "network": "testnet"
+    },
+    {
+      "txid": "6C849D6A4E7CE4F807DEE1D4587F95FDF4C5777A41344A9E8BF4D884F21171E8",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/6C849D6A4E7CE4F807DEE1D4587F95FDF4C5777A41344A9E8BF4D884F21171E8",
+      "network": "testnet"
+    },
+    {
+      "txid": "688F8B2B1F1AE9C488D09DFD8D11516F1AB976C17F3786764DF9323C174E292B",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/688F8B2B1F1AE9C488D09DFD8D11516F1AB976C17F3786764DF9323C174E292B",
+      "network": "testnet"
+    },
+    {
+      "txid": "9B2D46AFA783F15DF0F88BC506DC70E91EAAAF1D3F537916B068974E64BE8C55",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/9B2D46AFA783F15DF0F88BC506DC70E91EAAAF1D3F537916B068974E64BE8C55",
+      "network": "testnet"
+    },
+    {
+      "txid": "4254BE0F0E6BEA20A27406213F974E7582E57B69FF79D81DFF8B169189CBF360",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "",
+      "network": "testnet"
+    },
+    {
+      "txid": "85C16E1286D6922850813984D00378FEA93E98A8B41771B26C2397A34D79A1D2",
+      "module_id": "dex_market_making_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "",
+      "network": "testnet"
+    }
+  ]
+}

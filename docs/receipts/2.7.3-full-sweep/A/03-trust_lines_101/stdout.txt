@@ -1,0 +1,128 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Trust Lines 101: Issued Currencies as Relationships                                                                                                         │
+│ Level: beginner  |  Time: ~15-20 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+On the XRPL, only XRP is native. Every other currency — USD, EUR, your own token — exists as a balance on a trust line between two accounts. Setting a trust   
+line means: "I trust this issuer for up to X units of this currency."                                                                                          
+
+This module walks you through the full lifecycle: create an issuer, set a trust line, receive tokens, and verify the result on-ledger.                         
+
+Nothing here is permanent or expensive. Trust lines on the testnet are free to create and easy to remove later.                                                
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You need a funded wallet to set trust lines and receive tokens. If you have one from a previous module, it will be loaded automatically.                       
+
+
+  → ensure_wallet...
+  Wallet loaded: r9vWv5PLZiT3hHsgUUkEr4TVn6KP1bPKqq
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Trust line operations require XRP for transaction fees and the owner reserve (each trust line increases the reserve by 0.2 XRP on mainnet, free on testnet).   
+
+
+  → ensure_funded...
+  Balance: 79.999970 XRP
+
+Press Enter to continue...Create an issuer wallet                                                                                                                                        
+
+On the XRPL, anyone can issue a currency. The issuer is just another account. In production, issuers would be businesses or institutions. For learning, we     
+create a second wallet to act as the issuer.                                                                                                                   
+
+This wallet will issue a currency called LAB — your first issued token.                                                                                        
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Creating issuer wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Issuer wallet created: rTaiQnhnbWd7UC174p1kUKfNyHaA1veYr
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+The issuer also needs XRP to pay transaction fees.                                                                                                             
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Set a trust line                                                                                                                                               
+
+Now the important part. Before you can receive LAB tokens, you must explicitly trust the issuer. This is a TrustSet transaction from your wallet, saying:      
+
+▌ "I trust [issuer address] for up to 1000 LAB."                                                                                                             
+
+This is the fundamental difference from most blockchains: you must opt in to receiving a token. No one can airdrop unwanted tokens to your wallet.             
+
+
+  → set_trust_line...
+  Setting trust line: LAB from issuer rTaiQnhnbWd7...
+  Limit: 1000
+  Trust line set!
+  TXID: 2CA99267764A923A4E3A82F2038EF0F54AF829CA668768652542BA1757EB30B4
+  Explorer: https://testnet.xrpl.org/transactions/2CA99267764A923A4E3A82F2038EF0F54AF829CA668768652542BA1757EB30B4
+
+Press Enter to continue...Issue tokens                                                                                                                                                   
+
+Now the issuer sends you 100 LAB. This is a regular Payment transaction, but instead of XRP, it sends an issued currency amount.                               
+
+The issuer can create LAB tokens out of nothing — that is the privilege (and responsibility) of being an issuer. The trust line is what makes this possible.   
+
+
+  → issue_token...
+  Issuing 100 LAB to r9vWv5PLZiT3...
+  100 LAB issued!
+  TXID: 0A20829E1CEFBC2322A41F61F784B56D9327D93CD7B42488CC279285F27F7F73
+  Explorer: https://testnet.xrpl.org/transactions/0A20829E1CEFBC2322A41F61F784B56D9327D93CD7B42488CC279285F27F7F73
+
+Press Enter to continue...Verify your trust line                                                                                                                                         
+
+Let's verify the trust line on the ledger. You should see:                                                                                                     
+
+ • Currency: LAB                                                                                                                                               
+ • Issuer: the issuer address from Step 3                                                                                                                      
+ • Limit: 1000 (what you set in Step 5)                                                                                                                        
+ • Balance: 100 (what the issuer sent in Step 6)                                                                                                               
+
+
+  → verify_trust_line...
+  ✓ Trust line found: LAB
+  ✓ Issuer: rTaiQnhnbWd7UC174p1kUKfNyHaA1veYr
+  ✓ Limit: 1000
+  ✓ Balance: 100
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You just completed the trust line lifecycle:                                                                                                                   
+
+ 1 Created an issuer — any XRPL account can issue currencies                                                                                                   
+ 2 Set a trust line — you opted in to receiving LAB tokens                                                                                                     
+ 3 Received issued tokens — the issuer sent you 100 LAB                                                                                                        
+ 4 Verified on-ledger — the trust line shows the correct balance                                                                                               
+
+This is the same mechanism used for stablecoins, loyalty points, and any tokenized asset on the XRPL. The trust line is a consent mechanism: you decide who you
+trust and for how much.                                                                                                                                        
+
+Key concepts to remember:                                                                                                                                      
+
+ • Trust lines are directional: you trust the issuer, not the other way around                                                                                 
+ • Issuers can create tokens: the balance is an obligation from issuer to holder                                                                               
+ • Reserve costs: each trust line increases your account reserve (0.2 XRP on mainnet, set by validator vote)                                                   
+ • No surprise tokens: unlike other chains, you cannot receive tokens you didn't agree to                                                                      
+
+Your report is saved. Run xrpl-lab proof-pack when you're ready to export your work.                                                                           
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Trust Lines 101: Issued Currencies as Relationships                                                                                                         │
+│ Report saved to .xrpl-lab\reports\trust_lines_101.md                                                                                                        │
+│ 2 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,9 @@
+cwd: <scratch>/full-sweep-8723e95-20261021T1855Z/B/dex_inventory_guardrails/cwd  (outside every repo)
+XRPL_LAB_HOME=<scratch>/full-sweep-8723e95-20261021T1855Z/B/dex_inventory_guardrails/home   (wallet.json stays here, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1
+code: mcp-tool-shop-org/xrpl-lab @ 8723e95 (main 8723e95 = v2.7.3, full sweep Part B (each lesson alone)), worktree _worktrees/xrpl-lab-f9-livefire
+cmd:  yes "" | xrpl-lab run  dex_inventory_guardrails
+started_utc: 2026-10-21T20:03:42Z
+xrpl_lab_exit_code: 0   (read from PIPESTATUS[1])
+finished_utc: 2026-10-21T20:04:54Z
+verify_live_exit_code: 0

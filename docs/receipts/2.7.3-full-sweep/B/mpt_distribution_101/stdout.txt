@@ -1,0 +1,141 @@
+Warning: This module requires the following to be completed first:
+  - mpt_issuance_101
+Run those modules first, or use --force to bypass.
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ MPT Distribution 101: Getting the Currency to Players                                                                                                       │
+│ Level: intermediate  |  Time: ~15-20 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+mpt_issuance_101 taught you to mint a Multi-Purpose Token game currency. But a currency you can't move to a player is just a number on the issuer's account.   
+This module teaches the other half: getting the MPT into a holder's hands.                                                                                     
+
+There are two new ideas, and the order matters:                                                                                                                
+
+ 1 The holder opts in first. Just like a trust line for issued currencies, a holder must authorize an MPT issuance before they can receive it — an             
+   MPTokenAuthorize transaction. This is the opt-in gate: no one can be handed an MPT they didn't agree to hold. Try to pay an MPT to an account that hasn't   
+   authorized it and the ledger refuses with tecNO_AUTH.                                                                                                       
+ 2 The MPT amount is its own shape. An MPT isn't identified by a currency code + issuer like an IOU — it's identified by a single issuance id. So a payment    
+   carries an MPT amount of { issuance_id, value }, not { currency, issuer, value }.                                                                           
+
+Everything here runs on the testnet — free, disposable, and safe to repeat.                                                                                    
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You are the player (the holder) in this module — the account that receives the currency.                                                                       
+
+
+  → ensure_wallet...
+  No wallet found. Creating a new one...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Wallet created: rn32DPcvnK7c69SDeXYhBPbbnncjY3DN3E
+  Saved to: 
+<scratch>/full-sweep-8723e95-20261021T1855Z\B\mpt_distribution_10
+1\home\wallet.json
+
+  Warning: Your wallet seed is stored locally. Never share it or paste it anywhere.
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create the issuer                                                                                                                                              
+
+A second wallet acts as the issuer (your game's treasury).                                                                                                     
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Creating issuer wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Issuer wallet created: rpLsoYPF8NnmJK9GM75eiLhZzcngv1F743
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Mint the game currency                                                                                                                                         
+
+The issuer creates an MPT issuance with a max supply of 1,000,000 units. The new issuance id is what every later step addresses.                               
+
+
+  → create_mpt_issuance...
+  Creating MPT issuance — max supply 1000000, scale 0, transferable True
+  MPT issuance created!
+  TXID: 98930C4DF24612A07FA4F9667A170546961240E07C77C281F01F7786CCCEE4F8
+  Explorer: https://testnet.xrpl.org/transactions/98930C4DF24612A07FA4F9667A170546961240E07C77C281F01F7786CCCEE4F8
+  Issuance ID: 014B5ED12D4F23E443287FE8E5EFE602834F7F5AB541F1A7
+
+Press Enter to continue...Opt in — authorize the issuance                                                                                                                                
+
+You (the player) send an MPTokenAuthorize for this issuance. This is the gate: until you opt in, the issuer cannot pay you the token.                          
+
+
+  → mpt_authorize...
+  Authorizing this wallet to hold the MPT (MPTokenAuthorize)...
+  MPTokenAuthorize failed: Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION. Check XRPL docs for this specific code
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Distribute 500 units to the player                                                                                                                             
+
+The issuer pays you 500 of the MPT. The payment carries an MPT amount addressed by the issuance id — the currency finally moves from the treasury to a player. 
+
+
+  → mpt_payment...
+  Issuer paying 500 MPT to the holder...
+  MPT payment failed: Applied but failed: it's on the ledger, and its fee was charged: tecNO_AUTH. Check XRPL docs for this specific code
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecNO_AUTH
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Verify your balance on-ledger                                                                                                                                  
+
+Read your MPToken balance back. It must be exactly 500 — the amount the issuer sent.                                                                           
+
+
+  → verify_mpt_balance...
+  ✓ Holder MPT balance: 0
+  ✗ MPT balance mismatch: expected 500, got 0
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You completed the full MPT distribution loop:                                                                                                                  
+
+ 1 Minted an MPT game currency (issuer side)                                                                                                                   
+ 2 Opted in as a holder (MPTokenAuthorize) — the consent gate                                                                                                  
+ 3 Distributed the currency to a player (Payment with an MPT amount)                                                                                           
+ 4 Verified the player holds exactly what was sent                                                                                                             
+
+Key concepts to remember:                                                                                                                                      
+
+ • Authorize before pay: an MPT can only reach a holder who opted in. The opt-in is the MPT analog of a trust line — design your onboarding so players         
+   authorize before you try to airdrop them currency.                                                                                                          
+ • An MPT is addressed by its issuance id, not a currency code + issuer. Hold onto that id — it's how you reference the token in every payment, query, and     
+   balance check.                                                                                                                                              
+ • This is what makes the capstone economy real: issue a currency, then actually move it to the players who earn it.                                           
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌────────────────────────────────────────────────────────────────── Completed with failures ──────────────────────────────────────────────────────────────────┐
+│ MPT Distribution 101: Getting the Currency to Players                                                                                                       │
+│ Not verified: 3 steps failed                                                                                                                                │
+│   - Step 6: Opt in — authorize the issuance                                                                                                                 │
+│   - Step 7: Distribute 500 units to the player                                                                                                              │
+│   - Step 8: Verify your balance on-ledger                                                                                                                   │
+│ Report saved to .xrpl-lab\reports\mpt_distribution_101.md                                                                                                   │
+│ 1 transaction recorded                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+'mpt_distribution_101' completed with failed steps; exiting with code 3.

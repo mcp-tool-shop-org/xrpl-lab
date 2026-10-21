@@ -1,0 +1,99 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.3",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rM9nqsArU6BpUTwkeeq4S6Hh7Y3pYBzZvn",
+  "generated_at": "2026-10-21T20:06:22.200318+00:00",
+  "completed_modules": [
+    {
+      "module_id": "account_hygiene",
+      "completed_at": "2026-10-21T20:06:21.227950+00:00",
+      "txids": [],
+      "verified": false,
+      "accounts": [
+        "rGT9zzSVaZG88D1uLyn1HmZsEH9Zy3Chuy",
+        "rM9nqsArU6BpUTwkeeq4S6Hh7Y3pYBzZvn"
+      ],
+      "kb_source": "",
+      "explorer_urls": []
+    }
+  ],
+  "capstone": false,
+  "all_verified": false,
+  "transactions": [
+    {
+      "txid": "failed",
+      "module_id": "account_hygiene",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "timestamp": "2026-10-21T20:06:19.492667+00:00",
+      "network": "testnet",
+      "explorer_url": ""
+    },
+    {
+      "txid": "failed",
+      "module_id": "account_hygiene",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "timestamp": "2026-10-21T20:06:19.511695+00:00",
+      "network": "testnet",
+      "explorer_url": ""
+    },
+    {
+      "txid": "failed",
+      "module_id": "account_hygiene",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "timestamp": "2026-10-21T20:06:20.278866+00:00",
+      "network": "testnet",
+      "explorer_url": ""
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "failed",
+      "txid_full": "failed",
+      "module": "account_hygiene",
+      "status": "FAIL",
+      "expected": false,
+      "validated": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:06"
+    },
+    {
+      "txid": "failed",
+      "txid_full": "failed",
+      "module": "account_hygiene",
+      "status": "FAIL",
+      "expected": false,
+      "validated": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:06"
+    },
+    {
+      "txid": "failed",
+      "txid_full": "failed",
+      "module": "account_hygiene",
+      "status": "FAIL",
+      "expected": false,
+      "validated": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 20:06"
+    }
+  ],
+  "total_transactions": 3,
+  "successful_transactions": 0,
+  "failed_transactions": 3,
+  "expected_failures": 0,
+  "module_accounts": {
+    "account_hygiene": [
+      "rGT9zzSVaZG88D1uLyn1HmZsEH9Zy3Chuy",
+      "rM9nqsArU6BpUTwkeeq4S6Hh7Y3pYBzZvn"
+    ]
+  },
+  "sha256": "e7feaec080c6b50e5abfe2f37a7ae5bfdeaf65ec14e2233a2599ccc62fc153cc"
+}

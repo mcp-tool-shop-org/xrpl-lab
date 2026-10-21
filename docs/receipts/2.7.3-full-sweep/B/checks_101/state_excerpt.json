@@ -1,0 +1,64 @@
+{
+  "note": "excerpt of state.json (wallet_path omitted)",
+  "wallet_address": "rLe9k72EGMmRqMmuxwQyfGaSQbBFuYixTE",
+  "module_accounts": {
+    "checks_101": [
+      "rL7FqZLjyW9UaiXfzQsjwVXLhPhmE3zCRh",
+      "rLe9k72EGMmRqMmuxwQyfGaSQbBFuYixTE",
+      "rfWRjtkqGMqNGY4QMqJvy8yCDmAvtu6JDb"
+    ]
+  },
+  "completed_modules": [
+    [
+      "checks_101",
+      true
+    ]
+  ],
+  "tx_index": [
+    {
+      "txid": "28379B7E910E6F85207BFCFE0D5CEA0B0ED34AAB6A8480C37583A36F2B3543C1",
+      "module_id": "checks_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/28379B7E910E6F85207BFCFE0D5CEA0B0ED34AAB6A8480C37583A36F2B3543C1",
+      "network": "testnet"
+    },
+    {
+      "txid": "CFFAE615F88AE6954A751BBBA717C714E3A081A9A17AE9725DC825455A9A3065",
+      "module_id": "checks_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/CFFAE615F88AE6954A751BBBA717C714E3A081A9A17AE9725DC825455A9A3065",
+      "network": "testnet"
+    },
+    {
+      "txid": "7B1CA8A0B980B7ED1AD72F54331AFBB9680864D2F64171038F27F4B611E4474A",
+      "module_id": "checks_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/7B1CA8A0B980B7ED1AD72F54331AFBB9680864D2F64171038F27F4B611E4474A",
+      "network": "testnet"
+    },
+    {
+      "txid": "1E7322FC4372D9CBB52F0E163026DEE25F2E8760585699D5EDAB49F344AA2995",
+      "module_id": "checks_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/1E7322FC4372D9CBB52F0E163026DEE25F2E8760585699D5EDAB49F344AA2995",
+      "network": "testnet"
+    },
+    {
+      "txid": "8D3408F39EB6B6B9EB651929BB4E843FF11126A3BFBDA9D58CC5ABCCC9E5FC15",
+      "module_id": "checks_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/8D3408F39EB6B6B9EB651929BB4E843FF11126A3BFBDA9D58CC5ABCCC9E5FC15",
+      "network": "testnet"
+    }
+  ]
+}

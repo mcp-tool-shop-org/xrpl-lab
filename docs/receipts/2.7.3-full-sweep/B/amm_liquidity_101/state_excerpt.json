@@ -1,0 +1,72 @@
+{
+  "note": "excerpt of state.json (wallet_path omitted)",
+  "wallet_address": "rpJ993YpUwLZ1BBzQYLyrAuUmmfLWki15g",
+  "module_accounts": {
+    "amm_liquidity_101": [
+      "rH4ZZyZdJLtrnZvV39AbyhjHRLynxJDaXP",
+      "rpJ993YpUwLZ1BBzQYLyrAuUmmfLWki15g"
+    ]
+  },
+  "completed_modules": [
+    [
+      "amm_liquidity_101",
+      true
+    ]
+  ],
+  "tx_index": [
+    {
+      "txid": "4FCAC82C118C1CFB18FC5E306874A1466C6188C62DE41DA88A051CD9E085E179",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/4FCAC82C118C1CFB18FC5E306874A1466C6188C62DE41DA88A051CD9E085E179",
+      "network": "testnet"
+    },
+    {
+      "txid": "C4B907B13D9B85FBDE499940C9C555811E15010E7A2983057684209FBE9D7ABD",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/C4B907B13D9B85FBDE499940C9C555811E15010E7A2983057684209FBE9D7ABD",
+      "network": "testnet"
+    },
+    {
+      "txid": "BCC370945856CFBB071BEFB4F872455E76C056FD32BD04D4E9BA35048616D75E",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/BCC370945856CFBB071BEFB4F872455E76C056FD32BD04D4E9BA35048616D75E",
+      "network": "testnet"
+    },
+    {
+      "txid": "A7E2DCF13C14CF5C7DA2366416433AED69810DE18558125D040B8297B3456ACA",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/A7E2DCF13C14CF5C7DA2366416433AED69810DE18558125D040B8297B3456ACA",
+      "network": "testnet"
+    },
+    {
+      "txid": "F482E439C51A9DC63FE0B4104CD8181554F0245D0A3FC150A257733D6AD9FD7D",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/F482E439C51A9DC63FE0B4104CD8181554F0245D0A3FC150A257733D6AD9FD7D",
+      "network": "testnet"
+    },
+    {
+      "txid": "0828D8D32E740B1BAF45ADDBF6EAA96739862394CAC8933B113A7114188D466B",
+      "module_id": "amm_liquidity_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/0828D8D32E740B1BAF45ADDBF6EAA96739862394CAC8933B113A7114188D466B",
+      "network": "testnet"
+    }
+  ]
+}
