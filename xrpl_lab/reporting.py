@@ -812,7 +812,9 @@ async def _verify_one_tx_live(
     # 2.7.1: an expected rejection the pack says never reached a ledger (a
     # tem, a tef) has nothing to anchor. Since 2.6.2 the pack records these,
     # and live verification failed every honest rejection lesson's pack.
-    if rejection and validated_claim is False:
+    # The "failed" placeholder (a 2.6.x multisig tef) has no hash to fetch
+    # (Argon, 2.7.1 round 3, F1).
+    if rejection and (validated_claim is False or txid == "failed"):
         return TxLiveResult(
             txid=txid, network=network, status=LIVE_SKIPPED,
             reason="Expected rejection that never reaches a ledger (by design).",
@@ -833,6 +835,7 @@ async def _verify_one_tx_live(
             return TxLiveResult(
                 txid=txid, network=network, status=LIVE_SKIPPED,
                 reason="Expected rejection not on the ledger (a tem or tef never is).",
+                validated=False,
             )
         return TxLiveResult(
             txid=txid, network=network, status=LIVE_FAIL,
@@ -841,7 +844,8 @@ async def _verify_one_tx_live(
                 f"the ledger shows {tx.result_code or 'no such transaction'}"
                 f"{'' if tx.validated else ' (not validated)'}."
             ),
-            validated=validated_claim,
+            # What the ledger shows, not the claim: no link for a tx it lacks.
+            validated=tx.validated,
         )
 
     # A read-back failure is a NETWORK problem, never evidence the tx is fake.

@@ -89,3 +89,33 @@ async def test_the_verify_route_links_only_what_is_on_a_ledger() -> None:
     urls = [t.explorer_url for t in _live_to_schema(live).tx_results]
     assert urls[0].endswith(OK) and urls[1].endswith(TEC)
     assert urls[2] == ""
+
+
+@pytest.mark.asyncio
+async def test_argon_round3_edge_cases(monkeypatch) -> None:
+    """Argon, 2.7.1 round 3, F1: a pre-2.7.1 not-found rejection and a claimed
+    tec the ledger lacks get no link; the "failed" placeholder isn't fetched."""
+    from xrpl_lab.api.routes import _live_to_schema
+
+    t = _ledger()
+    fetched: list[str] = []
+    real_fetch = t.fetch_tx
+
+    async def _spy(txid):
+        fetched.append(txid)
+        return await real_fetch(txid)
+
+    monkeypatch.setattr(t, "fetch_tx", _spy)
+    pack = _pack((OK, True, False, None), (TEM, False, True, None), (TEC, False, True, True),
+                 ("failed", False, True, None))
+    t.set_tx_fixtures({OK: TxInfo(txid=OK, result_code="tesSUCCESS", validated=True,
+                                  account="rLEARNER")})
+    live = await verify_proof_pack_live(pack, transport=t)
+    assert "failed" not in fetched
+    by_txid = {r.txid: r for r in live.tx_results}
+    assert by_txid[TEM].status == "SKIPPED" and by_txid[TEM].validated is False
+    assert by_txid[TEC].status == "FAIL" and by_txid[TEC].validated is False
+    assert by_txid["failed"].status == "SKIPPED"
+    urls = {t_.txid: t_.explorer_url for t_ in _live_to_schema(live).tx_results}
+    assert urls[TEM] == "" and urls[TEC] == "" and urls["failed"] == ""
+    assert urls[OK].endswith(OK)
