@@ -39,6 +39,8 @@ _PROOF_TOPLEVEL_KEYS = {
     # 2.6.2 (#20 item 8): how many failed transactions were a lesson's expected
     # rejection. A count, non-secret.
     "expected_failures",
+    # 2.7.1: module_id -> accounts bound in its runs (public addresses).
+    "module_accounts",
     # RESWARM3 (verified flag + honest pack): top-level honesty flag — True iff
     # every completed module's on-ledger verification passed. Non-secret
     # (derived from the completed-module records), folded into the SHA-256.

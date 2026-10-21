@@ -225,6 +225,10 @@ def _merge_append_only(target: LabState, on_disk: LabState) -> None:
             known_tx_keys.add(key)
     target.tx_index.sort(key=lambda t: t.timestamp)
 
+    # 2.7.1: the accounts each module's runs bound, unioned like the lists.
+    for module_id, accounts in on_disk.module_accounts.items():
+        target.remember_accounts(module_id, accounts)
+
     # Preserve the earliest known creation time across both copies.
     target.created_at = min(target.created_at, on_disk.created_at)
 
@@ -246,10 +250,6 @@ class CompletedModule(BaseModel):
     txids: list[str] = Field(default_factory=list)
     report_path: str | None = None
     verified: bool = True
-    # The accounts that signed in this module: the learner and the helper
-    # wallets the lesson created (2.7.1). Live verification accepts a tx from
-    # any of them. Empty for modules completed before 2.7.1.
-    accounts: list[str] = Field(default_factory=list)
 
 
 class TxRecord(BaseModel):
@@ -285,6 +285,9 @@ class LabState(BaseModel):
     wallet_address: str | None = None
     completed_modules: list[CompletedModule] = Field(default_factory=list)
     tx_index: list[TxRecord] = Field(default_factory=list)
+    # module_id -> the accounts bound in its runs (the learner and its helper
+    # wallets), so live verification can accept a helper-signed tx (2.7.1).
+    module_accounts: dict[str, list[str]] = Field(default_factory=dict)
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
 
@@ -297,13 +300,8 @@ class LabState(BaseModel):
         txids: list[str] | None = None,
         report_path: str | None = None,
         verified: bool = True,
-        accounts: list[str] | None = None,
     ) -> None:
         if self.is_module_completed(module_id):
-            # A --force rerun creates new helper wallets; keep them too.
-            for cm in self.completed_modules:
-                if cm.module_id == module_id and accounts:
-                    cm.accounts = sorted(set(cm.accounts) | set(accounts))
             return
         self.completed_modules.append(
             CompletedModule(
@@ -312,9 +310,19 @@ class LabState(BaseModel):
                 txids=txids or [],
                 report_path=report_path,
                 verified=verified,
-                accounts=sorted(set(accounts or [])),
             )
         )
+
+    def remember_accounts(self, module_id: str, accounts: list[str]) -> None:
+        """Add the accounts bound in a run of ``module_id`` (2.7.1).
+
+        Every run adds to the module's set, completed or not, so a retry's or
+        an interrupted run's helper-signed txs stay verifiable (Argon, 2.7.1
+        round 5, F1).
+        """
+        if module_id and accounts:
+            known = set(self.module_accounts.get(module_id, []))
+            self.module_accounts[module_id] = sorted(known | set(accounts))
         self.updated_at = time.time()
 
     def record_tx(
@@ -665,6 +673,8 @@ def reset_module(module_id: str) -> dict:
     # Filter tx_index — keep records from other modules
     before_tx = len(state.tx_index)
     state.tx_index = [tx for tx in state.tx_index if tx.module_id != module_id]
+    # Its runs' accounts go with its records (2.7.1).
+    state.module_accounts.pop(module_id, None)
     cleared_tx = before_tx - len(state.tx_index)
 
     state.updated_at = time.time()

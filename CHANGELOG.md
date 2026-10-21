@@ -20,12 +20,14 @@ live sweep.
   every success to be signed by the learner, so a lesson that creates its own
   issuer or counterparty could never pass: 17 of 25 honest packs from the
   2.6.2 and 2.7.0 release sweeps failed, all on helper-signed successes
-  (module #30's issuer among them). Each completed lesson now records the
-  accounts that signed in it, the proof pack carries them, and a transaction
-  from the learner or one of that lesson's helpers is accepted, for
-  successes and expected rejections alike. A pack made before 2.7.1 records
-  no helper accounts and keeps the learner-only check; rerun the lesson
-  (`run --force`) to record them.
+  (module #30's issuer among them). Every run of a lesson, finished or
+  stopped, now records the accounts it used (the learner and its helper
+  wallets); the proof pack carries them, and a transaction from the learner
+  or one of that lesson's recorded accounts is accepted, for successes and
+  expected rejections alike. Records made before 2.7.1 name no helper
+  accounts and keep the learner-only check: reset that lesson with
+  `xrpl-lab reset --module <id>` and run it again to make its pack
+  verifiable. Nothing is deleted without that command.
 - **A record says whether its transaction is on a ledger.** Transaction
   records carry `validated`: true for a success or a validated `tec`, false
   for one that never reached a ledger (a `tem`, a `tef`, a timeout), unknown

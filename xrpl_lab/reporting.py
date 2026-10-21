@@ -197,9 +197,9 @@ def generate_proof_pack(state: LabState) -> dict:
                 # FAILED on-ledger carries verified=False — the pack is honest
                 # rather than claiming a completion it never verified.
                 "verified": cm.verified,
-                # 2.7.1: the accounts that signed in this module (learner and
+                # 2.7.1: the accounts bound in this module's runs (learner and
                 # helpers); public addresses, not secrets.
-                "accounts": cm.accounts,
+                "accounts": state.module_accounts.get(cm.module_id, []),
                 "kb_source": mod.kb_source if mod else "",
                 "explorer_urls": [
                     _explorer_url(txid, tx_net.get(txid, state.network))
@@ -271,6 +271,9 @@ def generate_proof_pack(state: LabState) -> dict:
         "successful_transactions": sum(1 for tx in state.tx_index if tx.success),
         "failed_transactions": sum(1 for tx in state.tx_index if not tx.success),
         "expected_failures": sum(1 for tx in state.tx_index if tx.expected),
+        # 2.7.1: module_id -> accounts bound in its runs, for live verification
+        # of helper-signed txs (public addresses).
+        "module_accounts": dict(state.module_accounts),
     }
 
     # Add integrity hash (hash of the pack content without the hash field itself)
@@ -988,13 +991,15 @@ def _iter_pack_tx_claims(pack: dict) -> list[dict]:
 
     claims: list[dict] = []
     seen: set[str] = set()
-    # 2.7.1: the accounts each module recorded (learner and helpers). A tx is
-    # accepted from any of them; a module without the list (an older pack)
-    # keeps the learner-only check.
+    # 2.7.1: the accounts each module's runs bound (learner and helpers). A tx
+    # is accepted from any of them; a module without them (an older pack, or
+    # records from before 2.7.1) keeps the learner-only check.
     module_accounts: dict[str, list[str]] = {}
-    for cm in pack.get("completed_modules", []) or []:
-        if isinstance(cm, dict) and cm.get("accounts"):
-            module_accounts[cm.get("module_id", "")] = list(cm["accounts"])
+    pack_map = pack.get("module_accounts")
+    if isinstance(pack_map, dict):
+        for mid, accounts in pack_map.items():
+            if isinstance(accounts, list):
+                module_accounts[str(mid)] = [str(a) for a in accounts]
 
     transactions = pack.get("transactions")
     if isinstance(transactions, list) and transactions:
