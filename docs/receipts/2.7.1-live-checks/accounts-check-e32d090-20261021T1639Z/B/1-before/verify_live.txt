@@ -2,7 +2,7 @@
 
   ✅ PASS — Proof pack integrity verified.
 
-  File:         E:\AI\xrpl-lab-runs\accounts-check-e32d090-20261021T1639Z\B\1-before\proof_pack.json
+  File:         <scratch>\accounts-check-e32d090-20261021T1639Z\B\1-before\proof_pack.json
   Version:      2.7.1
   Address:      rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h
   Network:      testnet
