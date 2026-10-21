@@ -197,6 +197,9 @@ def generate_proof_pack(state: LabState) -> dict:
                 # FAILED on-ledger carries verified=False — the pack is honest
                 # rather than claiming a completion it never verified.
                 "verified": cm.verified,
+                # 2.7.1: the accounts that signed in this module (learner and
+                # helpers); public addresses, not secrets.
+                "accounts": cm.accounts,
                 "kb_source": mod.kb_source if mod else "",
                 "explorer_urls": [
                     _explorer_url(txid, tx_net.get(txid, state.network))
@@ -808,6 +811,8 @@ async def _verify_one_tx_live(
     checks: list[str] = []
     claim = claim or {}
     validated_claim = claim.get("validated")
+    # Who may have signed it: the learner, plus the module's recorded helpers.
+    allowed = {a for a in [expected_account, *claim.get("accounts", [])] if a}
     rejection = claim.get("success") is False and claim.get("expected") is True
     # 2.7.1: an expected rejection the pack says never reached a ledger (a
     # tem, a tef) has nothing to anchor. Since 2.6.2 the pack records these,
@@ -823,6 +828,15 @@ async def _verify_one_tx_live(
     tx: TxInfo = await transport.fetch_tx(txid)
     if rejection and not tx.fetch_error:
         found = bool(tx.result_code) or tx.validated
+        if allowed and tx.account and tx.account not in allowed:
+            return TxLiveResult(
+                txid=txid, network=network, status=LIVE_FAIL,
+                reason=(
+                    f"On-ledger account {tx.account} is not the learner or one of "
+                    "this module's recorded helper wallets."
+                ),
+                validated=tx.validated,
+            )
         if tx.validated and tx.result_code.startswith("tec"):
             return TxLiveResult(
                 txid=txid, network=network, status=LIVE_PASS,
@@ -910,9 +924,9 @@ async def _verify_one_tx_live(
     # The pack's top-level ``address`` is the learner's wallet; their own
     # transactions are sent FROM that account, so a mismatch means the txid
     # belongs to someone else (a borrowed/forged receipt).
-    if expected_account:
-        if tx.account == expected_account:
-            checks.append(f"Account matches: {expected_account}")
+    if allowed:
+        if tx.account in allowed:
+            checks.append(f"Account matches: {tx.account}")
         else:
             return TxLiveResult(
                 txid=txid,
@@ -920,8 +934,9 @@ async def _verify_one_tx_live(
                 status=LIVE_FAIL,
                 reason=(
                     "On-ledger account does not match the pack's claimed "
-                    f"address: pack claims {expected_account}, ledger shows "
-                    f"{tx.account or '(none)'}."
+                    f"address: pack claims {expected_account}"
+                    f"{' or a recorded helper' if len(allowed) > 1 else ''}, ledger "
+                    f"shows {tx.account or '(none)'}."
                 ),
                 checks=checks,
             )
@@ -973,6 +988,13 @@ def _iter_pack_tx_claims(pack: dict) -> list[dict]:
 
     claims: list[dict] = []
     seen: set[str] = set()
+    # 2.7.1: the accounts each module recorded (learner and helpers). A tx is
+    # accepted from any of them; a module without the list (an older pack)
+    # keeps the learner-only check.
+    module_accounts: dict[str, list[str]] = {}
+    for cm in pack.get("completed_modules", []) or []:
+        if isinstance(cm, dict) and cm.get("accounts"):
+            module_accounts[cm.get("module_id", "")] = list(cm["accounts"])
 
     transactions = pack.get("transactions")
     if isinstance(transactions, list) and transactions:
@@ -995,6 +1017,7 @@ def _iter_pack_tx_claims(pack: dict) -> list[dict]:
                 "success": tx.get("success", True),
                 "expected": tx.get("expected", False),
                 "validated": tx.get("validated"),
+                "accounts": module_accounts.get(tx.get("module_id", ""), []),
             })
         return claims
 

@@ -611,6 +611,14 @@ class Transport(ABC):
         uses it to book the learner's writes against the funded address.
         """
 
+    def bound_addresses(self) -> list[str]:
+        """Every address bound this run: the learner and each helper wallet.
+
+        The runner records them on the completed module, so live verification
+        can accept a tx a lesson's helper signed (2.7.1). Concrete: ``[]``.
+        """
+        return []
+
     async def get_reserves(self) -> tuple[int, int] | None:
         """The validated ledger's ``(reserve_base, reserve_inc)`` in drops.
 

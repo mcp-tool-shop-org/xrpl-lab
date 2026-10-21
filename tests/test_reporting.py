@@ -46,6 +46,7 @@ _PROOF_TOPLEVEL_KEYS = {
 }
 _PROOF_MODULE_KEYS = {
     "module_id", "completed_at", "txids", "kb_source", "explorer_urls",
+    "accounts",  # 2.7.1: public addresses that signed in the module
     # RESWARM3: per-module verification verdict (non-secret bool). Defaults
     # True for back-compat.
     "verified",

@@ -246,6 +246,10 @@ class CompletedModule(BaseModel):
     txids: list[str] = Field(default_factory=list)
     report_path: str | None = None
     verified: bool = True
+    # The accounts that signed in this module: the learner and the helper
+    # wallets the lesson created (2.7.1). Live verification accepts a tx from
+    # any of them. Empty for modules completed before 2.7.1.
+    accounts: list[str] = Field(default_factory=list)
 
 
 class TxRecord(BaseModel):
@@ -293,8 +297,13 @@ class LabState(BaseModel):
         txids: list[str] | None = None,
         report_path: str | None = None,
         verified: bool = True,
+        accounts: list[str] | None = None,
     ) -> None:
         if self.is_module_completed(module_id):
+            # A --force rerun creates new helper wallets; keep them too.
+            for cm in self.completed_modules:
+                if cm.module_id == module_id and accounts:
+                    cm.accounts = sorted(set(cm.accounts) | set(accounts))
             return
         self.completed_modules.append(
             CompletedModule(
@@ -303,6 +312,7 @@ class LabState(BaseModel):
                 txids=txids or [],
                 report_path=report_path,
                 verified=verified,
+                accounts=sorted(set(accounts or [])),
             )
         )
         self.updated_at = time.time()

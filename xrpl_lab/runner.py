@@ -631,6 +631,8 @@ async def run_module(
         # on-ledger verification this run failed, so the proof pack's
         # per-module `verified` + top-level `all_verified` tell the truth.
         verified=all_verified,
+        # 2.7.1: who signed in this run, for live verification of helper txs.
+        accounts=list(getattr(transport, "bound_addresses", lambda: [])()),
     )
     # B-BACKEND-005: guard the completion save like the recovery save. The
     # module already ran and its report is on disk, so a save failure here

@@ -735,6 +735,9 @@ class XRPLTestnetTransport(Transport):
         # down) is retried on the next write.
         self._local_chain_verdicts: dict[str, str | None] = {}
 
+    def bound_addresses(self) -> list[str]:
+        return sorted(set(self._bound_addresses.values()))
+
     def bind_wallet(self, wallet_seed: str, address: str) -> None:
         """Record the address a seed is known by, so signing can check it.
 
