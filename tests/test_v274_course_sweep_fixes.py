@@ -459,3 +459,41 @@ async def test_untagged_creates_to_a_require_dest_account_fail() -> None:
     assert [r.result_code for r in results] == ["tecDST_TAG_NEEDED"] * 3
     tagged = await t.submit_check_create("sSEED", LEARNER, "10", destination_tag=7)
     assert tagged.result_code != "tecDST_TAG_NEEDED"
+
+
+# ── Book Keeper, 2.7.4 live sweep: a --force rerun, and the HYG line ───
+
+
+def test_a_rerun_replaces_the_verdict_and_keeps_the_txids() -> None:
+    """clawback_101: a failed first run (a faucet 429), then a passing --force rerun."""
+    state = LabState()
+    state.complete_module("clawback_101", txids=["A"], report_path="r1", verified=False)
+    state.complete_module("clawback_101", txids=["A", "B"], report_path="r2", verified=True)
+    [record] = state.completed_modules
+    assert (record.verified, record.txids, record.report_path) == (True, ["A", "B"], "r2")
+    state.complete_module("clawback_101", txids=["C"], verified=False)
+    [record] = state.completed_modules
+    assert (record.verified, record.txids, record.report_path) == (False, ["A", "B", "C"], "r2")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("account_flags", "limit", "expected"), [
+    (0, "0", 0x00020000),           # tfSetNoRipple: no DefaultRipple on the account
+    (0x00800000, "0", 0x00040000),  # tfClearNoRipple: the default with DefaultRipple
+    (0, "100", 0),                  # not a removal: no flag
+])
+async def test_a_removal_puts_no_ripple_back_to_the_default(
+    monkeypatch, account_flags, limit, expected,
+) -> None:
+    env = _fakes.install(monkeypatch, results={
+        "AccountInfo": {"account_data": {"Account": _fakes.ADDR, "Flags": account_flags}},
+    })
+    await XRPLTestnetTransport().submit_trust_set(_fakes.SEED, "rISSUER" + "x" * 26, "HYG", limit)
+    assert int(env.xrpl().get("Flags", 0)) == expected
+
+
+@pytest.mark.asyncio
+async def test_a_bad_seed_on_removal_is_a_local_error(monkeypatch) -> None:
+    _fakes.install(monkeypatch)
+    r = await XRPLTestnetTransport().submit_trust_set("not-a-seed", "rISSUER", "HYG", "0")
+    assert (r.success, r.result_code) == (False, "local_error")

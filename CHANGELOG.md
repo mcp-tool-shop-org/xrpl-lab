@@ -38,6 +38,15 @@ home, and two failed on their own.
   missed most of custodial's knock-on failures.
 - **The checks_101 top-up retries** a transient faucet failure, as first
   funding does.
+- **`run --force` updates the module's record.** A rerun left the first
+  run's record as it was, so a passing retry of a run that had failed still
+  read `verified: false` and exited 3. The latest run's verdict now stands,
+  and the earlier run's transactions are kept.
+- **Removing a trust line deletes it.** The limit-0 TrustSet left NoRipple
+  off on the learner's side, which isn't that side's default, so the line
+  stayed on the ledger (balance 0, limit 0) and kept its owner reserve:
+  account_hygiene's cleanup check failed. The removal now sets NoRipple back
+  to the account's default.
 - **A step that never reached the network says so in live verification**,
   instead of "not found on the public ledger", which read as a fake hash.
 
