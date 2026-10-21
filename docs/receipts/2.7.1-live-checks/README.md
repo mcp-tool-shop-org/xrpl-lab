@@ -132,6 +132,81 @@ mismatch count, other FAIL reasons). The packs themselves are in this directory'
 `before-after-2.6.2-pack/` holds the 2.6.2 pack and both verifiers' JSON output. The old-release run used a temporary
 worktree at the `v2.6.2` tag, since removed.
 
+## The helper-account fix, live on `e32d090` (`accounts-check-e32d090-20261021T1639Z/`)
+
+`e32d090` (Argon round 6 GO) records each lesson's accounts (the learner plus the helpers it binds) in
+`state.module_accounts`, and carries them in the pack's `module_accounts`. Live verification accepts a transaction
+signed by any of a lesson's recorded accounts. Older records keep the learner-only check, and `reset --module`
+clears a lesson's entry. `e5da712` landed after this run and is not covered.
+
+**Verdict:**
+- **The fix works.** Every helper-signed transaction whose result is the lesson's own now PASSes, and every helper is
+  listed in its lesson's `module_accounts`.
+- Neither pack below reaches exit 0, though. The cause is **two curriculum and ledger-state defects that the fix
+  uncovered**, not the verifier.
+
+### A: three lessons in one fresh home
+
+The lessons, in order: deposit_gate_101, amm_liquidity_101, nft_marketplace_101, live, one learner wallet
+`rMZpZ5Hu…`.
+
+| Module | Exit | Note |
+|---|---|---|
+| deposit_gate_101 | 0 | all steps passed |
+| amm_liquidity_101 | **3** | 6 steps failed. See defect 1. |
+| nft_marketplace_101 | 0 | all steps passed |
+
+**`proof verify --live`: exit 1**, "2 failed, 20 verified, 1 skipped".
+- **Every helper-signed transaction PASSes:**
+  - deposit_gate: the sender's Payment `A1B91AA4…`, the subject's CredentialAccept `45A8EE00…` and KYC Payment
+    `8F7189D5…`, plus the expected `tec`s `0F191B34…` (sender) and `EEBB5710…` (outsider);
+  - amm: the issuer's AccountSet `6D78F44B…`;
+  - nft: the buyer's NFTokenAcceptOffer `339AADEC…` and NFTokenCreateOffer `EEE5B7FA…`.
+
+  The PASS reason reads "Verified on-ledger." (successes) or "Expected rejection, validated on-ledger: tec…", not
+  "Account matches: r…".
+- `module_accounts`: deposit_gate has 4 accounts (the learner, sender, subject, outsider), amm has 2 (the learner,
+  issuer), nft has 2 (the learner, buyer).
+- **The 2 FAILs are both amm_liquidity_101's,** and both are genuine:
+  - the issuer's LAB issue Payment `0333220B…` is **`tecNO_PERMISSION`**;
+  - the AMMCreate `5EF97240…` is **`tecUNFUNDED_AMM`**.
+
+### B: the da63f40 deposit_gate home (a record from before e32d090)
+
+1. **`proof verify --live` on its pack: exit 1, as expected.** "5 failed, 7 verified, 1 skipped". `module_accounts`
+   is `{}`. The 3 helper-signed successes FAIL on the address check, as before. Now the 2 helper-signed expected `tec`s
+   (`F5C418AB…`, `3ADF073E…`) also FAIL, as "is not the learner or one of this module's recorded helper wallets".
+   (Under `da63f40` they passed. The old-record path is now learner-only throughout, which is consistent.)
+2. `xrpl-lab reset --module deposit_gate_101 --confirm`: exit 0, "Cleared 13 tx record(s); report removed: True".
+3. **The re-run: exit 3**, 1 step failed. See defect 2.
+4. **`proof verify --live`: exit 1**, "1 failed, 11 verified, 1 skipped". **All 5 helper-signed txs PASS** (3
+   successes, 2 expected `tec`s), and `module_accounts` lists 4 accounts. The one FAIL is defect 2's genuine
+   `tecDUPLICATE` (`B2AA5569…`).
+
+### Defect 1: deposit_gate_101 leaves Deposit Authorization on the learner's wallet
+
+deposit_gate turns on `asfDepositAuth` for the learner (the "treasury") and never turns it off. After the run, the
+learner's account `Flags` read `0x01000000` (`lsfDepositAuth`) on the validated ledger.
+
+Any later lesson in the same home that pays the learner is then refused. Here, amm_liquidity's issuer could not issue
+LAB to the learner (`tecNO_PERMISSION`), so the AMMCreate had no LAB (`tecUNFUNDED_AMM`), and amm failed 6 steps.
+
+A workshop runs lessons in sequence in one home, so this breaks every later lesson that receives a payment.
+Possible fixes: deposit_gate clears the flag at its end, or lessons that receive payments check for it.
+
+### Defect 2: deposit_gate_101 can't be re-run on the same wallet after `reset --module`
+
+`reset --module` clears only local state. The first run's credential-based preauthorization (DepositPreauth
+`AuthorizeCredentials` for the learner's own `kyc-deposit` credential type) is still on the ledger. So the re-run's
+DepositPreauth validates **`tecDUPLICATE`** (`B2AA5569…`), which is not one of the lesson's expected rejections.
+
+The lesson needs to tolerate or clean up its own ledger objects from an earlier attempt.
+
+The run folder holds A and B with each module's `command.txt` (exit code), `stdout.txt` / `stderr.txt` (stderr
+empty throughout), each pack's `proof_pack.json`, and `verify_live.json` / `verify_live.txt` / `verify_exit.txt`.
+`state_excerpt.json` holds `module_accounts`, the completed modules and `tx_index`, with `wallet_path` omitted. There
+is also `B/reset.txt`.
+
 ## Files
 
 `sweep-9aa461b-20261021T1517Z/<module>/` holds:

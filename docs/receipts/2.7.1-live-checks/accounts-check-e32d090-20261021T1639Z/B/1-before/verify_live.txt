@@ -1,0 +1,38 @@
+`proof verify` is deprecated, use `verify-artifact`.
+
+  ✅ PASS — Proof pack integrity verified.
+
+  File:         E:\AI\xrpl-lab-runs\accounts-check-e32d090-20261021T1639Z\B\1-before\proof_pack.json
+  Version:      2.7.1
+  Address:      rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h
+  Network:      testnet
+  Modules:      1
+  Transactions: 13
+  SHA-256:      5d07aec9ca64cd9e3f976ce8d2361818bb767ae7b557b576f44cfc82b10cb1cc
+
+  On-ledger verification:
+  ✓ PASS B077564C47532D62B178…  (testnet)
+  ✗ FAIL F5C418ABE21882F4B246…  (testnet)
+         On-ledger account r422taaUtx5842fkuMHFdKRptQJHcmkCyU is not the learner or one of this module's recorded helper wallets.
+  · SKIP 12D008E70484ACEECC7B…  (Expected rejection that never reaches a ledger (by design).)
+  ✓ PASS EAAB7AB1402DFC4D9A21…  (testnet)
+  ✓ PASS 6E1F0490E42F5A786DD6…  (testnet)
+  ✗ FAIL 213B629D3DFE85501E24…  (testnet)
+         On-ledger account does not match the pack's claimed address: pack claims rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h, ledger shows 
+r422taaUtx5842fkuMHFdKRptQJHcmkCyU.
+  ✓ PASS 684418E726D872CBBF94…  (testnet)
+  ✗ FAIL 8A52D055F52B96571AAC…  (testnet)
+         On-ledger account does not match the pack's claimed address: pack claims rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h, ledger shows 
+rJi5XTfLh5sTyuRoCQCkL5cmUBfZrXBFN2.
+  ✓ PASS 88B5E523BA2411BA01BB…  (testnet)
+  ✗ FAIL 0842B07BCAEAA3E43024…  (testnet)
+         On-ledger account does not match the pack's claimed address: pack claims rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h, ledger shows 
+rJi5XTfLh5sTyuRoCQCkL5cmUBfZrXBFN2.
+  ✗ FAIL 3ADF073EAB94F89CBA1C…  (testnet)
+         On-ledger account rPEjTQ98UGbVqm9PKuGfg753DxdJG5oxEY is not the learner or one of this module's recorded helper wallets.
+  ✓ PASS 184BA68A2A340185FB98…  (testnet)
+  ✓ PASS 36D4CB228099B8891645…  (testnet)
+
+  On-ledger verdict: FAIL — 5 failed, 7 verified, 1 skipped.
+  Mixed pack — verified 12 real-network txid(s); skipped 1 dry-run/local txid(s).
+

@@ -1,0 +1,45 @@
+`proof verify` is deprecated, use `verify-artifact`.
+
+  ✅ PASS — Proof pack integrity verified.
+
+  ⚠ UNVERIFIED — one or more completed modules failed their on-ledger verification. The integrity check still passes (the file is intact), but not every lesson
+was proven. Re-run the affected module(s) for a fully-verified pack.
+
+  File:         E:\AI\xrpl-lab-runs\accounts-check-e32d090-20261021T1639Z\A\proof_pack.json
+  Version:      2.7.1
+  Address:      rMZpZ5Hu5Lh22Ao9kefsAwVaXSLyWYWtLX
+  Network:      testnet
+  Modules:      3
+  Transactions: 23
+  SHA-256:      58d6b739e630790b54c27071d75dc74c05f1f8b0e3ee03c1c9de0cc2e4e1ff29
+
+  On-ledger verification:
+  ✓ PASS 983F59D8490BE43DE939…  (testnet)
+  ✓ PASS 0F191B34B25FA0324D5F…  (testnet)
+  · SKIP CCC8408D8FB487656B0F…  (Expected rejection that never reaches a ledger (by design).)
+  ✓ PASS 5ABBD6E4A1943296B308…  (testnet)
+  ✓ PASS D1627C8E4B1152F836BB…  (testnet)
+  ✓ PASS A1B91AA43F954005B1D3…  (testnet)
+  ✓ PASS 102012B47372CEAA452C…  (testnet)
+  ✓ PASS 45A8EE0051BB7CA09555…  (testnet)
+  ✓ PASS A3A060CAD5EF1CE62A22…  (testnet)
+  ✓ PASS 8F7189D5C05BEC12AC3E…  (testnet)
+  ✓ PASS EEBB5710CDE3A5EA4F46…  (testnet)
+  ✓ PASS 34AD1832F5E7B39AFB78…  (testnet)
+  ✓ PASS EE58CC5D8DA4F89AB688…  (testnet)
+  ✓ PASS 6D78F44B91023BCF4A6F…  (testnet)
+  ✓ PASS FE60B6EF087D5296CEB5…  (testnet)
+  ✗ FAIL 0333220BC731EF600A8C…  (testnet)
+         On-ledger result is tecNO_PERMISSION, not tesSUCCESS.
+  ✗ FAIL 5EF972400736879F6A52…  (testnet)
+         On-ledger result is tecUNFUNDED_AMM, not tesSUCCESS.
+  ✓ PASS 50A8B442C1CD534FC118…  (testnet)
+  ✓ PASS 7D3F91FD24A9A83E4345…  (testnet)
+  ✓ PASS 339AADEC5F7B81E3E1FF…  (testnet)
+  ✓ PASS EEE5B7FAAED19BA3F74A…  (testnet)
+  ✓ PASS F7C312ED282CF658CB88…  (testnet)
+  ✓ PASS 43002B65307F0F615085…  (testnet)
+
+  On-ledger verdict: FAIL — 2 failed, 20 verified, 1 skipped.
+  Mixed pack — verified 22 real-network txid(s); skipped 1 dry-run/local txid(s).
+

@@ -1,0 +1,34 @@
+`proof verify` is deprecated, use `verify-artifact`.
+
+  ✅ PASS — Proof pack integrity verified.
+
+  ⚠ UNVERIFIED — one or more completed modules failed their on-ledger verification. The integrity check still passes (the file is intact), but not every lesson
+was proven. Re-run the affected module(s) for a fully-verified pack.
+
+  File:         E:\AI\xrpl-lab-runs\accounts-check-e32d090-20261021T1639Z\B\2-after\proof_pack.json
+  Version:      2.7.1
+  Address:      rGuEKuQGy2Uvnimv1SUKffLiA2iw7YPL5h
+  Network:      testnet
+  Modules:      1
+  Transactions: 13
+  SHA-256:      7c7575a63a2a2495b8fe0c16af49be93ed67761e094752b65b486cd3fd7c00be
+
+  On-ledger verification:
+  ✓ PASS E589161B2C23A37B3111…  (testnet)
+  ✓ PASS 5D853657035E77005C89…  (testnet)
+  · SKIP B70E0B51B44B755FC9A7…  (Expected rejection that never reaches a ledger (by design).)
+  ✓ PASS 85C1CE1E22D264C939E3…  (testnet)
+  ✓ PASS BAD43D8C696E99DD3434…  (testnet)
+  ✓ PASS ED365EE0A443DCE18843…  (testnet)
+  ✓ PASS A036573BA0A16AF3E978…  (testnet)
+  ✓ PASS 6F9C69C7ED8D62136E63…  (testnet)
+  ✗ FAIL B2AA5569A0AD48708AB0…  (testnet)
+         On-ledger result is tecDUPLICATE, not tesSUCCESS.
+  ✓ PASS DCDAADFED048BFBBBD56…  (testnet)
+  ✓ PASS 1BE86645D7320CD8EB0E…  (testnet)
+  ✓ PASS 3C84E3EAFAA819592FD9…  (testnet)
+  ✓ PASS FF0299DE9FEF32285E9F…  (testnet)
+
+  On-ledger verdict: FAIL — 1 failed, 11 verified, 1 skipped.
+  Mixed pack — verified 12 real-network txid(s); skipped 1 dry-run/local txid(s).
+
