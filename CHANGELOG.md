@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.7.2 — 2026-10-21
+
+The two deposit_gate_101 defects 2.7.1 listed as known issues (#20 items 15
+and 16), from its helper-account live check.
+
+### Fixed
+
+- **deposit_gate_101 turns deposit authorization off when it's done.** It
+  left `lsfDepositAuth` on the learner's wallet, so a later lesson in the
+  same home that paid the learner was refused (`tecNO_PERMISSION`):
+  amm_liquidity_101's issuer couldn't issue its token, and the pool had
+  nothing to fund. Two closing steps now remove the credential
+  preauthorization and clear `asfDepositAuth`, and the last one reads the
+  account back to check.
+- **deposit_gate_101 runs again on the same wallet.** After
+  `reset --module`, its first run's credential preauthorization was still on
+  the ledger, so the rerun failed with `tecDUPLICATE`. The cleanup removes
+  it, and a wallet an older run left it on is accepted as already set up.
+- **A wallet left with deposit authorization on is flagged.** A lesson that
+  pays the learner warns when an older deposit_gate run left the flag on,
+  and says how to clear it.
+
 ## 2.7.1 — 2026-10-21
 
 The last two 2.6.x follow-ups from issue #20 (items 12 and 13), from the 2.6.2
