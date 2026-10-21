@@ -1,0 +1,2 @@
+after step 1 (deposit_gate): learner rNqAHBdAypisqfogzYnKw65uXXiV68FNTF Flags 0x0 lsfDepositAuth(0x01000000) set: False (ledger 21714385)
+after step 3 (deposit_gate rerun): learner rNqAHBdAypisqfogzYnKw65uXXiV68FNTF Flags 0x0 lsfDepositAuth(0x01000000) set: False (ledger 21714485)

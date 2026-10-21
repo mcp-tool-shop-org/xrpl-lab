@@ -1,0 +1,38 @@
+`proof verify` is deprecated, use `verify-artifact`.
+
+  ✅ PASS — Proof pack integrity verified.
+
+  File:         proof_pack.json
+  Version:      2.7.2
+  Address:      rNqAHBdAypisqfogzYnKw65uXXiV68FNTF
+  Network:      testnet
+  Modules:      2
+  Transactions: 21
+  SHA-256:      3259375ff382fcd257eb85a3e8fdf1e393d751df52cbce921426d75ec881b90e
+
+  On-ledger verification:
+  ✓ PASS A8D93FD9A9C8B47F592A…  (testnet)
+  ✓ PASS 224737876C689B23D79B…  (testnet)
+  ✓ PASS 0DC5AC47A5F3F2A12C48…  (testnet)
+  ✓ PASS 83B45C01C58EFB9EE247…  (testnet)
+  ✓ PASS E06E90DB167A2164A122…  (testnet)
+  ✓ PASS E244770D975C375D4B63…  (testnet)
+  ✓ PASS 679D50C1048A97ED40A5…  (testnet)
+  ✓ PASS F64A993F2D59C2E8D312…  (testnet)
+  · SKIP 454EF7FC179C2DEB4974…  (Expected rejection that never reaches a ledger (by design).)
+  ✓ PASS 555820046A8D94496B24…  (testnet)
+  ✓ PASS E701D748A7BF9E1FC669…  (testnet)
+  ✓ PASS 2F537C81E9485CFE992A…  (testnet)
+  ✓ PASS FF152B9A9E97E53B199F…  (testnet)
+  ✓ PASS 738F1FA5254C634E5294…  (testnet)
+  ✓ PASS ED1853C79183E1613F1D…  (testnet)
+  ✓ PASS 547142FDAFA2FD22B6DB…  (testnet)
+  ✓ PASS F8D78977E4BED3611917…  (testnet)
+  ✓ PASS 66E672BD8247FE55A770…  (testnet)
+  ✓ PASS 0DDCDEBFD7EE808AE837…  (testnet)
+  ✓ PASS 742BE3C292FA2CEA4A88…  (testnet)
+  ✓ PASS 8ED67661D5426604CDB8…  (testnet)
+
+  On-ledger verdict: PASS — 20 verified, 1 skipped.
+  Mixed pack — verified 20 real-network txid(s); skipped 1 dry-run/local txid(s).
+
