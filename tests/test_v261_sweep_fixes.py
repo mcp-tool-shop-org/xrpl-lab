@@ -311,3 +311,34 @@ async def test_a_malformed_nft_offer_bound_is_explained() -> None:
     )
     assert any(not v["passed"] for v in ctx["verifications"])
     assert "expected_min" in buf.getvalue()
+
+
+@pytest.mark.asyncio
+async def test_the_unfunded_subject_is_a_fresh_address_each_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sweep 2: the lesson's 'unfunded' subject was a fixed example address
+    that is funded on testnet, so CredentialCreate succeeded (tesSUCCESS)
+    instead of teaching tecNO_TARGET. Each run now attests a fresh address
+    that has never been funded."""
+    from xrpl_lab.runtime import _SecretValue
+    from xrpl_lab.state import LabState
+
+    subjects: list[str] = []
+
+    async def _capture(transport, seed, subject, credential_type, **kwargs):
+        subjects.append(subject)
+        return SubmitResult(success=False, txid="F" * 64, result_code="tecNO_TARGET")
+
+    monkeypatch.setattr(handlers, "create_credential", _capture)
+    monkeypatch.setattr(handlers, "save_state", lambda state: None)
+    for _ in range(2):
+        console, _ = _console()
+        ctx = await handlers.handle_create_credential_unfunded(
+            ModuleStep(text="unfunded", action="create_credential_unfunded", action_args={}),
+            LabState(wallet_address="rISSUER"), DryRunTransport(), "",
+            {"wallet_seed": _SecretValue("sISSUER")}, console,
+        )
+        assert ctx.get("expected_failures") == 1
+    assert "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe" not in subjects
+    assert len(set(subjects)) == 2

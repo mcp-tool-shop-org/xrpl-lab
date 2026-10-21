@@ -4386,8 +4386,11 @@ async def handle_create_credential_unfunded(
     """
     args = step.action_args
     credential_type = args.get("credential_type", "over21")
-    # A syntactically-valid but unfunded classic address (never faucet-funded).
-    unfunded = args.get("subject", "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe")
+    # A fresh address, generated now and never funded. The old fixed default
+    # was a well-known example address that IS funded on testnet, so the
+    # CredentialCreate succeeded instead of teaching tecNO_TARGET
+    # (helper-wallet sweep 2).
+    unfunded = args.get("subject") or create_wallet().address
     if "wallet_seed" not in context:
         console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
         return context
