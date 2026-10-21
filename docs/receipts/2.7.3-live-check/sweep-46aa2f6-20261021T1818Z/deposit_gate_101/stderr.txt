@@ -1,0 +1,18 @@
+CredentialAccept: sequence pre-fetch failed; refusing non-timeout retries (duplicate-submission protection unavailable for this attempt)
+Traceback (most recent call last):
+  File "<worktree>/xrpl_lab\transport\xrpl_testnet.py", line 554, in _pin_sequence
+    seq = await asyncio.wait_for(
+          ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+    )
+    ^
+  File "<home>/AppData\Roaming\uv\python\cpython-3.13-windows-x86_64-none\Lib\asyncio\tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "<worktree>/.venv\Lib\site-packages\xrpl\asyncio\account\main.py", line 58, in get_next_valid_seq_number
+    int, (await get_account_root(address, client, ledger_index))["Sequence"]
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<worktree>/.venv\Lib\site-packages\xrpl\asyncio\account\main.py", line 117, in get_account_root
+    raise XRPLRequestFailureException(account_info.result)
+xrpl.asyncio.clients.exceptions.XRPLRequestFailureException: Request failed, actNotFound: Account not found.
+CredentialAccept: not retrying — sequence was not pinned before submit (duplicate-submission protection unavailable)
