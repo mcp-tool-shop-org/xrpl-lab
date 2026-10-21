@@ -152,3 +152,47 @@ def test_the_checks_list_names_the_cleanup() -> None:
 
     checks = load_all_modules()["deposit_gate_101"].checks
     assert any("cleanup" in c for c in checks)
+
+
+# ── Codecov patch coverage on the 2.7.2 diff ───────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_a_failed_unauthorize_is_recorded(monkeypatch) -> None:
+    """The cleanup's UnauthorizeCredentials failure branch."""
+    monkeypatch.setattr(handlers, "save_state", lambda state: None)
+
+    async def _fail(*args, **kwargs):
+        return SubmitResult(success=False, txid="E" * 64, result_code="tecNO_ENTRY",
+                            error="no such preauthorization")
+
+    monkeypatch.setattr(handlers, "unauthorize_deposit_credential", _fail)
+    state = LabState(wallet_address=LEARNER, network="testnet")
+    console, buf = _console()
+    step = ModuleStep(text="x", action="unauthorize_kyc_credential", action_args={})
+    await handlers.handle_unauthorize_kyc_credential(
+        step, state, DryRunTransport(), "sSEED", {"module_id": "m"}, console)
+    assert "Removing it failed" in buf.getvalue()
+    assert [r.success for r in state.tx_index] == [False]
+
+
+@pytest.mark.asyncio
+async def test_the_base_transport_does_not_know_the_flag() -> None:
+    from xrpl_lab.transport.base import Transport
+
+    assert await Transport.get_deposit_auth(DryRunTransport(), LEARNER) is None
+
+
+@pytest.mark.asyncio
+async def test_an_rpc_error_reads_as_unknown(monkeypatch) -> None:
+    import xrpl_lab.transport.xrpl_testnet as xt
+
+    class _Down:
+        async def __aenter__(self):
+            raise ConnectionError("rpc down")
+
+        async def __aexit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(xt, "_rpc_client", lambda url: _Down())
+    assert await XRPLTestnetTransport().get_deposit_auth(LEARNER) is None
