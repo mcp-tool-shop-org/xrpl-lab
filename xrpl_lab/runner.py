@@ -119,6 +119,10 @@ async def _execute_action(
     # Resolve wallet_seed safely from context
     _raw = context.get('wallet_seed', wallet_seed) or wallet_seed
     wallet_seed = _raw.get() if isinstance(_raw, _SecretValue) else _raw
+    # Book the learner's writes against the address the faucet funded (a
+    # no-op on a network transport; see Transport.bind_wallet). 2.6.1.
+    if wallet_seed and state.wallet_address:
+        transport.bind_wallet(wallet_seed, state.wallet_address)
 
     # Look up action in the registry
     try:
@@ -269,6 +273,9 @@ async def run_module(
     # the failure-literacy lessons record no failed TxRecord, so they don't.
     failed_steps: list[str] = []
     action_steps = 0
+    expected_tx_count = 0  # failed records a lesson acknowledged as expected
+    _run_tx_start = len(state.tx_index)
+    _run_started = time.time()
 
     for i, step in enumerate(module.steps):
         # Render step text
@@ -310,6 +317,7 @@ async def run_module(
             # can't be blamed for an earlier step's verdict.
             _prev_verif_count = len(context.get("verifications", []))
             _prev_tx_count = len(state.tx_index)
+            _prev_ack = len(context.get("expected_failure_txids", []))
             _step_started = time.time()
             action_steps += 1
             try:
@@ -454,10 +462,24 @@ async def run_module(
             step_verify_failed = any(
                 not v.get("passed", True) for v in step_verifications
             )
-            step_submit_failed = any(
-                not record.success and record.timestamp >= _step_started
-                for record in state.tx_index[_prev_tx_count:]
-            )
+            # A lesson whose point is a rejected transaction records that tec
+            # (it IS on the ledger) and acknowledges it through
+            # handlers._judge_expected_failure; only failures beyond those
+            # acknowledged count (helper-wallet sweep 1 on 2.6.0).
+            # Match acknowledgements to failed records BY TXID: a judged
+            # failure that wrote no record (a local tem) must not hide a
+            # genuine failed record in the same step (R&D review, L2).
+            acknowledged = list(context.get("expected_failure_txids", [])[_prev_ack:])
+            unexpected = 0
+            for record in state.tx_index[_prev_tx_count:]:
+                if record.success or record.timestamp < _step_started:
+                    continue
+                if record.txid in acknowledged:
+                    acknowledged.remove(record.txid)
+                    expected_tx_count += 1
+                else:
+                    unexpected += 1
+            step_submit_failed = unexpected > 0
             if step_verify_failed or step_submit_failed:
                 all_verified = False
                 failed_steps.append(_step_heading(step, i))
@@ -519,10 +541,18 @@ async def run_module(
             )
 
     # Module completed — write report and update state
+    # Argon (round 2, Low 2): count failed transactions from this run's
+    # TxRecords, the same source as the step signal; context["failed_txids"]
+    # is appended by only some handlers.
+    failed_tx_count = sum(
+        1 for record in state.tx_index[_run_tx_start:]
+        if not record.success and record.timestamp >= _run_started
+    )
+    expected_note = f" ({expected_tx_count} expected)" if expected_tx_count else ""
     summary_lines = [
         f"Steps: {action_steps - len(failed_steps)} passed, {len(failed_steps)} failed",
         f"Transactions: {len(context['txids'])} successful, "
-        f"{len(context['failed_txids'])} failed",
+        f"{failed_tx_count} failed{expected_note}",
     ]
     if failed_steps:
         summary_lines.append("Failed steps:")

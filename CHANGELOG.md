@@ -1,5 +1,95 @@
 # Changelog
 
+## 2.6.1 — 2026-10-21
+
+### Fixed
+
+- **Every helper wallet waits for the validated ledger.** Eleven handlers
+  created a counterparty or second issuer and funded it from the faucet, then
+  went on as soon as the faucet answered. That's the race that held module
+  #30's issuer AccountSet in 2.6.0's first live run. They now share
+  `_fund_new_wallet`, which waits for a validated balance and records a
+  failed step if the wallet never appears. A test checks every faucet call
+  in the handlers waits.
+- **`xrpl-lab fund` prints the validated balance,** not the faucet's reply
+  (which read "unknown" on Testnet).
+- **The report counts failed transactions from the run's transaction
+  records,** the same source as the failed-step signal. AMM deposit and
+  withdraw failures were missing from it.
+- **An AMM-less transport marks the pool missing,** so the deposit and
+  withdraw steps skip, and the step counts as failed.
+- The registry sweep asserts that the six deliberate-failure lessons record
+  no failed transaction, instead of skipping them.
+
+### Fixed (found by the helper-wallet sweep of 2.6.0)
+
+A live sweep of the 10 testnet modules that fund a helper wallet found these.
+Its receipts are in `docs/receipts/2.6.1-helper-wallet-sweep/`.
+
+- **Lessons whose point is a rejected transaction no longer read as failed.**
+  2.6.0 counts a step failed when it records a failed transaction, so a
+  lesson that teaches `tecDUPLICATE` or `tecNO_PERMISSION` read as failed
+  (credentials, permissioned domains, clawback). The 19 expected-failure
+  steps now judge their outcome through `_judge_expected_failure`. Each is
+  pinned to the code its lesson teaches, as seen live or in the verified KB:
+  the expected code acknowledges the step, and anything else is a failed
+  step. The runner matches each acknowledgement to its failed transaction by
+  hash, and the report says "N failed (M expected)".
+- **An expected `tec` must be on the ledger.** The checks lesson's outsider
+  "got" its expected `tecNO_PERMISSION` from a transaction that never
+  validated, because its window closed on a preliminary result. Results now
+  carry `validated`. A preliminary result, a timeout or a `tem` is not
+  validated, and a lesson expecting a `tec` needs a validated one.
+- **Payment-channel claims verify and redeem.** The channel's public key was
+  read from `account_channels`' base58 `public_key`; claim signatures and
+  `PaymentChannelClaim` need its `public_key_hex`.
+- **Credential-gated payments can be signed.** xrpl-py 4.5 serialises
+  `credential_ids` as `CredentialIds`, which its own binary codec rejects.
+  xrpl-lab now registers the `IDs` abbreviation; xrpl-py 5.2 already has it.
+- **The NFT lessons fit one faucet grant.** The marketplace and the capstone
+  listed an NFT at 100 XRP to a buyer funded once with 100 XRP; listings are
+  now 10 XRP (resale 20).
+- **The unfunded-subject credential step uses a fresh address.** Its fixed
+  default was an example address that is funded on testnet, so the step
+  succeeded instead of teaching `tecNO_TARGET`.
+
+### Fixed (the first lessons, and the dry run)
+
+- **The first lessons' practice payments work on the ledger.**
+  - `receipt_literacy`, `failure_literacy` and `receipt_audit` paid
+    `destination=self`. Nothing resolved "self", so testnet couldn't sign the
+    payment.
+  - Paying your own address wouldn't work either, because XRPL rejects that
+    as `temREDUNDANT`.
+  - Practice payments now go to a fresh address made once per run; the payment
+    creates it.
+  - `failure_literacy`'s deliberate failure now really is underfunded (more XRP
+    than the wallet holds, `tecUNFUNDED_PAYMENT`). The lesson text is
+    corrected.
+- **Every module passes in dry-run.** Five failed their own checks offline,
+  also on 2.6.0: `account_hygiene`, `dex_market_making_101`,
+  `escrow_finish_101`, `receipt_audit` and the capstone.
+  - The dry-run transport booked most of the learner's writes against a
+    synthetic address the faucet never funded. So owner counts missed offers,
+    and an escrow couldn't be found to finish.
+  - It also let that address's balance go negative, and charged a royalty on
+    the creator's own sale.
+  - The runner now binds the learner's seed to their real address
+    (`Transport.bind_wallet`, a no-op on testnet), and offers take the same
+    address hint as trust lines.
+- **`xrpl-lab send` exits 2 on a failed payment,** like `fund`. `fund`
+  also exits 2 when the faucet answered but the wallet isn't on a validated
+  ledger yet.
+- **From Argon's review:**
+  - an expected failure is acknowledged only when its failed transaction
+    was recorded, so it can't hide a genuine one;
+  - `validated` is opt-in on the testnet transport (only a validated ledger
+    outcome sets it);
+  - the three helpers that submit right after funding their wallet stop if
+    the wallet never appears.
+- **`audit --csv` writes one line ending per row on Windows** (it wrote
+  CR CR LF).
+
 ## 2.6.0 — 2026-10-20
 
 External-audit pass (F1–F7, F10): packaging, curriculum accuracy, CLI surface,

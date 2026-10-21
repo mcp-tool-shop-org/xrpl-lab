@@ -1,0 +1,349 @@
+{
+  "validated_ledger": {
+    "seq": 21694947,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "r4pvhpBEYGorA92ahhq2zoJjangrewECX3": {
+      "Balance": "109999930",
+      "Sequence": 21694903,
+      "OwnerCount": 1,
+      "Flags": 16777216,
+      "account_tx": [
+        {
+          "ledger_index": 21694896,
+          "hash": "4711303AC8188D95ACFD4478C2604C9AB577D8A6F96F2E0E13003DC16C937F42",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694898,
+          "hash": "8879E828173A784F67FAD1ACB67A85CE0592438185C5F2E04CE34A2162F20412",
+          "TransactionType": "AccountSet",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694896,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694921,
+          "hash": "23230E713259DE00835BCFF4A6F4465A87A144FA8FE7554ACEE31C35E9E08286",
+          "TransactionType": "DepositPreauth",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694897,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694924,
+          "hash": "48410A5E2935CC733BE5FAE8AA621D6D9CEBEC4D403BCC46B80534A7B03D2BF0",
+          "TransactionType": "DepositPreauth",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694898,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecDUPLICATE"
+        },
+        {
+          "ledger_index": 21694926,
+          "hash": "1E8C824A97AB40D694E2B27DB735310C7B58E6403EB0B89EFAFFE99AC5B6D86D",
+          "TransactionType": "Payment",
+          "Account": "r3VGraPp19yWpxWtHhGTCR35brfD9u6Seu",
+          "Destination": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Sequence": 21694900,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694928,
+          "hash": "D302D3AE3B2F6489AD2EB4213459E08AF7D4262D1CDC4543BA1E0202BD51E6BB",
+          "TransactionType": "CredentialCreate",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694899,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694930,
+          "hash": "E57D8252F0E2756E2530EACD71C80EF07306B98DE6AB403115D27FE42510646B",
+          "TransactionType": "CredentialAccept",
+          "Account": "rDEantDeFad4geNFVWGDd5chrsr6fsJfUP",
+          "Destination": null,
+          "Sequence": 21694928,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694932,
+          "hash": "88946287943B853D1033CDF9C57058C150D5E288D2716A18CBF580B8D7AC0CED",
+          "TransactionType": "DepositPreauth",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694900,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694942,
+          "hash": "19946EE902B7E8C0776A458AC2B533CC0CBD8AB6CA9C255BE95ADDA072F7F271",
+          "TransactionType": "DepositPreauth",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694901,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694945,
+          "hash": "14EFD45B0074347945A942C0C16D40529AACF9A6261C1E83317DBC3E663956D7",
+          "TransactionType": "DepositPreauth",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694902,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecNO_ENTRY"
+        }
+      ]
+    },
+    "r3VGraPp19yWpxWtHhGTCR35brfD9u6Seu": {
+      "Balance": "89999990",
+      "Sequence": 21694901,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21694900,
+          "hash": "AD5E1984B0D73AFDB599979D51855EAD53B630A2D98957C36FC6D8EF386FD76E",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "r3VGraPp19yWpxWtHhGTCR35brfD9u6Seu",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694921,
+          "hash": "23230E713259DE00835BCFF4A6F4465A87A144FA8FE7554ACEE31C35E9E08286",
+          "TransactionType": "DepositPreauth",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694897,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694926,
+          "hash": "1E8C824A97AB40D694E2B27DB735310C7B58E6403EB0B89EFAFFE99AC5B6D86D",
+          "TransactionType": "Payment",
+          "Account": "r3VGraPp19yWpxWtHhGTCR35brfD9u6Seu",
+          "Destination": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Sequence": 21694900,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694942,
+          "hash": "19946EE902B7E8C0776A458AC2B533CC0CBD8AB6CA9C255BE95ADDA072F7F271",
+          "TransactionType": "DepositPreauth",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694901,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rDEantDeFad4geNFVWGDd5chrsr6fsJfUP": {
+      "Balance": "99999990",
+      "Sequence": 21694929,
+      "OwnerCount": 1,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21694928,
+          "hash": "49908876A146276F196627DE2521A3CADE45319BD04BB0D5C9BF8B1E7F48E7E9",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rDEantDeFad4geNFVWGDd5chrsr6fsJfUP",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694928,
+          "hash": "D302D3AE3B2F6489AD2EB4213459E08AF7D4262D1CDC4543BA1E0202BD51E6BB",
+          "TransactionType": "CredentialCreate",
+          "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Destination": null,
+          "Sequence": 21694899,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694930,
+          "hash": "E57D8252F0E2756E2530EACD71C80EF07306B98DE6AB403115D27FE42510646B",
+          "TransactionType": "CredentialAccept",
+          "Account": "rDEantDeFad4geNFVWGDd5chrsr6fsJfUP",
+          "Destination": null,
+          "Sequence": 21694928,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rBsMyS6oRcSrydcWj2q3CBBTc77P2HxN36": {
+      "Balance": "99999990",
+      "Sequence": 21694940,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21694939,
+          "hash": "B326B76A15B653B84F75B2A5539993438E8D5666606891B0B28BE017D5FA7F89",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rBsMyS6oRcSrydcWj2q3CBBTc77P2HxN36",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21694940,
+          "hash": "1A01DC40F4A2BF276C80EB15573EF907578A93529D448F7AF135CF668A7DB8D9",
+          "TransactionType": "Payment",
+          "Account": "rBsMyS6oRcSrydcWj2q3CBBTc77P2HxN36",
+          "Destination": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+          "Sequence": 21694939,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecNO_PERMISSION"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "8879E828173A784F67FAD1ACB67A85CE0592438185C5F2E04CE34A2162F20412": {
+      "TransactionType": "AccountSet",
+      "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21694898,
+      "Sequence": 21694896,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "23230E713259DE00835BCFF4A6F4465A87A144FA8FE7554ACEE31C35E9E08286": {
+      "TransactionType": "DepositPreauth",
+      "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21694921,
+      "Sequence": 21694897,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "1E8C824A97AB40D694E2B27DB735310C7B58E6403EB0B89EFAFFE99AC5B6D86D": {
+      "TransactionType": "Payment",
+      "Account": "r3VGraPp19yWpxWtHhGTCR35brfD9u6Seu",
+      "Destination": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+      "validated": true,
+      "ledger_index": 21694926,
+      "Sequence": 21694900,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "D302D3AE3B2F6489AD2EB4213459E08AF7D4262D1CDC4543BA1E0202BD51E6BB": {
+      "TransactionType": "CredentialCreate",
+      "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21694928,
+      "Sequence": 21694899,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "E57D8252F0E2756E2530EACD71C80EF07306B98DE6AB403115D27FE42510646B": {
+      "TransactionType": "CredentialAccept",
+      "Account": "rDEantDeFad4geNFVWGDd5chrsr6fsJfUP",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21694930,
+      "Sequence": 21694928,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "88946287943B853D1033CDF9C57058C150D5E288D2716A18CBF580B8D7AC0CED": {
+      "TransactionType": "DepositPreauth",
+      "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21694932,
+      "Sequence": 21694900,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "19946EE902B7E8C0776A458AC2B533CC0CBD8AB6CA9C255BE95ADDA072F7F271": {
+      "TransactionType": "DepositPreauth",
+      "Account": "r4pvhpBEYGorA92ahhq2zoJjangrewECX3",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21694942,
+      "Sequence": 21694901,
+      "TransactionResult": "tesSUCCESS"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "8879E828173A784F67FAD1ACB67A85CE0592438185C5F2E04CE34A2162F20412",
+      "success": true
+    },
+    {
+      "txid": "23230E713259DE00835BCFF4A6F4465A87A144FA8FE7554ACEE31C35E9E08286",
+      "success": true
+    },
+    {
+      "txid": "1E8C824A97AB40D694E2B27DB735310C7B58E6403EB0B89EFAFFE99AC5B6D86D",
+      "success": true
+    },
+    {
+      "txid": "D302D3AE3B2F6489AD2EB4213459E08AF7D4262D1CDC4543BA1E0202BD51E6BB",
+      "success": true
+    },
+    {
+      "txid": "E57D8252F0E2756E2530EACD71C80EF07306B98DE6AB403115D27FE42510646B",
+      "success": true
+    },
+    {
+      "txid": "88946287943B853D1033CDF9C57058C150D5E288D2716A18CBF580B8D7AC0CED",
+      "success": true
+    },
+    {
+      "txid": "failed",
+      "success": false
+    },
+    {
+      "txid": "19946EE902B7E8C0776A458AC2B533CC0CBD8AB6CA9C255BE95ADDA072F7F271",
+      "success": true
+    }
+  ]
+}

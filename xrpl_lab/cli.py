@@ -2186,7 +2186,20 @@ def fund(dry_run: bool):
     result = asyncio.run(transport.fund_from_faucet(state.wallet_address))
 
     if result.success:
-        console.print(f"[green]Funded![/] Balance: {result.balance} XRP")
+        # 2.6.1 (issue #20): the faucet's reply isn't the balance; read it
+        # from a validated ledger, as the lessons do.
+        from .runtime import await_validated_balance
+
+        settled = asyncio.run(await_validated_balance(transport, state.wallet_address))
+        if settled > 0:
+            console.print(f"[green]Funded![/] Balance: {settled} XRP")
+        else:
+            console.print(
+                "[yellow]The faucet accepted the request, but the wallet isn't on a "
+                "validated ledger yet. Check again in a minute.[/]"
+            )
+            # Not funded yet: exit non-zero so `fund && send` stops (Argon F3).
+            raise SystemExit(2)
         return
     # F-BRIDGE-PH8-001: structured ``code`` drives richer CLI behavior than
     # printing ``message`` alone — the rate-limited path gets a dedicated
@@ -2275,6 +2288,9 @@ def send(destination: str, amount: str, memo: str, dry_run: bool):
     else:
         console.print(f"[red]Payment failed:[/] {result.error}")
         console.print(f"  Result code: {result.result_code}")
+        # Like fund (PC-003): a failed payment exits non-zero, so
+        # `xrpl-lab send && next-step` stops (found by the 2.6.1 coverage work).
+        raise SystemExit(2)
 
 
 @main.command()

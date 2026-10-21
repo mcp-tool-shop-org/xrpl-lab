@@ -229,6 +229,37 @@ async def handle_ensure_funded(
 # ---------------------------------------------------------------------------
 
 
+def _fresh_address() -> str:
+    """A new, never-funded classic address. Its seed is discarded: nothing
+    signs for it, so no wallet file and no testnet-only warning."""
+    from xrpl.wallet import Wallet
+
+    return Wallet.create().address
+
+
+def _practice_recipient(context: dict, console: Console) -> str:
+    """The run's practice recipient: a fresh address, created once per run.
+
+    2.6.1: the first lessons sent their practice payment to "self", which
+    nothing resolved, so testnet couldn't even sign it. Paying your own
+    address wouldn't work either: XRPL rejects an XRP payment to yourself
+    (temREDUNDANT). The first payment of at least the base reserve (1 XRP)
+    to this address creates the account.
+    """
+    address = context.get("practice_recipient", "")
+    if not address:
+        address = _fresh_address()
+        context["practice_recipient"] = address
+        console.print(
+            "  XRPL rejects a payment to yourself (temREDUNDANT), so practice "
+            "payments go to a fresh address made for this run:"
+        )
+        console.print(
+            f"  [cyan]{address}[/] (your first payment to it creates the account)"
+        )
+    return address
+
+
 async def handle_submit_payment(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -239,10 +270,27 @@ async def handle_submit_payment(
     memo = args.get("memo", context.get("memo", ""))
     memo = memo.replace("{timestamp}", str(int(time.time())))
 
-    if not dest:
-        dest = state.wallet_address or ""
-        if dest:
-            console.print(f"  Sending to self for practice: [cyan]{dest}[/]")
+    if (not dest or dest == "self") and state.wallet_address:
+        dest = _practice_recipient(context, console)
+        if not context.get("practice_recipient_created"):
+            # The first payment creates the account, so it must carry at least
+            # the ledger's base reserve (1 XRP today); below it the ledger
+            # answers tecNO_DST_INSUF_XRP. Read the reserve, don't assume it.
+            reserves = await transport.get_reserves()
+            if reserves is not None:
+                base_xrp = Decimal(reserves[0]) / Decimal(1_000_000)
+                try:
+                    short = Decimal(str(amount)) < base_xrp
+                except (ValueError, TypeError, InvalidOperation):
+                    short = False
+                if short:
+                    amount = format(base_xrp.normalize(), "f")
+                    console.print(
+                        f"  Sending {amount} XRP: the first payment to a new "
+                        "address must carry the base reserve, which creates it."
+                    )
+    elif dest == "self":
+        dest = ""
 
     # F-BACKEND-B-001: after self-send fallback, dest may still be empty
     # if no wallet is available. Surface this as a structured error
@@ -256,13 +304,15 @@ async def handle_submit_payment(
                 hint=(
                     "Pass `destination: r...` in the module step, set context "
                     "destination, or run 'xrpl-lab wallet create' so the "
-                    "self-send practice fallback has a target address."
+                    "practice payment has a sender."
                 ),
             )
         )
 
     result = await send_payment(transport, wallet_seed, dest, amount, memo)
     context["last_submit"] = result
+    if result.success and dest == context.get("practice_recipient"):
+        context["practice_recipient_created"] = True
 
     if result.success:
         console.print("  [green]Payment submitted![/]")
@@ -307,8 +357,18 @@ async def handle_submit_payment_fail(
     if hasattr(transport, "set_fail_next"):
         transport.set_fail_next(True)
 
-    dest = args.get("destination", state.wallet_address or "")
+    dest = args.get("destination") or _practice_recipient(context, console)
     amount = args.get("amount", "10")
+    if fail_reason == "underfunded" and "amount" not in args:
+        # 2.6.1: really underfunded on a live ledger: more XRP than the wallet
+        # holds, so the answer is tecUNFUNDED_PAYMENT. It used to send 10 XRP
+        # to the learner's own address, which testnet rejects as temREDUNDANT
+        # (a self-payment), not the failure the lesson teaches.
+        try:
+            held = Decimal(await transport.get_balance(state.wallet_address or ""))
+        except (ValueError, TypeError, InvalidOperation):
+            held = Decimal("0")
+        amount = str(int(held) + 1000)
     result = await send_payment(
         transport, wallet_seed, dest, amount, memo="XRPLLAB|FAIL_TEST"
     )
@@ -345,6 +405,15 @@ async def handle_submit_payment_fail(
         )
         console.print(f"  Result code: [yellow]{result.result_code}[/]")
         console.print(f"  Error: {result.error}")
+    # Only "underfunded" is used by a lesson (failure_literacy) and has a
+    # real ledger counterpart; other reasons exist only as the dry run's
+    # simulated failure, whose code is not a lesson's claim.
+    _judge_expected_failure(
+        console, context, result,
+        ("tecUNFUNDED_PAYMENT",) if fail_reason == "underfunded" else (),
+        "submit_payment_fail",
+        state=state,
+    )
     return context
 
 
@@ -714,6 +783,12 @@ async def handle_issue_token_expect_fail(
             success=False,
         )
     save_state(state)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecPATH_DRY",),
+        "issue_token_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -986,6 +1061,45 @@ async def handle_verify_freeze(
 # ---------------------------------------------------------------------------
 
 
+async def _fund_new_wallet(
+    transport: Transport, address: str, who: str, console: Console,
+    context: dict, action: str, quiet: bool = False,
+) -> bool:
+    """Fund a helper wallet the lesson just created, and wait until it's on a
+    validated ledger.
+
+    2.6.1 (issue #20): these handlers used to go on as soon as the faucet
+    answered. Module #30's issuer did the same in live-fire run 1, and its
+    next transaction, sent before the account was validated, was held and
+    never landed. A wallet that never appears is a failed step.
+    ``quiet`` keeps the success line off for handlers that never printed one.
+    """
+    result = await transport.fund_from_faucet(address)
+    if result.success:
+        settled = await await_validated_balance(transport, address)
+        if settled > 0:
+            if not quiet:
+                console.print(f"  {who} funded! Balance: [green]{settled} XRP[/]")
+            return True
+        console.print(
+            f"  [red]The faucet answered, but the {who.lower()} wallet {address} "
+            "hasn't appeared on a validated ledger yet.[/]"
+        )
+    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
+        from .errors import faucet_rate_limited
+
+        _print_lab_error(console, faucet_rate_limited())
+    else:
+        console.print(
+            f"  [yellow]{who} funding: {_sanitize_endpoint_urls(result.message)}[/]"
+        )
+    _record_verification(
+        context, action, passed=False,
+        failures=[f"{who.lower()} wallet not funded on a validated ledger"],
+    )
+    return False
+
+
 async def handle_create_channel_receiver(
     step: ModuleStep, state: LabState, transport: Transport,
     wallet_seed: str, context: dict, console: Console,
@@ -996,18 +1110,10 @@ async def handle_create_channel_receiver(
     context["receiver_address"] = receiver.address
     console.print(f"  Receiver wallet: [cyan]{receiver.address}[/]")
     console.print("  Funding the receiver from the faucet...")
-    result = await transport.fund_from_faucet(receiver.address)
-    if result.success:
-        console.print(f"  Receiver funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Receiver funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, receiver.address, "Receiver", console, context,
+        "create_channel_receiver",
+    )
     return context
 
 
@@ -1384,6 +1490,7 @@ async def handle_create_offer(
         transport, context["wallet_seed"].get(),
         pays_currency, pays_value, pays_issuer,
         gets_currency, gets_value, gets_issuer,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -1480,7 +1587,8 @@ async def handle_cancel_offer(
 
     console.print(f"  Cancelling offer seq {offer_seq}...")
     result = await cancel_offer(
-        transport, context["wallet_seed"].get(), offer_seq
+        transport, context["wallet_seed"].get(), offer_seq,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -1906,6 +2014,13 @@ async def handle_ensure_amm_pair(
                 "[yellow]AMM not supported on this transport. "
                 "Use --dry-run to practice.[/]"
             )
+            # Argon (round 2, Low 3): mark the pool missing and the step
+            # failed, so the deposit and withdraw steps skip.
+            _record_verification(
+                context, "ensure_amm_pair", passed=False,
+                failures=[create_result.error or "AMM not supported on this transport"],
+            )
+            context["amm_unavailable"] = True
             return context
         console.print(
             f"  [red]AMM creation failed: {create_result.error}[/]"
@@ -2234,6 +2349,7 @@ async def handle_strategy_offer_bid(
         transport, context["wallet_seed"].get(),
         pays_currency, pays_value, pays_issuer,
         gets_currency, gets_value, gets_issuer,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -2317,6 +2433,7 @@ async def handle_strategy_offer_ask(
         transport, context["wallet_seed"].get(),
         gets_currency, gets_value, gets_issuer,   # taker_pays: the price we request
         pays_currency, pays_value, pays_issuer,   # taker_gets: the token we sell
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -2451,6 +2568,7 @@ async def handle_cancel_module_offers(
     console.print(f"  Cancelling {len(seqs)} offer(s)...")
     results = await cancel_module_offers(
         transport, context["wallet_seed"].get(), seqs,
+        wallet_address=state.wallet_address or "",
     )
 
     cancelled = 0
@@ -2677,6 +2795,7 @@ async def handle_place_safe_sides(
             transport, context["wallet_seed"].get(),
             pays_currency, bid_value, pays_issuer,
             gets_currency, bid_price, gets_issuer,
+            wallet_address=state.wallet_address or "",
         )
 
         if result.success:
@@ -2738,6 +2857,7 @@ async def handle_place_safe_sides(
             transport, context["wallet_seed"].get(),
             gets_currency, ask_price, gets_issuer,   # taker_pays: price requested
             pays_currency, ask_value, pays_issuer,   # taker_gets: token sold
+            wallet_address=state.wallet_address or "",
         )
 
         if result.success:
@@ -3030,6 +3150,57 @@ def _explain_failure(console: Console, result_code: str) -> None:
     console.print(f"  Category: [cyan]{info['category']}[/]")
     console.print(f"  Meaning: {info['meaning']}")
     console.print(f"  Action: [yellow]{info['action']}[/]")
+
+
+def _judge_expected_failure(
+    console: Console, context: dict, result, expected_codes: tuple[str, ...],
+    action: str, state: LabState | None = None,
+) -> bool:
+    """Judge a lesson step whose point is a rejected transaction.
+
+    True when the transaction failed with one of ``expected_codes``, and, for
+    a tec, only when that failure VALIDATED (a preliminary tec whose window
+    closed never reached a ledger). The step's expected failure is then
+    acknowledged, so the runner doesn't count it as a failed step.
+
+    An empty ``expected_codes`` accepts any definitive rejection: a validated
+    tec, or a tem (malformed, so it can never succeed). In that mode a
+    tef/ter/tel, a timeout or a local error doesn't count, because none of
+    them says anything about the rule being taught.
+
+    Anything else (an unexpected success, another code, a tec that never
+    validated) records a failed verification. Helper-wallet sweep 1 on 2.6.0.
+    """
+    code = getattr(result, "result_code", "") or ""
+    validated = getattr(result, "validated", True)
+    matches = (
+        code in expected_codes if expected_codes else code.startswith(("tec", "tem"))
+    )
+    definitive = validated or not code.startswith("tec")
+    if not result.success and matches and definitive:
+        context["expected_failures"] = context.get("expected_failures", 0) + 1
+        # The failed TxRecord this acknowledges, matched by txid in the runner
+        # (handlers record a hashless failure as "failed"). Register it only
+        # when the handler actually recorded this failure, the newest record:
+        # an unrecorded "failed" acknowledgement could otherwise consume a
+        # genuine hashless failure in the same step (Argon, 2.6.1 round 1, F1).
+        key = getattr(result, "txid", "") or "failed"
+        newest = state.tx_index[-1] if state is not None and state.tx_index else None
+        if state is None or (newest is not None and not newest.success and newest.txid == key):
+            context.setdefault("expected_failure_txids", []).append(key)
+        return True
+    if result.success:
+        why = "the transaction succeeded"
+    elif matches:
+        why = f"{code} never validated (no ledger holds it)"
+    else:
+        why = f"got {code or 'no result'}"
+    expected = " or ".join(expected_codes) or "a validated rejection"
+    console.print(f"  [red]Not the lesson's outcome: expected {expected}, {why}.[/]")
+    _record_verification(
+        context, action, passed=False, failures=[f"expected {expected}; {why}"],
+    )
+    return False
 
 
 def _record_submit(state: LabState, context: dict, result) -> None:
@@ -3374,19 +3545,11 @@ async def handle_create_token_recipient(
     context["recipient_address"] = recipient.address
     console.print(f"  Recipient wallet: [cyan]{recipient.address}[/]")
 
-    fund = await transport.fund_from_faucet(recipient.address)
-    if fund.success:
-        console.print(f"  Recipient funded! Balance: [green]{fund.balance} XRP[/]")
-    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Recipient funding: {_sanitize_endpoint_urls(fund.message)}[/]"
-        )
-
+    if not await _fund_new_wallet(
+        transport, recipient.address, "Recipient", console, context,
+        "create_token_recipient",
+    ):
+        return context  # the helper isn't on a ledger; nothing it would sign can land
     console.print(f"  Recipient trusting the issuer for [cyan]{currency}[/]...")
     ts = await set_trust_line(
         transport, recipient.seed, issuer_address, currency, limit,
@@ -3422,12 +3585,11 @@ async def handle_create_noopt_issuer(
         "  Creating a second issuer (never sets asfAllowTrustLineLocking)..."
     )
     issuer = create_wallet()
-    fund = await transport.fund_from_faucet(issuer.address)
-    if not fund.success and getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
+    if not await _fund_new_wallet(
+        transport, issuer.address, "Issuer", console, context,
+        "create_noopt_issuer", quiet=True,
+    ):
+        return context  # the helper isn't on a ledger; nothing it would sign can land
     context["noopt_issuer_seed"] = _SecretValue(issuer.seed)
     context["noopt_issuer_address"] = issuer.address
     context["noopt_currency"] = currency
@@ -3684,6 +3846,12 @@ async def handle_create_token_escrow_expect_fail(
             {"result_code": result.result_code, "error": result.error}
         )
     save_state(state)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "create_token_escrow_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -4087,6 +4255,12 @@ async def handle_send_multisig_payment_expect_fail(
             {"result_code": result.result_code, "error": result.error}
         )
     save_state(state)
+    _judge_expected_failure(
+        console, context, result,
+        ("tefBAD_QUORUM",),
+        "send_multisig_payment_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -4280,18 +4454,10 @@ async def handle_create_subject_wallet(
     context["subject_address"] = subject.address
     console.print(f"  Subject wallet: [cyan]{subject.address}[/]")
     console.print("  Funding the subject from the faucet (so it's a real target)...")
-    result = await transport.fund_from_faucet(subject.address)
-    if result.success:
-        console.print(f"  Subject funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Subject funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, subject.address, "Subject", console, context,
+        "create_subject_wallet",
+    )
     return context
 
 
@@ -4306,8 +4472,11 @@ async def handle_create_credential_unfunded(
     """
     args = step.action_args
     credential_type = args.get("credential_type", "over21")
-    # A syntactically-valid but unfunded classic address (never faucet-funded).
-    unfunded = args.get("subject", "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe")
+    # A fresh address, generated now and never funded. The old fixed default
+    # was a well-known example address that IS funded on testnet, so the
+    # CredentialCreate succeeded instead of teaching tecNO_TARGET
+    # (helper-wallet sweep 2).
+    unfunded = args.get("subject") or _fresh_address()
     if "wallet_seed" not in context:
         console.print("  [red]No issuer wallet in context. Run the wallet step first.[/]")
         return context
@@ -4332,6 +4501,12 @@ async def handle_create_credential_unfunded(
         console.print(f"  [green]Expected failure:[/] {result.result_code}")
         _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_TARGET",),
+        "create_credential_unfunded",
+        state=state,
+    )
     return context
 
 
@@ -4411,6 +4586,12 @@ async def handle_create_credential_duplicate(
         console.print(f"  [green]Expected failure:[/] {result.result_code}")
         _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecDUPLICATE",),
+        "create_credential_duplicate",
+        state=state,
+    )
     return context
 
 
@@ -4452,6 +4633,12 @@ async def handle_accept_credential_wrong_party(
             "it — this is the 'you hold your own passport' rule.[/]"
         )
     _record_submit(state, context, result)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_ENTRY",),
+        "accept_credential_wrong_party",
+        state=state,
+    )
     return context
 
 
@@ -4679,18 +4866,10 @@ async def handle_create_uncredentialed_wallet(
     context["outsider_address"] = outsider.address
     console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
     console.print("  Funding it from the faucet (so it's a real account)...")
-    result = await transport.fund_from_faucet(outsider.address)
-    if result.success:
-        console.print(f"  Outsider funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Outsider funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, outsider.address, "Outsider", console, context,
+        "create_uncredentialed_wallet",
+    )
     return context
 
 
@@ -4747,6 +4926,12 @@ async def handle_create_permissioned_offer_uncredentialed(
         )
         _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "create_permissioned_offer_uncredentialed",
+        state=state,
+    )
     return context
 
 
@@ -4841,6 +5026,12 @@ async def handle_modify_domain_nonowner(
             "rotate a domain's policy.[/]"
         )
     _record_submit(state, context, result)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "modify_domain_nonowner",
+        state=state,
+    )
     return context
 
 
@@ -5007,18 +5198,10 @@ async def handle_create_sender_wallet(
     context["sender_seed"] = _SecretValue(sender.seed)
     context["sender_address"] = sender.address
     console.print(f"  Sender wallet: [cyan]{sender.address}[/]")
-    result = await transport.fund_from_faucet(sender.address)
-    if result.success:
-        console.print(f"  Sender funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Sender funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, sender.address, "Sender", console, context,
+        "create_sender_wallet",
+    )
     return context
 
 
@@ -5080,6 +5263,12 @@ async def handle_send_sender_payment_expect_blocked(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "send_sender_payment_expect_blocked",
+        state=state,
+    )
     return context
 
 
@@ -5116,6 +5305,12 @@ async def handle_preauthorize_self_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("temCANNOT_PREAUTH_SELF",),
+        "preauthorize_self_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -5185,6 +5380,12 @@ async def handle_authorize_sender_address_duplicate(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecDUPLICATE",),
+        "authorize_sender_address_duplicate",
+        state=state,
+    )
     return context
 
 
@@ -5367,6 +5568,12 @@ async def handle_send_outsider_payment_expect_blocked(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "send_outsider_payment_expect_blocked",
+        state=state,
+    )
     return context
 
 
@@ -5425,6 +5632,12 @@ async def handle_unauthorize_sender_address_duplicate(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_ENTRY",),
+        "unauthorize_sender_address_duplicate",
+        state=state,
+    )
     return context
 
 
@@ -5722,18 +5935,10 @@ async def handle_create_player_wallet(
     context["player_address"] = player.address
     console.print(f"  Player wallet: [cyan]{player.address}[/]")
 
-    fund = await transport.fund_from_faucet(player.address)
-    if fund.success:
-        console.print(f"  Player funded! Balance: [green]{fund.balance} XRP[/]")
-    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Player funding: {_sanitize_endpoint_urls(fund.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, player.address, "Player", console, context,
+        "create_player_wallet",
+    )
     return context
 
 
@@ -5912,6 +6117,12 @@ async def handle_send_untagged_deposit_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecDST_TAG_NEEDED",),
+        "send_untagged_deposit_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -6231,6 +6442,12 @@ async def handle_clawback_expect_fail(
             network=state.network, success=False,
         )
         save_state(state)
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "clawback_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -6249,12 +6466,11 @@ async def handle_create_noclaw_issuer(
     amount = args.get("amount", "50")
     console.print("  Creating a second issuer (no clawback flag)...")
     issuer = create_wallet()
-    fund = await transport.fund_from_faucet(issuer.address)
-    if not fund.success and getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
+    if not await _fund_new_wallet(
+        transport, issuer.address, "Issuer", console, context,
+        "create_noclaw_issuer", quiet=True,
+    ):
+        return context  # the helper isn't on a ledger; nothing it would sign can land
     context["noclaw_issuer_seed"] = _SecretValue(issuer.seed)
     context["noclaw_issuer_address"] = issuer.address
     context["noclaw_currency"] = currency
@@ -6290,18 +6506,10 @@ async def handle_create_buyer_wallet(
     """Create + fund a second wallet to act as the marketplace counterparty."""
     console.print("  Creating a second player wallet (buyer/reseller)...")
     buyer = create_wallet()
-    fund = await transport.fund_from_faucet(buyer.address)
-    if fund.success:
-        console.print(f"  Buyer funded: [cyan]{buyer.address}[/] ({fund.balance} XRP)")
-    elif getattr(fund, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Buyer funding note: {_sanitize_endpoint_urls(fund.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, buyer.address, "Buyer", console, context,
+        "create_buyer_wallet",
+    )
     context["buyer_seed"] = _SecretValue(buyer.seed)
     context["buyer_address"] = buyer.address
     return context
@@ -6400,8 +6608,10 @@ async def handle_verify_nft_offer(
             f"expected_min={expected_min} open sell offer(s), "
             f"observed {len(offers)}"
         )
-        for fail in failures:
-            console.print(f"  [red]\u2717[/] {fail}")
+    # Print every reason, including a malformed expected_min, which used to
+    # fail the step silently (found by the 2.6.1 coverage work).
+    for fail in failures:
+        console.print(f"  [red]\u2717[/] {fail}")
     _record_verification(
         context, "verify_nft_offer", len(failures) == 0, failures
     )
@@ -6494,6 +6704,12 @@ async def handle_accept_nft_offer_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecOBJECT_NOT_FOUND",),
+        "accept_nft_offer_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -6664,6 +6880,12 @@ async def handle_modify_nft_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "modify_nft_expect_fail",
+        state=state,
+    )
     return context
 
 
@@ -6727,18 +6949,10 @@ async def handle_create_recipient_wallet(
     context["recipient_seed"] = _SecretValue(recipient.seed)
     context["recipient_address"] = recipient.address
     console.print(f"  Player wallet: [cyan]{recipient.address}[/]")
-    result = await transport.fund_from_faucet(recipient.address)
-    if result.success:
-        console.print(f"  Player funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Player funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, recipient.address, "Player", console, context,
+        "create_recipient_wallet",
+    )
     return context
 
 
@@ -6896,18 +7110,10 @@ async def handle_create_outsider_wallet(
     context["outsider_seed"] = _SecretValue(outsider.seed)
     context["outsider_address"] = outsider.address
     console.print(f"  Outsider wallet: [cyan]{outsider.address}[/]")
-    result = await transport.fund_from_faucet(outsider.address)
-    if result.success:
-        console.print(f"  Outsider funded! Balance: [green]{result.balance} XRP[/]")
-    elif getattr(result, "code", "") == "RUNTIME_FAUCET_RATE_LIMITED":
-        from .errors import faucet_rate_limited
-
-        err = faucet_rate_limited()
-        _print_lab_error(console, err)
-    else:
-        console.print(
-            f"  [yellow]Outsider funding: {_sanitize_endpoint_urls(result.message)}[/]"
-        )
+    await _fund_new_wallet(
+        transport, outsider.address, "Outsider", console, context,
+        "create_outsider_wallet",
+    )
     return context
 
 
@@ -6960,6 +7166,12 @@ async def handle_cash_check_wrong_destination_expect_fail(
         context.setdefault("failed_txids", []).append(
             {"result_code": result.result_code, "error": result.error}
         )
+    _judge_expected_failure(
+        console, context, result,
+        ("tecNO_PERMISSION",),
+        "cash_check_wrong_destination_expect_fail",
+        state=state,
+    )
     return context
 
 

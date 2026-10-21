@@ -1,0 +1,121 @@
+{
+  "validated_ledger": {
+    "seq": 21697346,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rKgD677SoN7uS1WQnSBJjiE7jgMbtvekB2": {
+      "Balance": "124999990",
+      "Sequence": 21697336,
+      "OwnerCount": 0,
+      "Flags": 131072,
+      "account_tx": [
+        {
+          "ledger_index": 21697335,
+          "hash": "3FB6F9B994762B8C03B24E0E037A892E48762D22F2CE0FAAB8AE893DB798365B",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rKgD677SoN7uS1WQnSBJjiE7jgMbtvekB2",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697338,
+          "hash": "F54DD6E5E317CB2C39E337CC3966FE2558FE29BD70846A450AF31A48029A3934",
+          "TransactionType": "AccountSet",
+          "Account": "rKgD677SoN7uS1WQnSBJjiE7jgMbtvekB2",
+          "Destination": null,
+          "Sequence": 21697335,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697342,
+          "hash": "7BEE35DE0C2141990892E6EE17F2F638104EBF22939FC2F9E6F6DDC8C6D565B8",
+          "TransactionType": "Payment",
+          "Account": "rQK6zUurxVKRaFRzWC6sRRG8PriQG66LBd",
+          "Destination": "rKgD677SoN7uS1WQnSBJjiE7jgMbtvekB2",
+          "Sequence": 21697340,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rQK6zUurxVKRaFRzWC6sRRG8PriQG66LBd": {
+      "Balance": "74999980",
+      "Sequence": 21697342,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21697340,
+          "hash": "22BF7B9FC727B1CEBA7CEEB169473C8995DC98B24EAA1518BC577DBCBAC10D7F",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rQK6zUurxVKRaFRzWC6sRRG8PriQG66LBd",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697342,
+          "hash": "7BEE35DE0C2141990892E6EE17F2F638104EBF22939FC2F9E6F6DDC8C6D565B8",
+          "TransactionType": "Payment",
+          "Account": "rQK6zUurxVKRaFRzWC6sRRG8PriQG66LBd",
+          "Destination": "rKgD677SoN7uS1WQnSBJjiE7jgMbtvekB2",
+          "Sequence": 21697340,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21697345,
+          "hash": "A7CC6E24066D360EA72D27328CDAD9C55DAC1CAF7A06F1D81FA86F55ED8C91E5",
+          "TransactionType": "Payment",
+          "Account": "rQK6zUurxVKRaFRzWC6sRRG8PriQG66LBd",
+          "Destination": "rKgD677SoN7uS1WQnSBJjiE7jgMbtvekB2",
+          "Sequence": 21697341,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecDST_TAG_NEEDED"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "F54DD6E5E317CB2C39E337CC3966FE2558FE29BD70846A450AF31A48029A3934": {
+      "TransactionType": "AccountSet",
+      "Account": "rKgD677SoN7uS1WQnSBJjiE7jgMbtvekB2",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21697338,
+      "Sequence": 21697335,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "7BEE35DE0C2141990892E6EE17F2F638104EBF22939FC2F9E6F6DDC8C6D565B8": {
+      "TransactionType": "Payment",
+      "Account": "rQK6zUurxVKRaFRzWC6sRRG8PriQG66LBd",
+      "Destination": "rKgD677SoN7uS1WQnSBJjiE7jgMbtvekB2",
+      "validated": true,
+      "ledger_index": 21697342,
+      "Sequence": 21697340,
+      "TransactionResult": "tesSUCCESS"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "F54DD6E5E317CB2C39E337CC3966FE2558FE29BD70846A450AF31A48029A3934",
+      "success": true
+    },
+    {
+      "txid": "7BEE35DE0C2141990892E6EE17F2F638104EBF22939FC2F9E6F6DDC8C6D565B8",
+      "success": true
+    }
+  ]
+}

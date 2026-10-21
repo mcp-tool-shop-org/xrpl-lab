@@ -107,7 +107,7 @@ acquire your asset.
 The studio lists a sell offer directed at the buyer — `NFTokenCreateOffer` with
 `tfSellNFToken`. The ledger itself is the marketplace; no contract required.
 
-<!-- action: list_nft_sell_offer amount=100 seller=creator -->
+<!-- action: list_nft_sell_offer amount=10 seller=creator -->
 
 ## Step 9: Read the open offer back from the ledger
 

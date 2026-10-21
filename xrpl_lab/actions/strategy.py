@@ -244,6 +244,7 @@ async def cancel_module_offers(
     transport: Transport,
     wallet_seed: str,
     offer_sequences: list[int],
+    wallet_address: str = "",
 ) -> list[tuple[int, bool, str]]:
     """Cancel all offers by sequence.
 
@@ -260,7 +261,9 @@ async def cancel_module_offers(
     """
     results: list[tuple[int, bool, str]] = []
     for seq in offer_sequences:
-        result = await transport.submit_offer_cancel(wallet_seed, seq)
+        result = await transport.submit_offer_cancel(
+            wallet_seed, seq, wallet_address=wallet_address,
+        )
         results.append((seq, result.success, result.txid))
     return results
 

@@ -35,8 +35,10 @@ on the testnet cost nothing.
 
 ## Step 3: Submit a failing transaction
 
-We are going to submit a transaction that we *know* will fail. This is safe —
-a failed transaction on the XRPL Testnet costs nothing and harms nothing.
+We are going to submit a transaction that we *know* will fail: a payment of
+more XRP than your wallet holds. This is safe — on the XRPL Testnet a failed
+transaction costs only test XRP (a `tec` result still charges its fee) and
+harms nothing.
 
 Common failure modes on XRPL:
 - `tecUNFUNDED_PAYMENT` — not enough XRP

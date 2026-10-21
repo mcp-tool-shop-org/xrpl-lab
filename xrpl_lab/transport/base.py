@@ -63,6 +63,14 @@ class SubmitResult:
     # means the transport could not resolve it — callers keep their existing
     # read-back fallbacks.
     sequence: int | None = None
+    # Whether this outcome came from a VALIDATED ledger (a tesSUCCESS or a
+    # tec). False for a preliminary result whose window closed, a client
+    # timeout, a tem rejection or a local error: those never reached a
+    # ledger. A lesson expecting a tec needs it validated (helper-wallet
+    # sweep 1 on 2.6.0: checks_101's outsider "got" a tec that never landed).
+    # Defaults True so the dry-run transport and existing callers keep their
+    # meaning.
+    validated: bool = True
 
 
 @dataclass
@@ -559,16 +567,24 @@ class Transport(ABC):
         taker_gets_currency: str,
         taker_gets_value: str,
         taker_gets_issuer: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
-        """Submit an OfferCreate transaction on the DEX."""
+        """Submit an OfferCreate transaction on the DEX.
+
+        ``wallet_address`` is the offer's OWNING account (dry-run storage hint,
+        same contract as ``submit_trust_set``): the dry-run transport books the
+        offer and its owner reserve under it so ``get_account_info`` for that
+        address sees the offer. The testnet transport ignores it.
+        """
 
     @abstractmethod
     async def submit_offer_cancel(
         self,
         wallet_seed: str,
         offer_sequence: int,
+        wallet_address: str = "",
     ) -> SubmitResult:
-        """Submit an OfferCancel transaction."""
+        """Submit an OfferCancel transaction (``wallet_address``: see OfferCreate)."""
 
     @abstractmethod
     async def get_account_offers(self, address: str) -> list[OfferInfo]:
@@ -577,6 +593,14 @@ class Transport(ABC):
     @abstractmethod
     async def get_account_info(self, address: str) -> AccountSnapshot:
         """Get account info including balance, owner count, and sequence."""
+
+    def bind_wallet(self, wallet_seed: str, address: str) -> None:  # noqa: B027
+        """Tell the transport which address a seed signs as.
+
+        A network transport derives the sender from the seed itself, so this
+        is a no-op there; the dry-run transport, which has no key derivation,
+        uses it to book the learner's writes against the funded address.
+        """
 
     async def get_reserves(self) -> tuple[int, int] | None:
         """The validated ledger's ``(reserve_base, reserve_inc)`` in drops.

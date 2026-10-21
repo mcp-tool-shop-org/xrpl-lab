@@ -366,6 +366,11 @@ class _FakeTransport:
     async def fund_from_faucet(self, address):
         return self._result
 
+    async def get_balance(self, address):
+        # 2.6.1: `fund` reads the balance from a validated ledger after a
+        # faucet success; the account shows the faucet's grant.
+        return self._result.balance if self._result.success else "0"
+
 
 class TestFundGenericFailureExit:
     def _run_fund(self, monkeypatch, result):

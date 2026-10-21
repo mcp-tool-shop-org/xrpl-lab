@@ -1,0 +1,8 @@
+cwd: <scratch>/release-sweep-ff7314f-20261021T0115Z/permissioned_domains_101/cwd  (outside every repo)
+XRPL_LAB_HOME=<scratch>/release-sweep-ff7314f-20261021T0115Z/permissioned_domains_101/home   (wallet.json stays here, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1
+code: mcp-tool-shop-org/xrpl-lab @ ff7314f (feat/2.6.1, v2.6.1 candidate), worktree _worktrees/xrpl-lab-f9-livefire
+cmd:  yes "" | xrpl-lab run permissioned_domains_101
+started_utc: 2026-10-21T01:31:56Z
+xrpl_lab_exit_code: 0   (read from PIPESTATUS[1])
+finished_utc: 2026-10-21T01:33:17Z

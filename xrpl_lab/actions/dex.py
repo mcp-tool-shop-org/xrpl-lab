@@ -16,8 +16,9 @@ async def create_offer(
     taker_gets_currency: str,
     taker_gets_value: str,
     taker_gets_issuer: str,
+    wallet_address: str = "",
 ) -> SubmitResult:
-    """Create a DEX offer (OfferCreate)."""
+    """Create a DEX offer (OfferCreate). ``wallet_address``: see submit_trust_set."""
     return await transport.submit_offer_create(
         wallet_seed=wallet_seed,
         taker_pays_currency=taker_pays_currency,
@@ -26,6 +27,7 @@ async def create_offer(
         taker_gets_currency=taker_gets_currency,
         taker_gets_value=taker_gets_value,
         taker_gets_issuer=taker_gets_issuer,
+        wallet_address=wallet_address,
     )
 
 
@@ -33,11 +35,13 @@ async def cancel_offer(
     transport: Transport,
     wallet_seed: str,
     offer_sequence: int,
+    wallet_address: str = "",
 ) -> SubmitResult:
     """Cancel a DEX offer (OfferCancel)."""
     return await transport.submit_offer_cancel(
         wallet_seed=wallet_seed,
         offer_sequence=offer_sequence,
+        wallet_address=wallet_address,
     )
 
 

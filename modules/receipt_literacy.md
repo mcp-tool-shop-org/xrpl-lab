@@ -41,7 +41,9 @@ the faucet — this is free and only works on the testnet.
 Now send a small payment. We will attach a memo so you can find this
 transaction later. The memo format is: `XRPLLAB|L1|<timestamp>`
 
-This payment goes to your own address (a self-payment) so nothing is lost.
+This payment goes to a fresh practice address the lab makes for this run:
+XRPL rejects an XRP payment to yourself (`temREDUNDANT`), and a payment of at
+least the 1 XRP base reserve to a new address creates that account.
 On a real network you would send to someone else.
 
 <!-- action: submit_payment destination=self amount=10 memo=XRPLLAB|L1|{timestamp} -->

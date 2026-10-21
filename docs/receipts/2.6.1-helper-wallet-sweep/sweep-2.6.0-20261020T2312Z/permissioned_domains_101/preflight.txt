@@ -1,0 +1,7 @@
+XRPL_LAB_RPC_URL set: False
+XRPL_LAB_FAUCET_URL set: False
+rpc_url: https://s.altnet.rippletest.net:51234
+faucet_url: https://faucet.altnet.rippletest.net/accounts
+classify_network(rpc): testnet
+network_guard: PASS (no refusal)
+home_is_scratch: True
