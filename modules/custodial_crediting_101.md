@@ -19,6 +19,7 @@ checks:
   - "A TAGGED deposit (DestinationTag) validated on-ledger and attributed to the right player via the registry"
   - "The player credited from delivered_amount — never from the Amount field"
   - "An UNTAGGED deposit was rejected with tecDST_TAG_NEEDED (the failure a learner hits)"
+  - "asfRequireDest cleared on your wallet (cleanup)"
 ---
 
 Your game has ten thousand players and ONE hot wallet. That is not a design
@@ -144,6 +145,16 @@ checks *validity* — a deposit tagged 9999999 sails through and fails in YOUR
 registry lookup instead. Presence is the ledger's job; meaning is yours.
 
 <!-- action: send_untagged_deposit_expect_fail amount=10 -->
+
+## Step 9: Turn RequireDest off
+
+In this lesson the "treasury" is your own wallet, and later lessons pay it
+without a tag (an issuer issuing you tokens, say). Clear `asfRequireDest` so
+those payments land. A real custodial pool keeps the flag on for good; a
+workshop wallet that moves on to other lessons can't. The step reads the
+account back to check the flag is gone.
+
+<!-- action: disable_require_dest -->
 
 ## Checkpoint: What you proved
 

@@ -1,5 +1,47 @@
 # Changelog
 
+## 2.7.4 — 2026-10-21
+
+From the first full live sweep (#28): all 32 lessons in one home, in
+curriculum order, on testnet. Three lessons broke later ones in the same
+home, and two failed on their own.
+
+### Fixed
+
+- **custodial_crediting_101 turns RequireDest off when it's done.** The
+  lesson's treasury is the learner's own wallet, and it left
+  `lsfRequireDestTag` on, so every later untagged payment to the learner was
+  refused (`tecDST_TAG_NEEDED`): deposit_gate, the two DEX lessons, the AMM
+  and the capstone all failed after it. A closing step clears the flag and
+  reads the account back. A lesson that pays the learner warns when an older
+  run left it on.
+- **clawback_101 makes an issuer of its own.** The ledger allows clawback only
+  on an issuer that owns nothing, and the shared issuer the lessons reuse
+  already owned objects, so enabling it failed (`tecOWNERS`). The new issuer
+  is for that run only; the shared issuer file is untouched.
+- **checks_101 tops the learner up.** A workshop runs every lesson on one
+  faucet grant, and by checks_101 the learner held just under the 50 XRP the
+  Check pays out (`tecPATH_PARTIAL`). Below 60 XRP the lesson asks the faucet
+  once for more.
+- **mpt_distribution_101's issuer wallet creates the issuance.** The learner
+  signed it, and an issuer can't hold its own MPT, so the learner's opt-in
+  (`tecNO_PERMISSION`) and the payment (`tecNO_AUTH`) both failed.
+- **account_hygiene uses a valid currency code.** `HYGIENE` is neither 3
+  characters nor 40 hex, so xrpl-py refused it before signing and five
+  steps failed. It is now `HYG`. The fault predates 2.7.
+- **The dry run checks currency codes the way xrpl-py does**, and refuses
+  clawback on an issuer that owns objects and an MPT opt-in by its own
+  issuer, so offline runs catch these classes too.
+- **A step that never reached the network says so in live verification**,
+  instead of "not found on the public ledger", which read as a fake hash.
+
+### Tests
+
+- **The whole course runs in one home, on one offline ledger**, in
+  curriculum order, so a lesson that breaks a later one fails the suite. A
+  CLI dry run starts a fresh ledger each time and could never show it. On
+  2.7.3 this test fails checks_101 and deposit_gate_101.
+
 ## 2.7.3 — 2026-10-21
 
 ### Fixed

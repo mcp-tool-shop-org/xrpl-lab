@@ -828,6 +828,19 @@ async def _verify_one_tx_live(
             reason="Expected rejection that never reaches a ledger (by design).",
             validated=False,
         )
+    # 2.7.4 (#28 item 6): any other "failed" placeholder is a step that failed
+    # before it reached the network, so there is no hash to look up. It still
+    # fails the check, but saying "not found on the public ledger" read as a
+    # fake txid.
+    if txid == "failed":
+        return TxLiveResult(
+            txid=txid, network=network, status=LIVE_FAIL,
+            reason=(
+                "A step failed before its transaction reached the network (no "
+                "hash was recorded), so there is nothing on the ledger to check."
+            ),
+            validated=False,
+        )
     tx: TxInfo = await transport.fetch_tx(txid)
     if rejection and not tx.fetch_error:
         found = bool(tx.result_code) or tx.validated

@@ -20,22 +20,22 @@ class TestTrustLineRemoval:
     @pytest.mark.asyncio
     async def test_remove_empty_trust_line(self, transport):
         """Trust line with balance 0 can be removed (limit -> 0)."""
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
         assert (await transport.get_account_info("rANY")).owner_count == 1
 
-        result = await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "0")
+        result = await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "0")
         assert result.success
         assert (await transport.get_account_info("rANY")).owner_count == 0
 
     @pytest.mark.asyncio
     async def test_remove_nonzero_balance_fails(self, transport):
         """Trust line with non-zero balance cannot be removed."""
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
         # Issue some tokens so balance > 0
         await transport.submit_issued_payment(
-            "sISSUER", "rHOLDER", "HYGIENE", "rISSUER", "50"
+            "sISSUER", "rHOLDER", "HYG", "rISSUER", "50"
         )
-        result = await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "0")
+        result = await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "0")
         assert not result.success
         assert result.result_code == "tecNO_PERMISSION"
         assert "balance" in result.error.lower()
@@ -43,26 +43,26 @@ class TestTrustLineRemoval:
     @pytest.mark.asyncio
     async def test_remove_nonexistent_trust_line(self, transport):
         """Removing a trust line that doesn't exist is a no-op success."""
-        result = await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "0")
+        result = await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "0")
         assert result.success
         assert (await transport.get_account_info("rANY")).owner_count == 0
 
     @pytest.mark.asyncio
     async def test_trust_line_gone_after_removal(self, transport):
         """Trust line should not appear in get_trust_lines after removal."""
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
         lines = await transport.get_trust_lines("rANY")
         assert len(lines) == 1
 
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "0")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "0")
         lines = await transport.get_trust_lines("rANY")
         assert len(lines) == 0
 
     @pytest.mark.asyncio
     async def test_update_existing_limit(self, transport):
         """Setting a new limit on an existing trust line updates it, no duplicate."""
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "500")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "500")
         lines = await transport.get_trust_lines("rANY")
         assert len(lines) == 1
         assert lines[0].limit == "500"
@@ -74,19 +74,19 @@ class TestTrustLineRemovalActions:
     @pytest.mark.asyncio
     async def test_remove_trust_line_action(self, transport):
         """remove_trust_line action wraps submit_trust_set with limit=0."""
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
-        result = await remove_trust_line(transport, "sFAKE", "rISSUER", "HYGIENE")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
+        result = await remove_trust_line(transport, "sFAKE", "rISSUER", "HYG")
         assert result.success
         assert result.result_code == "tesSUCCESS"
 
     @pytest.mark.asyncio
     async def test_verify_trust_line_removed_success(self, transport):
         """Verify removal succeeds when trust line is gone."""
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "0")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "0")
 
         result = await verify_trust_line_removed(
-            transport, "rANY", "HYGIENE", expected_issuer="rISSUER"
+            transport, "rANY", "HYG", expected_issuer="rISSUER"
         )
         assert not result.found
         assert result.passed
@@ -95,10 +95,10 @@ class TestTrustLineRemovalActions:
     @pytest.mark.asyncio
     async def test_verify_trust_line_removed_still_present(self, transport):
         """Verify removal fails when trust line still exists."""
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
 
         result = await verify_trust_line_removed(
-            transport, "rANY", "HYGIENE", expected_issuer="rISSUER"
+            transport, "rANY", "HYG", expected_issuer="rISSUER"
         )
         assert result.found
         assert not result.passed
@@ -116,11 +116,11 @@ class TestHygieneLifecycle:
         baseline_owner = snap_a.owner_count
 
         # Create trust line (owner count +1)
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
 
         # Create offer (owner count +1)
         await transport.submit_offer_create(
-            "sFAKE", "HYGIENE", "10", "rISSUER",
+            "sFAKE", "HYG", "10", "rISSUER",
             "XRP", "1", "",
         )
 
@@ -139,12 +139,12 @@ class TestHygieneLifecycle:
         await transport.submit_offer_cancel("sFAKE", offers[0].sequence)
 
         # Remove trust line (owner count -1)
-        result = await remove_trust_line(transport, "sFAKE", "rISSUER", "HYGIENE")
+        result = await remove_trust_line(transport, "sFAKE", "rISSUER", "HYG")
         assert result.success
 
         # Verify trust line is gone
         verify_result = await verify_trust_line_removed(
-            transport, "rHOLDER", "HYGIENE"
+            transport, "rHOLDER", "HYG"
         )
         assert not verify_result.found
 
@@ -166,35 +166,35 @@ class TestHygieneLifecycle:
     async def test_partial_cleanup(self, transport):
         """Remove one of two objects — owner count drops by 1, not 2."""
         # Create 2 objects
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
         await transport.submit_offer_create(
-            "sFAKE", "HYGIENE", "10", "rISSUER",
+            "sFAKE", "HYG", "10", "rISSUER",
             "XRP", "1", "",
         )
         snap_dirty = await snapshot_account(transport, "rANY")
         assert snap_dirty.owner_count == 2
 
         # Remove only the trust line
-        await remove_trust_line(transport, "sFAKE", "rISSUER", "HYGIENE")
+        await remove_trust_line(transport, "sFAKE", "rISSUER", "HYG")
         snap_partial = await snapshot_account(transport, "rANY")
         assert snap_partial.owner_count == 1
 
     @pytest.mark.asyncio
     async def test_trust_line_verify_after_creation(self, transport):
         """Existing verify_trust_line still works alongside removal."""
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "100")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "100")
 
         # verify_trust_line should find it
         result = await verify_trust_line(
-            transport, "rANY", "HYGIENE", expected_issuer="rISSUER"
+            transport, "rANY", "HYG", expected_issuer="rISSUER"
         )
         assert result.found
 
         # Remove it
-        await transport.submit_trust_set("sFAKE", "rISSUER", "HYGIENE", "0")
+        await transport.submit_trust_set("sFAKE", "rISSUER", "HYG", "0")
 
         # verify_trust_line should NOT find it
         result = await verify_trust_line(
-            transport, "rANY", "HYGIENE", expected_issuer="rISSUER"
+            transport, "rANY", "HYG", expected_issuer="rISSUER"
         )
         assert not result.found

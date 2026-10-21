@@ -66,10 +66,12 @@ until balance is 0 and you remove them; run **Account Hygiene**
 
 ## Step 5: Mint the game currency
 
-The issuer creates an MPT issuance with a max supply of 1,000,000 units. The new
-**issuance id** is what every later step addresses.
+The issuer wallet creates an MPT issuance with a max supply of 1,000,000 units.
+The new **issuance id** is what every later step addresses. The issuer wallet
+signs it, not you: an issuer can't hold its own MPT, so if you created the
+issuance you couldn't opt in to it in the next step.
 
-<!-- action: create_mpt_issuance maximum_amount=1000000 -->
+<!-- action: create_mpt_issuance maximum_amount=1000000 signer=issuer -->
 
 ## Step 6: Opt in — authorize the issuance
 

@@ -210,13 +210,48 @@ def _sanitize_endpoint_urls(text: str) -> str:
     return _URL_SPAN_RE.sub(lambda m: sanitize_endpoint(m.group(0)), text)
 
 
+async def _top_up(
+    transport: Transport, address: str, held: Decimal, min_xrp: Decimal,
+    console: Console,
+) -> None:
+    """One faucet call for a wallet below ``min_xrp``; wait for the new balance."""
+    console.print(
+        f"  [yellow]This lesson needs at least {min_xrp} XRP and your wallet "
+        f"holds {held}. Asking the testnet faucet for a top-up...[/]"
+    )
+    result = await transport.fund_from_faucet(address)
+    if not result.success:
+        console.print(
+            "  [yellow]The faucet didn't top the wallet up; the lesson may "
+            "run short of XRP. Re-run it once the faucet answers.[/]"
+        )
+        return
+    for poll in range(_FUND_SETTLE_POLLS):
+        now = _to_decimal(await transport.get_balance(address))
+        if now > held:
+            console.print(f"  Topped up! Balance: [green]{now} XRP[/]")
+            return
+        if poll < _FUND_SETTLE_POLLS - 1:
+            await asyncio.sleep(_FUND_SETTLE_INTERVAL_S)
+    console.print(
+        "  [yellow]The faucet answered, but the top-up hasn't reached a "
+        "validated ledger yet.[/]"
+    )
+
+
 async def ensure_funded(
     state: LabState,
     transport: Transport,
     address: str,
     console: Console,
+    min_xrp: Decimal | None = None,
 ) -> bool:
     """Check balance and fund from faucet if needed. Returns True if funded.
+
+    2.7.4 (#28 item 3): with ``min_xrp``, a funded wallet below it gets one
+    faucet top-up. A workshop runs every lesson on one faucet grant, and by
+    checks_101 the learner held 49.99967 XRP, short of its 50 XRP Check.
+    The top-up is best effort: a lesson still runs if the faucet says no.
 
     F-BACKEND-B-010: faucet calls now retry up to 3 times with 2/4/8s
     backoff on failure. The retry covers transient testnet-faucet
@@ -227,6 +262,8 @@ async def ensure_funded(
     balance = await transport.get_balance(address)
     if _to_decimal(balance) > 0:
         console.print(f"  Balance: [green]{balance} XRP[/]")
+        if min_xrp is not None and _to_decimal(balance) < min_xrp:
+            await _top_up(transport, address, _to_decimal(balance), min_xrp, console)
         return True
 
     console.print("  Requesting funds from testnet faucet...")

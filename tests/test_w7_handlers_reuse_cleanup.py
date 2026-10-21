@@ -313,7 +313,7 @@ async def test_remove_trust_line_defaults_to_context_issuer(
     await transport.submit_trust_set(
         wallet_seed=holder.seed,
         issuer=issuer.address,
-        currency="HYGIENE",
+        currency="HYG",
         limit="100",
         wallet_address=holder.address,
     )
@@ -329,7 +329,7 @@ async def test_remove_trust_line_defaults_to_context_issuer(
         ModuleStep(
             text="",
             action="remove_trust_line",
-            action_args={"currency": "HYGIENE"},
+            action_args={"currency": "HYG"},
         ),
         state,
         transport,
@@ -338,7 +338,7 @@ async def test_remove_trust_line_defaults_to_context_issuer(
         console,
     )
     lines = await transport.get_trust_lines(holder.address)
-    assert not any(tl.currency == "HYGIENE" for tl in lines)
+    assert not any(tl.currency == "HYG" for tl in lines)
 
 
 def test_issuer_wallet_json_roundtrip_still_loads(

@@ -69,14 +69,15 @@ class TestClawbackHappyPath:
 
     @pytest.mark.asyncio
     async def test_enable_then_clawback_debits_exactly(self, transport):
+        # Enable clawback on the issuer FIRST, while it owns nothing (2.7.4:
+        # the dry run now refuses it tecOWNERS otherwise, as the network does).
+        en = await enable_clawback(transport, ISSUER_SEED)
+        assert en.success
         # Holder holds 100 GOLD from the issuer.
         transport._trust_lines[HOLDER] = [
             TrustLineInfo(account=HOLDER, peer=ISSUER, currency="GOLD",
                           balance="100", limit="1000")
         ]
-        # Enable clawback on the issuer FIRST.
-        en = await enable_clawback(transport, ISSUER_SEED)
-        assert en.success
 
         # Claw back 30 of 100.
         cb = await clawback_tokens(transport, ISSUER_SEED, HOLDER, "GOLD", "30")
@@ -88,11 +89,11 @@ class TestClawbackHappyPath:
 
     @pytest.mark.asyncio
     async def test_verify_clawback_confirms_exact_delta(self, transport):
+        await enable_clawback(transport, ISSUER_SEED)
         transport._trust_lines[HOLDER] = [
             TrustLineInfo(account=HOLDER, peer=ISSUER, currency="GOLD",
                           balance="100", limit="1000")
         ]
-        await enable_clawback(transport, ISSUER_SEED)
         await clawback_tokens(transport, ISSUER_SEED, HOLDER, "GOLD", "30")
 
         result = await verify_clawback(
@@ -106,11 +107,11 @@ class TestClawbackHappyPath:
     @pytest.mark.asyncio
     async def test_clawback_clamped_to_balance(self, transport):
         """Clawing more than the holder holds debits only what they have (clamp)."""
+        await enable_clawback(transport, ISSUER_SEED)
         transport._trust_lines[HOLDER] = [
             TrustLineInfo(account=HOLDER, peer=ISSUER, currency="GOLD",
                           balance="40", limit="1000")
         ]
-        await enable_clawback(transport, ISSUER_SEED)
         cb = await clawback_tokens(transport, ISSUER_SEED, HOLDER, "GOLD", "999")
         assert cb.success
         lines = await transport.get_trust_lines(HOLDER)
@@ -127,11 +128,11 @@ class TestClawbackHappyPath:
     @pytest.mark.asyncio
     async def test_fractional_clawback_decimal_exact(self, transport):
         """Decimal-exact fractional debit (no float drift)."""
+        await enable_clawback(transport, ISSUER_SEED)
         transport._trust_lines[HOLDER] = [
             TrustLineInfo(account=HOLDER, peer=ISSUER, currency="GOLD",
                           balance="100.5", limit="1000")
         ]
-        await enable_clawback(transport, ISSUER_SEED)
         cb = await clawback_tokens(transport, ISSUER_SEED, HOLDER, "GOLD", "0.3")
         assert cb.success
         lines = await transport.get_trust_lines(HOLDER)

@@ -57,6 +57,18 @@ def _create_issuer_sites() -> list[tuple[str, str]]:
     return sites
 
 
+def _fresh_issuer_sites() -> set[str]:
+    return {
+        mid for mid, mod in load_all_modules().items() for step in mod.steps
+        if step.action == "create_issuer_wallet"
+        and str(step.action_args.get("fresh", "")).lower() == "true"
+    }
+
+
+def test_only_clawback_uses_a_fresh_issuer():
+    assert _fresh_issuer_sites() == {"clawback_101"}
+
+
 def test_create_issuer_wallet_call_sites_enumerated():
     """Call-site contract: every create_issuer_wallet module is listed."""
     found = {mid for mid, _ in _create_issuer_sites()}
@@ -71,7 +83,14 @@ def test_create_issuer_wallet_call_sites_enumerated():
 def test_every_create_issuer_wallet_step_teaches_reuse_and_orphan():
     """RED gate: lesson prose must say reuse + orphan (complement handlers hint)."""
     failures: list[str] = []
+    fresh = _fresh_issuer_sites()
     for mid, text in _create_issuer_sites():
+        if mid in fresh:
+            # 2.7.4 (#28 item 2): a fresh=true step doesn't reuse; it must say
+            # why it can't (tecOWNERS) instead.
+            if "tecOWNERS" not in text or "fresh issuer" not in text.lower():
+                failures.append(f"{mid}: fresh issuer step must explain tecOWNERS")
+            continue
         missing: list[str] = []
         if not REUSE_RE.search(text):
             missing.append("reuse")
