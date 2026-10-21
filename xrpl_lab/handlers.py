@@ -5612,11 +5612,16 @@ async def handle_disable_deposit_auth(
         _explain_failure(console, result.result_code)
     _record_submit(state, context, result)
     still_on = await transport.get_deposit_auth(address) if address else None
-    if still_on is True:
-        console.print("  [red]Deposit authorization is still on.[/]")
+    # A failed ClearFlag fails the step even when the read-back can't tell
+    # (Argon, 2.7.2 round 1, F1: an RPC outage makes both fail).
+    if still_on is True or not result.success:
+        console.print("  [red]Deposit authorization may still be on.[/]")
         _record_verification(
             context, "disable_deposit_auth", passed=False,
-            failures=["lsfDepositAuth still set after the cleanup"],
+            failures=[
+                "lsfDepositAuth still set after the cleanup" if still_on is True
+                else "ClearFlag asfDepositAuth did not succeed"
+            ],
         )
     elif still_on is False:
         console.print("  [green]Checked: payments to your wallet are accepted again.[/]")

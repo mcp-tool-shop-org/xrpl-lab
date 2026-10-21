@@ -123,3 +123,32 @@ async def test_the_testnet_transport_reads_the_flag(monkeypatch, flags, expected
 async def test_an_unreadable_account_is_unknown(monkeypatch) -> None:
     _fakes.install(monkeypatch, results={"AccountInfo": {"error": "actNotFound"}})
     assert await XRPLTestnetTransport().get_deposit_auth(LEARNER) is None
+
+
+@pytest.mark.asyncio
+async def test_a_failed_clear_fails_the_step_when_the_read_back_is_unknown(monkeypatch) -> None:
+    """Argon, 2.7.2 round 1, F1."""
+    monkeypatch.setattr(handlers, "save_state", lambda state: None)
+
+    async def _fail(*args, **kwargs):
+        return SubmitResult(success=False, result_code="local_error", error="timed out")
+
+    async def _unknown(address):
+        return None
+
+    monkeypatch.setattr(handlers, "enable_deposit_auth", _fail)
+    t = DryRunTransport()
+    monkeypatch.setattr(t, "get_deposit_auth", _unknown)
+    console, _ = _console()
+    step = ModuleStep(text="x", action="disable_deposit_auth", action_args={})
+    ctx = await handlers.handle_disable_deposit_auth(
+        step, LabState(wallet_address=LEARNER), t, "sSEED", {"module_id": "m"}, console)
+    assert any(not v["passed"] for v in ctx.get("verifications", []))
+
+
+def test_the_checks_list_names_the_cleanup() -> None:
+    """Argon, 2.7.2 round 1, F2."""
+    from xrpl_lab.modules import load_all_modules
+
+    checks = load_all_modules()["deposit_gate_101"].checks
+    assert any("cleanup" in c for c in checks)

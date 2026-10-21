@@ -26,6 +26,7 @@ checks:
   - "A non-credentialed, non-preauthorized outsider's Payment stays blocked — tecNO_PERMISSION"
   - "Address preauthorization revoked (compensator, reserve freed)"
   - "Revoking a non-existent preauthorization rejected — tecNO_ENTRY"
+  - "Credential preauthorization removed and asfDepositAuth cleared (cleanup)"
 ---
 
 **Deposit Authorization (`asfDepositAuth`)** has been mainnet-live since 2018:
