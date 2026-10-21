@@ -1,0 +1,235 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.4",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rPKCeZ89Y99ghFa6vAhhuvQ64Ya7oW8P2h",
+  "generated_at": "2026-10-21T23:19:45.843538+00:00",
+  "completed_modules": [
+    {
+      "module_id": "clawback_101",
+      "completed_at": "2026-10-21T22:33:02.214389+00:00",
+      "txids": [
+        "EBCF87E157C2C691E1E2A3466DCA3AAC33FA302F03B8BE282296BF024D600F8A",
+        "C2B80D121EBE16332DECCBC3EBB08F2AF5E397BCA35C9BBB5CD1D2AEE382878F",
+        "8F68384E6EFB6BB9E571985C990FE292F8FEAC0752F98FFCDB25FAA20F7B2C88",
+        "597503F1B79C2C23BF41BE91D11BDFDDD3645EA4309927CEF7C9DF81C4D5962C"
+      ],
+      "verified": true,
+      "accounts": [
+        "rB6nr3SGkisPLBEtw2XcoVVoJfGZWZVXjU",
+        "rJfqxq9Rsv1SXoXya3LVRfgXi2hTeeYfKV",
+        "rMiJThHKrwGadMZBSGPRGKWwDBuhWVWu58",
+        "rPKCeZ89Y99ghFa6vAhhuvQ64Ya7oW8P2h",
+        "rnJQ6UGJtZr2otwoYD3iriLJZt5GjJT6gK"
+      ],
+      "kb_source": "clawback-economy-recall",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/EBCF87E157C2C691E1E2A3466DCA3AAC33FA302F03B8BE282296BF024D600F8A",
+        "https://testnet.xrpl.org/transactions/C2B80D121EBE16332DECCBC3EBB08F2AF5E397BCA35C9BBB5CD1D2AEE382878F",
+        "https://testnet.xrpl.org/transactions/8F68384E6EFB6BB9E571985C990FE292F8FEAC0752F98FFCDB25FAA20F7B2C88",
+        "https://testnet.xrpl.org/transactions/597503F1B79C2C23BF41BE91D11BDFDDD3645EA4309927CEF7C9DF81C4D5962C"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "timestamp": "2026-10-21T22:30:23.582184+00:00",
+      "network": "testnet",
+      "explorer_url": ""
+    },
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "timestamp": "2026-10-21T22:30:26.402457+00:00",
+      "network": "testnet",
+      "explorer_url": ""
+    },
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "timestamp": "2026-10-21T22:30:29.416835+00:00",
+      "network": "testnet",
+      "explorer_url": ""
+    },
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "success": false,
+      "expected": false,
+      "validated": false,
+      "timestamp": "2026-10-21T22:30:33.479939+00:00",
+      "network": "testnet",
+      "explorer_url": ""
+    },
+    {
+      "txid": "EBCF87E157C2C691E1E2A3466DCA3AAC33FA302F03B8BE282296BF024D600F8A",
+      "module_id": "clawback_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T22:32:08.573235+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/EBCF87E157C2C691E1E2A3466DCA3AAC33FA302F03B8BE282296BF024D600F8A"
+    },
+    {
+      "txid": "C2B80D121EBE16332DECCBC3EBB08F2AF5E397BCA35C9BBB5CD1D2AEE382878F",
+      "module_id": "clawback_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T22:32:17.247097+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/C2B80D121EBE16332DECCBC3EBB08F2AF5E397BCA35C9BBB5CD1D2AEE382878F"
+    },
+    {
+      "txid": "8F68384E6EFB6BB9E571985C990FE292F8FEAC0752F98FFCDB25FAA20F7B2C88",
+      "module_id": "clawback_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T22:32:25.571786+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/8F68384E6EFB6BB9E571985C990FE292F8FEAC0752F98FFCDB25FAA20F7B2C88"
+    },
+    {
+      "txid": "597503F1B79C2C23BF41BE91D11BDFDDD3645EA4309927CEF7C9DF81C4D5962C",
+      "module_id": "clawback_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T22:32:32.815823+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/597503F1B79C2C23BF41BE91D11BDFDDD3645EA4309927CEF7C9DF81C4D5962C"
+    },
+    {
+      "txid": "743BE991609A9C1008E8061C1545B9D3372D8437A964E081AC16D10E2E65AB2E",
+      "module_id": "clawback_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "timestamp": "2026-10-21T22:33:02.167322+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/743BE991609A9C1008E8061C1545B9D3372D8437A964E081AC16D10E2E65AB2E"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "failed",
+      "txid_full": "failed",
+      "module": "clawback_101",
+      "status": "FAIL",
+      "expected": false,
+      "validated": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:30"
+    },
+    {
+      "txid": "failed",
+      "txid_full": "failed",
+      "module": "clawback_101",
+      "status": "FAIL",
+      "expected": false,
+      "validated": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:30"
+    },
+    {
+      "txid": "failed",
+      "txid_full": "failed",
+      "module": "clawback_101",
+      "status": "FAIL",
+      "expected": false,
+      "validated": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:30"
+    },
+    {
+      "txid": "failed",
+      "txid_full": "failed",
+      "module": "clawback_101",
+      "status": "FAIL",
+      "expected": false,
+      "validated": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:30"
+    },
+    {
+      "txid": "EBCF87E157C2C691...",
+      "txid_full": "EBCF87E157C2C691E1E2A3466DCA3AAC33FA302F03B8BE282296BF024D600F8A",
+      "module": "clawback_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:32"
+    },
+    {
+      "txid": "C2B80D121EBE1633...",
+      "txid_full": "C2B80D121EBE16332DECCBC3EBB08F2AF5E397BCA35C9BBB5CD1D2AEE382878F",
+      "module": "clawback_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:32"
+    },
+    {
+      "txid": "8F68384E6EFB6BB9...",
+      "txid_full": "8F68384E6EFB6BB9E571985C990FE292F8FEAC0752F98FFCDB25FAA20F7B2C88",
+      "module": "clawback_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:32"
+    },
+    {
+      "txid": "597503F1B79C2C23...",
+      "txid_full": "597503F1B79C2C23BF41BE91D11BDFDDD3645EA4309927CEF7C9DF81C4D5962C",
+      "module": "clawback_101",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:32"
+    },
+    {
+      "txid": "743BE991609A9C10...",
+      "txid_full": "743BE991609A9C1008E8061C1545B9D3372D8437A964E081AC16D10E2E65AB2E",
+      "module": "clawback_101",
+      "status": "FAIL",
+      "expected": true,
+      "validated": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 22:33"
+    }
+  ],
+  "total_transactions": 9,
+  "successful_transactions": 4,
+  "failed_transactions": 5,
+  "expected_failures": 1,
+  "module_accounts": {
+    "clawback_101": [
+      "rB6nr3SGkisPLBEtw2XcoVVoJfGZWZVXjU",
+      "rJfqxq9Rsv1SXoXya3LVRfgXi2hTeeYfKV",
+      "rMiJThHKrwGadMZBSGPRGKWwDBuhWVWu58",
+      "rPKCeZ89Y99ghFa6vAhhuvQ64Ya7oW8P2h",
+      "rnJQ6UGJtZr2otwoYD3iriLJZt5GjJT6gK"
+    ]
+  },
+  "sha256": "e73ccccbc88ebc0fcb1d62ab8ed7f4eb1933eedbf85f712105684a586edaab6e"
+}

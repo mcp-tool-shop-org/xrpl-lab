@@ -1,0 +1,221 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Token Escrow (XLS-85): Locking IOUs, Not Just XRP                                                                                                           │
+│ Level: intermediate  |  Time: ~20-25 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Escrow 101 locked XRP. But until 2026, that was the only thing you could escrow — you could not time-lock your own game currency, a stablecoin, or any issued  
+token. The TokenEscrow amendment (XLS-85) changed that. It went mainnet-live on 2026-02-12, extending the native escrow object so the locked Amount can be an  
+issued currency (IOU) or a Multi-Purpose Token (MPT), not just XRP. This is what makes deferred value in your own token real: vesting schedules, conditional   
+grants, and escrow-secured trades no longer have to be priced in XRP.                                                                                          
+
+The escrow lifecycle — create, finish, cancel — is mechanically identical to XRP escrow. What is different is the asset and three rules the network enforces at
+EscrowCreate that XRP escrow never had:                                                                                                                        
+
+ 1 Issuer opt-in is mandatory, per-asset. For an IOU, the token's issuer must set the account flag asfAllowTrustLineLocking (ledger flag                       
+   lsfAllowTrustLineLocking) via AccountSet before anyone can escrow that token. Miss it and EscrowCreate fails tecNO_PERMISSION.                              
+ 2 The issuer cannot be the escrow source. An issuer escrowing its own token as sender fails tecNO_PERMISSION. So the flow is: the issuer opts in and issues to
+   a holder; the holder escrows the token to a third party.                                                                                                    
+ 3 CancelAfter is mandatory. Unlike XRP, there is no open-ended token escrow — every token escrow must carry a CancelAfter expiration.                         
+
+This lesson runs on testnet — free and disposable. You are the holder: you hold an issued token and escrow it to a recipient, then the recipient finishes it   
+and we prove the token moved.                                                                                                                                  
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You are the holder in this module — the account that escrows the token.                                                                                        
+
+
+  → ensure_wallet...
+  Wallet loaded: rDCG8TdNpGYDgM4MStnuekNzSvx2Qp2syB
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Creating an escrow still costs a small XRP owner reserve (0.2 XRP) plus the locked token — you need XRP on hand even though the escrowed value is in another   
+asset. Free on testnet.                                                                                                                                        
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create the issuer                                                                                                                                              
+
+A second wallet acts as the issuer of a game currency called GLD.                                                                                              
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Reusing existing issuer wallet: rrnSRivotopVYiWZEBwxGN8V1ZehThdfNQ
+  Workshop hint: This issuer is reused across modules. Leftover trust lines from earlier currencies still lock owner reserve until balance=0 and 
+remove_trust_line runs. Run module account_hygiene for the taught cleanup loop, or re-run remove_trust_line with the leftover currency (use issuer=<peer> for 
+orphaned pre-reuse peers). If owner_count stays high after hygiene, ask your facilitator to inventory trust lines.
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Issuer opts in to token escrow                                                                                                                                 
+
+This is the rule that has no XRP equivalent. The issuer sets asfAllowTrustLineLocking on its account (an AccountSet flag). Until this is on, no one can escrow 
+GLD — a EscrowCreate for it fails tecNO_PERMISSION. This flag is the issuer's per-asset consent lever: the issuer decides whether its token can be locked in   
+escrow at all.                                                                                                                                                 
+
+
+  → set_allow_trustline_locking...
+  Issuer opting in to token escrow (asfAllowTrustLineLocking) — required before this IOU can be escrowed...
+  Allow Trust Line Locking enabled on the issuer.
+  TXID: 5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083
+
+Press Enter to continue...Trust the issuer                                                                                                                                               
+
+Opt in to hold GLD (a TrustSet). The trust line is the holder's half of the consent: you decide whose token you are willing to hold, and up to what limit.     
+Until it exists, the issuer cannot send you a single GLD.                                                                                                      
+
+
+  → set_trust_line...
+  Setting trust line: GLD from issuer rrnSRivotopV...
+  Limit: 1000
+  Trust line set!
+  TXID: 55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D
+
+Press Enter to continue...Receive GLD from the issuer                                                                                                                                    
+
+Now the issuer sends 100 GLD down that trust line. You are now the holder with a real balance — the thing you will escrow.                                     
+
+
+  → issue_token...
+  Issuing 100 GLD to rDCG8TdNpGYD...
+  100 GLD issued!
+  TXID: 8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5
+
+Press Enter to continue...Create the recipient                                                                                                                                           
+
+A third-party wallet is the escrow's destination. It sets its own trust line for GLD so the released token has a line to land on. (The token's issuer can never
+be the escrow source — that is rule #2 — so a distinct holder → recipient flow is the only valid shape.)                                                       
+
+
+  → create_token_recipient...
+  Creating the recipient (third-party) wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Recipient wallet: rPUXPpmRoFETP2Krhi63AF2rcS8g4VJeuZ
+  Recipient funded! Balance: 100.000000 XRP
+  Recipient trusting the issuer for GLD...
+  Recipient trust line set.
+
+Press Enter to continue...Snapshot the recipient's balance (before)                                                                                                                      
+
+Capture the recipient's GLD balance now — it should be 0. We compare against it at the end to prove the escrowed token actually moved.                         
+
+
+  → snapshot_recipient_balance...
+  Recipient GLD balance (before): 0
+
+Press Enter to continue...Escrow the token to the recipient (with a mandatory CancelAfter)                                                                                               
+
+You (the holder) escrow 50 GLD to the recipient. Because this is a token escrow, a CancelAfter is required — we set one a day out. The 50 GLD leaves your      
+spendable balance and is locked on-ledger until the escrow is finished or cancelled.                                                                           
+
+▌ Transfer fees: if the issuer had set a TransferRate/TransferFee, it is snapshotted at EscrowCreate and applied at EscrowFinish — the recipient would       
+▌ receive less than the 50 GLD face amount (net of the captured fee). This demo keeps GLD fee-free, so the recipient receives the full 50.                   
+
+
+  → create_token_escrow...
+  Holder escrowing 50 GLD to the recipient (release in ~30s, mandatory CancelAfter ~86400s out)...
+  Token escrow created — IOU locked on-ledger!
+  TXID: 511E65CD512E99986CF6B5FEC8B22D43B6D78E7E0F27E169AE0837882A48FD77
+  Escrow create-sequence: 1005
+
+Press Enter to continue...Create an issuer that never opted in                                                                                                                           
+
+asfAllowTrustLineLocking is an account-wide flag, not a per-currency one. The moment the issuer in Step 5 opted in, every token it issues became escrowable —  
+so the "I forgot the opt-in" wall can never appear against that issuer, no matter which currency you try.                                                      
+
+To meet the real failure you need a different issuer that never set the flag. This step creates and funds one, then issues you NOP from it: a token whose      
+issuer holds no escrow permission at all.                                                                                                                      
+
+
+  → create_noopt_issuer...
+  Creating a second issuer (never sets asfAllowTrustLineLocking)...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Issued 50 NOP from a no-opt-in issuer.
+
+Press Enter to continue...See the failure — a token escrow WITHOUT opt-in                                                                                                                
+
+Learn by hitting the wall. Now escrow the NOP you just received, whose issuer never set asfAllowTrustLineLocking. The network refuses with tecNO_PERMISSION —  
+exactly the error you get when you forget the issuer opt-in, and the single most common token-escrow mistake.                                                  
+
+Note what changed between this step and Step 10: not the currency, and not your account — the issuer's account flag. Escrow permission for an IOU lives with   
+whoever issued it, not with whoever holds it.                                                                                                                  
+
+
+  → create_token_escrow_expect_fail...
+  Attempting to escrow 50 NOP with NO issuer opt-in (expecting tecNO_PERMISSION)...
+  Expected failure: tecNO_PERMISSION
+   Token escrow refused — the issuer of NOP never enabled asfAllowTrustLineLocking (AccountSet). XLS-85 requires the issuer to opt in per-asset before anyone 
+can escrow that IOU; without it, EscrowCreate fails tecNO_PERMISSION.
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Recipient finishes the escrow                                                                                                                                  
+
+The recipient submits EscrowFinish, releasing the locked GLD to itself. (For a time-based escrow, either party may finish it after the release time — the funds
+always go to the destination regardless of who submits. In --dry-run the release time is simulated as already elapsed, so it succeeds immediately.)            
+
+
+  → finish_token_escrow...
+  Recipient finishing the token escrow (owner rDCG8TdNpGYD..., OfferSequence 1005)...
+  Token escrow finished — IOU released to the recipient!
+  TXID: 6D7DD9DCBCF3FFEDD03C20F6734FFDA6D20620A32B396EEA9BCA1D85877E80A5
+
+Press Enter to continue...Snapshot the recipient's balance (after)                                                                                                                       
+
+
+  → snapshot_recipient_balance...
+  Recipient GLD balance (after): 50
+
+Press Enter to continue...prove the token moved                                                                                                                                          
+
+Confirm the recipient's GLD balance rose by exactly the escrowed amount — the IOU that was locked in escrow is now the recipient's.                            
+
+
+  → verify_token_moved...
+  ✓ Recipient received 50 GLD (balance 0 -> 50)
+  Token moved — the escrowed IOU is now the recipient's.
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You locked an issued token in a time-based escrow and released it to a third party — something impossible before XLS-85:                                       
+
+ 1 Issuer opt-in — set asfAllowTrustLineLocking so GLD could be escrowed at all; saw tecNO_PERMISSION when a token lacked it                                   
+ 2 Holder → recipient escrow — escrowed 50 GLD (the issuer can never be the source) with a mandatory CancelAfter                                               
+ 3 EscrowFinish — the recipient released the locked IOU                                                                                                        
+ 4 Verified — the recipient's issued balance increased by the escrowed amount                                                                                  
+
+Key concepts to remember:                                                                                                                                      
+
+ • Issuer opt-in is per-asset and mandatory — asfAllowTrustLineLocking (IOUs) is the issuer's consent that its token may be locked. No flag, no escrow         
+   (tecNO_PERMISSION).                                                                                                                                         
+ • The issuer is never the source — the token's issuer cannot escrow its own token as sender; a holder escrows to a third party.                               
+ • CancelAfter is required — unlike XRP, there is no open-ended token escrow. Every token escrow carries a cancel/reclaim deadline.                            
+ • Transfer fees are captured at create, applied at finish — with a non-zero TransferRate, the recipient receives the amount net of the fee, less than the     
+   locked face.                                                                                                                                                
+ • MPTs too — XLS-85 also escrows Multi-Purpose Tokens; there the issuer opts in with tfMPTCanEscrow (+ tfMPTCanTransfer) at issuance instead of the trust-line
+   flag. This lesson used the IOU path.                                                                                                                        
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Token Escrow (XLS-85): Locking IOUs, Not Just XRP                                                                                                           │
+│ Report saved to .xrpl-lab\reports\token_escrow_101.md                                                                                                       │
+│ 5 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

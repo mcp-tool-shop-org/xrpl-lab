@@ -1,0 +1,18 @@
+[
+ {
+  "txid": "8611E2601BB10191276185BC51069E170DE4FEFE617909D30FEE63E906932AB5",
+  "type": "TrustSet",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "40376CC86F44D2B6E38BF7956891565991DC48E95EF916B5B4184A2C95A8FE76",
+  "type": "Payment",
+  "account": "rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

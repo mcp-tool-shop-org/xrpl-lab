@@ -1,0 +1,10 @@
+[
+ {
+  "txid": "387983C0B2F3F22B37C351CAA31B95249FEB1A5F9409699CF34C572E381CB05F",
+  "type": "TrustSet",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

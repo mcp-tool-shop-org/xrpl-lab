@@ -1,0 +1,26 @@
+[
+ {
+  "txid": "5D46C8CE479D55E139151C5965B7AEE58C0583AE5D0FD6C8CDBBA0D2DB75F2B1",
+  "type": "Payment",
+  "account": "rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS",
+  "result": "tecPATH_DRY",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "5BF06041C99D88D7079A650F8FD07D74B310BF8D48DBDDDFDC63DF499EC8AF37",
+  "type": "TrustSet",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "0AC44B0285DD9A4143B7B0D20873A721036052F9B2AA23D9B5956924622F3E55",
+  "type": "Payment",
+  "account": "rQ3gWRcwXm2PMnWmuNU16ANrykH84L7FS",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

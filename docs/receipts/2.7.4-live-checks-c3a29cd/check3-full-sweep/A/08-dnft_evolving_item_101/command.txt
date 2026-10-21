@@ -1,0 +1,4 @@
+cmd: xrpl-lab run  dnft_evolving_item_101  (Enter fed to every prompt)
+xrpl_lab_exit_code: 0
+wall_seconds: 38
+module_interrupted_lines: 0

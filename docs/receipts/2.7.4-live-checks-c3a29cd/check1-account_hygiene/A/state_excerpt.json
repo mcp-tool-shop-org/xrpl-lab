@@ -1,0 +1,64 @@
+{
+  "module_accounts": {
+    "account_hygiene": [
+      "r3TyqyTAwCSKaoupU38nsVxnasNq7vR1yh",
+      "rDUQE3ktRiTi7KpVtbi9T2Ci6KHeRuLKNW"
+    ]
+  },
+  "completed_modules": [
+    {
+      "module_id": "account_hygiene",
+      "completed_at": 1792621709.6414359,
+      "txids": [
+        "0BECAA32BC7C5187D8684ABDC2B544ED1D7A0CCAC0EC33F6B5FC222A3C94057F",
+        "CDDD1FDB1C1DB61B7924EF167F7E342E1A6518BCE5C6A3A52FCF4E872802FA49",
+        "BB489FE62B5B6FE8D91E0A3E50E778FBA2EA86B3D38F3EA65CFF23010D7E0C1D",
+        "A53F02A432409C17E2C9EA7AD5E339629685723D27C35D209B3F57F72DEE3551"
+      ],
+      "report_path": ".xrpl-lab\\reports\\account_hygiene.md",
+      "verified": true
+    }
+  ],
+  "tx_index": [
+    {
+      "txid": "0BECAA32BC7C5187D8684ABDC2B544ED1D7A0CCAC0EC33F6B5FC222A3C94057F",
+      "module_id": "account_hygiene",
+      "timestamp": 1792621682.4562063,
+      "network": "testnet",
+      "success": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/0BECAA32BC7C5187D8684ABDC2B544ED1D7A0CCAC0EC33F6B5FC222A3C94057F",
+      "expected": false,
+      "validated": true
+    },
+    {
+      "txid": "CDDD1FDB1C1DB61B7924EF167F7E342E1A6518BCE5C6A3A52FCF4E872802FA49",
+      "module_id": "account_hygiene",
+      "timestamp": 1792621690.8569112,
+      "network": "testnet",
+      "success": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/CDDD1FDB1C1DB61B7924EF167F7E342E1A6518BCE5C6A3A52FCF4E872802FA49",
+      "expected": false,
+      "validated": true
+    },
+    {
+      "txid": "BB489FE62B5B6FE8D91E0A3E50E778FBA2EA86B3D38F3EA65CFF23010D7E0C1D",
+      "module_id": "account_hygiene",
+      "timestamp": 1792621700.3085349,
+      "network": "testnet",
+      "success": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/BB489FE62B5B6FE8D91E0A3E50E778FBA2EA86B3D38F3EA65CFF23010D7E0C1D",
+      "expected": false,
+      "validated": true
+    },
+    {
+      "txid": "A53F02A432409C17E2C9EA7AD5E339629685723D27C35D209B3F57F72DEE3551",
+      "module_id": "account_hygiene",
+      "timestamp": 1792621708.6971526,
+      "network": "testnet",
+      "success": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/A53F02A432409C17E2C9EA7AD5E339629685723D27C35D209B3F57F72DEE3551",
+      "expected": false,
+      "validated": true
+    }
+  ]
+}

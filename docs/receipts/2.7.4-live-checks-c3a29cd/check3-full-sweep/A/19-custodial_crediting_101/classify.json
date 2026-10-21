@@ -1,0 +1,36 @@
+[
+ {
+  "txid": "29775845AE814881A3AE441FDF314267DEE4452F3BC59C0D195483C45C15A4A9",
+  "type": "AccountSet",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "SetFlag": "asfRequireDest"
+ },
+ {
+  "txid": "B130A2DF564A83F86F78F4C08B336AFA71402BE462FE30A3E068279D2E96BB3C",
+  "type": "Payment",
+  "account": "rB93L5cE8LJ49RGFNw3ACX3PiWFd9HuHLf",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "A233FEDB1DB8F4335F3B9D5829C99F11BFFEB886C3055DD8E6AAB6B4E3E7EDA2",
+  "type": "Payment",
+  "account": "rB93L5cE8LJ49RGFNw3ACX3PiWFd9HuHLf",
+  "result": "tecDST_TAG_NEEDED",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "01675700AF6E63B4D900D2738374E8C7E14E2A0A3742080852EDDB45A2E61423",
+  "type": "AccountSet",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "ClearFlag": "asfRequireDest"
+ }
+]

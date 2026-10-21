@@ -1,0 +1,4 @@
+18:27:37 sweep check1-hygiene-c3a29cd-20261021T2227Z on c3a29cd 2.7.4 c3a29cd check 1 — 1 lessons
+18:28:37 [A] 01 account_hygiene: exit=0 15 passed, 0 failed | 4 successful, 0 failed | live FAIL 0 | unexpected [] | flags on [] | in-lesson AccountSet []
+18:28:41 [A] full-pack verify --live: exit 0 {'PASS': 4}
+18:28:41 done: 1/1 exit 0; summary at check1-hygiene-c3a29cd-20261021T2227Z/summary.md

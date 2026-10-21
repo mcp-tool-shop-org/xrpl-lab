@@ -1,0 +1,317 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Deposit Gate (DepositAuth + DepositPreauth): Credential-Gated Treasury Deposits                                                                             │
+│ Level: advanced  |  Time: ~30-40 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Deposit Authorization (asfDepositAuth) has been mainnet-live since 2018: flip this account flag and the ledger itself rejects every unsolicited incoming       
+Payment from a sender you have not cleared — no server-side sweep, no "did we remember to check" bug, the network enforces it in preclaim. DepositPreauth (also
+2018) is how you clear senders — by address, one at a time. And since Credentials (XLS-70) went mainnet-live on 2025-09-04, DepositPreauth grew a second,      
+scalable clearance path: AuthorizeCredentials. Instead of whitelisting individual addresses, you authorize anyone holding a specific credential from a trusted 
+issuer. A sender then attaches that credential's on-ledger id to a Payment via CredentialIDs, and the gate opens for anyone who qualifies — no per-player      
+allow-list required.                                                                                                                                           
+
+This is the KYC-gated deposits pattern — the last piece of the XLS-70 arc. credentials_101 minted an attestation; permissioned_domains_101 gated a trading book
+with it (via DomainID). This module gates inbound value to a treasury with it. Keep this account separate from your payout (outbound rewards) wallet in        
+production — Deposit Authorization only ever governs what comes IN; it has nothing to say about what the treasury sends out.                                   
+
+This runs on testnet — free and disposable. Your wallet plays two roles: the protected TREASURY under Deposit Authorization, and the credential ISSUER (the    
+KYC/compliance authority) — the same dual-role pattern permissioned_domains_101 used for its owner+issuer.                                                     
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+Your wallet is the TREASURY — the account that will stop accepting money from strangers — and doubles as the credential ISSUER.                                
+
+
+  → ensure_wallet...
+  Wallet loaded: rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Enabling Deposit Authorization and installing each preauthorization cost a fee plus a small owner reserve (free on testnet).                                   
+
+
+  → ensure_funded...
+  Balance: 109.999500 XRP
+
+Press Enter to continue...Enable Deposit Authorization                                                                                                                                   
+
+Flip the switch: AccountSet with SetFlag: asfDepositAuth (9). From this transaction on, the treasury rejects any Payment from a sender you have not cleared,   
+failing tecNO_PERMISSION — enforced in preclaim, before the payment ever touches a balance. Note what still works even with the flag on: pull-style            
+transactions the treasury itself initiates — CheckCash, EscrowFinish (as destination), PaymentChannelClaim, OfferCreate — because the recipient chose to       
+receive those. Only unsolicited pushes are blocked.                                                                                                            
+
+
+  → enable_deposit_auth...
+  Enabling asfDepositAuth on the treasury — unsolicited incoming Payments will now be rejected unless the sender is preauthorized...
+  Deposit Authorization enabled. Only a preauthorized sender — by address or by credential — can pay this account now.
+  TXID: 9E0B9F3AFB9CFE281B407D85E314DDCD498B699BD0605F24B4CAABD4EAC69B6E
+  Explorer: https://testnet.xrpl.org/transactions/9E0B9F3AFB9CFE281B407D85E314DDCD498B699BD0605F24B4CAABD4EAC69B6E
+
+Press Enter to continue...Create the sender wallet                                                                                                                                       
+
+A fresh, funded wallet plays an ordinary player the treasury has not cleared yet — a real third-party Payment, exactly like production traffic.                
+
+
+  → create_sender_wallet...
+  Creating the sender's wallet (a random player with no preauthorization yet)...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Sender wallet: rfNfQ8C7aAFKZbp2Hbvixy7rDpZX7Z9XWQ
+  Sender funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Watch the sender's Payment get BLOCKED                                                                                                                         
+
+With Deposit Authorization on and no preauthorization installed, the sender's Payment is exactly the traffic the flag exists to stop. It fails tecNO_PERMISSION
+— a tec-class result (the transaction claimed a fee and a sequence but did nothing else), not a tem malformed rejection.                                       
+
+
+  → send_sender_payment_expect_blocked...
+  Sender attempting to pay 10 XRP into the treasury (expecting tecNO_PERMISSION — no preauthorization yet)...
+  Expected failure: tecNO_PERMISSION
+  The treasury rejected the unsolicited Payment — Deposit Authorization blocks anyone not preauthorized.
+  Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION. Check XRPL docs for this specific code
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Try preauthorizing the treasury itself (guardrail)                                                                                                             
+
+Before clearing the real sender, learn a guardrail. DepositPreauth's Authorize field can never name the account's OWN address — preauthorizing yourself is     
+meaningless (you always trust your own transactions). The network refuses with temCANNOT_PREAUTH_SELF, a tem-class result caught before it ever reaches        
+consensus.                                                                                                                                                     
+
+
+  → preauthorize_self_expect_fail...
+  Treasury attempting to preauthorize its OWN address (expecting temCANNOT_PREAUTH_SELF)...
+  Expected failure: temCANNOT_PREAUTH_SELF
+  An account can never preauthorize itself — that's not what the field is for.
+  Transaction format is invalid: temCANNOT_PREAUTH_SELF. Check XRPL docs for this specific code
+  Category: malformed
+  Meaning: Transaction format is invalid: temCANNOT_PREAUTH_SELF
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Preauthorize the sender BY ADDRESS                                                                                                                             
+
+Now clear the real sender. DepositPreauth with Authorize = the sender's address whitelists exactly that one account — currency-agnostic, one-directional (it   
+does not let the treasury pay THEM back), and it costs one owner-reserve increment as a ledger object.                                                         
+
+
+  → authorize_sender_address...
+  Preauthorizing sender rfNfQ8C7aAFK... by address (DepositPreauth Authorize)...
+  Sender preauthorized — its Payments will now be admitted.
+  TXID: 314D5F55C287522E82BB9C74D586CBE8203639339B99AF36EB7C097E45800C3D
+  Explorer: https://testnet.xrpl.org/transactions/314D5F55C287522E82BB9C74D586CBE8203639339B99AF36EB7C097E45800C3D
+
+Press Enter to continue...Try the same preauthorization again (guardrail)                                                                                                                
+
+The DepositPreauth object already exists for this (treasury, sender) pair — resubmitting the identical Authorize fails tecDUPLICATE. There is nothing new to   
+add.                                                                                                                                                           
+
+
+  → authorize_sender_address_duplicate...
+  Re-preauthorizing the SAME sender address (expecting tecDUPLICATE)...
+  Expected failure: tecDUPLICATE
+  This DepositPreauth object already exists — nothing to add.
+  Applied but failed: it's on the ledger, and its fee was charged: tecDUPLICATE. Check XRPL docs for this specific code
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecDUPLICATE
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...The preauthorized sender's Payment lands                                                                                                                       
+
+Same sender, same amount — the only thing that changed is the DepositPreauth object now standing between them and tecNO_PERMISSION. The Payment validates      
+tesSUCCESS.                                                                                                                                                    
+
+
+  → send_sender_payment...
+  Preauthorized sender paying 10 XRP into the treasury...
+  Payment landed — the address preauthorization admitted it.
+  TXID: 9EBC3DDE8E0D26BEA3C80918D4C6DAAF57F71D5AEB1F4D74128FD825C9B72457
+  Explorer: https://testnet.xrpl.org/transactions/9EBC3DDE8E0D26BEA3C80918D4C6DAAF57F71D5AEB1F4D74128FD825C9B72457
+
+Press Enter to continue...Create the KYC'd player (subject) wallet                                                                                                                       
+
+Address-by-address clearance does not scale to a real player base — every new depositor needs its own DepositPreauth object and its own owner-reserve          
+increment. The credential path is the answer. A fresh SUBJECT wallet plays the player about to get KYC'd.                                                      
+
+
+  → create_subject_wallet...
+  Creating the subject (player) wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Subject wallet: rN7LEq3PdMwuGSr1G4SypMwXBgPK5cad9N
+  Funding the subject from the faucet (so it's a real target)...
+  Subject funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Issuer mints a KYC credential for the player                                                                                                                   
+
+Reusing the XLS-70 primitive unchanged from credentials_101: the issuer (your wallet, wearing its second hat) attests a kyc-deposit credential about the funded
+subject. It starts PROVISIONAL — not valid until the subject accepts it.                                                                                       
+
+
+  → create_credential...
+  Attesting credential type kyc-deposit about subject rN7LEq3PdMwu... (PROVISIONAL until accepted)
+  Credential created — provisional, awaiting subject accept.
+  TXID: 64C45920E9648820DA91CA9B9FCE87E6D90276424D16F2937CB4AE85791A7111
+  Explorer: https://testnet.xrpl.org/transactions/64C45920E9648820DA91CA9B9FCE87E6D90276424D16F2937CB4AE85791A7111
+
+Press Enter to continue...Player accepts the credential                                                                                                                                  
+
+Only the subject can accept. Acceptance clears the provisional state, moves the owner reserve to the subject, and makes this the credential the deposit gate   
+will actually check.                                                                                                                                           
+
+
+  → accept_credential...
+  Subject accepting the credential — clears provisional state, reserve moves from issuer to subject...
+  Credential accepted — now VALID on-ledger!
+  TXID: C7510B40382B723670C12EF54ECF0AB36B703975CD1DB864DF6DDF0E78C0521B
+  Explorer: https://testnet.xrpl.org/transactions/C7510B40382B723670C12EF54ECF0AB36B703975CD1DB864DF6DDF0E78C0521B
+
+Press Enter to continue...Treasury preauthorizes BY CREDENTIAL                                                                                                                           
+
+Now the scalable path: DepositPreauth with AuthorizeCredentials = [{Issuer, CredentialType}]. This does not name any specific sender address — it authorizes   
+ANYONE who can present a currently valid (accepted, unexpired) kyc-deposit credential from this issuer. Onboard a thousand players and you install this ONE    
+rule, not a thousand Authorize objects.                                                                                                                        
+
+
+  → authorize_kyc_credential...
+  Preauthorizing BY CREDENTIAL — any sender holding an accepted kyc-deposit credential from rNjYPjKP48H6... may now deposit...
+  Credential-based preauthorization installed.
+  TXID: DA46DACEDE103B74CCE0204B014FEBA70CAF15E13652222C827A4EC21B2C2F4B
+  Explorer: https://testnet.xrpl.org/transactions/DA46DACEDE103B74CCE0204B014FEBA70CAF15E13652222C827A4EC21B2C2F4B
+
+Press Enter to continue...The KYC'd player attaches CredentialIDs and pays                                                                                                               
+
+The player's Payment carries CredentialIDs — the on-ledger id(s) of the Credential object(s) it holds. The gate checks: is the attached credential CURRENTLY   
+valid (accepted, unexpired), and does its (issuer, CredentialType) match something the treasury authorized? Both are true here, so the Payment lands.          
+
+CredentialIDs vs DomainID — the conflation to avoid: permissioned_domains_101's DomainID rail proves eligibility to trade; CredentialIDs proves eligibility to 
+deposit. Different fields, on different transactions, checked by different rules — neither substitutes for the other.                                          
+
+
+  → send_kyc_payment...
+  KYC'd player paying 10 XRP, attaching CredentialIDs=A969088F9C4FE98E...
+  Payment landed — the credential satisfied the treasury's AuthorizeCredentials policy.
+  TXID: 18E0D40A007E7FF08AE118F8D5798EFF16A2C1581AB8E790B04623E986B7DF62
+  Explorer: https://testnet.xrpl.org/transactions/18E0D40A007E7FF08AE118F8D5798EFF16A2C1581AB8E790B04623E986B7DF62
+
+Press Enter to continue...Create an outsider wallet                                                                                                                                      
+
+A third funded wallet: no address preauthorization, no credential the treasury accepts. It exists to prove the credential-based gate does not quietly become a 
+bypass for everyone.                                                                                                                                           
+
+
+  → create_uncredentialed_wallet...
+  Creating an un-credentialed (outsider) wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Outsider wallet: rFHF7TXATJMEVs318YHNWryzXk4JUkcJt
+  Funding it from the faucet (so it's a real account)...
+  Outsider funded! Balance: 100.000000 XRP
+
+Press Enter to continue...The outsider stays BLOCKED                                                                                                                                     
+
+Same treasury, same asfDepositAuth, same two live preauthorization policies — and this account qualifies for neither. Its Payment fails tecNO_PERMISSION,      
+exactly like the very first sender did before you cleared it. Two independent policies, one shared gate.                                                       
+
+
+  → send_outsider_payment_expect_blocked...
+  Outsider attempting to pay 10 XRP — no address preauthorization, no credential (expecting tecNO_PERMISSION)...
+  Expected failure: tecNO_PERMISSION
+  No address preauth, no matching credential — the gate holds for anyone outside both policies.
+  Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION. Check XRPL docs for this specific code
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Revoke the sender's address preauthorization (compensator)                                                                                                     
+
+Wind the address-based clearance back down: DepositPreauth with Unauthorize = the sender's address removes that DepositPreauth object and frees the owner      
+reserve it held. The credential-based clearance from Step 13 is untouched — the two paths are independent, each with its own revoke.                           
+
+
+  → unauthorize_sender_address...
+  Revoking the sender's address preauthorization (compensator)...
+  Preauthorization revoked — reserve freed.
+  TXID: 73427C64DFA2CDA7CB8F0122E1D2D547C7340CF9B1167FD1E0585B9AD67B2DEA
+  Explorer: https://testnet.xrpl.org/transactions/73427C64DFA2CDA7CB8F0122E1D2D547C7340CF9B1167FD1E0585B9AD67B2DEA
+
+Press Enter to continue...Revoke it again (guardrail)                                                                                                                                    
+
+There is nothing left to revoke — the object from Step 17 is already gone. The network refuses with tecNO_ENTRY, the same "nothing there" result               
+credentials_101's CredentialDelete and permissioned_domains_101's domain-delete both teach: revoking something that does not exist is a named failure, not a   
+silent no-op.                                                                                                                                                  
+
+
+  → unauthorize_sender_address_duplicate...
+  Revoking the SAME preauthorization again (expecting tecNO_ENTRY)...
+  Expected failure: tecNO_ENTRY
+  Nothing to revoke — it's already gone.
+  Applied but failed: it's on the ledger, and its fee was charged: tecNO_ENTRY. Check XRPL docs for this specific code
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecNO_ENTRY
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Remove the credential preauthorization                                                                                                                         
+
+Clean up the other clearance path too. UnauthorizeCredentials removes the credential-based preauthorization from Step 13 and frees its owner reserve. Leaving  
+it would also make this lesson fail if you ran it again on the same wallet: the same authorization would already exist (tecDUPLICATE).                         
+
+
+  → unauthorize_kyc_credential...
+  Removing the credential preauthorization (cleanup)...
+  Credential preauthorization removed.
+  TXID: 60DD6C4F73CAA21FC5F1586407C51E182881302C18F968AD6AA525941BDF9891
+
+Press Enter to continue...Turn deposit authorization off                                                                                                                                 
+
+Clear asfDepositAuth so your wallet accepts payments again. Left on, it would refuse every unsolicited payment to you, including the ones later lessons send   
+you (an issuer issuing you tokens, say). The step reads the account back to check the flag is gone.                                                            
+
+
+  → disable_deposit_auth...
+  Turning deposit authorization off (cleanup)...
+  Deposit authorization cleared.
+  TXID: 5FDB28AAD4D16CF669750EE87E39CD89D4A621D5E33BA337EF71C42E9B00050C
+  Checked: payments to your wallet are accepted again.
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You ran the full DepositAuth + DepositPreauth gate, both clearance paths, and their guardrails, with receipts for every claim:                                 
+
+  1 asfDepositAuth enabled — the treasury now rejects unsolicited Payments                                                                                     
+  2 tecNO_PERMISSION — an uncleared sender's Payment is blocked                                                                                                
+  3 temCANNOT_PREAUTH_SELF — an account can never preauthorize itself                                                                                          
+  4 DepositPreauth Authorize — cleared one sender by address                                                                                                   
+  5 tecDUPLICATE — re-authorizing the same address is rejected                                                                                                 
+  6 Address-cleared Payment lands — tesSUCCESS                                                                                                                 
+  7 Credential issued + accepted — the XLS-70 handshake, reused unchanged                                                                                      
+  8 DepositPreauth AuthorizeCredentials — cleared ANY holder of a kyc-deposit credential from this issuer, no per-address whitelist                            
+  9 CredentialIDs-carrying Payment lands — the credential path works                                                                                           
+ 10 Outsider stays blocked — neither policy covers it; tecNO_PERMISSION again                                                                                  
+ 11 Unauthorize — the compensator; reserve freed                                                                                                               
+ 12 tecNO_ENTRY — revoking a non-existent preauthorization fails honestly                                                                                      
+ 13 Cleanup — the credential preauthorization removed and asfDepositAuth cleared, so your wallet accepts payments again                                        
+
+Key concepts to remember:                                                                                                                                      
+
+ • DepositAuth blocks Payments only — pull-style transactions the recipient itself initiates (CheckCash, EscrowFinish, PaymentChannelClaim, OfferCreate) still 
+   work. A sub-reserve account is exempted for a small XRP Payment (at most the base reserve) so it can never get permanently stuck.                           
+ • Two clearance paths, independent revokes. Address-based (Authorize/ Unauthorize) suits a small, known set of senders; credential-based                      
+   (AuthorizeCredentials/UnauthorizeCredentials) is the scalable KYC gate — one rule admits every qualifying holder. Revoking one never touches the other.     
+ • CredentialIDs (deposit) vs DomainID (trading) — two separate rails built on the same XLS-70 credentials. Putting a DomainID on a Payment or CredentialIDs on
+   an OfferCreate does nothing.                                                                                                                                
+ • A credential must be currently valid to satisfy the gate — accepted (not merely provisional) AND unexpired. Expiry or revocation on the issuer's side can   
+   turn a previously-admitted depositor into a blocked one with no change on the treasury's end.                                                               
+ • Keep payout and treasury separate. DepositAuth only governs inbound value; a studio's outbound reward-payout wallet is a different account with a different 
+   threat model.                                                                                                                                               
+ • Named compensators, both paths. Unauthorize / UnauthorizeCredentials free the owner reserve a preauthorization held; revoking something already gone is     
+   tecNO_ENTRY, not a no-op.                                                                                                                                   
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Deposit Gate (DepositAuth + DepositPreauth): Credential-Gated Treasury Deposits                                                                             │
+│ Report saved to .xrpl-lab\reports\deposit_gate_101.md                                                                                                       │
+│ 10 transactions recorded                                                                                                                                    │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

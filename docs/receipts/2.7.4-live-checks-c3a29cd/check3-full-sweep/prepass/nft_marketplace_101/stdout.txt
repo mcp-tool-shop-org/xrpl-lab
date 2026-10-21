@@ -1,0 +1,184 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ NFT Marketplace 101: Trading Assets with Enforced Royalties                                                                                                 │
+│ Level: intermediate  |  Time: ~20-25 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+On the XRPL, trading an NFT is two transactions: the owner publishes an NFTokenCreateOffer, and a counterparty settles it atomically with NFTokenAcceptOffer.  
+No marketplace contract, no escrow service — the ledger is the exchange. And the creator's cut is not a marketplace courtesy you have to trust: the TransferFee
+(royalty) is enforced by the protocol itself on every resale.                                                                                                  
+
+One load-bearing rule (XLS-20): the royalty is charged only when the seller is not the issuer. The first sale, from the creator to a buyer, pays no fee. The   
+fee is deducted on every secondary sale. So this module is a full round trip — mint, first sale, resale — so you can watch the royalty actually move.          
+
+Everything here runs on the testnet — free, disposable, and safe to repeat.                                                                                    
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You are the creator (and issuer) in this module.                                                                                                               
+
+
+  → ensure_wallet...
+  Wallet loaded: rDCG8TdNpGYDgM4MStnuekNzSvx2Qp2syB
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create a second player                                                                                                                                         
+
+A trade needs two parties. We create and fund a second wallet — the buyer/reseller.                                                                            
+
+
+  → create_buyer_wallet...
+  Creating a second player wallet (buyer/reseller)...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Buyer funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Mint a game asset with a 5% royalty                                                                                                                            
+
+Mint a transferable NFT carrying a transfer_fee of 5000 — that is 5.000% in the XRPL's 0.001% steps. The royalty only takes effect because the NFT is          
+transferable, and it is permanent: flags and TransferFee can never change after mint.                                                                          
+
+
+  → mint_nft...
+  Minting NFToken — taxon 11, transferable True, mutable False, uri ipfs://bafy-example/relic-of-dawn.json
+  Royalty (TransferFee): 5.000%
+  NFToken minted!
+  TXID: 5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083
+  NFTokenID: C7C8DDE256512BAE29224441BCD5C2788EB6F6F0D1DA61D7295C069E369CF927
+
+Press Enter to continue...Verify the mint                                                                                                                                                
+
+Read the NFT back: you should see the issuer (you), the taxon, transferable, and the 5% royalty baked in.                                                      
+
+
+  → verify_nft...
+  NFToken found: C7C8DDE256512BAE29224441...
+  Issuer: rDCG8TdNpGYDgM4MStnuekNzSvx2Qp2syB
+  Taxon (collection id): 11
+  URI: ipfs://bafy-example/relic-of-dawn.json
+  Transferable: yes
+  Royalty (TransferFee): 5.000%
+  NFT ownership verified on-ledger.
+
+Press Enter to continue...List the asset for sale (first sale)                                                                                                                           
+
+The creator lists a sell offer. tfSellNFToken marks it as a sell. We direct it to the buyer so the trade is a clean two-party demonstration.                   
+
+
+  → list_nft_sell_offer...
+  Listing NFT for sale: 10 XRP (seller creator, to rpQ6ubQtsgoP...)
+  Sell offer listed!
+  TXID: 55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D
+  Offer index: 44004E2947AA94DFC24EEA92...
+
+Press Enter to continue...Read the offer back from the ledger                                                                                                                            
+
+nft_sell_offers shows the open offer with its price and ledger index — the index is exactly what the buyer hands to NFTokenAcceptOffer.                        
+
+
+  → verify_nft_offer...
+  Sell offer: 10 (index 44004E2947AA94DF...)
+  1 open sell offer(s) on the book.
+
+Press Enter to continue...The buyer accepts (first sale — no royalty)                                                                                                                    
+
+The buyer settles the trade. Ownership moves to the buyer atomically. Because the seller here is the issuer, no royalty is charged on this first sale.         
+
+
+  → accept_nft_offer...
+  Accepting sell offer as buyer (rpQ6ubQtsgoP...)...
+  Trade settled — NFT ownership transferred!
+  TXID: 8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5
+
+Press Enter to continue...Verify the first transfer                                                                                                                                      
+
+The NFT is now the buyer's, and gone from the creator. No royalty moved on this hop — the verifier says so explicitly.                                         
+
+
+  → verify_nft_trade...
+  Buyer rpQ6ubQtsgoP... now owns C7C8DDE256512BAE...
+  Seller rDCG8TdNpGYD... no longer holds it — clean transfer
+  No royalty on this hop — the issuer is the SELLER (first sale): the +10.000000 XRP delta is the sale price itself. The TransferFee is enforced on resales.
+  NFT trade verified on-ledger.
+
+Press Enter to continue...The buyer lists a resale                                                                                                                                       
+
+Now the buyer lists the same NFT for resale, directed back to the creator. On this hop the seller is not the issuer, so the protocol will skim the 5%          
+TransferFee.                                                                                                                                                   
+
+
+  → list_nft_sell_offer...
+  Listing NFT for sale: 20 XRP (seller buyer, to rDCG8TdNpGYD...)
+  Sell offer listed!
+  TXID: FDC71A314DBC370C004773B94C5E18F497B69B585171F86B679A9AE4DCCD7085
+  Offer index: 5814B1AF3577F8F3427B9080...
+
+Press Enter to continue...The creator buys it back — royalty fires                                                                                                                       
+
+The instant this resale settles, the protocol routes the 5% royalty to the issuer (you, the creator) — enforced by the ledger, not by any marketplace's good   
+behavior.                                                                                                                                                      
+
+
+  → accept_nft_offer...
+  Accepting sell offer as creator (rDCG8TdNpGYD...)...
+  Trade settled — NFT ownership transferred!
+  TXID: 511E65CD512E99986CF6B5FEC8B22D43B6D78E7E0F27E169AE0837882A48FD77
+
+Press Enter to continue...Verify ownership AND royalty                                                                                                                                   
+
+The NFT is back with the creator, gone from the reseller — and the issuer's XRP balance went up by the enforced royalty. The verifier confirms both: clean     
+ownership transfer and the royalty delta arriving at the issuer.                                                                                               
+
+
+  → verify_nft_trade...
+  Buyer rDCG8TdNpGYD... now owns C7C8DDE256512BAE...
+  Seller rpQ6ubQtsgoP... no longer holds it — clean transfer
+  Royalty (TransferFee) enforced on this resale: 1 XRP of the 20 XRP price went to the issuer — protocol-enforced, no marketplace code needed. (The issuer also
+took part in the trade, so its raw balance delta of -19.000012 XRP mixes price and royalty.)
+  NFT trade verified on-ledger.
+
+Press Enter to continue...The failure case — accept a nonexistent offer                                                                                                                  
+
+Settlement targets a specific offer ledger index. Hand NFTokenAcceptOffer an index that does not exist and the ledger refuses with a tec error rather than     
+guessing.                                                                                                                                                      
+
+
+  → accept_nft_offer_expect_fail...
+  Attempting to accept a nonexistent offer (expecting failure)...
+  Expected failure: tecOBJECT_NOT_FOUND
+  Error:  No such NFTokenOffer — it does not exist, or it was already accepted/cancelled.
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecOBJECT_NOT_FOUND
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You ran a real NFT marketplace round trip on the ledger:                                                                                                       
+
+ 1 Mint with royalty — a transferable NFT with a permanent 5% TransferFee                                                                                      
+ 2 List + read — NFTokenCreateOffer (tfSellNFToken) and nft_sell_offers                                                                                        
+ 3 Atomic settlement — NFTokenAcceptOffer transfers ownership in one transaction                                                                               
+ 4 Enforced royalty — the resale paid the creator's cut at the protocol level, not by a marketplace's good behavior                                            
+ 5 No-guess settlement — accepting a missing offer is a clean tec failure                                                                                      
+
+Key concepts to remember:                                                                                                                                      
+
+ • The ledger is the exchange — no marketplace contract is required to trade or to enforce royalties                                                           
+ • First sale pays no fee — the TransferFee is charged on resales (seller ≠ issuer), the rule that makes secondary-market royalties work                       
+ • Offers are objects — each open offer is a ledger entry with an index; that index is the handle for settlement and cancellation                              
+ • TransferFee is permanent — set it at mint; it can never be raised or lowered later                                                                          
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ NFT Marketplace 101: Trading Assets with Enforced Royalties                                                                                                 │
+│ Report saved to .xrpl-lab\reports\nft_marketplace_101.md                                                                                                    │
+│ 5 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

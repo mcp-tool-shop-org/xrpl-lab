@@ -1,0 +1,43 @@
+[
+ {
+  "txid": "F089AF23FB3F3F48D193E7EF0C0D57695C34EF9912C43522B7C0C508F676A9FA",
+  "type": "AccountSet",
+  "account": "rnjGJ3yQdxCNxRZfKorLSdUgABWfQeZR4C",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "SetFlag": "asfAllowTrustLineClawback"
+ },
+ {
+  "txid": "9C3AC730A4D8410A1C55E97421A938B9B989199AF9499BFC3CF64B4813CF53AC",
+  "type": "TrustSet",
+  "account": "rNjYPjKP48H6txzc4qzPDQXoekrHn3ve9R",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "3B9D610849F1207F6A7634CA805D5583942DDC9CE54AD099DE7248892977F713",
+  "type": "Payment",
+  "account": "rnjGJ3yQdxCNxRZfKorLSdUgABWfQeZR4C",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "67DCFF7C44A88D9A0008817E5ED2A74D2C45AB92FB04CEA2819DD162174D3280",
+  "type": "Clawback",
+  "account": "rnjGJ3yQdxCNxRZfKorLSdUgABWfQeZR4C",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "8482328EE3628D0DAE78D541F8B5B69BE777D5385DE2B3D2801CC820B471C465",
+  "type": "Clawback",
+  "account": "rhRWEKJNePCcnAa4jA4ZHokd8uEhdxSpCv",
+  "result": "tecNO_PERMISSION",
+  "validated": true,
+  "class": "expected_validated"
+ }
+]
