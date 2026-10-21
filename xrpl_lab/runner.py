@@ -583,10 +583,10 @@ async def run_module(
     # Successful ones from the same records (Book Keeper, 2.7.0 live sweep):
     # dex_market_making's two OfferCancels were recorded but not in
     # context["txids"], so the report said 4 successful against 6.
-    # Union with context["txids"], in order, for handlers that list a txid
-    # without recording it.
+    # Recorded ones first, in the order they ran, then any context["txids"] a
+    # handler listed without recording (Argon, 2.7.0 round 3, F1).
     successful_txids = list(dict.fromkeys(
-        [*context["txids"], *(record.txid for record in run_records if record.success)]
+        [*(record.txid for record in run_records if record.success), *context["txids"]]
     ))
     expected_note = f" ({expected_tx_count} expected)" if expected_tx_count else ""
     summary_lines = [
@@ -612,7 +612,7 @@ async def run_module(
     state.network = transport.network_name
     state.complete_module(
         module_id=module.id,
-        txids=context["txids"],
+        txids=successful_txids,
         report_path=str(report_path),
         # RESWARM3: honest completion — records verified=False when any
         # on-ledger verification this run failed, so the proof pack's

@@ -199,3 +199,48 @@ async def test_the_report_counts_a_recorded_offer_cancel(_home: Path) -> None:
     report = Path(cm.report_path).read_text(encoding="utf-8")
     assert "Transactions: 2 successful, 0 failed" in report
     assert report.count("## Transaction\n\nTXID: `") == 2
+    # Argon, 2.7.0 round 3, F1: the completed module lists them too.
+    assert cm.txids == ["A" * 64, "B" * 64]
+
+
+@pytest.mark.asyncio
+async def test_recorded_transactions_keep_their_order(_home: Path) -> None:
+    """Argon, 2.7.0 round 3, F1: a mid-module recorded-only tx (an OfferCancel)
+    stays ahead of a later step's listed tx, in the report and on the module."""
+    from xrpl_lab.modules import ModuleDef, ModuleStep
+    from xrpl_lab.registry import ActionDef, register, resolve
+    from xrpl_lab.runner import run_module
+    from xrpl_lab.state import load_state
+    from xrpl_lab.transport.dry_run import DryRunTransport
+
+    async def _cancel_recorded_only(step, state, transport, wallet_seed, ctx, console):
+        state.record_tx(txid="C" * 64, module_id=ctx["module_id"], network=state.network,
+                        success=True)
+        return ctx
+
+    async def _later_listed_and_recorded(step, state, transport, wallet_seed, ctx, console):
+        ctx.setdefault("txids", []).append("D" * 64)
+        state.record_tx(txid="D" * 64, module_id=ctx["module_id"], network=state.network,
+                        success=True)
+        return ctx
+
+    for name, fn in (("test_270_c", _cancel_recorded_only),
+                     ("test_270_d", _later_listed_and_recorded)):
+        try:
+            resolve(name)
+        except Exception:
+            register(ActionDef(name=name, handler=fn, description="test-only"))
+    mod = ModuleDef(
+        id="m270o", title="o", time="1 min", level="beginner", requires=[], produces=[],
+        checks=[], raw_body="",
+        steps=[ModuleStep(text="## Step 1: c", action="test_270_c", action_args={}),
+               ModuleStep(text="## Step 2: d", action="test_270_d", action_args={})],
+    )
+    console = _console()[0]
+    console.input = lambda *a, **k: ""
+    await run_module(mod, DryRunTransport(), dry_run=True, console=console)
+    cm = next(m for m in load_state().completed_modules if m.module_id == "m270o")
+    assert cm.txids == ["C" * 64, "D" * 64]
+    report = Path(cm.report_path).read_text(encoding="utf-8")
+    listed = report[report.index("## Summary"):]
+    assert listed.index("C" * 64 + "`") < listed.index("D" * 64 + "`")
