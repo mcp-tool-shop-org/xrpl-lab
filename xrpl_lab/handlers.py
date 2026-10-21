@@ -1417,6 +1417,7 @@ async def handle_create_offer(
         transport, context["wallet_seed"].get(),
         pays_currency, pays_value, pays_issuer,
         gets_currency, gets_value, gets_issuer,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -1513,7 +1514,8 @@ async def handle_cancel_offer(
 
     console.print(f"  Cancelling offer seq {offer_seq}...")
     result = await cancel_offer(
-        transport, context["wallet_seed"].get(), offer_seq
+        transport, context["wallet_seed"].get(), offer_seq,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -2274,6 +2276,7 @@ async def handle_strategy_offer_bid(
         transport, context["wallet_seed"].get(),
         pays_currency, pays_value, pays_issuer,
         gets_currency, gets_value, gets_issuer,
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -2357,6 +2360,7 @@ async def handle_strategy_offer_ask(
         transport, context["wallet_seed"].get(),
         gets_currency, gets_value, gets_issuer,   # taker_pays: the price we request
         pays_currency, pays_value, pays_issuer,   # taker_gets: the token we sell
+        wallet_address=state.wallet_address or "",
     )
 
     if result.success:
@@ -2491,6 +2495,7 @@ async def handle_cancel_module_offers(
     console.print(f"  Cancelling {len(seqs)} offer(s)...")
     results = await cancel_module_offers(
         transport, context["wallet_seed"].get(), seqs,
+        wallet_address=state.wallet_address or "",
     )
 
     cancelled = 0
@@ -2717,6 +2722,7 @@ async def handle_place_safe_sides(
             transport, context["wallet_seed"].get(),
             pays_currency, bid_value, pays_issuer,
             gets_currency, bid_price, gets_issuer,
+            wallet_address=state.wallet_address or "",
         )
 
         if result.success:
@@ -2778,6 +2784,7 @@ async def handle_place_safe_sides(
             transport, context["wallet_seed"].get(),
             gets_currency, ask_price, gets_issuer,   # taker_pays: price requested
             pays_currency, ask_value, pays_issuer,   # taker_gets: token sold
+            wallet_address=state.wallet_address or "",
         )
 
         if result.success:

@@ -2983,6 +2983,7 @@ class XRPLTestnetTransport(Transport):
         taker_gets_currency: str,
         taker_gets_value: str,
         taker_gets_issuer: str,
+        wallet_address: str = "",  # dry-run-only storage hint; ignored on a real network
     ) -> SubmitResult:
         guard = await self._guard_write()
         if guard is not None:
@@ -3013,6 +3014,7 @@ class XRPLTestnetTransport(Transport):
         self,
         wallet_seed: str,
         offer_sequence: int,
+        wallet_address: str = "",  # dry-run-only storage hint; ignored on a real network
     ) -> SubmitResult:
         guard = await self._guard_write()
         if guard is not None:

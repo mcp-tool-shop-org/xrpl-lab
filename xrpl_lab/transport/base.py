@@ -567,16 +567,24 @@ class Transport(ABC):
         taker_gets_currency: str,
         taker_gets_value: str,
         taker_gets_issuer: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
-        """Submit an OfferCreate transaction on the DEX."""
+        """Submit an OfferCreate transaction on the DEX.
+
+        ``wallet_address`` is the offer's OWNING account (dry-run storage hint,
+        same contract as ``submit_trust_set``): the dry-run transport books the
+        offer and its owner reserve under it so ``get_account_info`` for that
+        address sees the offer. The testnet transport ignores it.
+        """
 
     @abstractmethod
     async def submit_offer_cancel(
         self,
         wallet_seed: str,
         offer_sequence: int,
+        wallet_address: str = "",
     ) -> SubmitResult:
-        """Submit an OfferCancel transaction."""
+        """Submit an OfferCancel transaction (``wallet_address``: see OfferCreate)."""
 
     @abstractmethod
     async def get_account_offers(self, address: str) -> list[OfferInfo]:

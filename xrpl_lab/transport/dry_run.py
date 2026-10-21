@@ -1233,6 +1233,7 @@ class DryRunTransport(Transport):
         taker_gets_currency: str,
         taker_gets_value: str,
         taker_gets_issuer: str,
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -1245,7 +1246,12 @@ class DryRunTransport(Transport):
 
         # F-0716549a / F-17e7f723: OfferCreate costs fee + one owner-reserve
         # increment (offered amount is not locked here).
-        offer_owner = _address_from_seed(wallet_seed)
+        # Key the offer (and its owner reserve) under the caller's REAL address
+        # when known - the same hint submit_trust_set honours. Every seed
+        # collapses to one synthetic address, so seed-keyed offers landed in a
+        # different OwnerCount bucket from the learner's trust lines and
+        # get_account_info(real address) never saw them.
+        offer_owner = wallet_address or _address_from_seed(wallet_seed)
         guard = self._reserve_guard(
             offer_owner, _OWNER_RESERVE_DROPS, code="tecINSUFFICIENT_RESERVE",
         )
@@ -1309,6 +1315,7 @@ class DryRunTransport(Transport):
         self,
         wallet_seed: str,
         offer_sequence: int,
+        wallet_address: str = "",
     ) -> SubmitResult:
         if self._fail_next:
             self._fail_next = False
@@ -1319,7 +1326,7 @@ class DryRunTransport(Transport):
                 error="[dry-run] Simulated failure: offer not found",
             )
 
-        wallet_address = _address_from_seed(wallet_seed)
+        wallet_address = wallet_address or _address_from_seed(wallet_seed)
         # F-0716549a: cancelling only RELEASES a reserve increment, never
         # consumes one, but the network fee still applies.
         guard = self._reserve_guard(wallet_address, code="tecINSUFFICIENT_RESERVE")
@@ -3081,20 +3088,38 @@ class DryRunTransport(Transport):
                 return e
         return None
 
+    def _escrow_bucket_key(self, escrow: EscrowInfo, owner: str) -> str:
+        """Key of the store bucket that actually holds *escrow*.
+
+        submit_escrow_create books the escrow, its created-at clock record and
+        its owner reserve under the synthetic seed-derived address, while the
+        finish/cancel handlers name the REAL wallet address as ``owner``;
+        ``_find_escrow``'s fallbacks bridge the two for the lookup only.
+        Everything keyed by (owner, seq) must follow the bucket, not the name
+        the caller used. Falls back to *owner* for legacy/unfound buckets.
+        """
+        for key in list(self._escrows.keys()):
+            if key != _PerAddressStore._LEGACY_KEY and escrow in dict.__getitem__(
+                self._escrows, key
+            ):
+                return key
+        return owner
+
     def _remove_escrow(self, owner: str, escrow: EscrowInfo) -> None:
         """Remove *escrow* from the owner's live bucket and free its reserve."""
+        key = self._escrow_bucket_key(escrow, owner)
         # _resolve may return the legacy or single-wallet fallback bucket, so
         # mutate whichever real list actually contains this object.
-        for key in list(self._escrows.keys()):
-            bucket = dict.__getitem__(self._escrows, key)
+        for bkey in list(self._escrows.keys()):
+            bucket = dict.__getitem__(self._escrows, bkey)
             if escrow in bucket:
                 bucket.remove(escrow)
                 break
         # Drop the create-time clock record (F-cbc476b3) with the object.
+        self._escrow_created_at.pop((key, escrow.sequence), None)
         self._escrow_created_at.pop((owner, escrow.sequence), None)
-        # Owner-reserve is tracked under the derived dry-run address (every
-        # seed collapses to it), matching where submit_escrow_create incremented.
-        self._dec_owner(owner)
+        # Free the reserve where submit_escrow_create incremented it.
+        self._dec_owner(key)
 
     async def submit_escrow_finish(
         self,
@@ -3133,7 +3158,9 @@ class DryRunTransport(Transport):
         # times from wall clock while the default sim clock is far-future) and
         # keep the legacy immediately-finishable behavior.
         if target.cancel_after is not None and self._dry_clock >= target.cancel_after:
-            created_at = self._escrow_created_at.get((owner, offer_sequence))
+            created_at = self._escrow_created_at.get(
+                (self._escrow_bucket_key(target, owner), offer_sequence)
+            )
             if created_at is None or created_at < target.cancel_after:
                 return SubmitResult(
                     success=False, result_code="tecNO_PERMISSION", fee="12",
