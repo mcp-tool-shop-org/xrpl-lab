@@ -1,0 +1,56 @@
+{
+  "validated_ledger": {
+    "seq": 21699342,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rLznR9EvH8JL4W6YihHUwQAMaUCHTkRDxX": {
+      "Balance": "89999990",
+      "Sequence": 21699339,
+      "OwnerCount": 1,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21699338,
+          "hash": "9613BEA188A4FA6C6F048384D337C89731166FA3D7D54A29F5150238679A1FE5",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rLznR9EvH8JL4W6YihHUwQAMaUCHTkRDxX",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699340,
+          "hash": "76DCCC307E4063D5286C3F233C75F5236B6488C9B793C2ED7D47253F10C963CD",
+          "TransactionType": "EscrowCreate",
+          "Account": "rLznR9EvH8JL4W6YihHUwQAMaUCHTkRDxX",
+          "Destination": "rLznR9EvH8JL4W6YihHUwQAMaUCHTkRDxX",
+          "Sequence": 21699338,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "76DCCC307E4063D5286C3F233C75F5236B6488C9B793C2ED7D47253F10C963CD": {
+      "TransactionType": "EscrowCreate",
+      "Account": "rLznR9EvH8JL4W6YihHUwQAMaUCHTkRDxX",
+      "Destination": "rLznR9EvH8JL4W6YihHUwQAMaUCHTkRDxX",
+      "validated": true,
+      "ledger_index": 21699340,
+      "Sequence": 21699338,
+      "TransactionResult": "tesSUCCESS"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "76DCCC307E4063D5286C3F233C75F5236B6488C9B793C2ED7D47253F10C963CD",
+      "success": true
+    }
+  ]
+}

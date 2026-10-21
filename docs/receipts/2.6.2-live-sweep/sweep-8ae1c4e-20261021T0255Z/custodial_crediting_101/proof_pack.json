@@ -1,0 +1,89 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.6.2",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+  "generated_at": "2026-10-21T03:05:20.758365+00:00",
+  "completed_modules": [
+    {
+      "module_id": "custodial_crediting_101",
+      "completed_at": "2026-10-21T03:05:19.590591+00:00",
+      "txids": [
+        "FADDB4102982A905CD85444AF9CA5A99970701190F473322F81B4DB17FEE9B95",
+        "C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664"
+      ],
+      "verified": true,
+      "kb_source": "destination-tag-subaccounts",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/FADDB4102982A905CD85444AF9CA5A99970701190F473322F81B4DB17FEE9B95",
+        "https://testnet.xrpl.org/transactions/C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "FADDB4102982A905CD85444AF9CA5A99970701190F473322F81B4DB17FEE9B95",
+      "module_id": "custodial_crediting_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:04:58.038340+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/FADDB4102982A905CD85444AF9CA5A99970701190F473322F81B4DB17FEE9B95"
+    },
+    {
+      "txid": "C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664",
+      "module_id": "custodial_crediting_101",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:05:12.438202+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664"
+    },
+    {
+      "txid": "BB1D3182270045871DE8D40C4649E3FB5ADE6A342AF6CA43F1C087A0AAC54358",
+      "module_id": "custodial_crediting_101",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T03:05:19.548839+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/BB1D3182270045871DE8D40C4649E3FB5ADE6A342AF6CA43F1C087A0AAC54358"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "FADDB4102982A905...",
+      "txid_full": "FADDB4102982A905CD85444AF9CA5A99970701190F473322F81B4DB17FEE9B95",
+      "module": "custodial_crediting_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:04"
+    },
+    {
+      "txid": "C48D40BE5DBEC74F...",
+      "txid_full": "C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664",
+      "module": "custodial_crediting_101",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:05"
+    },
+    {
+      "txid": "BB1D318227004587...",
+      "txid_full": "BB1D3182270045871DE8D40C4649E3FB5ADE6A342AF6CA43F1C087A0AAC54358",
+      "module": "custodial_crediting_101",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:05"
+    }
+  ],
+  "total_transactions": 3,
+  "successful_transactions": 2,
+  "failed_transactions": 1,
+  "expected_failures": 1,
+  "sha256": "a91821ce8cb7d04cedcf605c542d598d21762386e9d37411cfa905857dba5527"
+}

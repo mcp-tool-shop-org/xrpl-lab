@@ -1,0 +1,133 @@
+{
+  "validated_ledger": {
+    "seq": 21699151,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE": {
+      "Balance": "89999950",
+      "Sequence": 21699124,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21699121,
+          "hash": "1A09871F4540C10CAF3FC77DDD5CF57F738AF24CFCD84181A92F62334222CD3E",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699123,
+          "hash": "7FA884B0BBC317650171843739E1E0BA8C0A4CA7A75FA7B0ABC599A469E6FF9D",
+          "TransactionType": "SignerListSet",
+          "Account": "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE",
+          "Destination": null,
+          "Sequence": 21699121,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699126,
+          "hash": "429ABD4109D5A0D1B2972F55B05DA01FE1C9E55F0A9E2D78364FF2FA7F1BEDA9",
+          "TransactionType": "Payment",
+          "Account": "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE",
+          "Destination": "rNmfxtzP1QMEELKzDBQF97qTQLLzMxACLW",
+          "Sequence": 21699122,
+          "Fee": "30",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21699149,
+          "hash": "9C3262B02C8ADCB2CFC2C5240C7687A3AB2EA549B9D2BF04ACE2E6CD1C8E3B6C",
+          "TransactionType": "SignerListSet",
+          "Account": "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE",
+          "Destination": null,
+          "Sequence": 21699123,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rNmfxtzP1QMEELKzDBQF97qTQLLzMxACLW": {
+      "Balance": "10000000",
+      "Sequence": 21699126,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21699126,
+          "hash": "429ABD4109D5A0D1B2972F55B05DA01FE1C9E55F0A9E2D78364FF2FA7F1BEDA9",
+          "TransactionType": "Payment",
+          "Account": "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE",
+          "Destination": "rNmfxtzP1QMEELKzDBQF97qTQLLzMxACLW",
+          "Sequence": 21699122,
+          "Fee": "30",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "raUUSyvZTuUTt8bcvkzEQHMB8aqJB3TpHB": {
+      "error": "actNotFound"
+    },
+    "r4f5Mk8DiATWPGcQv2dncRcb7GZDYc6N6c": {
+      "error": "actNotFound"
+    }
+  },
+  "tx_lookup": {
+    "7FA884B0BBC317650171843739E1E0BA8C0A4CA7A75FA7B0ABC599A469E6FF9D": {
+      "TransactionType": "SignerListSet",
+      "Account": "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699123,
+      "Sequence": 21699121,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "429ABD4109D5A0D1B2972F55B05DA01FE1C9E55F0A9E2D78364FF2FA7F1BEDA9": {
+      "TransactionType": "Payment",
+      "Account": "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE",
+      "Destination": "rNmfxtzP1QMEELKzDBQF97qTQLLzMxACLW",
+      "validated": true,
+      "ledger_index": 21699126,
+      "Sequence": 21699122,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "9C3262B02C8ADCB2CFC2C5240C7687A3AB2EA549B9D2BF04ACE2E6CD1C8E3B6C": {
+      "TransactionType": "SignerListSet",
+      "Account": "rn3an1Acc4voEyiqzZ3KJZe1Yxm3PKteRE",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21699149,
+      "Sequence": 21699123,
+      "TransactionResult": "tesSUCCESS"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "7FA884B0BBC317650171843739E1E0BA8C0A4CA7A75FA7B0ABC599A469E6FF9D",
+      "success": true
+    },
+    {
+      "txid": "429ABD4109D5A0D1B2972F55B05DA01FE1C9E55F0A9E2D78364FF2FA7F1BEDA9",
+      "success": true
+    },
+    {
+      "txid": "failed",
+      "success": false
+    },
+    {
+      "txid": "9C3262B02C8ADCB2CFC2C5240C7687A3AB2EA549B9D2BF04ACE2E6CD1C8E3B6C",
+      "success": true
+    }
+  ]
+}

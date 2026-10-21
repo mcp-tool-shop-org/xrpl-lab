@@ -1,0 +1,134 @@
+{
+  "validated_ledger": {
+    "seq": 21698988,
+    "reserve_base": 1000000,
+    "reserve_inc": 200000
+  },
+  "accounts": {
+    "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE": {
+      "Balance": "124999990",
+      "Sequence": 21698978,
+      "OwnerCount": 0,
+      "Flags": 131072,
+      "account_tx": [
+        {
+          "ledger_index": 21698977,
+          "hash": "B13804455E7C65791076953501EC6F13E84BB838A686B9E15074EFEE2BBCFDCF",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21698979,
+          "hash": "FADDB4102982A905CD85444AF9CA5A99970701190F473322F81B4DB17FEE9B95",
+          "TransactionType": "AccountSet",
+          "Account": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+          "Destination": null,
+          "Sequence": 21698977,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21698984,
+          "hash": "C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664",
+          "TransactionType": "Payment",
+          "Account": "rL6MXqohDe4C4Wcfbm5wPJu8u9s97X8byK",
+          "Destination": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+          "Sequence": 21698981,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        }
+      ]
+    },
+    "rL6MXqohDe4C4Wcfbm5wPJu8u9s97X8byK": {
+      "Balance": "74999980",
+      "Sequence": 21698983,
+      "OwnerCount": 0,
+      "Flags": 0,
+      "account_tx": [
+        {
+          "ledger_index": 21698981,
+          "hash": "F9B8BBFC0EF842830F25DB1FCAEF174C29D765A5F0E312CD3B6431BE9527412D",
+          "TransactionType": "Payment",
+          "Account": "rJjHYTCPpNA3qAM8ZpCDtip3a8xg7B8PFo",
+          "Destination": "rL6MXqohDe4C4Wcfbm5wPJu8u9s97X8byK",
+          "Sequence": 0,
+          "Fee": "12",
+          "Flags": 0,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21698984,
+          "hash": "C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664",
+          "TransactionType": "Payment",
+          "Account": "rL6MXqohDe4C4Wcfbm5wPJu8u9s97X8byK",
+          "Destination": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+          "Sequence": 21698981,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tesSUCCESS"
+        },
+        {
+          "ledger_index": 21698986,
+          "hash": "BB1D3182270045871DE8D40C4649E3FB5ADE6A342AF6CA43F1C087A0AAC54358",
+          "TransactionType": "Payment",
+          "Account": "rL6MXqohDe4C4Wcfbm5wPJu8u9s97X8byK",
+          "Destination": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+          "Sequence": 21698982,
+          "Fee": "10",
+          "Flags": null,
+          "TransactionResult": "tecDST_TAG_NEEDED"
+        }
+      ]
+    }
+  },
+  "tx_lookup": {
+    "FADDB4102982A905CD85444AF9CA5A99970701190F473322F81B4DB17FEE9B95": {
+      "TransactionType": "AccountSet",
+      "Account": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+      "Destination": null,
+      "validated": true,
+      "ledger_index": 21698979,
+      "Sequence": 21698977,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664": {
+      "TransactionType": "Payment",
+      "Account": "rL6MXqohDe4C4Wcfbm5wPJu8u9s97X8byK",
+      "Destination": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+      "validated": true,
+      "ledger_index": 21698984,
+      "Sequence": 21698981,
+      "TransactionResult": "tesSUCCESS"
+    },
+    "BB1D3182270045871DE8D40C4649E3FB5ADE6A342AF6CA43F1C087A0AAC54358": {
+      "TransactionType": "Payment",
+      "Account": "rL6MXqohDe4C4Wcfbm5wPJu8u9s97X8byK",
+      "Destination": "rLRtB9c2KcqZfFvao4xkLUHozAoMAMTQLE",
+      "validated": true,
+      "ledger_index": 21698986,
+      "Sequence": 21698982,
+      "TransactionResult": "tecDST_TAG_NEEDED"
+    }
+  },
+  "tx_index": [
+    {
+      "txid": "FADDB4102982A905CD85444AF9CA5A99970701190F473322F81B4DB17FEE9B95",
+      "success": true
+    },
+    {
+      "txid": "C48D40BE5DBEC74F72377AF051AE5B38CCCBED4D458FD84107F22E02C9383664",
+      "success": true
+    },
+    {
+      "txid": "BB1D3182270045871DE8D40C4649E3FB5ADE6A342AF6CA43F1C087A0AAC54358",
+      "success": false
+    }
+  ]
+}

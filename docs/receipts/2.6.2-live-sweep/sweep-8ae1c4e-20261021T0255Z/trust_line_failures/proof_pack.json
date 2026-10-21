@@ -1,0 +1,89 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.6.2",
+  "network": "testnet",
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "address": "rKP5DEEQqd6zWer9fXzvjLjrwdyaqvPSrj",
+  "generated_at": "2026-10-21T03:23:36.727471+00:00",
+  "completed_modules": [
+    {
+      "module_id": "trust_line_failures",
+      "completed_at": "2026-10-21T03:23:35.645050+00:00",
+      "txids": [
+        "824B673732AD2647C5D2A6D47B9E97E3EE51DBA006F9AFC32985F04DB81CC619",
+        "7610568091816EA9F7779928B3ED006DB13B78F4863D30A08FEE10D77CD99B8D"
+      ],
+      "verified": true,
+      "kb_source": "",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/824B673732AD2647C5D2A6D47B9E97E3EE51DBA006F9AFC32985F04DB81CC619",
+        "https://testnet.xrpl.org/transactions/7610568091816EA9F7779928B3ED006DB13B78F4863D30A08FEE10D77CD99B8D"
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "8CE6B8910B8D535E6FBA5FCF97BE08A9678AC6B44E71919F3058D5A331FDF92C",
+      "module_id": "trust_line_failures",
+      "success": false,
+      "expected": true,
+      "timestamp": "2026-10-21T03:23:16.747354+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/8CE6B8910B8D535E6FBA5FCF97BE08A9678AC6B44E71919F3058D5A331FDF92C"
+    },
+    {
+      "txid": "824B673732AD2647C5D2A6D47B9E97E3EE51DBA006F9AFC32985F04DB81CC619",
+      "module_id": "trust_line_failures",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:23:26.680717+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/824B673732AD2647C5D2A6D47B9E97E3EE51DBA006F9AFC32985F04DB81CC619"
+    },
+    {
+      "txid": "7610568091816EA9F7779928B3ED006DB13B78F4863D30A08FEE10D77CD99B8D",
+      "module_id": "trust_line_failures",
+      "success": true,
+      "expected": false,
+      "timestamp": "2026-10-21T03:23:35.155038+00:00",
+      "network": "testnet",
+      "explorer_url": "https://testnet.xrpl.org/transactions/7610568091816EA9F7779928B3ED006DB13B78F4863D30A08FEE10D77CD99B8D"
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "8CE6B8910B8D535E...",
+      "txid_full": "8CE6B8910B8D535E6FBA5FCF97BE08A9678AC6B44E71919F3058D5A331FDF92C",
+      "module": "trust_line_failures",
+      "status": "FAIL",
+      "expected": true,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:23"
+    },
+    {
+      "txid": "824B673732AD2647...",
+      "txid_full": "824B673732AD2647C5D2A6D47B9E97E3EE51DBA006F9AFC32985F04DB81CC619",
+      "module": "trust_line_failures",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:23"
+    },
+    {
+      "txid": "7610568091816EA9...",
+      "txid_full": "7610568091816EA9F7779928B3ED006DB13B78F4863D30A08FEE10D77CD99B8D",
+      "module": "trust_line_failures",
+      "status": "ok",
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-21 03:23"
+    }
+  ],
+  "total_transactions": 3,
+  "successful_transactions": 2,
+  "failed_transactions": 1,
+  "expected_failures": 1,
+  "sha256": "8888825eab0bc7befe861101b34b29774b57277e961c4dbcbb1e2812bcdf266c"
+}

@@ -1,0 +1,122 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Dynamic NFTs 101: A Game Item That Levels Up                                                                                                                │
+│ Level: intermediate  |  Time: ~15-20 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Most NFTs are frozen at mint — their metadata URI is permanent. That is fine for a collectible, but a game item changes: a sword gains enchantments, armor     
+takes damage, a companion levels up. The XRPL handles this with dynamic NFTs (XLS-46): mint with the tfMutable flag, and you can later change the URI with     
+NFTokenModify.                                                                                                                                                 
+
+The crucial property: the NFTokenID never changes. The same on-ledger object that a player owns simply points at new state. Their inventory, their trade       
+history, their provenance — all preserved. Only the item's representation advances.                                                                            
+
+Everything here runs on the testnet — free, disposable, and safe to repeat.                                                                                    
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+
+  → ensure_wallet...
+  No wallet found. Creating a new one...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Wallet created: r9qfV4TG6633pHMxqmJxFQexNoLEKbWd55
+  Saved to: 
+<scratch>\sweep-8ae1c4e-20261021T0255Z\dnft_evolving_item_101\hom
+e\wallet.json
+
+  Warning: Your wallet seed is stored locally. Never share it or paste it anywhere.
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Mint a mutable item at level 1                                                                                                                                 
+
+Mint with mutable=true (tfMutable). The URI points at the item's level-1 state. Without this flag the URI would be permanent and the rest of this module would 
+be impossible — that is exactly the failure case we demonstrate at the end.                                                                                    
+
+
+  → mint_nft...
+  Minting NFToken — taxon 21, transferable True, mutable True, uri ipfs://bafy-example/blade-level-1.json
+  NFToken minted!
+  TXID: C4B447A82E4E274555D6EDC6EAAD5CA44C66FE9FA32D4B68DC8D067AC2374379
+  NFTokenID: 0018000060DA63A8C3FD99F2790A5525DB4AC99E4730140618C804B9014B1A11
+  Explorer: https://testnet.xrpl.org/transactions/C4B447A82E4E274555D6EDC6EAAD5CA44C66FE9FA32D4B68DC8D067AC2374379
+
+Press Enter to continue...Verify you own it                                                                                                                                              
+
+
+  → verify_nft...
+  NFToken found: 0018000060DA63A8C3FD99F2...
+  Issuer: r9qfV4TG6633pHMxqmJxFQexNoLEKbWd55
+  Taxon (collection id): 21
+  URI: ipfs://bafy-example/blade-level-1.json
+  Transferable: yes
+  NFT ownership verified on-ledger.
+
+Press Enter to continue...Level the item up                                                                                                                                              
+
+The item levels up. NFTokenModify swaps the URI to the level-2 state. Same NFTokenID, same owner, same provenance — new representation. This is the on-ledger  
+event behind "your sword reached level 2."                                                                                                                     
+
+
+  → modify_nft...
+  Modifying NFToken 0018000060DA63A8C3FD99F2... — new URI ipfs://bafy-example/blade-level-2.json
+  NFToken modified — item leveled up (same NFTokenID)!
+  TXID: 389CB3AE9032FA5D01D4208F658842AE1A6A6C28AE1CD3F21CACCC438F53D0B7
+  Explorer: https://testnet.xrpl.org/transactions/389CB3AE9032FA5D01D4208F658842AE1A6A6C28AE1CD3F21CACCC438F53D0B7
+
+Press Enter to continue...Verify the evolution                                                                                                                                           
+
+Read the NFT back. The URI now points at level 2, and — the load-bearing check — it is still the same NFTokenID from Step 3. The asset's identity is preserved;
+only its state advanced.                                                                                                                                       
+
+
+  → verify_nft_modified...
+  Same NFTokenID: 0018000060DA63A8C3FD99F2... (identity preserved)
+  URI advanced to: ipfs://bafy-example/blade-level-2.json
+  Dynamic NFT verified — item evolved on-ledger.
+
+Press Enter to continue...The failure case — modifying a fixed NFT                                                                                                                       
+
+Now the contrast. We mint a fresh NFT without tfMutable and try to modify it. The ledger refuses with a tec error: a non-mutable NFT's URI was permanent the   
+moment it was minted. This is why you decide mutability up front, at mint time.                                                                                
+
+
+  → modify_nft_expect_fail...
+  Minting a NON-mutable NFT to demonstrate the failure case...
+  Attempting to modify the non-mutable NFT (expecting failure)...
+  Expected failure: tecNO_PERMISSION
+  Error: Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION. Check XRPL docs for this specific code
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecNO_PERMISSION
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You built and evolved a dynamic game item:                                                                                                                     
+
+ 1 Mutable mint — tfMutable at mint is the prerequisite for any later change                                                                                   
+ 2 NFTokenModify — advanced the item's URI from level 1 to level 2                                                                                             
+ 3 Identity preserved — the NFTokenID is unchanged, so ownership and provenance survive the evolution                                                          
+ 4 Mutability is permanent-at-mint — a non-mutable NFT can never be modified; the attempt is a clean tec failure                                               
+
+Key concepts to remember:                                                                                                                                      
+
+ • Decide mutability at mint — tfMutable cannot be added later, just as TransferFee and transferability cannot                                                 
+ • The NFTokenID is the item's soul — modifying the URI changes state, not identity, which is exactly what leveling/evolving needs                             
+ • URI is unvalidated hex — pin each level's metadata to durable storage (IPFS/Arweave) so the links don't die between updates                                 
+ • Mutable is a trust decision — a mutable item can be changed by whoever can modify it; document who holds that power in your game's rules                    
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Dynamic NFTs 101: A Game Item That Levels Up                                                                                                                │
+│ Report saved to .xrpl-lab\reports\dnft_evolving_item_101.md                                                                                                 │
+│ 2 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
