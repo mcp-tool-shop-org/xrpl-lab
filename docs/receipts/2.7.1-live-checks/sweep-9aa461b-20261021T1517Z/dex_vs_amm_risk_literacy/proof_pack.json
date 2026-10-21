@@ -1,0 +1,229 @@
+{
+  "xrpl_lab_proof_pack": true,
+  "version": "2.7.1",
+  "network": "dry-run",
+  "endpoint": "none",
+  "address": "rwkquC2TYDxHuctKkUmzqMHFWzVoGSDoR2",
+  "generated_at": "2026-10-21T15:18:03.668481+00:00",
+  "completed_modules": [
+    {
+      "module_id": "dex_vs_amm_risk_literacy",
+      "completed_at": "2026-10-21T15:18:02.564925+00:00",
+      "txids": [
+        "5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083",
+        "55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D",
+        "8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5",
+        "FDC71A314DBC370C004773B94C5E18F497B69B585171F86B679A9AE4DCCD7085",
+        "511E65CD512E99986CF6B5FEC8B22D43B6D78E7E0F27E169AE0837882A48FD77",
+        "6D426EC08DAAB092E90D8BD5DF8CA6DCA9DD7BF16ECC1B7103979D8848B2AAA2",
+        "555C0152337D2F9BCBDA34CA6D6D9CF838283435FFAD4E5F2CE81E4F86B6F72C",
+        "6D7DD9DCBCF3FFEDD03C20F6734FFDA6D20620A32B396EEA9BCA1D85877E80A5",
+        "626AE3C0FB69916B891EBF6A64DDEAD19EFD53F17D0FC930D9F649C0A0B51819"
+      ],
+      "verified": true,
+      "kb_source": "",
+      "explorer_urls": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    }
+  ],
+  "capstone": false,
+  "all_verified": true,
+  "transactions": [
+    {
+      "txid": "5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083",
+      "module_id": "dex_vs_amm_risk_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:18:02.454678+00:00",
+      "network": "dry-run",
+      "explorer_url": ""
+    },
+    {
+      "txid": "55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D",
+      "module_id": "dex_vs_amm_risk_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:18:02.466381+00:00",
+      "network": "dry-run",
+      "explorer_url": ""
+    },
+    {
+      "txid": "8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5",
+      "module_id": "dex_vs_amm_risk_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:18:02.477278+00:00",
+      "network": "dry-run",
+      "explorer_url": ""
+    },
+    {
+      "txid": "FDC71A314DBC370C004773B94C5E18F497B69B585171F86B679A9AE4DCCD7085",
+      "module_id": "dex_vs_amm_risk_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:18:02.487048+00:00",
+      "network": "dry-run",
+      "explorer_url": ""
+    },
+    {
+      "txid": "511E65CD512E99986CF6B5FEC8B22D43B6D78E7E0F27E169AE0837882A48FD77",
+      "module_id": "dex_vs_amm_risk_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:18:02.501916+00:00",
+      "network": "dry-run",
+      "explorer_url": ""
+    },
+    {
+      "txid": "6D426EC08DAAB092E90D8BD5DF8CA6DCA9DD7BF16ECC1B7103979D8848B2AAA2",
+      "module_id": "dex_vs_amm_risk_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:18:02.501931+00:00",
+      "network": "dry-run",
+      "explorer_url": ""
+    },
+    {
+      "txid": "555C0152337D2F9BCBDA34CA6D6D9CF838283435FFAD4E5F2CE81E4F86B6F72C",
+      "module_id": "dex_vs_amm_risk_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:18:02.514837+00:00",
+      "network": "dry-run",
+      "explorer_url": ""
+    },
+    {
+      "txid": "6D7DD9DCBCF3FFEDD03C20F6734FFDA6D20620A32B396EEA9BCA1D85877E80A5",
+      "module_id": "dex_vs_amm_risk_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:18:02.526713+00:00",
+      "network": "dry-run",
+      "explorer_url": ""
+    },
+    {
+      "txid": "626AE3C0FB69916B891EBF6A64DDEAD19EFD53F17D0FC930D9F649C0A0B51819",
+      "module_id": "dex_vs_amm_risk_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "timestamp": "2026-10-21T15:18:02.540887+00:00",
+      "network": "dry-run",
+      "explorer_url": ""
+    }
+  ],
+  "receipt_table": [
+    {
+      "txid": "5368EF0073FDDE4B...",
+      "txid_full": "5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083",
+      "module": "dex_vs_amm_risk_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "dry-run",
+      "timestamp": "2026-10-21 15:18"
+    },
+    {
+      "txid": "55FADCFAC7712D21...",
+      "txid_full": "55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D",
+      "module": "dex_vs_amm_risk_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "dry-run",
+      "timestamp": "2026-10-21 15:18"
+    },
+    {
+      "txid": "8A1024E6F8162373...",
+      "txid_full": "8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5",
+      "module": "dex_vs_amm_risk_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "dry-run",
+      "timestamp": "2026-10-21 15:18"
+    },
+    {
+      "txid": "FDC71A314DBC370C...",
+      "txid_full": "FDC71A314DBC370C004773B94C5E18F497B69B585171F86B679A9AE4DCCD7085",
+      "module": "dex_vs_amm_risk_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "dry-run",
+      "timestamp": "2026-10-21 15:18"
+    },
+    {
+      "txid": "511E65CD512E9998...",
+      "txid_full": "511E65CD512E99986CF6B5FEC8B22D43B6D78E7E0F27E169AE0837882A48FD77",
+      "module": "dex_vs_amm_risk_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "dry-run",
+      "timestamp": "2026-10-21 15:18"
+    },
+    {
+      "txid": "6D426EC08DAAB092...",
+      "txid_full": "6D426EC08DAAB092E90D8BD5DF8CA6DCA9DD7BF16ECC1B7103979D8848B2AAA2",
+      "module": "dex_vs_amm_risk_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "dry-run",
+      "timestamp": "2026-10-21 15:18"
+    },
+    {
+      "txid": "555C0152337D2F9B...",
+      "txid_full": "555C0152337D2F9BCBDA34CA6D6D9CF838283435FFAD4E5F2CE81E4F86B6F72C",
+      "module": "dex_vs_amm_risk_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "dry-run",
+      "timestamp": "2026-10-21 15:18"
+    },
+    {
+      "txid": "6D7DD9DCBCF3FFED...",
+      "txid_full": "6D7DD9DCBCF3FFEDD03C20F6734FFDA6D20620A32B396EEA9BCA1D85877E80A5",
+      "module": "dex_vs_amm_risk_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "dry-run",
+      "timestamp": "2026-10-21 15:18"
+    },
+    {
+      "txid": "626AE3C0FB69916B...",
+      "txid_full": "626AE3C0FB69916B891EBF6A64DDEAD19EFD53F17D0FC930D9F649C0A0B51819",
+      "module": "dex_vs_amm_risk_literacy",
+      "status": "ok",
+      "expected": false,
+      "validated": true,
+      "network": "dry-run",
+      "timestamp": "2026-10-21 15:18"
+    }
+  ],
+  "total_transactions": 9,
+  "successful_transactions": 9,
+  "failed_transactions": 0,
+  "expected_failures": 0,
+  "sha256": "88f711a0759acbbc812bbf2602e52ef74ab880ceff0d8bf5d66fc4bc119c9c51"
+}

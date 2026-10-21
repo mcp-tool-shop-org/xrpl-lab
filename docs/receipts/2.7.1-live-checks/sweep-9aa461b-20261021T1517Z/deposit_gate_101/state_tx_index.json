@@ -1,0 +1,136 @@
+{
+  "note": "tx_index excerpt from state.json (wallet_path omitted: it carries the local home path)",
+  "wallet_address": "rhh5gh2DSDtgUJAHWqm4rp8Pix7b2DSeC1",
+  "tx_index": [
+    {
+      "txid": "2073A6114C166A77E5AE1607CB55C8C26CBF698374B86F8F25AA7A1268B732D8",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/2073A6114C166A77E5AE1607CB55C8C26CBF698374B86F8F25AA7A1268B732D8",
+      "network": "testnet",
+      "timestamp": 1792595966.3985407
+    },
+    {
+      "txid": "1861E3D47DB5E07F31B47F9D629E04F7D1F5C8B59E17F3711435FB1BE4B4EC00",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "explorer_url": "",
+      "network": "testnet",
+      "timestamp": 1792595983.1723573
+    },
+    {
+      "txid": "512F138B2A4CC05AC466A4A848C30CC31936C14220E775B8A85948B815959C93",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": false,
+      "explorer_url": "",
+      "network": "testnet",
+      "timestamp": 1792595985.509138
+    },
+    {
+      "txid": "A1023CBCDF438B50A6AEA7F289A05F9D550622D143FA9CB7A85525319877BE17",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/A1023CBCDF438B50A6AEA7F289A05F9D550622D143FA9CB7A85525319877BE17",
+      "network": "testnet",
+      "timestamp": 1792595993.9441907
+    },
+    {
+      "txid": "B8BF2717BB44E4E60918790BCC631C0C8C19523163DF41C5EDC3B9DF05B32847",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "explorer_url": "",
+      "network": "testnet",
+      "timestamp": 1792596000.35292
+    },
+    {
+      "txid": "D2282A7F31E1DFF61C97B9902C70F6FFC3D111F8E5645D3B75A69D242F689121",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/D2282A7F31E1DFF61C97B9902C70F6FFC3D111F8E5645D3B75A69D242F689121",
+      "network": "testnet",
+      "timestamp": 1792596008.9115057
+    },
+    {
+      "txid": "D4DDD218BB601A1EABBE5E6C76099F4D6F9CAF55C46FDECFC12102B0134965CE",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/D4DDD218BB601A1EABBE5E6C76099F4D6F9CAF55C46FDECFC12102B0134965CE",
+      "network": "testnet",
+      "timestamp": 1792596021.609727
+    },
+    {
+      "txid": "F9A8A10389E2480760C65803164F39228895A01861C5E921F84D8A46A592B07B",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/F9A8A10389E2480760C65803164F39228895A01861C5E921F84D8A46A592B07B",
+      "network": "testnet",
+      "timestamp": 1792596028.034901
+    },
+    {
+      "txid": "BFBE8620EC192ED9C6CF38A2FFD71F9208ECC57957D9CF7B6480345CE4104973",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/BFBE8620EC192ED9C6CF38A2FFD71F9208ECC57957D9CF7B6480345CE4104973",
+      "network": "testnet",
+      "timestamp": 1792596036.2152452
+    },
+    {
+      "txid": "5392FA15140E7E3F1D1004915E145E37BE10C42A3B973A1774C0D27D25BC22DB",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/5392FA15140E7E3F1D1004915E145E37BE10C42A3B973A1774C0D27D25BC22DB",
+      "network": "testnet",
+      "timestamp": 1792596045.2702696
+    },
+    {
+      "txid": "D930741CEAF798F5E12C989461567189CB111C01F7BFCFFDEB63FD56DD7AE2EE",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "explorer_url": "",
+      "network": "testnet",
+      "timestamp": 1792596057.4864864
+    },
+    {
+      "txid": "A3321499A3C3091546561C70E285BDBE6E9B7BF552B16892266F0CDFB20AE650",
+      "module_id": "deposit_gate_101",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/A3321499A3C3091546561C70E285BDBE6E9B7BF552B16892266F0CDFB20AE650",
+      "network": "testnet",
+      "timestamp": 1792596065.832984
+    },
+    {
+      "txid": "EFEFB636FDC8E6E511F3BDDFF4B94BD8CAD7269E67B9DE326ECE2EF6AD538F84",
+      "module_id": "deposit_gate_101",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "explorer_url": "",
+      "network": "testnet",
+      "timestamp": 1792596072.8721428
+    }
+  ]
+}

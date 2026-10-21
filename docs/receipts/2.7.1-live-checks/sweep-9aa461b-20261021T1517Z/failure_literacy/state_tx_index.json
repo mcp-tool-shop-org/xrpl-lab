@@ -1,0 +1,26 @@
+{
+  "note": "tx_index excerpt from state.json (wallet_path omitted: it carries the local home path)",
+  "wallet_address": "rNjwwcnSXhAfz5At9ycUSq5mB5UqEfcZss",
+  "tx_index": [
+    {
+      "txid": "1E784AD72619D2CB63C6291DAD1A221D2702BFC865CD315DBC8F28715B2B1100",
+      "module_id": "failure_literacy",
+      "success": false,
+      "expected": true,
+      "validated": true,
+      "explorer_url": "",
+      "network": "testnet",
+      "timestamp": 1792596341.9962049
+    },
+    {
+      "txid": "2483F45BC701D4D95C3FF39AAB707E8D63E924829E3C740986CC00C01FDB7E03",
+      "module_id": "failure_literacy",
+      "success": true,
+      "expected": false,
+      "validated": true,
+      "explorer_url": "https://testnet.xrpl.org/transactions/2483F45BC701D4D95C3FF39AAB707E8D63E924829E3C740986CC00C01FDB7E03",
+      "network": "testnet",
+      "timestamp": 1792596351.4594197
+    }
+  ]
+}
