@@ -1,5 +1,50 @@
 # Changelog
 
+## 2.6.2 — 2026-10-21
+
+The 2.6.2 follow-ups from issue #20 (items 8, 9 and 11), found in 2.6.1's
+live sweeps and coverage work.
+
+### Fixed
+
+- **A lesson's deliberate rejection is in the record.** Twelve of the 19
+  expected-failure steps validated their expected `tec` on the ledger but
+  left it out of the transaction record, so the report's "Transactions …
+  failed (M expected)" line and the proof pack left it out, and a receipt
+  couldn't show that the rejection was the expected one (failure_literacy,
+  token_escrow, deposit_gate, custodial, checks, NFT, multisig). All 19 now
+  record it, and the step's judge acknowledges it by hash, so the lesson
+  still passes.
+- **Expected rejections are marked.** A transaction record carries
+  `expected: true` when its lesson's judge acknowledged it. The proof pack
+  carries the flag per transaction and receipt row, with an
+  `expected_failures` count; `feedback`, the workshop status and `xrpl-lab
+  status` say "N failed (M expected)"; `doctor`'s last-error check,
+  feedback's Last Error and the repeated-failures hint skip them.
+- **The `xrpl-lab` command writes UTF-8 on Windows.** With its output
+  redirected under cp1252, custodial_crediting_101 crashed on an arrow in its
+  text. `python -m xrpl_lab` already did this.
+
+### Fixed (dry run)
+
+- **The dry-run faucet grants testnet's 100 XRP,** not 1000, so a lesson
+  sized beyond one grant fails offline too. `dex_vs_amm_risk_literacy`'s
+  100 XRP pool, which a fresh testnet wallet can't fund, is now 25/25, as
+  module #30's was in 2.6.0.
+- **Helper wallets are bound.** The buyer, sender, issuer, signers and other
+  helper wallets the lessons create had their writes booked against the dry
+  run's one synthetic address. Every lesson now leaves it untouched.
+- **Escrow amounts are in drops,** as testnet reports them: `verify_escrow`
+  printed "10 drops" for a 10 XRP escrow. It now reads
+  "10 XRP (10000000 drops)".
+
+### Not in this release
+
+- The xrpl-py 5.2 upgrade (#20 item 10) gets its own release. 5.x derives a
+  secp256k1 `s…` seed (an XRPL Camp import, say) as a different account than
+  4.x did, so it needs a compatibility path for wallets imported under 4.x.
+  xrpl-lab's own `sEd…` wallets derive the same address on both.
+
 ## 2.6.1 — 2026-10-21
 
 ### Fixed
