@@ -3310,6 +3310,18 @@ class XRPLTestnetTransport(Transport):
             logger.warning("get_reserves (server_state) failed", exc_info=True)
             return None
 
+    async def get_validated_close_time(self) -> int | None:
+        try:
+            async with _rpc_client(self._rpc_url) as client:
+                resp = await asyncio.wait_for(
+                    client.request(ServerState()), timeout=RPC_TIMEOUT
+                )
+            close = resp.result.get("state", {}).get("validated_ledger", {}).get("close_time")
+            return int(close) if close is not None else None
+        except Exception:
+            logger.warning("get_validated_close_time (server_state) failed", exc_info=True)
+            return None
+
     async def _amm_create_fee_drops(self) -> str | None:
         """The AMMCreate special fee in drops: the incremental owner reserve.
 

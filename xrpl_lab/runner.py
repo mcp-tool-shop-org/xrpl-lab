@@ -172,6 +172,13 @@ def _step_heading(step, index: int) -> str:
     return f"{label}: {title}"
 
 
+# Why the last run_module() in this process stopped early (False), as an exit
+# code, for the CLI: a script must not read an early stop as success (Book
+# Keeper, 2.7.0 live sweep). None when it didn't stop early. The CLI runs one
+# module per process; the dashboard ignores this.
+last_stop_exit_code: int | None = None
+
+
 async def run_module(
     module: ModuleDef,
     transport: Transport,
@@ -195,6 +202,8 @@ async def run_module(
     on_tx:
         ``on_tx(txid, result_code)`` — called for each new transaction.
     """
+    global last_stop_exit_code
+    last_stop_exit_code = None
     if console is None:
         console = globals()["console"]
     state = load_state()
@@ -207,7 +216,10 @@ async def run_module(
     state.network = transport.network_name
     ensure_workspace()
 
-    if state.is_module_completed(module.id) and not dry_run:
+    # --force redoes a completed module; it was ignored here, so on testnet
+    # `run --force` printed "Run with --force" and did nothing (Book Keeper,
+    # 2.7.0 live sweep; since the first scaffold).
+    if state.is_module_completed(module.id) and not dry_run and not force:
         console.print(
             f"\n[yellow]Module '{module.title}' is already completed. "
             f"Run with --force to redo it.[/]"
@@ -263,6 +275,7 @@ async def run_module(
     except LabException as exc:
         console.print(f"[red]{exc.error.code}:[/] {exc.error.message}")
         console.print(f"  [yellow]Hint:[/] {exc.error.hint}")
+        last_stop_exit_code = exc.exit_code
         return False
     if wallet:
         context["wallet_seed"] = _SecretValue(wallet.seed)
@@ -446,6 +459,9 @@ async def run_module(
                             f"[yellow]On-disk progress may be stale; you can "
                             f"still retry with: xrpl-lab run {module.id}[/]"
                         )
+                last_stop_exit_code = (
+                    exc.exit_code if isinstance(exc, LabException) else 2
+                )
                 return False
 
             # Fire tx callback for any new transactions from this step.
@@ -521,6 +537,7 @@ async def run_module(
                 console.input("[dim]Press Enter to continue...[/]")
             except (EOFError, KeyboardInterrupt):
                 console.print("\n[yellow]Module interrupted.[/]")
+                last_stop_exit_code = 130
                 return False
 
         # Collect report material. COREBCD-001: registry-derived predicate —
@@ -558,14 +575,23 @@ async def run_module(
     # Argon (round 2, Low 2): count failed transactions from this run's
     # TxRecords, the same source as the step signal; context["failed_txids"]
     # is appended by only some handlers.
-    failed_tx_count = sum(
-        1 for record in state.tx_index[_run_tx_start:]
-        if not record.success and record.timestamp >= _run_started
-    )
+    run_records = [
+        record for record in state.tx_index[_run_tx_start:]
+        if record.timestamp >= _run_started
+    ]
+    failed_tx_count = sum(1 for record in run_records if not record.success)
+    # Successful ones from the same records (Book Keeper, 2.7.0 live sweep):
+    # dex_market_making's two OfferCancels were recorded but not in
+    # context["txids"], so the report said 4 successful against 6.
+    # Union with context["txids"], in order, for handlers that list a txid
+    # without recording it.
+    successful_txids = list(dict.fromkeys(
+        [*context["txids"], *(record.txid for record in run_records if record.success)]
+    ))
     expected_note = f" ({expected_tx_count} expected)" if expected_tx_count else ""
     summary_lines = [
         f"Steps: {action_steps - len(failed_steps)} passed, {len(failed_steps)} failed",
-        f"Transactions: {len(context['txids'])} successful, "
+        f"Transactions: {len(successful_txids)} successful, "
         f"{failed_tx_count} failed{expected_note}",
     ]
     if failed_steps:
@@ -573,7 +599,7 @@ async def run_module(
         summary_lines.extend(f"- {name}" for name in failed_steps)
     report_sections.append(("Summary", "\n".join(summary_lines)))
 
-    for txid in context["txids"]:
+    for txid in successful_txids:
         report_sections.append(("Transaction", f"TXID: `{txid}`"))
 
     report_path = write_module_report(

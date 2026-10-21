@@ -404,10 +404,17 @@ def _exit_if_unverified(module_id: str, ok: bool, console: Console) -> None:
     The re-swarm-3 ruling keeps such a module completed and records it
     ``verified: false``; it says nothing about the exit code, which was 0.
     Live-fire run 2 (2.6.0) exited 0 on a run that created no AMM, so a
-    script couldn't tell. A run that stopped early (``ok`` False) keeps its
-    existing exit.
+    script couldn't tell. A run that stopped early (``ok`` False) exits with
+    the code the runner recorded: 1 for a wallet that doesn't sign as its
+    address, 2 for a step that raised, 130 for an interrupt. It used to exit
+    0 (Book Keeper, 2.7.0 live sweep).
     """
     if not ok:
+        from . import runner
+
+        code = runner.last_stop_exit_code
+        if code:
+            sys.exit(code)
         return
     record = next(
         (m for m in load_state().completed_modules if m.module_id == module_id),

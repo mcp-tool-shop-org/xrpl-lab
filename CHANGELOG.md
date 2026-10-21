@@ -30,6 +30,24 @@
   rather than returning None, because a caller treats None as "no wallet"
   and would create a new one over the learner's file.
 
+### Fixed (found by the 2.7.0 live sweep)
+
+- **A time-locked escrow waits for the ledger, not the clock.** On testnet,
+  escrow_finish_101's EscrowFinish failed `tecNO_PERMISSION`: the wall clock
+  read past FinishAfter while the validated ledger's close time still equalled
+  it, so the lesson never waited. It now waits until a validated ledger closed
+  strictly after FinishAfter (`Transport.get_validated_close_time`), capped as
+  before.
+- **A run that stops early exits non-zero.** A wallet that doesn't sign as its
+  address stopped the run but exited 0. Now: 1 for that, 2 for a step that
+  raised, 130 for an interrupt (including a closed stdin at a "Press Enter"
+  prompt).
+- **`run --force` redoes a completed module on testnet.** It printed "Run with
+  --force to redo it" and did nothing, since the first scaffold.
+- **The report counts every successful transaction the run recorded.**
+  dex_market_making's two OfferCancels were in the record and the proof pack
+  but not in the report ("4 successful" against 6).
+
 ## 2.6.2 — 2026-10-21
 
 The 2.6.2 follow-ups from issue #20 (items 8, 9 and 11), found in 2.6.1's
