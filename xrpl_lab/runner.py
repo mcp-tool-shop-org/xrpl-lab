@@ -206,6 +206,19 @@ async def run_module(
     last_stop_exit_code = None
     if console is None:
         console = globals()["console"]
+    # 2.7.1 (#20 item 13): a module marked ``mode: dry-run`` runs offline,
+    # whichever transport it was handed. `run` ignored the frontmatter, so a
+    # learner running dex_vs_amm_risk_literacy without --dry-run went to
+    # testnet. Here, so `run`, `start` and the dashboard all honour it.
+    if module.dry_run_only and transport.network_name != "dry-run":
+        from .transport.dry_run import DryRunTransport
+
+        console.print(
+            f"[yellow]'{module.id}' is an offline lesson (mode: dry-run); "
+            "running it in the dry-run sandbox, not on the network.[/]"
+        )
+        transport = DryRunTransport()
+        dry_run = True
     state = load_state()
     # Stamp the run's REAL network onto state so every TxRecord this run
     # records (handlers persist via record_tx(network=state.network)) and the
