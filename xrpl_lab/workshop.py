@@ -427,8 +427,8 @@ def generate_support_bundle(state: LabState | None = None) -> SupportBundle:
         network=learner.network,
         # F-d7ed6541: this is a shareable artifact (the CLI's own `feedback`
         # help text tells the learner to paste it into a public GitHub
-        # issue) — sanitize_endpoint() is the SAME redactor feedback.py and
-        # doctor.py already call on this exact data (RA-002 / F-60b2df48),
+        # issue) — sanitize_endpoint() is the SAME redactor doctor.py
+        # already calls on this exact data (RA-002 / F-60b2df48),
         # so the raw RPC/faucet URL (basic-auth userinfo, path tokens, query
         # API keys) never enters the dataclass in the first place.
         rpc_url=sanitize_endpoint(get_rpc_url()),

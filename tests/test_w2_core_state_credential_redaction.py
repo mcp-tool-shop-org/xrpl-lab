@@ -6,7 +6,7 @@ unsanitized ``XRPL_LAB_RPC_URL`` / ``XRPL_LAB_FAUCET_URL`` values into the
 ``faucet_url=get_faucet_url()``) with no call to
 ``reporting.sanitize_endpoint()`` — even though this is the exact class of
 bug RA-002/F-60b2df48 fixed everywhere else (reporting.py, audit.py,
-doctor.py, and feedback.py all strip basic-auth userinfo / path tokens /
+and doctor.py all strip basic-auth userinfo / path tokens /
 query API keys before an endpoint enters a shareable artifact).
 
 ``generate_support_bundle()`` backs the two LIVE CLI commands
@@ -15,7 +15,7 @@ query API keys before an endpoint enters a shareable artifact).
 into a public GitHub issue — so the raw credential was one copy-paste away
 from a public forum.
 
-This mirrors tests/test_feedback.py::test_feedback_strips_rpc_credentials
+This mirrored a test of feedback.py's generate_feedback() (removed in 2.7.8)
 but calls the REAL ``generate_support_bundle()`` and asserts on the REAL
 ``.to_json()`` / ``.to_markdown()`` output. No prior test called
 ``generate_support_bundle()`` at all — a repo-wide grep for the symbol
@@ -38,7 +38,6 @@ def _bare_state() -> LabState:
 
 
 def test_support_bundle_strips_rpc_and_faucet_credentials(tmp_path, monkeypatch):
-    # Same env + monkeypatch shape as test_feedback.py's analogous test —
     # generate_support_bundle() calls get_learner_status() (-> get_workspace_dir())
     # and run_doctor() (-> get_home_dir()/get_workspace_dir()) internally even
     # when an explicit `state` is passed, so both modules' dir lookups must be

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from xrpl_lab import doctor, feedback
+from xrpl_lab import doctor
 from xrpl_lab.state import CompletedModule, LabState, TxRecord, save_state
 
 
@@ -72,12 +72,3 @@ def test_a_failure_with_a_hash_keeps_the_verify_hint(home) -> None:
     check = doctor._check_last_error()
     assert check.hint == f"Run: xrpl-lab verify --tx {'E' * 64} for details"
 
-
-def test_the_feedback_block_leaves_out_superseded_failures(home) -> None:
-    save_state(LabState(tx_index=[_rec("failed", 100.0)], completed_modules=[_done(300.0)]))
-    assert "### Last Error" not in feedback.generate_feedback()
-
-
-def test_the_feedback_block_keeps_a_current_failure(home) -> None:
-    save_state(LabState(tx_index=[_rec("F" * 64, 100.0)]))
-    assert "### Last Error" in feedback.generate_feedback()

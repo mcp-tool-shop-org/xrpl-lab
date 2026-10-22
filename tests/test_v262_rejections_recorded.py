@@ -125,11 +125,10 @@ async def test_the_receipt_marks_the_rejection_expected(
     assert all(row["expected"] for row in pack["receipt_table"] if row["status"] == "FAIL")
 
 
-def test_doctor_and_feedback_skip_an_expected_rejection(
+def test_doctor_skips_an_expected_rejection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import xrpl_lab.doctor as doctor
-    import xrpl_lab.feedback as feedback
     from xrpl_lab.state import LabState, TxRecord
 
     state = LabState()
@@ -138,24 +137,14 @@ def test_doctor_and_feedback_skip_an_expected_rejection(
         network="testnet", success=False, expected=True,
     ))
     monkeypatch.setattr(doctor, "load_state", lambda: state)
-    monkeypatch.setattr(feedback, "load_state", lambda: state)
-
-    async def _no_checks():
-        return doctor.DoctorReport()
-
-    monkeypatch.setattr(feedback, "run_doctor", _no_checks)
 
     assert doctor._check_last_error().detail == "No failed transactions"
-    text = feedback.generate_feedback()
-    assert "### Last Error" not in text
-    assert "1 (0 ok, 1 failed (1 expected))" in text
 
     # A real failure still shows.
     state.tx_index.append(TxRecord(
         txid="T2", module_id="m", timestamp=2.0, network="testnet", success=False,
     ))
     assert doctor._check_last_error().detail.startswith("Last failure in 'm'")
-    assert "- TXID: `T2`" in feedback.generate_feedback()
 
 
 def test_support_bundle_and_last_module_check_mark_expected_rejections(
