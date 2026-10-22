@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.7.7 — 2026-10-22
+
+### Fixed
+
+- **`doctor` no longer reports a failure that a later run fixed** (#39).
+  After a `run --force` recovery, its "Last error" check, and the support
+  bundle and feedback block that carry it, still named the failed first run.
+  A failure older than its module's passing latest run is history, the rule
+  live verification has used since 2.7.5.
+- **A step that never reached the network gets a useful hint.** For such a
+  failure, `doctor` suggested `xrpl-lab verify --tx failed`, using the
+  placeholder as a hash. It now says the step failed before reaching the
+  network and suggests rerunning the module.
+
 ## 2.7.6 — 2026-10-21
 
 ### Fixed
