@@ -1,0 +1,2 @@
+tx_index records: 9; failed non-expected: 4; current_failures(): 0
+  completed: clawback_101 verified=True completed_at=1792642273.4805303

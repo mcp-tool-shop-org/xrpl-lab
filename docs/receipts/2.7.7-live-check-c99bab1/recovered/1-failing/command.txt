@@ -1,0 +1,3 @@
+cmd: yes "" | xrpl-lab run clawback_101   (code c99bab1)
+env: XRPL_LAB_FAUCET_URL=https://faucet.altnet.rippletest.net/no-such-path (deliberate: funding fails, run should complete with failed steps)
+xrpl_lab_exit_code: 3

@@ -1,0 +1,2 @@
+XRPL_LAB_FAUCET_URL set: True -> https://faucet.altnet.rippletest.net/no-such-path
+classify_network(rpc): testnet | classify_network(faucet): testnet | guard: PASS

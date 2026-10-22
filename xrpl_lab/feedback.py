@@ -83,8 +83,9 @@ def generate_feedback() -> str:
             pass
 
     # Last error
-    # A rejection a lesson set out to cause isn't an error (2.6.2).
-    failed = [tx for tx in state.tx_index if not tx.success and not tx.expected]
+    # Neither a rejection a lesson set out to cause (2.6.2) nor a failure a
+    # later passing run superseded (2.7.7, #39).
+    failed = state.current_failures()
     if failed:
         last = failed[-1]
         lines.append("### Last Error")

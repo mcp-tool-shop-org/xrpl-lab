@@ -294,6 +294,23 @@ class LabState(BaseModel):
     def is_module_completed(self, module_id: str) -> bool:
         return any(m.module_id == module_id for m in self.completed_modules)
 
+    def current_failures(self) -> list[TxRecord]:
+        """Failed records that still describe the learner's state, oldest first.
+
+        Leaves out a rejection a lesson set out to cause (2.6.2), and a failure
+        older than its module's passing latest run (2.7.7, #39): after a
+        ``run --force`` recovery that failure is history, the rule live
+        verification has used since 2.7.5 (#32).
+        """
+        passed_at = {
+            m.module_id: m.completed_at for m in self.completed_modules if m.verified
+        }
+        return [
+            tx for tx in self.tx_index
+            if not tx.success and not tx.expected
+            and not tx.timestamp < passed_at.get(tx.module_id, float("-inf"))
+        ]
+
     def complete_module(
         self,
         module_id: str,

@@ -363,12 +363,22 @@ def _check_windows_dir_permissions() -> Check:
 def _check_last_error() -> Check:
     """Check state for last failed transaction and give a hint."""
     state = load_state()
-    # A rejection a lesson set out to cause isn't an error (2.6.2).
-    failed = [tx for tx in state.tx_index if not tx.success and not tx.expected]
+    failed = state.current_failures()
     if not failed:
         return Check("Last error", True, "No failed transactions")
 
     last = failed[-1]
+    if last.txid == "failed":
+        # 2.7.7 (#39): the step failed before it reached the network, so there
+        # is no hash to look up; the hint used to be `verify --tx failed`.
+        return Check(
+            "Last error",
+            True,
+            f"Last failure in '{last.module_id}': a step failed before its "
+            "transaction reached the network",
+            f"Run: xrpl-lab run {last.module_id} --force to retry the module",
+            severity="warn",
+        )
     # Informational, not a failure — but a prior failed tx is worth surfacing
     # in amber (warn) so a facilitator sees "there was a failure here, run
     # verify" rather than a green all-clear. ``passed`` stays True so it never
