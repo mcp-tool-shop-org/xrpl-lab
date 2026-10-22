@@ -1,0 +1,1 @@
+gate: run 1 exit=3, clawback_101 verified:false entry present -> pass

@@ -1,0 +1,31 @@
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ XRPL Lab Doctor                                                                                                                                             │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ✓ Wallet
+    Found: rhuALqeW2TjPJQ32TFRibP2FSeHnVt43jz
+  ✓ State file
+    v2.7.7, 1 module(s) completed
+  ✓ Workspace
+    Writable: <scratch>/leftfailed-check-c99bab1-20261022T0406Z/cwd/.xrpl-lab
+  ✓ Env overrides
+    None (using defaults)
+  ! Directory permissions
+    Windows ACLs not tightened by xrpl-lab for 
+<scratch>/leftfailed-check-c99bab1-20261022T0406Z/home
+    xrpl-lab tightens directory permissions to owner-only on Linux/macOS (chmod 0o700); on Windows it does not yet tighten the ACL. If this machine is shared, 
+consider restricting access yourself, e.g.: icacls "%USERPROFILE%\.xrpl-lab" /inheritance:r /grant:r "%USERNAME%":F
+  ✓ RPC endpoint
+    Connected to https://s.altnet.rippletest.net:51234 (ledger 21725545)
+  ✓ Faucet
+    Reachable: https://faucet.altnet.rippletest.net (HTTP 404)
+  ! Last error
+    Last failure in 'clawback_101': a step failed before its transaction reached the network
+    Run: xrpl-lab run clawback_101 --force to retry the module
+  ✓ Last module state
+    last completed: clawback_101 (2026-10-22T04:07:39Z) | in-flight: none | drift: none
+
+9/9 checks passed — all good.
+
+doctor_exit_code: 0
