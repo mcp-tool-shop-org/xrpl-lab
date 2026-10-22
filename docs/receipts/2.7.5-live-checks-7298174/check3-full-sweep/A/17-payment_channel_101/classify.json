@@ -1,0 +1,26 @@
+[
+ {
+  "txid": "42197FFDC32A51FE2715278D1B854C36D6253170EF03C3E41303C1EA0634E6E4",
+  "type": "PaymentChannelCreate",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "1919FD7505440F4DA8BBAB575C8B0CBFAAE7EB1299CB7EF3F8FF088C9DA057BE",
+  "type": "PaymentChannelFund",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "0C8DEEDB73546C6DC446AA8B1516F2DD1DC0AD92CE9681E87CAB6017BE42886B",
+  "type": "PaymentChannelClaim",
+  "account": "rB1Mh8qcX7UTY7qLAkrtNTDkjToPhLuFUZ",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

@@ -1,0 +1,33 @@
+{
+  "valid": true,
+  "file": "proof_pack.json",
+  "version": "2.7.5",
+  "address": "rfDwJriXm4SQWeKsS7Kn6Nj7M1jB8Kb2PD",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 4,
+  "sha256": "b361176280e4139b51122cefb11f6540e38527b48fc6e32dd9820b4d3ca36644",
+  "simulated": false,
+  "all_verified": false,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "failed",
+        "network": "testnet",
+        "status": "FAIL",
+        "reason": "A step failed before its transaction reached the network (no hash was recorded), so there is nothing on the ledger to check.",
+        "checks": [],
+        "validated": false
+      }
+    ]
+  },
+  "live_passed": false
+}

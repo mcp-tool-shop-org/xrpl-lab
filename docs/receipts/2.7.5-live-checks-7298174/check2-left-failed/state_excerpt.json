@@ -1,0 +1,60 @@
+{
+  "module_accounts": {
+    "clawback_101": [
+      "rNUpVxvRJhMKoTPhdaeKXakcBRpZ4xm2Av",
+      "rfDwJriXm4SQWeKsS7Kn6Nj7M1jB8Kb2PD",
+      "rsUN3Teaf2pqiKRDm8zW1yzMtEjtjuLF7a"
+    ]
+  },
+  "completed_modules": [
+    {
+      "module_id": "clawback_101",
+      "completed_at": 1792631196.2066705,
+      "txids": [],
+      "report_path": ".xrpl-lab\\reports\\clawback_101.md",
+      "verified": false
+    }
+  ],
+  "tx_index": [
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "timestamp": 1792631178.321812,
+      "network": "testnet",
+      "success": false,
+      "explorer_url": "",
+      "expected": false,
+      "validated": false
+    },
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "timestamp": 1792631181.4791894,
+      "network": "testnet",
+      "success": false,
+      "explorer_url": "",
+      "expected": false,
+      "validated": false
+    },
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "timestamp": 1792631184.4981308,
+      "network": "testnet",
+      "success": false,
+      "explorer_url": "",
+      "expected": false,
+      "validated": false
+    },
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "timestamp": 1792631187.7839363,
+      "network": "testnet",
+      "success": false,
+      "explorer_url": "",
+      "expected": false,
+      "validated": false
+    }
+  ]
+}

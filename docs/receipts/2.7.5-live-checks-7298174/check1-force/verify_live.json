@@ -1,0 +1,97 @@
+{
+  "valid": true,
+  "file": "proof_pack.json",
+  "version": "2.7.5",
+  "address": "rU4KexjhMZEWos8NQ6v7iJ27YsxGP8qZmG",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 9,
+  "sha256": "dc3b5a860f1b644007a14fb665c3017ca1ac8da0bcb45ce95d0d1be25f97cf1a",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": true,
+    "no_onledger_txids": false,
+    "passed": 5,
+    "failed": 0,
+    "skipped": 1,
+    "note": "Mixed pack \u2014 verified 5 real-network txid(s); skipped 1 with no on-ledger anchor (dry-run or local runs, or steps that never reached a ledger).",
+    "tx_results": [
+      {
+        "txid": "failed",
+        "network": "testnet",
+        "status": "SKIPPED",
+        "reason": "An earlier run's step that never reached a ledger; this module's latest run passed.",
+        "checks": [],
+        "validated": false
+      },
+      {
+        "txid": "AFDC737FA536D06CECAC81C2C0431A7919206E8DC3EAA55B0B9FE5BCC58B1B0D",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rUctW6ZLCrJWJVmt7uJXLdDpNmPC3jCqr2"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "D52F0AED5BDD9278874A261AD499FF6B38B17420954103F8669CF68B834C093C",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rU4KexjhMZEWos8NQ6v7iJ27YsxGP8qZmG"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "D8C4D871AE100F4181E089784C6EEBBDB4C62ACEF30B0AE72A93B67501A9E8D4",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rUctW6ZLCrJWJVmt7uJXLdDpNmPC3jCqr2"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "DA0A0FEB874E6F17EDA4F6E60F924FC948E1F94FB0EFF6230187A38E3740BECA",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rUctW6ZLCrJWJVmt7uJXLdDpNmPC3jCqr2"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "A314F29401D4E1A1B97EA4D9105A28C9BDCC87B4876050BCBC17855FCFFE6552",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Expected rejection, validated on-ledger: tecNO_PERMISSION.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tecNO_PERMISSION"
+        ],
+        "validated": true
+      }
+    ]
+  },
+  "live_passed": true
+}

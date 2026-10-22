@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.7.5 — 2026-10-21
+
+### Fixed
+
+- **A passing `run --force` gives a clean live verification** (#32). The
+  proof pack keeps every run's records, so after a failed run and a passing
+  rerun, `proof verify --live` still failed on the first run's failures. A
+  failure older than its module's passing latest run is now checked as
+  history: skipped when it never reached a ledger, and otherwise it must be
+  on the ledger as recorded. A module whose latest run failed still fails.
+  Packs made by earlier versions verify the same way, since the pack already
+  carries what this needs.
+- **One module's never-submitted records no longer hide another's.** Live
+  verification collapsed every `failed` placeholder in a pack into one
+  claim; each module's are now checked separately.
+
 ## 2.7.4 — 2026-10-21
 
 From the first full live sweep (#28): all 32 lessons in one home, in
