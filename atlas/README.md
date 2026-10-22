@@ -1,14 +1,14 @@
 # xrpl-lab: how it works
 
-Mapped at 2026-10-22 from commit c43a36f by Atlas 1.24.0.
+Mapped at 2026-10-22 from commit 0a4a07a by Atlas 1.24.0.
 
 ## What this is
 
-10 parts, mostly Python (233 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), shell (2) and HTML (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.
+10 parts, mostly Python (233 files), Astro (13), TypeScript (8), CSS (4), shell (3), JavaScript (2) and HTML (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.
 
-## What changed since 2026-10-22 (0bf3b61)
+## What changed since 2026-10-22 (c43a36f)
 
-Nothing structural changed since 2026-10-22; 1 file added and 7 changed content.
+Nothing structural changed since 2026-10-22; 142 files added.
 
 ## What comes in
 

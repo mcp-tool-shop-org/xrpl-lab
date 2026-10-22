@@ -1,0 +1,33 @@
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Status                                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Wallet: rhuALqeW2TjPJQ32TFRibP2FSeHnVt43jz
+Network: testnet
+
+Progress: 2/32 modules
+Next up: failure_literacy  (foundations, testnet)
+
+
+  ▸ ACTIVE foundations: 1/5
+  ◌ TODO   nfts: 0/3
+  ▸ ACTIVE tokens: 1/4
+  ◌ TODO   payments: 0/7
+  ◌ TODO   identity: 0/4
+  ◌ TODO   dex: 0/3
+  ◌ TODO   reserves: 0/2
+  ◌ TODO   audit: 0/1
+  ◌ TODO   amm: 0/2
+  ◌ TODO   capstone: 0/1
+
+Last completed: receipt_literacy
+  2026-10-22T08:43:49.962699+00:00
+
+Transactions: 5 (1 ok, 4 failed)
+
+  ⚠ 1 module(s) completed but UNVERIFIED — their on-ledger verification did not pass; re-run to prove on-ledger.
+    Unverified: clawback_101
+
+Reports: 2  |  Proof pack: yes  |  Certificate: no
+
