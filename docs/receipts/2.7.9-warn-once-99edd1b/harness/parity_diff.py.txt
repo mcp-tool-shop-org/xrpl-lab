@@ -1,0 +1,54 @@
+"""Diff two feedback_parity.sh captures after normalizing only the expected noise.
+
+Usage: python -I parity_diff.py <dir-A> <dir-B> <report-file>
+
+Normalized, and counted per file: the version (2.7.7 / 2.7.8 / 2.7.9, bare or after a "v"), ISO timestamps, the live ledger index
+(`ledger N`, `"ledger_index": N`), RPC latency in ms, and the faucet's HTTP status (404 / 429). Anything else that
+differs is reported as a real difference, with a unified diff.
+"""
+import difflib
+import pathlib
+import re
+import sys
+
+a_root, b_root, report = map(pathlib.Path, sys.argv[1:4])
+RULES = [
+    ("version", re.compile(r"(?<![\d.])2\.7\.[789](?!\d)"), "<ver>"),
+    ("timestamp", re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\+00:00|Z)?"), "<ts>"),
+    ("ledger index", re.compile(r"(ledger(?:_index)?\"?:?\s*)\d{6,}"), r"\1<ledger>"),
+    ("latency", re.compile(r"\b\d+(?:\.\d+)?\s?ms\b"), "<ms>"),
+    ("faucet http", re.compile(r"HTTP (?:404|429)"), "HTTP <status>"),
+]
+
+
+def norm(text, counts):
+    for name, rx, rep in RULES:
+        text, n = rx.subn(rep, text)
+        if n:
+            counts[name] = counts.get(name, 0) + n
+    return text
+
+
+lines, real = [], 0
+files = sorted({p.relative_to(a_root) for p in a_root.rglob("*") if p.is_file()} |
+               {p.relative_to(b_root) for p in b_root.rglob("*") if p.is_file()})
+for rel in files:
+    if rel.name == "code.txt" or rel.suffix.endswith("diff"):
+        continue
+    pa, pb = a_root / rel, b_root / rel
+    if not pa.exists() or not pb.exists():
+        lines.append(f"ONLY IN {'B' if not pa.exists() else 'A'}: {rel}"); real += 1; continue
+    ta, tb = pa.read_text(encoding="utf-8", errors="replace"), pb.read_text(encoding="utf-8", errors="replace")
+    if ta == tb:
+        lines.append(f"identical      {rel}"); continue
+    ca, cb = {}, {}
+    na, nb = norm(ta, ca), norm(tb, cb)
+    if na == nb:
+        lines.append(f"same after normalizing {rel}: A {ca} | B {cb}")
+    else:
+        real += 1
+        lines.append(f"DIFFERENT      {rel}")
+        lines.extend("    " + l for l in difflib.unified_diff(na.splitlines(), nb.splitlines(), "A", "B", lineterm="", n=1))
+lines.append(f"\n{len(files)} files compared; {real} with a real difference")
+report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+print("\n".join(lines))
