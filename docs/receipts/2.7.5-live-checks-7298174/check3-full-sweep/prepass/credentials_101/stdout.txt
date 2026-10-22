@@ -1,0 +1,159 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Credentials 101 (XLS-70): On-Ledger KYC & Age Attestations                                                                                                  │
+│ Level: intermediate  |  Time: ~15-20 min                                                                                                                    │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Credentials (XLS-70, amendment Credentials) went mainnet-live on 2025-09-04. A credential is an on-ledger attestation an ISSUER makes about a SUBJECT —        
+KYC-passed, over-21, region-eligible. Only proof of the attestation lives on-chain; the personal data stays off-ledger (paired with the DID you anchored in the
+previous module). This is the foundation for age-gating content, region-locking, and compliant real-money cash-out in a game.                                  
+
+The key idea is a two-party handshake: the issuer creates a credential (it's provisional and not yet valid), and the subject must accept it. That "you hold    
+your own passport" design is what makes a credential trustworthy — the subject consented, and the attestation lives under the subject's control.               
+
+This runs on testnet — free and disposable.                                                                                                                    
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+Your wallet is the ISSUER — the trusted party (a KYC/age-verification partner, or the studio itself) making the attestation.                                   
+
+
+  → ensure_wallet...
+  Wallet loaded: rpriVzWzavKzt1r3j4zBV46yxb2LWSARtp
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+Creating a credential costs a fee plus an owner reserve while it's provisional (free on testnet).                                                              
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create the subject (player) wallet                                                                                                                             
+
+A credential needs a second account — the SUBJECT being attested. We create and fund it so it's a real target on-ledger.                                       
+
+
+  → create_subject_wallet...
+  Creating the subject (player) wallet...
+This wallet is for TESTNET use only. Never use xrpl-lab wallets on mainnet — seeds are stored in plaintext.
+  Subject wallet: rpgQXd7H2hnwXkW8nwUUPLxQJqr6HiEeVz
+  Funding the subject from the faucet (so it's a real target)...
+  Subject funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Try attesting an UNFUNDED subject (tecNO_TARGET)                                                                                                               
+
+Before the happy path, learn the guardrail. The Subject of a CredentialCreate must be a funded account — you can't attest an account that doesn't exist yet.   
+Attesting an unfunded address fails tecNO_TARGET.                                                                                                              
+
+
+  → create_credential_unfunded...
+  Attempting to attest 'over21' against an UNFUNDED subject (expecting tecNO_TARGET)...
+  Expected failure: tecNO_TARGET
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecNO_TARGET
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Create the credential (provisional)                                                                                                                            
+
+Now attest the funded subject. CredentialCreate sets Account = you (issuer), Subject = the player, and CredentialType = an opaque tag (we use over21,          
+hex-encoded for you). You can optionally attach a URI pointing to an off-chain verifiable credential — but note it is immutable after create (delete + re-issue
+to change it). The credential is now provisional: created, but NOT valid until the subject accepts it.                                                         
+
+
+  → create_credential...
+  Attesting credential type over21 about subject rpgQXd7H2hnw... (PROVISIONAL until accepted)
+  Credential created — provisional, awaiting subject accept.
+  TXID: 5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083
+
+Press Enter to continue...Try to create a duplicate (tecDUPLICATE)                                                                                                                       
+
+The tuple (subject, issuer, CredentialType) is unique per issuer — you can't stack two identical live credentials. Re-attesting the same one fails             
+tecDUPLICATE.                                                                                                                                                  
+
+
+  → create_credential_duplicate...
+  Re-attesting the SAME credential (expecting tecDUPLICATE)...
+  Expected failure: tecDUPLICATE
+  Category: claimed
+  Meaning: Applied but failed: it's on the ledger, and its fee was charged: tecDUPLICATE
+  Action: Check XRPL docs for this specific code
+
+Press Enter to continue...Watch the issuer FAIL to accept it                                                                                                                             
+
+CredentialAccept can be submitted by only the subject. Here the issuer (you) tries to accept its own credential — and the ledger rejects it. This is the       
+consent rule: the issuer cannot force a credential to become valid; the subject must opt in.                                                                   
+
+
+  → accept_credential_wrong_party...
+  Issuer attempting to accept its own credential (expecting rejection — only the subject may accept)...
+  Expected rejection: tecNO_ENTRY
+  Only the subject account named in the credential can accept it — this is the 'you hold your own passport' rule.
+
+Press Enter to continue...Subject accepts the credential                                                                                                                                 
+
+Now the subject runs CredentialAccept (naming the Issuer and matching CredentialType). This clears the provisional state, marks the credential valid, and      
+transfers the owner reserve from the issuer to the subject — the subject now pays the reserve and controls the attestation.                                    
+
+
+  → accept_credential...
+  Subject accepting the credential — clears provisional state, reserve moves from issuer to subject...
+  Credential accepted — now VALID on-ledger!
+  TXID: 55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D
+
+Press Enter to continue...Verify the credential is VALID on-ledger                                                                                                                       
+
+Read the credential back. It must show accepted — a gate checking "is this player over 21?" would pass only now, never while the credential was provisional.   
+
+
+  → verify_credential...
+  ✓ Credential found: subject rpgQXd7H2hnwXkW8...
+  ✓ Issuer: rpriVzWzavKzt1r3...
+  ✓ CredentialType: 6F7665723231
+  ✓ URI: ipfs://bafy-example/over21-vc.json
+  ✓ Accepted: the subject ran CredentialAccept — VALID
+  Credential is VALID — the gate would pass this player.
+
+Press Enter to continue...Delete the credential (revoke, reclaim reserve)                                                                                                                
+
+Either party can run CredentialDelete — this is the revocation mechanism and it frees the owner reserve. The subject deletes it here to reclaim the reserve it 
+started paying at accept.                                                                                                                                      
+
+
+  → delete_credential...
+  Subject deleting the credential — reclaiming the owner reserve...
+  Credential deleted — reserve freed (revocation path).
+  TXID: 8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You ran the full XLS-70 credential lifecycle — the two-party handshake, both guardrails, and revocation:                                                       
+
+ 1 CredentialCreate — the issuer attested a subject; the credential started provisional                                                                        
+ 2 tecNO_TARGET — you can't attest an unfunded subject                                                                                                         
+ 3 tecDUPLICATE — (subject, issuer, type) is unique per issuer                                                                                                 
+ 4 Subject-only accept — the issuer cannot accept; only the subject can                                                                                        
+ 5 CredentialAccept — made it valid and moved the owner reserve to the subject                                                                                 
+ 6 Verified — the credential reads back as accepted/valid on-ledger                                                                                            
+ 7 CredentialDelete — revoked it and reclaimed the reserve                                                                                                     
+
+Key concepts to remember:                                                                                                                                      
+
+ • Two-party by design — a credential is provisional until the subject accepts; acceptance is consent, and it moves the reserve to the subject ("you hold your 
+   own passport").                                                                                                                                             
+ • CredentialType is opaque — an arbitrary hex tag (1-64 bytes); issuer and verifier agree on its meaning (kyc, over21, region-US) out-of-band.                
+ • URI is immutable — the off-chain-VC pointer can't change after create; delete and re-issue to update it.                                                    
+ • PII stays off-ledger — only the attestation proof is on-chain. Pairs with DIDs (identity anchor) and gates value flows via DepositPreauth / Permissioned    
+   Domains.                                                                                                                                                    
+ • Delete = revoke — either party can remove a credential to revoke it and free the reserve.                                                                   
+
+Run xrpl-lab proof-pack when you're ready to export your work.                                                                                                 
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Credentials 101 (XLS-70): On-Ledger KYC & Age Attestations                                                                                                  │
+│ Report saved to .xrpl-lab\reports\credentials_101.md                                                                                                        │
+│ 3 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,66 @@
+[
+ {
+  "txid": "6CF781E36B387A7AE8013506C8E8ED9FB454E1E482BE58E12AAD542CF71F2531",
+  "type": "CredentialCreate",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "4C705FFF63A9BCB841E6CFCDC89B585538FEAE3548DD11F99F8B6D4A81DEF3BC",
+  "type": "CredentialAccept",
+  "account": "rECUtAPzZ9sNixCGgHKcgKFVSE2SSBJEYc",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "EB3380C145895007A016A63C5E603E074B4CDA2D8637C3BE3B881254B86A899A",
+  "type": "PermissionedDomainSet",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "A0E4042ACCB381DF9CC7F31192755FE237E111B39EF596E1576C3B9EB2375DAB",
+  "type": "OfferCreate",
+  "account": "rECUtAPzZ9sNixCGgHKcgKFVSE2SSBJEYc",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "75D23999FB4373EA121D08D49FA44866B4CB46FAEB76400CFA342D1CE5E10E35",
+  "type": "OfferCreate",
+  "account": "rsTkKyfoktxNQepu1RrtLPbY7dFKrtHVCM",
+  "result": "tecNO_PERMISSION",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "8391774FB97E30179F76563385B3354EB3D6E44478AFCCCDEF0D8938F74A8ED0",
+  "type": "PermissionedDomainSet",
+  "account": "rsTkKyfoktxNQepu1RrtLPbY7dFKrtHVCM",
+  "result": "tecNO_PERMISSION",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "AA57084BDB3DAE8A489C1BD0A51353419CCED7D84AC330A34349C71250F66679",
+  "type": "PermissionedDomainSet",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "8580769046A5AB46F29BF58DB09D16519729486769DA4DD06F43ED3A006619A1",
+  "type": "PermissionedDomainDelete",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

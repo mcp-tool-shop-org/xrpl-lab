@@ -1,0 +1,210 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ DEX Inventory Guardrails: Don't Get Lopsided                                                                                                                │
+│ Level: advanced  |  Time: ~15-20 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+You learned to place both sides of a market in DEX Market Making 101. Now the hard question: should you always quote both sides?                               
+
+If your XRP balance is low, placing a bid means locking reserve XRP you can't afford. If your LAB balance is low, placing an ask means selling tokens you don't
+have enough of to deliver.                                                                                                                                     
+
+Inventory guardrails prevent lopsided exposure. Before placing offers, you check your balances against minimum thresholds and only quote the sides you can     
+safely cover.                                                                                                                                                  
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+
+  → ensure_wallet...
+  Wallet loaded: rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Balance: 129.999340 XRP
+
+Press Enter to continue...Create an issuer wallet                                                                                                                                        
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Reusing existing issuer wallet: rNBHWQpbpdeD9pjQAwDTntyDYanAGgeiXN
+  Workshop hint: This issuer is reused across modules. Leftover trust lines from earlier currencies still lock owner reserve until balance=0 and 
+remove_trust_line runs. Run module account_hygiene for the taught cleanup loop, or re-run remove_trust_line with the leftover currency (use issuer=<peer> for 
+orphaned pre-reuse peers). If owner_count stays high after hygiene, ask your facilitator to inventory trust lines.
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 799.999860 XRP
+
+Press Enter to continue...Set trust line for LAB                                                                                                                                         
+
+
+  → set_trust_line...
+  Setting trust line: LAB from issuer rNBHWQpbpdeD...
+  Limit: 10000
+  Trust line set!
+  TXID: FE1D7721D0EEDFFF3AA5D804DC04E7BE71D8E9D45FBADB7841B724971A7F20D3
+  Explorer: https://testnet.xrpl.org/transactions/FE1D7721D0EEDFFF3AA5D804DC04E7BE71D8E9D45FBADB7841B724971A7F20D3
+
+Press Enter to continue...Issue LAB tokens                                                                                                                                               
+
+We issue a moderate amount so the guardrail has something to check.                                                                                            
+
+
+  → issue_token...
+  Issuing 500 LAB to rD6oWqdS4nnN...
+  500 LAB issued!
+  TXID: C92404515C2D4CA5FF885CEBCDB738214D521D59BFE3E11E682EFEFA30B0C402
+  Explorer: https://testnet.xrpl.org/transactions/C92404515C2D4CA5FF885CEBCDB738214D521D59BFE3E11E682EFEFA30B0C402
+
+Press Enter to continue...Snapshot baseline position                                                                                                                                     
+
+Capture your position before any strategy activity.                                                                                                            
+
+
+  → snapshot_position...
+  Account: rD6oWqdS4nnNuJhT...
+  Balance: 129.999330 XRP (129999330 drops)
+  Owner count: 11
+  Open offers: 0
+  Trust lines: 6
+
+Press Enter to continue...Check inventory thresholds                                                                                                                                     
+
+The guardrail evaluates your XRP and LAB balances against minimum thresholds. If XRP is too low, it blocks bids. If LAB is too low, it blocks asks. If both are
+healthy, both sides are allowed.                                                                                                                               
+
+
+  → check_inventory...
+  ✓ XRP spendable 126,799,330 drops >= 20,000,000 min — bid OK
+  ✓ LAB balance 1110 >= 10 min — ask OK
+
+  Sides allowed: bid, ask
+
+Press Enter to continue...Place only safe sides                                                                                                                                          
+
+Based on the inventory check, we place only the offers that are safe. If both sides are allowed, you get a two-sided quote. If only one side is safe, you get a
+one-sided quote. If neither is safe, nothing is placed.                                                                                                        
+
+
+  → place_safe_sides...
+  BID: pay 1 XRP to get 10 LAB
+  Memo: XRPLLAB|STRAT|DEXINVENTORYGUARDRAILS|OFFER_BID|20261022T013907
+  Bid placed!
+  TXID: F13F8D380EDB0C44E4C1B07353B27B8AAE897FE46FDE08FEFFD1B0F3FDA45D20
+  ASK: sell 10 LAB for 2 XRP
+  Memo: XRPLLAB|STRAT|DEXINVENTORYGUARDRAILS|OFFER_ASK|20261022T013907
+  Ask placed!
+  TXID: A0C13BA5D43FC4E591D33264F5B3FCD8C9C0980FCCA72B1B39788A116B5CE133
+  2 offer(s) placed out of 2 allowed
+
+Press Enter to continue...Verify placed offers                                                                                                                                           
+
+Confirm that only the allowed offers actually exist on the ledger.                                                                                             
+
+
+  → verify_module_offers...
+  ✓ Offer found: seq 21722394
+  ✓ Taker pays: 10/LAB/rNBHWQpbpdeD
+  ✓ Taker gets: 1000000
+  ✓ Offer seq 21722394 direction OK: bid of LAB
+  ✓ Offer found: seq 21722395
+  ✓ Taker pays: 2000000
+  ✓ Taker gets: 10/LAB/rNBHWQpbpdeD
+  ✓ Offer seq 21722395 direction OK: ask of LAB
+  All 2 strategy offers verified
+
+Press Enter to continue...Snapshot after offers                                                                                                                                          
+
+
+  → snapshot_position...
+  Account: rD6oWqdS4nnNuJhT...
+  Balance: 129.999310 XRP (129999310 drops)
+  Owner count: 13
+  Open offers: 2
+  Trust lines: 6
+
+Press Enter to continue...Verify position delta                                                                                                                                          
+
+
+  → verify_position_delta...
+  Δ Owner count increased: 11 -> 13 (+2)
+  Δ Open offers increased: +2
+
+  After after_offers: owner count +2.
+
+Press Enter to continue...Cancel all strategy offers                                                                                                                                     
+
+Clean up: cancel everything from this module.                                                                                                                  
+
+
+  → cancel_module_offers...
+  Cancelling 2 offer(s)...
+  ✓ Offer seq 21722394 cancelled
+  ✓ Offer seq 21722395 cancelled
+
+Press Enter to continue...Verify offers are gone                                                                                                                                         
+
+
+  → verify_module_offers_absent...
+  ✓ No open offers — all cleared
+
+Press Enter to continue...Snapshot final position                                                                                                                                        
+
+
+  → snapshot_position...
+  Account: rD6oWqdS4nnNuJhT...
+  Balance: 129.999290 XRP (129999290 drops)
+  Owner count: 11
+  Open offers: 0
+  Trust lines: 6
+
+Press Enter to continue...Hygiene summary                                                                                                                                                
+
+
+  → hygiene_summary...
+
+┌────────────────────────────────────────────────────────────────────── Hygiene Summary ──────────────────────────────────────────────────────────────────────┐
+│ No open offers remaining                                                                                                                                    │
+│ Owner count returned to baseline                                                                                                                            │
+│ Offers cancelled during cleanup: 2                                                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+  Last run txids: .xrpl-lab\last_run_txids.txt
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You just ran a guarded market-making cycle:                                                                                                                    
+
+ 1 Checked inventory before placing any offers                                                                                                                 
+ 2 Quoted only safe sides — no blind two-sided exposure                                                                                                        
+ 3 Verified that only allowed offers were on the ledger                                                                                                        
+ 4 Cleaned up all offers and verified owner count                                                                                                              
+
+Operator rules for inventory management:                                                                                                                       
+
+ • Never quote a side you can't cover — the guardrail prevents this                                                                                            
+ • XRP reserve matters — placing a bid locks reserve; check spendable first                                                                                    
+ • Token balance matters — selling tokens you barely have creates delivery risk                                                                                
+ • Re-check before every cycle — balances change after every trade                                                                                             
+ • One-sided is fine — a single-sided quote is safer than a reckless two-sided one                                                                             
+
+Run xrpl-lab last-run to see the audit command for this session.                                                                                               
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ DEX Inventory Guardrails: Don't Get Lopsided                                                                                                                │
+│ Report saved to .xrpl-lab\reports\dex_inventory_guardrails.md                                                                                               │
+│ 4 transactions recorded                                                                                                                                     │
+│                                                                                                                                                             │
+│ Verify this run:                                                                                                                                            │
+│   xrpl-lab audit --txids .xrpl-lab\last_run_txids.txt                                                                                                       │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

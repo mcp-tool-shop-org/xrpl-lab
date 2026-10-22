@@ -1,0 +1,127 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ Debugging Trust Lines                                                                                                                                       │
+│ Level: beginner  |  Time: ~10-15 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Most "why won't this token work?" questions come down to one thing: the trust line.                                                                            
+
+In this module you intentionally break a token transfer — then read the failure, fix it, and confirm the fix on-ledger. Breaking things on purpose is the      
+fastest way to learn what the error codes actually mean.                                                                                                       
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+You need a funded wallet. If you have one from a previous module, it will be loaded automatically.                                                             
+
+
+  → ensure_wallet...
+  Wallet loaded: rpriVzWzavKzt1r3j4zBV46yxb2LWSARtp
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+You need XRP for transaction fees.                                                                                                                             
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create an issuer                                                                                                                                               
+
+We need a second wallet to act as the token issuer. This issuer will try to send you tokens — and you will see what happens when the recipient is not ready.   
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Reusing existing issuer wallet: rnFVY7zP8uskQZcrcGQ4TVU1aJ5m1yWKkA
+  Workshop hint: This issuer is reused across modules. Leftover trust lines from earlier currencies still lock owner reserve until balance=0 and 
+remove_trust_line runs. Run module account_hygiene for the taught cleanup loop, or re-run remove_trust_line with the leftover currency (use issuer=<peer> for 
+orphaned pre-reuse peers). If owner_count stays high after hygiene, ask your facilitator to inventory trust lines.
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+The issuer needs XRP to pay fees.                                                                                                                              
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Attempt to receive tokens WITHOUT a trust line                                                                                                                 
+
+This is the key moment. The issuer will try to send you 100 DBG tokens. But you have not set a trust line for DBG — so the ledger has no permission to deliver 
+them.                                                                                                                                                          
+
+Watch for the error code. On the XRPL, this is tecPATH_DRY: the payment has no valid delivery path because the destination has no trust line for this currency.
+
+
+  → issue_token_expect_fail...
+  Attempting to issue 100 DBG (expecting failure)...
+  Expected failure: tecPATH_DRY
+  Error:  No trust line for DBG/rnFVY7zP8usk... — recipient must set a trust line first
+
+  Category: claimed
+  Meaning: No liquidity path for this issued currency payment
+  Action: Check trust lines and order book liquidity
+
+Press Enter to continue...Fix it — set a trust line and try again                                                                                                                        
+
+Now set a trust line for DBG and have the issuer resend. This time it will succeed because the ledger knows you are willing to hold DBG from this issuer.      
+
+
+  → set_trust_line...
+  Setting trust line: DBG from issuer rnFVY7zP8usk...
+  Limit: 1000
+  Trust line set!
+  TXID: 5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083
+
+Press Enter to continue...Issue tokens (this time it works)                                                                                                                              
+
+With the trust line in place, the same payment that failed before will now succeed.                                                                            
+
+
+  → issue_token...
+  Issuing 100 DBG to rpriVzWzavKz...
+  100 DBG issued!
+  TXID: 55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D
+
+Press Enter to continue...Verify the trust line                                                                                                                                          
+
+Confirm the trust line shows the correct currency, issuer, limit, and balance.                                                                                 
+
+
+  → verify_trust_line...
+  ✓ Trust line found: DBG
+  ✓ Issuer: rnFVY7zP8uskQZcrcGQ4TVU1aJ5m1yWKkA
+  ✓ Limit: 1000
+  ✓ Balance: 100
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You just debugged the most common trust line failure:                                                                                                          
+
+ 1 No trust line → tecPATH_DRY — the ledger refuses to deliver tokens you did not agree to receive                                                             
+ 2 Set trust line → you opted in to holding DBG from this issuer                                                                                               
+ 3 Reissue → same payment, now succeeds                                                                                                                        
+ 4 Verified → the trust line and balance are correct on-ledger                                                                                                 
+
+When a token transfer fails, check the trust line first. The error code tells you exactly what is missing, and the fix is always the same: set the trust line, 
+then retry.                                                                                                                                                    
+
+Common trust line failures you'll encounter in the wild:                                                                                                       
+
+ • tecPATH_DRY — no delivery path (missing trust line or no liquidity)                                                                                         
+ • tecNO_LINE — destination has no trust line for this currency                                                                                                
+ • tecNO_DST — destination account does not exist                                                                                                              
+ • tecUNFUNDED_PAYMENT — sender does not have enough of the token                                                                                              
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ Debugging Trust Lines                                                                                                                                       │
+│ Report saved to .xrpl-lab\reports\trust_line_failures.md                                                                                                    │
+│ 2 transactions recorded                                                                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

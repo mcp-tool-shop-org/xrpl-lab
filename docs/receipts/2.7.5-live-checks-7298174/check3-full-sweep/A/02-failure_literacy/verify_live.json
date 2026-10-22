@@ -1,0 +1,63 @@
+{
+  "valid": true,
+  "file": "proof_pack.json",
+  "version": "2.7.5",
+  "address": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "network": "testnet",
+  "modules_completed": 2,
+  "total_transactions": 3,
+  "sha256": "fd1a5869ea21f82a0dd0969ffb24fdee4a6ea0207d9a7ce38963e5150fbe293b",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": true,
+    "no_onledger_txids": false,
+    "passed": 3,
+    "failed": 0,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "165C3AD85D4ADC87A950939DF6D74A581BC6BE769B183886FFAFA82F297E6C11",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB"
+        ],
+        "validated": null
+      },
+      {
+        "txid": "A325FCA3D03FB9A1C67439675AFC26A47BFCB4B0B57B31ECB0AFEB93C43BCAAB",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Expected rejection, validated on-ledger: tecUNFUNDED_PAYMENT.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tecUNFUNDED_PAYMENT"
+        ],
+        "validated": true
+      },
+      {
+        "txid": "F30F9180840266239E67653932C6C15295773D200290BB5CD4B2D88397C323C5",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB"
+        ],
+        "validated": null
+      }
+    ]
+  },
+  "live_passed": true
+}

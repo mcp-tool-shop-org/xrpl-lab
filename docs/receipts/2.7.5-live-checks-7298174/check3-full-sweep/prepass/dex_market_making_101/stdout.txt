@@ -1,0 +1,235 @@
+
+┌────────────────────────────────────────────────────────────────────────── Module ───────────────────────────────────────────────────────────────────────────┐
+│ DEX Market Making 101: Earning Spread on the Order Book                                                                                                     │
+│ Level: advanced  |  Time: ~20-30 min                                                                                                                        │
+│ Produces: txid, report                                                                                                                                      │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+You've already built and torn down DEX offers in DEX Literacy. Now you use them with intent: to capture spread.                                                
+
+Market making means placing a buy (bid) and a sell (ask) on the same pair, with a gap between them. If both fill, you profit the gap. If only one fills, you're
+exposed to price risk — that's inventory risk. If the price moves through your order, you bought high or sold low — that's adverse selection.                  
+
+This module is not financial advice. It's a controlled exercise in placing, verifying, and cleaning up orders with a strategic frame. Everything runs on the   
+testnet — no real value at stake.                                                                                                                              
+
+Press Enter to continue...Ensure your wallet is ready                                                                                                                                    
+
+
+  → ensure_wallet...
+  Wallet loaded: rpriVzWzavKzt1r3j4zBV46yxb2LWSARtp
+
+Press Enter to continue...Fund your wallet                                                                                                                                               
+
+
+  → ensure_funded...
+  Requesting funds from testnet faucet...
+  Funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Create the issuer wallet                                                                                                                                       
+
+We need an issuer to provide LAB tokens for the sell side.                                                                                                     
+
+Issuer reuse: this step loads .xrpl-lab/issuer_wallet.json when present and reuses that issuer — it does not mint a fresh wallet on resume or re-run. Minting a
+new issuer would orphan trust lines (and their owner reserve) against the previous address. Leftover lines from earlier currencies still lock reserve until    
+balance is 0 and you remove them; run Account Hygiene (account_hygiene) for the taught cleanup loop.                                                           
+
+
+  → create_issuer_wallet...
+  Reusing existing issuer wallet: rnFVY7zP8uskQZcrcGQ4TVU1aJ5m1yWKkA
+  Workshop hint: This issuer is reused across modules. Leftover trust lines from earlier currencies still lock owner reserve until balance=0 and 
+remove_trust_line runs. Run module account_hygiene for the taught cleanup loop, or re-run remove_trust_line with the leftover currency (use issuer=<peer> for 
+orphaned pre-reuse peers). If owner_count stays high after hygiene, ask your facilitator to inventory trust lines.
+
+Press Enter to continue...Fund the issuer                                                                                                                                                
+
+
+  → fund_issuer...
+  Funding issuer wallet from faucet...
+  Issuer funded! Balance: 100.000000 XRP
+
+Press Enter to continue...Set trust line for LAB                                                                                                                                         
+
+You need a LAB trust line to trade LAB/XRP. The issuer must exist before the trust line can reference it.                                                      
+
+
+  → set_trust_line...
+  Setting trust line: LAB from issuer rnFVY7zP8usk...
+  Limit: 10000
+  Trust line set!
+  TXID: 5368EF0073FDDE4BD60945E569662B959A5A1078A87B4F1AA437159BDF8F5083
+
+Press Enter to continue...Issue LAB tokens to your wallet                                                                                                                                
+
+You need LAB in hand to sell on the order book.                                                                                                                
+
+
+  → issue_token...
+  Issuing 500 LAB to rpriVzWzavKz...
+  500 LAB issued!
+  TXID: 55FADCFAC7712D21197F56B7F46F3A970CD3F182DB8966D08F7665706A4CD94D
+
+Press Enter to continue...Snapshot baseline position                                                                                                                                     
+
+Capture your full position before placing any orders. This is your clean starting point — we'll compare back to it at the end.                                 
+
+
+  → snapshot_position...
+  Account: rpriVzWzavKzt1r3...
+  Balance: 99.999988 XRP (99999988 drops)
+  Owner count: 1
+  Open offers: 0
+  Trust lines: 1
+
+Press Enter to continue...Place the bid (buy LAB with XRP)                                                                                                                               
+
+Your bid offers to buy LAB by paying XRP. You're saying: "I'll pay 1 XRP to get 10 LAB."                                                                       
+
+This is the lower side of your spread — you want to buy cheap.                                                                                                 
+
+
+  → strategy_offer_bid...
+  BID: pay 1 XRP to get 10 LAB
+  Memo: XRPLLAB|STRAT|DEXMARKETMAKING101|OFFER_BID|20261022T010809
+  Bid placed!
+  TXID: 8A1024E6F81623732B4B87DF96A9867946A33D65D425DC8EAC3F7CE6D01BA9D5
+  Offer sequence: 100
+
+Press Enter to continue...Place the ask (sell LAB for XRP)                                                                                                                               
+
+Your ask offers to sell LAB to get XRP. You're saying: "I'll give 10 LAB if you pay me 2 XRP."                                                                 
+
+This is the upper side of your spread — you want to sell dear. The spread between bid (1 XRP) and ask (2 XRP) is your profit if both fill.                     
+
+
+  → strategy_offer_ask...
+  ASK: sell 10 LAB for 2 XRP
+  Memo: XRPLLAB|STRAT|DEXMARKETMAKING101|OFFER_ASK|20261022T010809
+  Ask placed!
+  TXID: FDC71A314DBC370C004773B94C5E18F497B69B585171F86B679A9AE4DCCD7085
+  Offer sequence: 101
+
+Press Enter to continue...Verify both offers are active                                                                                                                                  
+
+Check that both your bid and ask appear in your account's open offers. Each offer is a live commitment on the ledger.                                          
+
+
+  → verify_module_offers...
+  ✓ Offer found: seq 100
+  ✓ Taker pays: 10/LAB/rnFVY7zP8usk
+  ✓ Taker gets: 1
+  ✓ Offer seq 100 direction OK: bid of LAB
+  ✓ Offer found: seq 101
+  ✓ Taker pays: 2
+  ✓ Taker gets: 10/LAB/rnFVY7zP8usk
+  ✓ Offer seq 101 direction OK: ask of LAB
+  All 2 strategy offers verified
+
+Press Enter to continue...Snapshot after placing offers                                                                                                                                  
+
+Two new owned objects: one bid, one ask. Your owner count should have increased by 2. Each locks 0.2 XRP in reserve.                                           
+
+
+  → snapshot_position...
+  Account: rpriVzWzavKzt1r3...
+  Balance: 99.999964 XRP (99999964 drops)
+  Owner count: 3
+  Open offers: 2
+  Trust lines: 1
+
+Press Enter to continue...Compare baseline to after-offers                                                                                                                               
+
+See the reserve impact of your open orders. Owner count should be +2, and your XRP spendable decreased by the reserve lock.                                    
+
+
+  → verify_position_delta...
+  Δ Owner count increased: 1 -> 3 (+2)
+  Δ Open offers increased: +2
+
+  After after_offers: owner count +2.
+
+Press Enter to continue...Cancel both offers                                                                                                                                             
+
+Clean up. Cancel both the bid and ask. In real market making, you'd leave them live and manage fills. Here, we're practicing the full lifecycle: place ->      
+verify -> cancel -> verify.                                                                                                                                    
+
+
+  → cancel_module_offers...
+  Cancelling 2 offer(s)...
+  ✓ Offer seq 100 cancelled
+  ✓ Offer seq 101 cancelled
+
+Press Enter to continue...Verify offers are gone                                                                                                                                         
+
+Confirm both offers are absent from your active offer list.                                                                                                    
+
+
+  → verify_module_offers_absent...
+  ✓ No open offers — all cleared
+
+Press Enter to continue...Snapshot final position                                                                                                                                        
+
+
+  → snapshot_position...
+  Account: rpriVzWzavKzt1r3...
+  Balance: 99.999940 XRP (99999940 drops)
+  Owner count: 1
+  Open offers: 0
+  Trust lines: 1
+
+Press Enter to continue...Verify cleanup                                                                                                                                                 
+
+Compare baseline to final. Owner count should be back to baseline. Balance will be slightly lower from transaction fees — that's the cost of doing business    
+on-ledger.                                                                                                                                                     
+
+
+  → verify_position_delta...
+  • Owner count unchanged: 1
+  • Open offers unchanged: 0
+
+  After final: no significant changes.
+
+Press Enter to continue...Hygiene summary                                                                                                                                                
+
+Final check: no leftover offers, no unexpected owner count growth.                                                                                             
+
+
+  → hygiene_summary...
+
+┌────────────────────────────────────────────────────────────────────── Hygiene Summary ──────────────────────────────────────────────────────────────────────┐
+│ No open offers remaining                                                                                                                                    │
+│ Owner count returned to baseline                                                                                                                            │
+│ Offers cancelled during cleanup: 2                                                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+  Last run txids: .xrpl-lab\last_run_txids.txt
+
+Press Enter to continue...What you proved                                                                                                                                                
+
+You just executed a complete market-making lifecycle:                                                                                                          
+
+ 1 Captured baseline — clean starting position                                                                                                                 
+ 2 Placed a bid and ask — symmetric orders with a spread                                                                                                       
+ 3 Verified active — both offers live on the order book                                                                                                        
+ 4 Measured reserve impact — owner count +2, reserve locked                                                                                                    
+ 5 Cancelled both — cleaned up the orders                                                                                                                      
+ 6 Verified cleanup — owner count back to baseline                                                                                                             
+
+Operator checklist for real market making:                                                                                                                     
+
+ • Spread = profit margin: wider spread = safer but less likely to fill                                                                                        
+ • Inventory risk: if only one side fills, you're exposed to direction                                                                                         
+ • Adverse selection: informed traders fill your stale orders                                                                                                  
+ • Reserve cost: every open offer locks 0.2 XRP — dozens of offers locks significant reserve                                                                   
+ • Monitor and cancel stale orders: never leave orders unattended                                                                                              
+
+Run xrpl-lab last-run to see the audit command for this session.                                                                                               
+
+
+┌───────────────────────────────────────────────────────────────────────── Complete ──────────────────────────────────────────────────────────────────────────┐
+│ DEX Market Making 101: Earning Spread on the Order Book                                                                                                     │
+│ Report saved to .xrpl-lab\reports\dex_market_making_101.md                                                                                                  │
+│ 4 transactions recorded                                                                                                                                     │
+│                                                                                                                                                             │
+│ Verify this run:                                                                                                                                            │
+│   xrpl-lab audit --txids .xrpl-lab\last_run_txids.txt                                                                                                       │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
