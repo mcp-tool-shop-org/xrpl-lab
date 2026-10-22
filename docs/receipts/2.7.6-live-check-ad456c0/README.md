@@ -64,8 +64,10 @@ changes no behaviour.
      It returns "Support bundle is well-formed."
    - The note says "only its integrity hash is checked". The audit-pack note is accurate.
    - `verify-artifact --help` has the same wording ("embedded integrity hash"), from before this release.
+   - **Fixed after this run in `e9a821f`** (strings only, Argon round 3): the note now reads "only its structure is
+     checked (a support bundle has no integrity hash)", and the `--help` line says the same.
 2. **The certificate's `--live` note still names `proof verify`.** This is Argon's NB-1, fixed in `e53b72f` after
-   this run.
+   this run (Argon round 2, no findings).
 3. **A stale support-bundle hint after a `--force` recovery** (minor, outside 2.7.6).
    - The pass-force home's support bundle has a "Last error" doctor check: "Last failure in 'clawback_101': tx
      failed".
