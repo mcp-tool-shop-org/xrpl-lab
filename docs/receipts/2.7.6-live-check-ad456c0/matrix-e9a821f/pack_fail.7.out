@@ -1,0 +1,14 @@
+
+  ✅ PASS — Proof pack integrity verified.
+
+  ⚠ UNVERIFIED — one or more completed modules failed their on-ledger verification. The integrity check still passes (the file is intact), but not every lesson
+was proven. Re-run the affected module(s) for a fully-verified pack.
+
+  File:         pack_fail.json
+  Version:      2.7.6
+  Address:      rpWVB8PAQLxSLb6vadaJU6q3LjCD4Eeo3r
+  Network:      testnet
+  Modules:      1
+  Transactions: 4
+  SHA-256:      5e4fddcf4c07724d76721d9fc7b79351a02c1d420ea27dd370fc8c31c9de6e49
+
