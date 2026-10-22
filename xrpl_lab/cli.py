@@ -139,8 +139,9 @@ def main():
         xrpl-lab start           Interactive guided tour
         xrpl-lab list            Show all modules
         xrpl-lab run MODULE_ID   Run a specific module
-        xrpl-lab proof verify    Verify a proof pack
-        xrpl-lab cert-verify     Verify a certificate
+        xrpl-lab verify-artifact FILE [--live]
+                                 Verify a proof pack or certificate
+                                 (--live: re-check its txids on the ledger)
         xrpl-lab doctor          Check your setup
         xrpl-lab serve           Start the web dashboard
     """

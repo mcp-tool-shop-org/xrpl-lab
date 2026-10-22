@@ -10,6 +10,9 @@
   It now passes `--live` through, with the same output and exit codes as
   the commands it replaces. For an audit pack or a support bundle, which
   have no on-ledger check, `--live` says so and changes nothing.
+- **Hints no longer send learners to deprecated commands.** The main
+  `--help`, the "wrong kind of file" messages and the certificate's `--live`
+  note named `proof verify` or `cert-verify`; they now name `verify-artifact`.
 
 ## 2.7.5 — 2026-10-21
 
