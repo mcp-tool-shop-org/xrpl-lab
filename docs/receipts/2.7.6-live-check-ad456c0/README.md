@@ -77,6 +77,25 @@ changes no behaviour.
    for a facilitator handoff. Here it is redacted to `<scratch>`, and `redact_tree.py` was widened to catch the `~/`
    form.
 
+## Rerun on `e9a821f`, the head that ships
+
+The same five artifacts were run through the same matrix on **`e9a821f`**, with the editable install reinstalled
+(`xrpl-lab, version 2.7.6`). The output is in `matrix-e9a821f/`; the artifacts themselves are the ones in `matrix/`.
+
+- **Exits and network calls:** all 32 calls give the same exit codes and network-call counts as on `ad456c0`. Calls
+  with `--live` on the passing pack make 5 lookups. Every call without `--live` makes **0**.
+- **JSON:** `verify-artifact` still matches `proof verify` / `cert-verify` apart from `artifact_kind`, both with and
+  without `--live`.
+- **Changes from `ad456c0`:** only the two expected strings, compared field by field and line by line.
+  - The certificate `--live` note (`verify-artifact` and `cert-verify`) now reads "…run 'verify-artifact
+    <proof_pack.json> --live' instead…". It was 'proof verify …'.
+  - The support-bundle `--live` note (text and `live.skipped`) now reads "On-ledger verification doesn't apply to
+    support bundle; only its structure is checked (a support bundle has no integrity hash)."
+  - All other outputs are byte-identical, including the audit-pack note, both packs, and every call without
+    `--live`.
+- **Help text:** on `e9a821f`, `verify-artifact --help` opens with "Verify any XRPL Lab JSON artifact: its embedded
+  integrity hash, or a support bundle's structure (it carries no hash)."
+
 ## The harness has switched
 
 `course_sweep.py` and `sweep.sh` now call `verify-artifact <pack> --live --json`. They fall back to
