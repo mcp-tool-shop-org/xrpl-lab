@@ -1,0 +1,10 @@
+[
+ {
+  "txid": "222036E80BE903A403E01FC89E92BB8786D154EBAF2D4088F8987E07472FEC59",
+  "type": "EscrowCreate",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

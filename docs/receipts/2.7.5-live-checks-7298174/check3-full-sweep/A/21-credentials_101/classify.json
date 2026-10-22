@@ -1,0 +1,50 @@
+[
+ {
+  "txid": "CE186A1A5E6A50332EA5B75A7ABB50584FC980155AF52BFA40BBEDC655E76823",
+  "type": "CredentialCreate",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tecNO_TARGET",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "065582172C62830C821CE7E6DBB327B313DBE91FD510E00767F2DDAE85AD2F0B",
+  "type": "CredentialCreate",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "679613B0D4FF711548C1D507D1A6CDB97CE4575A818B2F59D57C86FB4F9B295A",
+  "type": "CredentialCreate",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tecDUPLICATE",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "3756D8F7A8D0BCFD1D7F0A3EF1DA5EB1F7A1B2E95DBD153E3FA3A07C1D93C94A",
+  "type": "CredentialAccept",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tecNO_ENTRY",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "30423A6828EAC6380B94625426CF054A91F69606783123A22985192FB698BA66",
+  "type": "CredentialAccept",
+  "account": "rJuvpY52wNYP5K8s7c8bBRnoddXKxmxQZN",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "014A814334EEE377412A9BB607F8D7BFB4BCA99F6486CE4013969EECCD56662B",
+  "type": "CredentialDelete",
+  "account": "rJuvpY52wNYP5K8s7c8bBRnoddXKxmxQZN",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

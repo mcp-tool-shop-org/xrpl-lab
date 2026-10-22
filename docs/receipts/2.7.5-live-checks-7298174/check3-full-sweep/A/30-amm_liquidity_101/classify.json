@@ -1,0 +1,51 @@
+[
+ {
+  "txid": "214BD1771B9DE6AFC63B97E39A45CA36F7F77093A85917C4381C1C51D0B5E3E9",
+  "type": "AccountSet",
+  "account": "rNBHWQpbpdeD9pjQAwDTntyDYanAGgeiXN",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success",
+  "SetFlag": "asfDefaultRipple"
+ },
+ {
+  "txid": "3B31F48AC3AE4213FF5C7E54AAE90E2BEA9EBFC2322783BBAC52ABE68725695F",
+  "type": "TrustSet",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "D2070113E73CA96D0F64A8813500A28E3276D0D147C3EDF4D139954B2FD9C3BF",
+  "type": "Payment",
+  "account": "rNBHWQpbpdeD9pjQAwDTntyDYanAGgeiXN",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "8C8CD95F3753CCB9C7E7B4D7CE789A04E087088312FE84ADBA68A659CCBF3201",
+  "type": "AMMCreate",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "D692386272B3EFA2910011E0E70ABB7D271AC0405D73D58DF6A6ADADAEF9964C",
+  "type": "AMMDeposit",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "FE8B7E5191D1E846DCDF7A69410C75A2B2B7861966977B04AC107B32B8C7F816",
+  "type": "AMMWithdraw",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

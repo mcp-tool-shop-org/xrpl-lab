@@ -1,0 +1,4 @@
+cmd: xrpl-lab run  custodial_crediting_101  (Enter fed to every prompt)
+xrpl_lab_exit_code: 0
+wall_seconds: 41
+module_interrupted_lines: 0

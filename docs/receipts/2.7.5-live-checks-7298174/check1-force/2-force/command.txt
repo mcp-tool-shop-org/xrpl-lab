@@ -1,0 +1,2 @@
+cmd: yes "" | xrpl-lab run --force clawback_101   (code 7298174; normal faucet)
+xrpl_lab_exit_code: 0

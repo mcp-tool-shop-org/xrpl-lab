@@ -1,0 +1,18 @@
+[
+ {
+  "txid": "A325FCA3D03FB9A1C67439675AFC26A47BFCB4B0B57B31ECB0AFEB93C43BCAAB",
+  "type": "Payment",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tecUNFUNDED_PAYMENT",
+  "validated": true,
+  "class": "expected_validated"
+ },
+ {
+  "txid": "F30F9180840266239E67653932C6C15295773D200290BB5CD4B2D88397C323C5",
+  "type": "Payment",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]

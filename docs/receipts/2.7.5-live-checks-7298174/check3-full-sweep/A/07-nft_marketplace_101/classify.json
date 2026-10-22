@@ -1,0 +1,50 @@
+[
+ {
+  "txid": "9BF9CEABD4A1D9D5DB694093C03C4960428DFEBE2049C3EB41DE241223B97F00",
+  "type": "NFTokenMint",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "180FDF5B1FF20A2F02B1BAB80403DDAD0EED4D8DA0164C929CB1719CF2E0A591",
+  "type": "NFTokenCreateOffer",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "AA6837DD1A9F5A9CDFCDF5236EDF1DBBD2CCEFBA727D08E2C5AD06A5BDF493D3",
+  "type": "NFTokenAcceptOffer",
+  "account": "r9K6q7J12gjZjoz2hX2mMpJWhxeMgEPnzj",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "77482CDE5E873D5D6BF30721EAA403D3563FA04EEDF07AE39834AB191B42CFD3",
+  "type": "NFTokenCreateOffer",
+  "account": "r9K6q7J12gjZjoz2hX2mMpJWhxeMgEPnzj",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "543E8EE9C96C1F170C18AF8933A0BC74AFA745F00312AC659E256F3901A8A3DC",
+  "type": "NFTokenAcceptOffer",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ },
+ {
+  "txid": "73FAB64F58248DB4C52568700860A4E96A13C596B0AEF31053E99F9FFC95B99F",
+  "type": "NFTokenAcceptOffer",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tecOBJECT_NOT_FOUND",
+  "validated": true,
+  "class": "expected_validated"
+ }
+]

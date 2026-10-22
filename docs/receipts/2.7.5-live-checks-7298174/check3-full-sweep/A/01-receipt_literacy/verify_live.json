@@ -1,0 +1,38 @@
+{
+  "valid": true,
+  "file": "proof_pack.json",
+  "version": "2.7.5",
+  "address": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 1,
+  "sha256": "995d380bcf46012c30a20d7b8573f7a757ea9e6cad11e6a913e29bf695184506",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": true,
+    "no_onledger_txids": false,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "165C3AD85D4ADC87A950939DF6D74A581BC6BE769B183886FFAFA82F297E6C11",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB"
+        ],
+        "validated": null
+      }
+    ]
+  },
+  "live_passed": true
+}

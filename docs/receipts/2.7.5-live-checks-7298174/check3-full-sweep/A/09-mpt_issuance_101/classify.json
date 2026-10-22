@@ -1,0 +1,10 @@
+[
+ {
+  "txid": "E54054229610DF1DD7B3CB6882C5C2A67D8C51F0D77E452A4855397927701029",
+  "type": "MPTokenIssuanceCreate",
+  "account": "rD6oWqdS4nnNuJhTTgXJsNSeG2LQPFG6NB",
+  "result": "tesSUCCESS",
+  "validated": true,
+  "class": "success"
+ }
+]
