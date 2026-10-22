@@ -540,6 +540,62 @@ def test_verify_artifact_malformed_support_bundle_is_exit_1(lab):
     assert d["valid"] is False
 
 
+# ── verify-artifact --live (2.7.6, #34) ───────────────────────────────
+# The deprecated commands point learners here, so it must carry --live; it
+# used to drop it, and following the notice silently lost the on-ledger check.
+
+
+def test_verify_artifact_live_matches_proof_verify_live(lab, monkeypatch):
+    _ledger(monkeypatch, {
+        GOOD_TX: _ok_tx(GOOD_TX),
+        FAIL_TX: TxInfo(txid=FAIL_TX, tx_type="Payment", account="rLEARNER",
+                        result_code="tecPATH_DRY", validated=True),
+    })
+    for txs, code in (([_tx(GOOD_TX)], 0), ([_tx(GOOD_TX), _tx(FAIL_TX)], 1)):
+        f = _pack(lab.work / "p.json", txs=txs)
+        new = invoke(["verify-artifact", str(f), "--live", "--json"])
+        old = invoke(["proof", "verify", str(f), "--live", "--json"])
+        assert new.exit_code == old.exit_code == code
+        a, b = json.loads(new.stdout), json.loads(old.stdout)
+        assert a.pop("artifact_kind") == "proof_pack"
+        assert a == b
+        text = invoke(["verify-artifact", str(f), "--live"])
+        verdict = "PASS" if code == 0 else "FAIL"
+        assert f"On-ledger verdict: {verdict}" in text.stdout
+
+
+def test_verify_artifact_without_live_never_touches_the_ledger(lab, monkeypatch):
+    def _no(net):
+        raise AssertionError("no ledger read without --live")
+
+    monkeypatch.setattr("xrpl_lab.reporting._default_transport_factory", _no)
+    f = _pack(lab.work / "p.json", txs=[_tx(GOOD_TX)])
+    d = json.loads(invoke(["verify-artifact", str(f), "--json"]).stdout)
+    assert "live" not in d and d["valid"] is True
+
+
+def test_verify_artifact_live_on_a_certificate_reports_nothing_to_anchor(lab):
+    f = _cert(lab.work / "c.json")
+    text = invoke(["verify-artifact", str(f), "--live"])
+    assert text.exit_code == 0
+    assert "Certificates record no individual txids" in text.stdout
+
+
+@pytest.mark.parametrize(("body", "label"), [
+    ({"schema": "xrpl-lab-support-bundle-v1"}, "support bundle"),
+    ({"tool": "xrpl-lab", "verdicts": []}, "audit pack"),
+])
+def test_verify_artifact_live_says_it_does_not_apply(lab, body, label):
+    f = write_json(lab.work / "x.json", body)
+    text = invoke(["verify-artifact", str(f), "--live"])
+    assert f"On-ledger verification doesn't apply to {label}" in text.stdout
+    d = json.loads(invoke(["verify-artifact", str(f), "--live", "--json"]).stdout)
+    assert d["live"] == {"skipped": (
+        f"On-ledger verification doesn't apply to {label}; "
+        "only its integrity hash is checked."
+    )}
+
+
 # ── support-bundle ────────────────────────────────────────────────────
 
 

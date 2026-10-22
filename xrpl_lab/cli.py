@@ -1410,7 +1410,17 @@ def _detect_artifact_kind(artifact: object) -> str | None:
 @main.command("verify-artifact")
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
-def verify_artifact(file: str, json_output: bool):
+@click.option(
+    "--live", "live", is_flag=True,
+    help=(
+        "Ledger-anchored verification for a proof pack (and a certificate): "
+        "re-fetch every claimed txid from the public XRPL and confirm it is "
+        "there as claimed. The offline SHA-256 check ALWAYS runs; --live adds "
+        "the on-ledger trust layer. Audit packs and support bundles have no "
+        "on-ledger check, so --live says so and changes nothing."
+    ),
+)
+def verify_artifact(file: str, json_output: bool, live: bool):
     """Verify any XRPL Lab JSON artifact's embedded integrity hash.
 
     Auto-detects the artifact kind from its own JSON markers, then runs the
@@ -1467,12 +1477,23 @@ def verify_artifact(file: str, json_output: bool):
         console.print(f"\n  [bold]Artifact:[/]    {_ARTIFACT_KIND_LABELS[kind]}")
 
     # Dispatch to the EXISTING per-kind verify cores — no hashing logic here.
+    # 2.7.6 (#34): --live passes through, as on the deprecated commands that
+    # point here; it used to be dropped, so following the deprecation notice
+    # silently lost the on-ledger check.
     extras = {"artifact_kind": kind}
+    if live and kind in ("audit_pack", "support_bundle"):
+        note = (
+            f"On-ledger verification doesn't apply to {_ARTIFACT_KIND_LABELS[kind].lower()}; "
+            "only its integrity hash is checked."
+        )
+        extras["live"] = {"skipped": note}
+        if not json_output:
+            console.print(f"  [yellow]{note}[/]")
     if kind == "proof_pack":
-        _run_proof_pack_verify(path, artifact, json_output, live=False,
+        _run_proof_pack_verify(path, artifact, json_output, live=live,
                                json_extras=extras)
     elif kind == "certificate":
-        _run_certificate_verify(path, artifact, json_output, live=False,
+        _run_certificate_verify(path, artifact, json_output, live=live,
                                 json_extras=extras)
     elif kind == "audit_pack":
         _run_audit_pack_verify(path, artifact, json_output, json_extras=extras)
