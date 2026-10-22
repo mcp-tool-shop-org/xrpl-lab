@@ -816,7 +816,18 @@ async def _verify_one_tx_live(
     validated_claim = claim.get("validated")
     # Who may have signed it: the learner, plus the module's recorded helpers.
     allowed = {a for a in [expected_account, *claim.get("accounts", [])] if a}
-    rejection = claim.get("success") is False and claim.get("expected") is True
+    expected_rejection = claim.get("success") is False and claim.get("expected") is True
+    # 2.7.5 (#32): a failure from an earlier run of a module whose latest run
+    # passed is history, not a claim the module failed. It is checked like an
+    # expected rejection: it must be what the pack says, if it is on a ledger.
+    superseded = (
+        claim.get("success") is False
+        and not expected_rejection
+        and claim.get("superseded") is True
+    )
+    rejection = expected_rejection or superseded
+    what = "Expected rejection" if expected_rejection else "Earlier run's failure"
+    claimed = "an expected rejection" if expected_rejection else "an earlier run's failure"
     # 2.7.1: an expected rejection the pack says never reached a ledger (a
     # tem, a tef) has nothing to anchor. Since 2.6.2 the pack records these,
     # and live verification failed every honest rejection lesson's pack.
@@ -825,7 +836,12 @@ async def _verify_one_tx_live(
     if rejection and (validated_claim is False or txid == "failed"):
         return TxLiveResult(
             txid=txid, network=network, status=LIVE_SKIPPED,
-            reason="Expected rejection that never reaches a ledger (by design).",
+            reason=(
+                "Expected rejection that never reaches a ledger (by design)."
+                if expected_rejection else
+                "An earlier run's step that never reached a ledger; this "
+                "module's latest run passed."
+            ),
             validated=False,
         )
     # 2.7.4 (#28 item 6): any other "failed" placeholder is a step that failed
@@ -856,7 +872,7 @@ async def _verify_one_tx_live(
         if tx.validated and tx.result_code.startswith("tec"):
             return TxLiveResult(
                 txid=txid, network=network, status=LIVE_PASS,
-                reason=f"Expected rejection, validated on-ledger: {tx.result_code}.",
+                reason=f"{what}, validated on-ledger: {tx.result_code}.",
                 checks=["Exists on-ledger", "Validated: yes", f"Result: {tx.result_code}"],
                 validated=True,
             )
@@ -864,13 +880,13 @@ async def _verify_one_tx_live(
             # A pack from before 2.7.1 doesn't say; a tem/tef is never found.
             return TxLiveResult(
                 txid=txid, network=network, status=LIVE_SKIPPED,
-                reason="Expected rejection not on the ledger (a tem or tef never is).",
+                reason=f"{what} not on the ledger (a tem or tef never is).",
                 validated=False,
             )
         return TxLiveResult(
             txid=txid, network=network, status=LIVE_FAIL,
             reason=(
-                "The pack claims an expected rejection validated on-ledger, but "
+                f"The pack claims {claimed} validated on-ledger, but "
                 f"the ledger shows {tx.result_code or 'no such transaction'}"
                 f"{'' if tx.validated else ' (not validated)'}."
             ),
@@ -983,6 +999,17 @@ async def _verify_one_tx_live(
     )
 
 
+def _parse_iso(value) -> datetime | None:
+    """A pack timestamp as an aware datetime, or None if it isn't one."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        when = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return when if when.tzinfo else when.replace(tzinfo=UTC)
+
+
 def _iter_pack_tx_claims(pack: dict) -> list[dict]:
     """Extract per-tx claims (txid, network, account, tx_type) from a pack.
 
@@ -1003,7 +1030,7 @@ def _iter_pack_tx_claims(pack: dict) -> list[dict]:
     top_network = pack.get("network", "") or ""
 
     claims: list[dict] = []
-    seen: set[str] = set()
+    seen: set = set()
     # 2.7.1: the accounts each module's runs bound (learner and helpers). A tx
     # is accepted from any of them; a module without them (an older pack, or
     # records from before 2.7.1) keeps the learner-only check.
@@ -1014,15 +1041,37 @@ def _iter_pack_tx_claims(pack: dict) -> list[dict]:
             if isinstance(accounts, list):
                 module_accounts[str(mid)] = [str(a) for a in accounts]
 
+    # 2.7.5 (#32): when each module's latest run finished, and whether it
+    # passed. A failed record older than a passing latest run is superseded.
+    latest_pass: dict[str, datetime] = {}
+    for cm in pack.get("completed_modules", []) or []:
+        if isinstance(cm, dict) and cm.get("verified") is True:
+            when = _parse_iso(cm.get("completed_at"))
+            if when is not None:
+                latest_pass[str(cm.get("module_id", ""))] = when
+
     transactions = pack.get("transactions")
     if isinstance(transactions, list) and transactions:
         for tx in transactions:
             if not isinstance(tx, dict):
                 continue
             txid = tx.get("txid", "") or ""
-            if not txid or txid in seen:
+            module_id = tx.get("module_id", "") or ""
+            passed_at = latest_pass.get(module_id)
+            when = _parse_iso(tx.get("timestamp"))
+            superseded = (
+                tx.get("success") is False
+                and not tx.get("expected", False)
+                and passed_at is not None
+                and when is not None
+                and when < passed_at
+            )
+            # The "failed" placeholder carries no hash, so it is told apart by
+            # module and status, not collapsed into one claim for the pack.
+            key = (txid, module_id, superseded) if txid == "failed" else txid
+            if not txid or key in seen:
                 continue
-            seen.add(txid)
+            seen.add(key)
             claims.append({
                 "txid": txid,
                 "network": tx.get("network", "") or top_network,
@@ -1035,7 +1084,8 @@ def _iter_pack_tx_claims(pack: dict) -> list[dict]:
                 "success": tx.get("success", True),
                 "expected": tx.get("expected", False),
                 "validated": tx.get("validated"),
-                "accounts": module_accounts.get(tx.get("module_id", ""), []),
+                "accounts": module_accounts.get(module_id, []),
+                "superseded": superseded,
             })
         return claims
 
@@ -1150,7 +1200,8 @@ async def verify_proof_pack_live(
     elif result.skipped_count:
         result.note = (
             f"Mixed pack — verified {len(result.real_tx_results)} real-network "
-            f"txid(s); skipped {result.skipped_count} dry-run/local txid(s)."
+            f"txid(s); skipped {result.skipped_count} with no on-ledger anchor "
+            "(dry-run or local runs, or steps that never reached a ledger)."
         )
     return result
 
