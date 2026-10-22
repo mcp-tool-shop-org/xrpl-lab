@@ -41,22 +41,22 @@
   ],
   "changes": {
     "fileCounts": {
-      "added": 1,
-      "changed": 7,
+      "added": 142,
+      "changed": 0,
       "moved": 0,
-      "parts": 4,
+      "parts": 1,
       "removed": 0
     },
     "items": [
       {
         "kind": "counts",
-        "sentence": "Nothing structural changed since 2026-10-22; 1 file added and 7 changed content.",
+        "sentence": "Nothing structural changed since 2026-10-22; 142 files added.",
         "subjects": []
       }
     ],
     "since": {
-      "commit": "0bf3b610433498075661b818377dbf89e9157cad",
-      "generatedAt": "2026-10-22T07:25:07.852Z"
+      "commit": "c43a36fc2fcab74d22fadaafe98cd2c6d039ab8e",
+      "generatedAt": "2026-10-22T08:34:47.648Z"
     },
     "unchanged": true
   },
@@ -83,9 +83,9 @@
     "Window: 180 days; a pair counts from 3 shared commits, since 6 source files reach 10 revisions; the floor rises to 10 when 25 do."
   ],
   "changesTogetherWithTests": 1,
-  "commit": "c43a36fc2fcab74d22fadaafe98cd2c6d039ab8e",
+  "commit": "0a4a07af22762fad708c5d40f8a7177f321f338f",
   "defaultBranch": "main",
-  "derived": "10 parts, mostly Python (233 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), shell (2) and HTML (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
+  "derived": "10 parts, mostly Python (233 files), Astro (13), TypeScript (8), CSS (4), shell (3), JavaScript (2) and HTML (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
   "doors": [
     {
       "checks": [
@@ -347,7 +347,7 @@
   ],
   "engine": "1.24.0",
   "generated": [],
-  "generatedAt": "2026-10-22T08:34:47.648Z",
+  "generatedAt": "2026-10-22T08:47:08.641Z",
   "limits": [
     "1 import could not be resolved: `tests/test_product_smoke.py` imports a path built at run time.",
     "3 writes and 7 reads use paths built at run time and are not named here.",
