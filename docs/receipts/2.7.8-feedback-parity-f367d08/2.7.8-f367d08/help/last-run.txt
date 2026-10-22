@@ -1,0 +1,6 @@
+Usage: xrpl-lab last-run [OPTIONS]
+
+  Show last module run info and the audit command to verify it.
+
+Options:
+  --help  Show this message and exit.

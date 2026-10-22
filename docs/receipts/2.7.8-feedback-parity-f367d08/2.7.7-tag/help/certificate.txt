@@ -1,0 +1,6 @@
+Usage: xrpl-lab certificate [OPTIONS]
+
+  Generate a completion certificate.
+
+Options:
+  --help  Show this message and exit.

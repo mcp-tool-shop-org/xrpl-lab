@@ -1,0 +1,6 @@
+Usage: xrpl-lab doctor [OPTIONS]
+
+  Run diagnostic checks on your XRPL Lab environment.
+
+Options:
+  --help  Show this message and exit.

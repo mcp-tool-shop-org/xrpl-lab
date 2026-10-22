@@ -1,0 +1,9 @@
+Usage: xrpl-lab curriculum [OPTIONS] COMMAND [ARGS]...
+
+  Curriculum commands: the single-source manifest the docs derive from.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  manifest  Print the canonical curriculum manifest (single source for...

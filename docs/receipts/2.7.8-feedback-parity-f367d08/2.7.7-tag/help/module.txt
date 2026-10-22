@@ -1,0 +1,9 @@
+Usage: xrpl-lab module [OPTIONS] COMMAND [ARGS]...
+
+  Module authoring helpers (init scaffolder).
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  init  Generate a lint-passing module skeleton.

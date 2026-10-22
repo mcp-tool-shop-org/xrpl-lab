@@ -1,0 +1,11 @@
+Usage: xrpl-lab cert-verify [OPTIONS] FILE
+
+  Verify a certificate's integrity (and, with --live, on-ledger truth).
+
+Options:
+  --json  Machine-readable JSON output
+  --live  Ledger-anchored verification. Certificates record no individual
+          txids, so --live reports honestly that there is nothing to anchor
+          (verify the matching proof pack with --live instead). The offline
+          SHA-256 check ALWAYS runs.
+  --help  Show this message and exit.

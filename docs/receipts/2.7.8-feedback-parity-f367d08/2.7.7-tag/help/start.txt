@@ -1,0 +1,10 @@
+Usage: xrpl-lab start [OPTIONS]
+
+  Guided launcher — pick a module and start learning.
+
+Options:
+  --dry-run  Offline sandbox mode: transactions are simulated (won't execute
+             on testnet), but state and progress are saved locally. Use this
+             to learn without network access, or to repeat modules without
+             consuming testnet faucet requests.
+  --help     Show this message and exit.

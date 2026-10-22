@@ -1,0 +1,19 @@
+Usage: xrpl-lab cohort-status [OPTIONS]
+
+  Aggregate per-learner status across a cohort directory.
+
+  Walks ``COHORT_DIR/<learner>/.xrpl-lab/state.json`` for each subdir;
+  surfaces completed_count, current module, blockers, and last activity in one
+  row per learner. Subdirs without state.json are skipped silently. A corrupt
+  state.json yields a warning row but never aborts the aggregation —
+  facilitators need the partial view, not a hard fail.
+
+  Single-shared-workspace mode: if ``COHORT_DIR/.xrpl-lab/state.json`` exists,
+  reports it as a single row.
+
+Options:
+  --dir DIRECTORY            Cohort directory containing per-learner
+                             subdirectories.
+  --format [table|json|csv]  Output format. json for scripting; csv for a
+                             gradebook-ready roster.
+  --help                     Show this message and exit.

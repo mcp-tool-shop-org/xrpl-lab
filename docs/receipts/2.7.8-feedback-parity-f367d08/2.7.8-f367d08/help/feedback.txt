@@ -1,0 +1,6 @@
+Usage: xrpl-lab feedback [OPTIONS]
+
+  Generate an issue-ready feedback block (markdown; deprecated alias).
+
+Options:
+  --help  Show this message and exit.

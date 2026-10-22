@@ -1,0 +1,261 @@
+{
+  "schema": "xrpl-lab-support-bundle-v1",
+  "version": "2.7.8",
+  "generated": "2026-10-22T07:22:56.450126+00:00",
+  "python_version": "3.13.13",
+  "platform": "Windows",
+  "learner": {
+    "version": "2.7.8",
+    "wallet_address": "rhuALqeW2TjPJQ32TFRibP2FSeHnVt43jz",
+    "network": "testnet",
+    "current_module": "receipt_literacy",
+    "current_track": "foundations",
+    "current_mode": "testnet",
+    "completed_modules": [
+      "clawback_101"
+    ],
+    "completed_count": 1,
+    "total_modules": 32,
+    "blockers": [],
+    "is_blocked": false,
+    "track_progress": [
+      {
+        "track": "foundations",
+        "completed": [],
+        "remaining": [
+          "receipt_literacy",
+          "failure_literacy",
+          "trust_lines_101",
+          "trust_line_failures",
+          "multisig_treasury_101"
+        ],
+        "total": 5,
+        "done": 0,
+        "is_complete": false
+      },
+      {
+        "track": "nfts",
+        "completed": [],
+        "remaining": [
+          "nft_minting_101",
+          "nft_marketplace_101",
+          "dnft_evolving_item_101"
+        ],
+        "total": 3,
+        "done": 0,
+        "is_complete": false
+      },
+      {
+        "track": "tokens",
+        "completed": [
+          "clawback_101"
+        ],
+        "remaining": [
+          "mpt_issuance_101",
+          "mpt_distribution_101",
+          "token_freeze_101"
+        ],
+        "total": 4,
+        "done": 1,
+        "is_complete": false
+      },
+      {
+        "track": "payments",
+        "completed": [],
+        "remaining": [
+          "escrow_101",
+          "escrow_finish_101",
+          "token_escrow_101",
+          "checks_101",
+          "payment_channel_101",
+          "delivered_amount_101",
+          "custodial_crediting_101"
+        ],
+        "total": 7,
+        "done": 0,
+        "is_complete": false
+      },
+      {
+        "track": "identity",
+        "completed": [],
+        "remaining": [
+          "did_101",
+          "credentials_101",
+          "permissioned_domains_101",
+          "deposit_gate_101"
+        ],
+        "total": 4,
+        "done": 0,
+        "is_complete": false
+      },
+      {
+        "track": "dex",
+        "completed": [],
+        "remaining": [
+          "dex_literacy",
+          "dex_market_making_101",
+          "dex_inventory_guardrails"
+        ],
+        "total": 3,
+        "done": 0,
+        "is_complete": false
+      },
+      {
+        "track": "reserves",
+        "completed": [],
+        "remaining": [
+          "reserves_101",
+          "account_hygiene"
+        ],
+        "total": 2,
+        "done": 0,
+        "is_complete": false
+      },
+      {
+        "track": "audit",
+        "completed": [],
+        "remaining": [
+          "receipt_audit"
+        ],
+        "total": 1,
+        "done": 0,
+        "is_complete": false
+      },
+      {
+        "track": "amm",
+        "completed": [],
+        "remaining": [
+          "amm_liquidity_101",
+          "dex_vs_amm_risk_literacy"
+        ],
+        "total": 2,
+        "done": 0,
+        "is_complete": false
+      },
+      {
+        "track": "capstone",
+        "completed": [],
+        "remaining": [
+          "game_economy_capstone"
+        ],
+        "total": 1,
+        "done": 0,
+        "is_complete": false
+      }
+    ],
+    "last_activity": "2026-10-22T04:07:39.695256+00:00",
+    "last_module": "clawback_101",
+    "total_transactions": 4,
+    "failed_transactions": 4,
+    "expected_failures": 0,
+    "has_proof_pack": true,
+    "has_certificate": false,
+    "report_count": 1,
+    "all_verified": false,
+    "unverified_modules": [
+      "clawback_101"
+    ]
+  },
+  "network": "testnet",
+  "rpc_url": "https://s.altnet.rippletest.net:51234",
+  "faucet_url": "https://faucet.altnet.rippletest.net",
+  "recent_transactions": [
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "success": false,
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-22T04:07:22.460049+00:00"
+    },
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "success": false,
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-22T04:07:25.534306+00:00"
+    },
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "success": false,
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-22T04:07:28.295629+00:00"
+    },
+    {
+      "txid": "failed",
+      "module_id": "clawback_101",
+      "success": false,
+      "expected": false,
+      "network": "testnet",
+      "timestamp": "2026-10-22T04:07:31.936422+00:00"
+    }
+  ],
+  "doctor_checks": [
+    {
+      "name": "Wallet",
+      "passed": true,
+      "detail": "Found: rhuALqeW2TjPJQ32TFRibP2FSeHnVt43jz",
+      "hint": "",
+      "severity": "fail"
+    },
+    {
+      "name": "State file",
+      "passed": true,
+      "detail": "v2.7.6, 1 module(s) completed",
+      "hint": "",
+      "severity": "fail"
+    },
+    {
+      "name": "Workspace",
+      "passed": true,
+      "detail": "Writable: <scratch>/fb278/cwd/.xrpl-lab",
+      "hint": "",
+      "severity": "fail"
+    },
+    {
+      "name": "Env overrides",
+      "passed": true,
+      "detail": "None (using defaults)",
+      "hint": "",
+      "severity": "fail"
+    },
+    {
+      "name": "Directory permissions",
+      "passed": true,
+      "detail": "Windows ACLs not tightened by xrpl-lab for <scratch>/fb278/home",
+      "hint": "xrpl-lab tightens directory permissions to owner-only on Linux/macOS (chmod 0o700); on Windows it does not yet tighten the ACL. If this machine is shared, consider restricting access yourself, e.g.: icacls \"%USERPROFILE%\\.xrpl-lab\" /inheritance:r /grant:r \"%USERNAME%\":F",
+      "severity": "warn"
+    },
+    {
+      "name": "RPC endpoint",
+      "passed": true,
+      "detail": "Connected to https://s.altnet.rippletest.net:51234 (ledger 21729046)",
+      "hint": "",
+      "severity": "fail"
+    },
+    {
+      "name": "Faucet",
+      "passed": true,
+      "detail": "Reachable: https://faucet.altnet.rippletest.net (HTTP 404)",
+      "hint": "",
+      "severity": "fail"
+    },
+    {
+      "name": "Last error",
+      "passed": true,
+      "detail": "Last failure in 'clawback_101': a step failed before its transaction reached the network",
+      "hint": "Run: xrpl-lab run clawback_101 --force to retry the module",
+      "severity": "warn"
+    },
+    {
+      "name": "Last module state",
+      "passed": true,
+      "detail": "last completed: clawback_101 (2026-10-22T04:07:39Z) | in-flight: none | drift: none",
+      "hint": "",
+      "severity": "fail"
+    }
+  ]
+}
