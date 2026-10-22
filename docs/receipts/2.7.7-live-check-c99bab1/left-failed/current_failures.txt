@@ -1,0 +1,6 @@
+tx_index records: 4; failed non-expected: 4; current_failures(): 4
+  current: module=clawback_101 txid=failed ts=1792642042.4600487
+  current: module=clawback_101 txid=failed ts=1792642045.5343058
+  current: module=clawback_101 txid=failed ts=1792642048.295629
+  current: module=clawback_101 txid=failed ts=1792642051.9364223
+  completed: clawback_101 verified=False completed_at=1792642059.6952555

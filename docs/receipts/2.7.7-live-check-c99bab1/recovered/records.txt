@@ -1,0 +1,2 @@
+after run 1 (exit 3): clawback_101 entries=1 verified=False txids=0 [] | tx_index 'failed' placeholders=4
+after run 2 --force (exit 0): clawback_101 entries=1 verified=True txids=4 ['6F5DED95', '70670718', 'D507407A', '7718FE4D'] | tx_index 'failed' placeholders=4
