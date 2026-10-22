@@ -1,0 +1,47 @@
+{
+  "artifact": "support_bundle.json",
+  "rows": [
+    {
+      "n": 1,
+      "cmd": "xrpl-lab verify-artifact support_bundle.json --live",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 2,
+      "cmd": "xrpl-lab verify-artifact support_bundle.json --live --json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "message": "Support bundle is well-formed.",
+        "artifact_kind": "support_bundle",
+        "live": {
+          "skipped": "On-ledger verification doesn't apply to support bundle; only its integrity hash is checked."
+        }
+      }
+    },
+    {
+      "n": 3,
+      "cmd": "xrpl-lab verify-artifact support_bundle.json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 4,
+      "cmd": "xrpl-lab verify-artifact support_bundle.json --json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "message": "Support bundle is well-formed.",
+        "artifact_kind": "support_bundle"
+      }
+    }
+  ],
+  "json_identical_except_artifact_kind": {}
+}

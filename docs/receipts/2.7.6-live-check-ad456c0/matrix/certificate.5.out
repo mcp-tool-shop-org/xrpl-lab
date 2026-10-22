@@ -1,0 +1,15 @@
+
+  ✅ PASS — Certificate integrity verified.
+
+  File:         certificate.json
+  Version:      2.7.6
+  Address:      rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF
+  Network:      testnet
+  Modules:      1
+  Transactions: 9
+  SHA-256:      d6e9e4e47302bbbd79f0871fa4e80423b18d97db0fe40ac2599a31ddb82542d8
+
+  On-ledger verification:
+  ⓘ Certificates record no individual txids — there is nothing to anchor on-ledger. To verify on-ledger, run 'proof verify <proof_pack.json> --live' instead 
+(the proof pack carries the txids).
+

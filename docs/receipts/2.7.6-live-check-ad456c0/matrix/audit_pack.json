@@ -1,0 +1,151 @@
+{
+  "dry_run": false,
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "failure_reasons": {
+    "ENGINE_RESULT_MISMATCH": 1
+  },
+  "integrity_sha256": "ba9ccafc308269bbb16991bbc0f28cd4fb2c09f49f984020967ed5528f4b1805",
+  "network": "testnet",
+  "summary": {
+    "failed": 1,
+    "not_found": 0,
+    "passed": 4,
+    "total": 5
+  },
+  "timestamp": "2026-10-22T02:25:27Z",
+  "tool": "xrpl-lab",
+  "verdicts": [
+    {
+      "checks": [
+        "Transaction exists: AD9F29484FF4D0E6...",
+        "Transaction is validated",
+        "Result: tesSUCCESS",
+        "Type: AccountSet",
+        "Account: r4H5Kyb98DEHCpHW5HP4xU63WPW4gATEUC",
+        "Fee: 10 drops"
+      ],
+      "failure_reasons": [],
+      "failures": [],
+      "status": "pass",
+      "tx": {
+        "account": "r4H5Kyb98DEHCpHW5HP4xU63WPW4gATEUC",
+        "amount": "0",
+        "destination": "",
+        "fee": "10",
+        "ledger_index": 21723647,
+        "memos": [],
+        "result_code": "tesSUCCESS",
+        "tx_type": "AccountSet",
+        "validated": true
+      },
+      "txid": "AD9F29484FF4D0E6971E28115FE00FA6F96CF49B4DD98096E10013A86298A70F"
+    },
+    {
+      "checks": [
+        "Transaction exists: C84A293E706DBB94...",
+        "Transaction is validated",
+        "Result: tesSUCCESS",
+        "Type: TrustSet",
+        "Account: rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+        "Fee: 10 drops"
+      ],
+      "failure_reasons": [],
+      "failures": [],
+      "status": "pass",
+      "tx": {
+        "account": "rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+        "amount": "0",
+        "destination": "",
+        "fee": "10",
+        "ledger_index": 21723649,
+        "memos": [],
+        "result_code": "tesSUCCESS",
+        "tx_type": "TrustSet",
+        "validated": true
+      },
+      "txid": "C84A293E706DBB942C279CC223D6F7B162D8D70DDADD74AF24C00DAE368A4078"
+    },
+    {
+      "checks": [
+        "Transaction exists: 1A2CFD54225FAA19...",
+        "Transaction is validated",
+        "Result: tesSUCCESS",
+        "Type: Payment",
+        "Account: r4H5Kyb98DEHCpHW5HP4xU63WPW4gATEUC",
+        "Destination: rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+        "Fee: 10 drops"
+      ],
+      "failure_reasons": [],
+      "failures": [],
+      "status": "pass",
+      "tx": {
+        "account": "r4H5Kyb98DEHCpHW5HP4xU63WPW4gATEUC",
+        "amount": "100/GLD/r4H5Kyb98DEH",
+        "destination": "rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+        "fee": "10",
+        "ledger_index": 21723651,
+        "memos": [
+          "XRPLLAB|ISSUE|GLD|100"
+        ],
+        "result_code": "tesSUCCESS",
+        "tx_type": "Payment",
+        "validated": true
+      },
+      "txid": "1A2CFD54225FAA196B0201B0D4194B39C821962A5DF630FF7823968AC9CB03C4"
+    },
+    {
+      "checks": [
+        "Transaction exists: 8D4434B1FF8BB69C...",
+        "Transaction is validated",
+        "Result: tesSUCCESS",
+        "Type: Clawback",
+        "Account: r4H5Kyb98DEHCpHW5HP4xU63WPW4gATEUC",
+        "Fee: 10 drops"
+      ],
+      "failure_reasons": [],
+      "failures": [],
+      "status": "pass",
+      "tx": {
+        "account": "r4H5Kyb98DEHCpHW5HP4xU63WPW4gATEUC",
+        "amount": "30/GLD/rKpJ5XRNVVSh",
+        "destination": "",
+        "fee": "10",
+        "ledger_index": 21723654,
+        "memos": [],
+        "result_code": "tesSUCCESS",
+        "tx_type": "Clawback",
+        "validated": true
+      },
+      "txid": "8D4434B1FF8BB69C59022AD89823BAC85ECA6C094DEA66486D9989B8F80A8E81"
+    },
+    {
+      "checks": [
+        "Transaction exists: D8DAB3F166928AEF...",
+        "Transaction is validated",
+        "Type: Clawback",
+        "Account: rbURgPJ1TrZ34tt3VWHF59oNsGouUXbVk",
+        "Fee: 10 drops"
+      ],
+      "failure_reasons": [
+        "ENGINE_RESULT_MISMATCH"
+      ],
+      "failures": [
+        "Expected tesSUCCESS, got tecNO_PERMISSION"
+      ],
+      "status": "fail",
+      "tx": {
+        "account": "rbURgPJ1TrZ34tt3VWHF59oNsGouUXbVk",
+        "amount": "10/NOC/rKpJ5XRNVVSh",
+        "destination": "",
+        "fee": "10",
+        "ledger_index": 21723664,
+        "memos": [],
+        "result_code": "tecNO_PERMISSION",
+        "tx_type": "Clawback",
+        "validated": true
+      },
+      "txid": "D8DAB3F166928AEF5A2EF04E96663B38E3086A30AD2E3A1C97D72D6EDF9458AF"
+    }
+  ],
+  "version": "2.7.6"
+}

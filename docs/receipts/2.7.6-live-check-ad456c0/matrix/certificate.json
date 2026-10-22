@@ -1,0 +1,18 @@
+{
+  "xrpl_lab_certificate": true,
+  "version": "2.7.6",
+  "network": "testnet",
+  "address": "rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+  "generated_at": "2026-10-22T02:25:23.759280+00:00",
+  "modules_completed": [
+    "clawback_101"
+  ],
+  "module_titles": {
+    "clawback_101": "Clawback 101: The Issuer Recall Lever"
+  },
+  "total_modules": 1,
+  "total_transactions": 9,
+  "successful_transactions": 4,
+  "summary_line": "Completed 1 module with 9 transactions.",
+  "sha256": "d6e9e4e47302bbbd79f0871fa4e80423b18d97db0fe40ac2599a31ddb82542d8"
+}
