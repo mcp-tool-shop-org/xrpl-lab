@@ -71,6 +71,7 @@ export const config: SiteConfig = {
         { title: 'Proof packs', desc: 'Shareable JSON with completed modules, transaction IDs, and explorer links. SHA-256 integrity hash. No secrets.' },
         { title: 'Audit packs', desc: 'Batch verification results in Markdown, CSV, and JSON. Expectation configs for type, memo, and result code checks.' },
         { title: 'Certificates', desc: 'Slim completion records. Soft-linked to XRPL Camp for ecosystem integration.' },
+        { title: 'Checked against the ledger', desc: 'xrpl-lab verify-artifact --live re-fetches every transaction a proof pack or certificate claims from the public XRPL and confirms it is there as claimed.' },
       ],
     },
   ],

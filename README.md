@@ -10,6 +10,7 @@
   <a href="https://github.com/mcp-tool-shop-org/xrpl-lab/actions/workflows/ci.yml"><img src="https://github.com/mcp-tool-shop-org/xrpl-lab/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pypi.org/project/xrpl-lab/"><img src="https://img.shields.io/pypi/v/xrpl-lab.svg" alt="PyPI"></a>
   <a href="https://www.npmjs.com/package/@mcptoolshop/xrpl-lab"><img src="https://img.shields.io/npm/v/@mcptoolshop/xrpl-lab.svg" alt="npm"></a>
+  <a href="https://codecov.io/gh/mcp-tool-shop-org/xrpl-lab"><img src="https://codecov.io/gh/mcp-tool-shop-org/xrpl-lab/branch/main/graph/badge.svg" alt="Coverage"></a>
   <a href="https://github.com/mcp-tool-shop-org/xrpl-lab/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"></a>
   <a href="https://mcp-tool-shop-org.github.io/xrpl-lab/"><img src="https://img.shields.io/badge/Landing_Page-live-blue" alt="Landing Page"></a>
 </p>
@@ -147,7 +148,7 @@ xrpl-lab tracks             Track-level completion summaries
 xrpl-lab recovery           Diagnose stuck states, show recovery commands
 xrpl-lab lint [glob] [--json] [--no-curriculum]  Validate module files and curriculum
 xrpl-lab proof-pack         Export shareable proof pack
-xrpl-lab verify-artifact <file> [--json]  Verify any artifact's SHA-256 integrity (proof packs, certificates, audit packs, support bundles)
+xrpl-lab verify-artifact <file> [--json] [--live]  Verify any artifact (proof packs, certificates, audit packs, support bundles); --live also checks a proof pack's or certificate's transactions on the ledger
 xrpl-lab certificate        Export completion certificate
 xrpl-lab doctor             Run diagnostic checks
 xrpl-lab support-bundle [--json]  Generate a support bundle
@@ -156,6 +157,7 @@ xrpl-lab last-run           Show last module run + audit command
 xrpl-lab serve [--port N] [--host H] [--dry-run]  Start web dashboard and API server
 xrpl-lab reset [--module MODULE_ID]  Wipe local state OR reset a single module (requires confirmation)
 xrpl-lab module init --id ID --track TRACK --title TITLE --time TIME  Scaffold a lint-passing module skeleton
+xrpl-lab curriculum manifest  Print the curriculum manifest the docs are generated from
 
 xrpl-lab wallet create      Create a new wallet
 xrpl-lab wallet show        Show wallet info (no secrets)

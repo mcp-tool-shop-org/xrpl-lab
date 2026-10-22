@@ -40,6 +40,7 @@ sidebar:
 |---------|-------------|
 | `xrpl-lab lint [glob] [--json] [--no-curriculum]` | Validate module files and curriculum (default glob `modules/*.md`) |
 | `xrpl-lab module init --id ID --track TRACK --title TITLE --time TIME` | Scaffold a lint-passing module skeleton at `modules/<id>.md` |
+| `xrpl-lab curriculum manifest` | Print the canonical curriculum manifest, the single source the README and handbook track lists are generated from |
 
 ## Artifact commands
 
@@ -49,6 +50,13 @@ sidebar:
 | `xrpl-lab certificate` | Export a slim completion certificate |
 | `xrpl-lab audit --txids <file>` | Batch verify transactions against expectations |
 | `xrpl-lab audit-verify <file>` | Verify an audit pack's SHA-256 integrity (non-zero exit on mismatch) |
+| `xrpl-lab verify-artifact <file> [--json] [--live]` | Verify any artifact: it detects proof packs, certificates, audit packs and support bundles from their own JSON and runs the same check as that kind's own command |
+| `xrpl-lab proof verify <file> [--live]` | Verify a proof pack |
+| `xrpl-lab cert-verify <file> [--live]` | Verify a certificate |
+
+### Ledger-anchored verification (`--live`)
+
+The offline SHA-256 check always runs. With `--live`, `verify-artifact`, `proof verify` and `cert-verify` also re-fetch every transaction a proof pack or certificate claims from the public XRPL and confirm each one is there as claimed. Audit packs and support bundles have nothing on the ledger to check, so `--live` says so and changes nothing.
 
 ### Audit flags
 
