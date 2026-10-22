@@ -486,6 +486,25 @@ def load_state_from_path(path: Path) -> LabState:
         raise ValueError(f"Schema mismatch in {path}: {e}") from e
 
 
+#: (state file, version found) pairs already warned about in this process.
+#: One command loads state several times (three for `feedback` and
+#: `support-bundle`), and each load used to print the same warning (#45).
+_warned_versions: set[tuple[str, str]] = set()
+
+
+def _warn_state_version_once(path: Path, state_version: str) -> None:
+    """Print the version-mismatch warning once per file and version."""
+    key = (str(path), str(state_version))
+    if key in _warned_versions:
+        return
+    _warned_versions.add(key)
+    print(
+        f"Warning: state from v{state_version}, current is v{__version__}. "
+        "Some fields may differ.",
+        file=sys.stderr,
+    )
+
+
 def load_state() -> LabState:
     """Load state from disk, or return fresh state."""
     p = state_path()
@@ -497,11 +516,7 @@ def load_state() -> LabState:
             # is warned that persisted fields may have changed shape.
             state_version = data.get("version", "unknown")
             if state_version != __version__:
-                print(
-                    f"Warning: state from v{state_version}, current is v{__version__}. "
-                    "Some fields may differ.",
-                    file=sys.stderr,
-                )
+                _warn_state_version_once(p, state_version)
             # PB-004: run the migration seam BEFORE model_validate so an older
             # state.json upgrades in place rather than tripping the
             # corrupt-recovery path below (which would reset the learner's
