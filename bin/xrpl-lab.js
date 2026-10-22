@@ -2,14 +2,14 @@
 "use strict";
 
 // Pure JSON config — npm-launcher derives asset names from convention:
-//   binary:    xrpl-lab-2.7.8-linux-x64
-//   checksums: checksums-2.7.8.txt
+//   binary:    xrpl-lab-2.7.9-linux-x64
+//   checksums: checksums-2.7.9.txt
 process.env.MCPTOOLSHOP_LAUNCH_CONFIG = JSON.stringify({
   toolName: "xrpl-lab",
   owner: "mcp-tool-shop-org",
   repo: "xrpl-lab",
-  version: "2.7.8",
-  tag: "v2.7.8",
+  version: "2.7.9",
+  tag: "v2.7.9",
 });
 
 require("@mcptoolshop/npm-launcher/bin/mcptoolshop-launch.js");

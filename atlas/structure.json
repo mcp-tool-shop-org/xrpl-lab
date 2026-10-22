@@ -54,7 +54,7 @@
       "externals": 0,
       "files": [
         {
-          "hash": "b2904e6aa843bfc9c951f63e6e2ea1d6b3b04f2066dee2e96e1d53d4c3718f64",
+          "hash": "8839ef61e3cb1ff771406e2809592783d97f427ab088d7cd45ca4cedb77a10ca",
           "path": "bin/xrpl-lab.js"
         }
       ],
@@ -9255,6 +9255,574 @@
         {
           "hash": "b6ec803eef69d2ce9e5a5e62a12c89ff5c01cc6a5faa4e507887b5d11c229fff",
           "path": "docs/receipts/2.7.8-feedback-parity-f367d08/parity_report.txt"
+        },
+        {
+          "hash": "37901e95078b694745a5a4783a17aa7b95e22dc63ede8d61b3692a890b4a33ec",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/code.txt"
+        },
+        {
+          "hash": "7eafe6c3440005737a2786e1d6fa412b4771a2c9d3a90aeefc997286e7bef10d",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/feedback.err"
+        },
+        {
+          "hash": "69adc3457bd930bc61e7e692c741db0a2ea147d5d251d14b6c28b00a4a74246e",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/feedback.exit"
+        },
+        {
+          "hash": "1ca08582f89e8c5b3a1b7dd91f9e270c11ba275bb5445e77c95f2d0353d9852f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/feedback.out"
+        },
+        {
+          "hash": "54de9da5d4bd5197985346bd3fdd2cdbee34e007aa5ea27b33472d8cb68e5bcd",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/item2_1_run_dryrun.err"
+        },
+        {
+          "hash": "193bd60f84261307a20ea11209edbb4aa38425bc4c2d1a03f84fb1d18e71181a",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/item2_1_run_dryrun.exit"
+        },
+        {
+          "hash": "ef4a384063922544096c65c6354ed5c8718b4a43adc83c4b59cab0bafcee017b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/item2_1_run_dryrun.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/item2_2_status.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/item2_2_status.exit"
+        },
+        {
+          "hash": "f239933e687d0427a6d9bb04a05aa8e9469323eb238a844206b7ce028357fafe",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/item2_2_status.out"
+        },
+        {
+          "hash": "c8bfd3ec3eb0b7fe9d112133d567014ab0626a97e3d78c8003ec18991799e85b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/item2_3_feedback.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/item2_3_feedback.exit"
+        },
+        {
+          "hash": "d7ddfedb7e865ec487e684109df0b36fb8b4c764e0cdc2f1a02f20e2f80c9bfe",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/item2_3_feedback.out"
+        },
+        {
+          "hash": "0f9527b901c7e50a9f256da236463bb97a593631f85adb5d3a57846b8727616c",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/snapshot.txt"
+        },
+        {
+          "hash": "86220826321dfd5dde42369e647cdde56d14b21cae81d41e200a3755c400c8c4",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/status.err"
+        },
+        {
+          "hash": "7296bc942a6ea66935c20e985a943e1e58e14a3b1828c0491bb95028b92bb42f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/status.exit"
+        },
+        {
+          "hash": "fe260af472516ef8379ac8f6b575f870980194c050ac5ddf353a4176c58de0e4",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/status.out"
+        },
+        {
+          "hash": "91eff4fda6cc97f7e5c3fa5e0597c18a418ce497c06a23cc4dc4076c03cfbd5a",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/supportbundle.err"
+        },
+        {
+          "hash": "69adc3457bd930bc61e7e692c741db0a2ea147d5d251d14b6c28b00a4a74246e",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/supportbundle.exit"
+        },
+        {
+          "hash": "6c4f33e509fe9c2870ab175fac3d3726edcfd5837a35233534eb56ea9fbf5c5c",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/supportbundle.out"
+        },
+        {
+          "hash": "91eff4fda6cc97f7e5c3fa5e0597c18a418ce497c06a23cc4dc4076c03cfbd5a",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/supportbundle_json.err"
+        },
+        {
+          "hash": "69adc3457bd930bc61e7e692c741db0a2ea147d5d251d14b6c28b00a4a74246e",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/supportbundle_json.exit"
+        },
+        {
+          "hash": "960458db31045ad9bd5cb66a344e2f5f066c3b6c9f8864fa3572c0319b3321d5",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/leftfailed277/supportbundle_json.out"
+        },
+        {
+          "hash": "c8bfd3ec3eb0b7fe9d112133d567014ab0626a97e3d78c8003ec18991799e85b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/feedback.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/feedback.exit"
+        },
+        {
+          "hash": "44a906d0720f498497591ff5f2940bb3d1fa732cc5dc1dc22ff491fd94af8af1",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/feedback.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/item2_1_run_dryrun.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/item2_1_run_dryrun.exit"
+        },
+        {
+          "hash": "c23aa117dde7d7c6f951e55e402e583d9f14d9628db4b3d4985851e8cbfa825c",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/item2_1_run_dryrun.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/item2_2_status.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/item2_2_status.exit"
+        },
+        {
+          "hash": "8e22174bc19b805621270c6182680560fa75056cf5dce5160774b1629e6fdd11",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/item2_2_status.out"
+        },
+        {
+          "hash": "c8bfd3ec3eb0b7fe9d112133d567014ab0626a97e3d78c8003ec18991799e85b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/item2_3_feedback.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/item2_3_feedback.exit"
+        },
+        {
+          "hash": "3e69a504ecdda406e505d4b8f9176dcdf24c56a940fca626050a939779ed8939",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/item2_3_feedback.out"
+        },
+        {
+          "hash": "bbd6c8c9ae3f598bba9574e1222e377fa6cb6650dba23650c006f6712c1acf4e",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/snapshot.txt"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/status.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/status.exit"
+        },
+        {
+          "hash": "054d360a51d1dc26277af3f7541ec44590cdc8bd960f21125fd6c18908c26958",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/status.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/supportbundle.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/supportbundle.exit"
+        },
+        {
+          "hash": "97cd9295ab13414f46562a454e4514e47a24b0be20d27392ebbfc304e899a0f1",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/supportbundle.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/supportbundle_json.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/supportbundle_json.exit"
+        },
+        {
+          "hash": "754a72ccb8ae701c8f01effd4b85b0f2392502cb32af72f8e60aaf0b8e2a95da",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/saved278/supportbundle_json.out"
+        },
+        {
+          "hash": "468d4694b29f85e31f1c4a46bddee7fb40af2027ea59fb77bd332f66434135a1",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/feedback.err"
+        },
+        {
+          "hash": "33404a94133d5b7ce6ea7d7e3eb908230f123fe58012fa68fe075b6efc4c3e8b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/feedback.exit"
+        },
+        {
+          "hash": "da14bd1bf0ec48f4f5418322d4c874372bf9bfff03ee9fcf0576299ed75edff3",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/feedback.out"
+        },
+        {
+          "hash": "98747f2a08732ffa52dbd4a72445690b567c362cf9b51e1fbdfce27b2c88e029",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/item2_1_run_dryrun.err"
+        },
+        {
+          "hash": "193bd60f84261307a20ea11209edbb4aa38425bc4c2d1a03f84fb1d18e71181a",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/item2_1_run_dryrun.exit"
+        },
+        {
+          "hash": "6355850ef80732ef2262d049def004b3223b964f6f1db6b25df5deb5acff8782",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/item2_1_run_dryrun.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/item2_2_status.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/item2_2_status.exit"
+        },
+        {
+          "hash": "e8940de285266b88e94637c1f756e5b34a5e635747aea1f039149048b78e5392",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/item2_2_status.out"
+        },
+        {
+          "hash": "c8bfd3ec3eb0b7fe9d112133d567014ab0626a97e3d78c8003ec18991799e85b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/item2_3_feedback.err"
+        },
+        {
+          "hash": "429d9d0a13a991ef0e08fec40d5ca3e3c0f41a875e783ef5fb1681001aa56a3f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/item2_3_feedback.exit"
+        },
+        {
+          "hash": "e047c84643b30b282af7d19263ed0b139f2c57a0f74a1959bfbca584de9cd6c9",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/item2_3_feedback.out"
+        },
+        {
+          "hash": "5447e28a18db33233f863483d902637df0b9abaf7493eec9ad90d0dc0759a036",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/snapshot.txt"
+        },
+        {
+          "hash": "ba19cb074b4fd4fbeb0cb887084151643e8f8da1ae192466a57f8f91da3aabb4",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/status.err"
+        },
+        {
+          "hash": "6530c3e1add0c62b7bceb0ec41d509e132ed12dbcdf2d2414648aca9a62567e3",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/status.exit"
+        },
+        {
+          "hash": "fe260af472516ef8379ac8f6b575f870980194c050ac5ddf353a4176c58de0e4",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/status.out"
+        },
+        {
+          "hash": "af32c5a65c67c133b472b8d30a94f3c5699f9908da40d0d1e703be0f103eed28",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/supportbundle.err"
+        },
+        {
+          "hash": "33404a94133d5b7ce6ea7d7e3eb908230f123fe58012fa68fe075b6efc4c3e8b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/supportbundle.exit"
+        },
+        {
+          "hash": "ead34b9d8f44ec623be015365c17fded18ee379a9a2e5517b533d70771555a97",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/supportbundle.out"
+        },
+        {
+          "hash": "af32c5a65c67c133b472b8d30a94f3c5699f9908da40d0d1e703be0f103eed28",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/supportbundle_json.err"
+        },
+        {
+          "hash": "33404a94133d5b7ce6ea7d7e3eb908230f123fe58012fa68fe075b6efc4c3e8b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/supportbundle_json.exit"
+        },
+        {
+          "hash": "0a2c8b5b2740de3a048c0c4fff7458976874ca8c96cbcc50a8b5d8065597f330",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.8-f367d08/stamp276/supportbundle_json.out"
+        },
+        {
+          "hash": "0b5e0e404427875a8603f2a13489182ce6b6594dfa7a300c580eab80070f940a",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/code.txt"
+        },
+        {
+          "hash": "30760c2ef377bec4fb13ad29d8e6e8c6ca5954c609bdad0c5f8d728585c53985",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/feedback.err"
+        },
+        {
+          "hash": "7296bc942a6ea66935c20e985a943e1e58e14a3b1828c0491bb95028b92bb42f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/feedback.exit"
+        },
+        {
+          "hash": "eac81d7c263504f2fdbda4f8287a31e0d72f483e44bb596d03fb290815a6609d",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/feedback.out"
+        },
+        {
+          "hash": "4ef763c87a089007f046d28e8e2509a4febb3169c088b2b9a978e80f366920c5",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/item2_1_run_dryrun.err"
+        },
+        {
+          "hash": "4b9ae24a9f0c1ca912bc405e86852923c79ec4ba08b9d1d227f43459f2db83f9",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/item2_1_run_dryrun.exit"
+        },
+        {
+          "hash": "ff743a92d7e22b60537213ca38bbbeeeccadcf16fb2bd3218ad40ff441c30f8c",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/item2_1_run_dryrun.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/item2_2_status.err"
+        },
+        {
+          "hash": "04ad5d1ae3347ce82ab3a32862e7595e7cce820af21470bf9047ff7226729d97",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/item2_2_status.exit"
+        },
+        {
+          "hash": "1d53e58cb442b717cd71f3b46d4755dc3257be5f42f79bf2b04cbd43160204b8",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/item2_2_status.out"
+        },
+        {
+          "hash": "c8bfd3ec3eb0b7fe9d112133d567014ab0626a97e3d78c8003ec18991799e85b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/item2_3_feedback.err"
+        },
+        {
+          "hash": "04ad5d1ae3347ce82ab3a32862e7595e7cce820af21470bf9047ff7226729d97",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/item2_3_feedback.exit"
+        },
+        {
+          "hash": "a0b740c5563839d89e76b419e472cda7a61abf6addf826d44630d98938380400",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/item2_3_feedback.out"
+        },
+        {
+          "hash": "0f9527b901c7e50a9f256da236463bb97a593631f85adb5d3a57846b8727616c",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/snapshot.txt"
+        },
+        {
+          "hash": "4ef763c87a089007f046d28e8e2509a4febb3169c088b2b9a978e80f366920c5",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/status.err"
+        },
+        {
+          "hash": "7296bc942a6ea66935c20e985a943e1e58e14a3b1828c0491bb95028b92bb42f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/status.exit"
+        },
+        {
+          "hash": "fe260af472516ef8379ac8f6b575f870980194c050ac5ddf353a4176c58de0e4",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/status.out"
+        },
+        {
+          "hash": "4ef763c87a089007f046d28e8e2509a4febb3169c088b2b9a978e80f366920c5",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/supportbundle.err"
+        },
+        {
+          "hash": "7296bc942a6ea66935c20e985a943e1e58e14a3b1828c0491bb95028b92bb42f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/supportbundle.exit"
+        },
+        {
+          "hash": "418aedaa01fa888e76ecc0843559e0df1b01557be856cc7fffd8e8d7aa4ecf52",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/supportbundle.out"
+        },
+        {
+          "hash": "4ef763c87a089007f046d28e8e2509a4febb3169c088b2b9a978e80f366920c5",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/supportbundle_json.err"
+        },
+        {
+          "hash": "7296bc942a6ea66935c20e985a943e1e58e14a3b1828c0491bb95028b92bb42f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/supportbundle_json.exit"
+        },
+        {
+          "hash": "84ed0cf3e6af1986a2212462d7334c5bf25c0c4c128149cc4207f39b19e179cb",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/leftfailed277/supportbundle_json.out"
+        },
+        {
+          "hash": "4e1d939d123a7066d155ca91f086ad53cfcbcabc12519fae2433ce58061d14e5",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/feedback.err"
+        },
+        {
+          "hash": "79b579a88c551f18222b227fd9b9ba9263620cc279d0e2d2e2ed4e13960327de",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/feedback.exit"
+        },
+        {
+          "hash": "9c3b4610f0339411891c71c9d482c54c861e7695d969d77274802c735c8ab206",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/feedback.out"
+        },
+        {
+          "hash": "4a189e56e034c79e7f030e50a1d09487c5608f81e45c7d340d63d82ed887af28",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/item2_1_run_dryrun.err"
+        },
+        {
+          "hash": "4b9ae24a9f0c1ca912bc405e86852923c79ec4ba08b9d1d227f43459f2db83f9",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/item2_1_run_dryrun.exit"
+        },
+        {
+          "hash": "2a3d13e515095367cca6267f7492328e450505dc1ea9f6e9cf52823632b89341",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/item2_1_run_dryrun.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/item2_2_status.err"
+        },
+        {
+          "hash": "04ad5d1ae3347ce82ab3a32862e7595e7cce820af21470bf9047ff7226729d97",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/item2_2_status.exit"
+        },
+        {
+          "hash": "f5a8be08d6b6cc74183d6b5e3a38de0595facc38b7ea0d4f98f8f69a3ee8a31d",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/item2_2_status.out"
+        },
+        {
+          "hash": "c8bfd3ec3eb0b7fe9d112133d567014ab0626a97e3d78c8003ec18991799e85b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/item2_3_feedback.err"
+        },
+        {
+          "hash": "04ad5d1ae3347ce82ab3a32862e7595e7cce820af21470bf9047ff7226729d97",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/item2_3_feedback.exit"
+        },
+        {
+          "hash": "4c19e1faf5aafc79a15e4ac4b099514701bd4dff7df1cd986a26f3a9a2ef569c",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/item2_3_feedback.out"
+        },
+        {
+          "hash": "bbd6c8c9ae3f598bba9574e1222e377fa6cb6650dba23650c006f6712c1acf4e",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/snapshot.txt"
+        },
+        {
+          "hash": "4a189e56e034c79e7f030e50a1d09487c5608f81e45c7d340d63d82ed887af28",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/status.err"
+        },
+        {
+          "hash": "79b579a88c551f18222b227fd9b9ba9263620cc279d0e2d2e2ed4e13960327de",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/status.exit"
+        },
+        {
+          "hash": "054d360a51d1dc26277af3f7541ec44590cdc8bd960f21125fd6c18908c26958",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/status.out"
+        },
+        {
+          "hash": "4a189e56e034c79e7f030e50a1d09487c5608f81e45c7d340d63d82ed887af28",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/supportbundle.err"
+        },
+        {
+          "hash": "79b579a88c551f18222b227fd9b9ba9263620cc279d0e2d2e2ed4e13960327de",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/supportbundle.exit"
+        },
+        {
+          "hash": "281b74b3c0cf300bc8f16c9ebfccd80e0b4e52bf4f39db42db07e21391f0ee0d",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/supportbundle.out"
+        },
+        {
+          "hash": "4a189e56e034c79e7f030e50a1d09487c5608f81e45c7d340d63d82ed887af28",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/supportbundle_json.err"
+        },
+        {
+          "hash": "79b579a88c551f18222b227fd9b9ba9263620cc279d0e2d2e2ed4e13960327de",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/supportbundle_json.exit"
+        },
+        {
+          "hash": "4a6b5aebe8b53856908e928788271e90a11a9cd5ef2e551ebd20af46780315af",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/saved278/supportbundle_json.out"
+        },
+        {
+          "hash": "4add278e35e541aa85998433490f8298537d9546c8f0eab3cb45322859ef0cf0",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/feedback.err"
+        },
+        {
+          "hash": "6530c3e1add0c62b7bceb0ec41d509e132ed12dbcdf2d2414648aca9a62567e3",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/feedback.exit"
+        },
+        {
+          "hash": "a8a904bd41ee76a334cfd74caae65373f0b3306b7a07d222cdd02c6f9cfde8da",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/feedback.out"
+        },
+        {
+          "hash": "247a68c21d2ffabca546ee7d76085db7c2ad3f464332d95fea1099d6e9952609",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/item2_1_run_dryrun.err"
+        },
+        {
+          "hash": "4b9ae24a9f0c1ca912bc405e86852923c79ec4ba08b9d1d227f43459f2db83f9",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/item2_1_run_dryrun.exit"
+        },
+        {
+          "hash": "b4f7977db43f356edb422bea5e18ca8e906eb9a1a19400748f5bc14eb31afefc",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/item2_1_run_dryrun.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/item2_2_status.err"
+        },
+        {
+          "hash": "04ad5d1ae3347ce82ab3a32862e7595e7cce820af21470bf9047ff7226729d97",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/item2_2_status.exit"
+        },
+        {
+          "hash": "4ab9351f90251728ed12640f3b4263b5152a4b40819a13937413878ae3b8dd74",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/item2_2_status.out"
+        },
+        {
+          "hash": "c8bfd3ec3eb0b7fe9d112133d567014ab0626a97e3d78c8003ec18991799e85b",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/item2_3_feedback.err"
+        },
+        {
+          "hash": "04ad5d1ae3347ce82ab3a32862e7595e7cce820af21470bf9047ff7226729d97",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/item2_3_feedback.exit"
+        },
+        {
+          "hash": "c7d812edd32fe4115a6c6a40d72d0673869bf938b314509e1ca67cbc2213b4cc",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/item2_3_feedback.out"
+        },
+        {
+          "hash": "5447e28a18db33233f863483d902637df0b9abaf7493eec9ad90d0dc0759a036",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/snapshot.txt"
+        },
+        {
+          "hash": "247a68c21d2ffabca546ee7d76085db7c2ad3f464332d95fea1099d6e9952609",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/status.err"
+        },
+        {
+          "hash": "6530c3e1add0c62b7bceb0ec41d509e132ed12dbcdf2d2414648aca9a62567e3",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/status.exit"
+        },
+        {
+          "hash": "fe260af472516ef8379ac8f6b575f870980194c050ac5ddf353a4176c58de0e4",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/status.out"
+        },
+        {
+          "hash": "247a68c21d2ffabca546ee7d76085db7c2ad3f464332d95fea1099d6e9952609",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/supportbundle.err"
+        },
+        {
+          "hash": "6530c3e1add0c62b7bceb0ec41d509e132ed12dbcdf2d2414648aca9a62567e3",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/supportbundle.exit"
+        },
+        {
+          "hash": "7ea4c1faae2b33961523f40e1644a619a1282db91f7cd18f2561fde31feefed4",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/supportbundle.out"
+        },
+        {
+          "hash": "247a68c21d2ffabca546ee7d76085db7c2ad3f464332d95fea1099d6e9952609",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/supportbundle_json.err"
+        },
+        {
+          "hash": "6530c3e1add0c62b7bceb0ec41d509e132ed12dbcdf2d2414648aca9a62567e3",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/supportbundle_json.exit"
+        },
+        {
+          "hash": "0206a3d9024ee02cf218c494a38a0f8ce84ab9ab8b79acfd44d841c914c30902",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/2.7.9-99edd1b/stamp276/supportbundle_json.out"
+        },
+        {
+          "hash": "020d8d34067fe5f0b2af83df7094534652ee3fc1d1e2266f496680bcd4cddd4c",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/README.md"
+        },
+        {
+          "hash": "95e266e2a81d05a7f330ae080a9c1444c7735640df4e2bc00602e6e8d2cbef62",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/build-saved278/README.txt"
+        },
+        {
+          "hash": "54de9da5d4bd5197985346bd3fdd2cdbee34e007aa5ea27b33472d8cb68e5bcd",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/build-saved278/run.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/build-saved278/run.exit"
+        },
+        {
+          "hash": "905c99bc87346d5e15ca82722d812524f23c9df413e1a4868b65dfd616a6cfb4",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/build-saved278/run.out"
+        },
+        {
+          "hash": "9ed6e6f34240c78c338701f8892d8f1f34cf21e37f7491c0f5468930e79de478",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/harness/parity_diff.py.txt"
+        },
+        {
+          "hash": "96010234581e0d8bafe9f49ab76257f340d3e01ae5af44ca4b2848b4e94546ff",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/harness/warn_once.sh"
+        },
+        {
+          "hash": "593faed331a1aa6149b658432cbe68e55b9305e3b940913fbc0e0fa58b11346f",
+          "path": "docs/receipts/2.7.9-warn-once-99edd1b/parity_report.txt"
         }
       ],
       "globs": [
@@ -9458,7 +10026,7 @@
           "path": ".gitignore"
         },
         {
-          "hash": "b039ea51331f05a545d6beeaa8b7b23f9439fcd98c8fe0769b8788e4ee5532c6",
+          "hash": "223d59bd22cd3e770dcb9570d9561c3ec1531e80ec9c058710beb9f5c5e7bf15",
           "path": "CHANGELOG.md"
         },
         {
@@ -9514,15 +10082,15 @@
           "path": "codecov.yml"
         },
         {
-          "hash": "4fd556fedc18c098e024d330506758dbcdef158eb5163f35c819d3c4ee0af83a",
+          "hash": "249333ad054f0955ca3bce32838c9a4915bcfaea5503e56b6dc9f1ffe5a52fe8",
           "path": "package.json"
         },
         {
-          "hash": "f512cd319840b466a33f65643cee2599bafc4726110f5031a56a2b22806fb8be",
+          "hash": "be1cb81ec8dd77d7c84822aebc7054234ec2ed1e29d355300b3d32ab395e74cc",
           "path": "pyproject.toml"
         },
         {
-          "hash": "c5a47a3b66542ec1e79c1247cfe4a2651c7fbccb4576b1640a565288104d037c",
+          "hash": "002dc04a970f3e2f50da96b263ba224702b9bfbcbb978dcaa0bbac74f804ad64",
           "path": "uv.lock"
         },
         {
@@ -13517,6 +14085,28 @@
         },
         {
           "exports": [
+            "old_home",
+            "test_a_different_old_version_still_warns",
+            "test_another_state_file_still_warns",
+            "test_the_cli_warns_once_per_command",
+            "test_three_loads_warn_once"
+          ],
+          "hash": "5408dea6b43781ffb03f4169cf77d39563f0b9afdba6e26ec555662931b9f945",
+          "importOrder": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/cli.py"
+          ],
+          "importsFiles": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/cli.py",
+            "xrpl_lab/state.py"
+          ],
+          "path": "tests/test_v279_state_warning_once.py",
+          "testFramework": "pytest"
+        },
+        {
+          "exports": [
             "client_with_module",
             "verify_client"
           ],
@@ -14429,7 +15019,7 @@
               "line": 7
             }
           ],
-          "hash": "b2f23a7621d10185246cad6b80889f584d463d6e2cbaecdf0b36be31d37fa956",
+          "hash": "a78ac2d1165f8f7a18e6ac212ac40f8c3eb67716fd2310110b7c1def9fbd15b9",
           "path": "xrpl_lab/__init__.py"
         },
         {
@@ -19901,25 +20491,25 @@
             {
               "in": "load_state",
               "kind": "except",
-              "line": 512
+              "line": 527
             },
             {
               "in": "load_state",
               "kind": "except",
-              "line": 535
+              "line": 550
             },
             {
               "in": "reset_module",
               "kind": "raise",
-              "line": 703
+              "line": 718
             },
             {
               "in": "reset_module",
               "kind": "except",
-              "line": 736
+              "line": 751
             }
           ],
-          "hash": "8f8ec9637732b4cfd5e90409efe868c454c8c6355c8d6352f1c3888640c13e0f",
+          "hash": "3a5f34e0e2b264fc0669df90db53f2fd4a429aa1849d3bb20672fd49d1487203",
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/_atomic.py",
@@ -20128,7 +20718,7 @@
                   "via": "_load_state_for_merge"
                 },
                 {
-                  "line": 629,
+                  "line": 644,
                   "name": "model_copy",
                   "target": null
                 },
@@ -20139,14 +20729,14 @@
                   "via": "_merge_append_only"
                 },
                 {
-                  "line": 631,
+                  "line": 646,
                   "name": "atomic_write_json",
                   "target": {
                     "file": "xrpl_lab/_atomic.py"
                   }
                 },
                 {
-                  "line": 636,
+                  "line": 651,
                   "name": "model_dump_json",
                   "target": null
                 }
@@ -20239,7 +20829,7 @@
                   "via": "_load_state_for_merge"
                 },
                 {
-                  "line": 629,
+                  "line": 644,
                   "name": "model_copy",
                   "target": null,
                   "via": "save_state"
@@ -20251,7 +20841,7 @@
                   "via": "_merge_append_only"
                 },
                 {
-                  "line": 631,
+                  "line": 646,
                   "name": "atomic_write_json",
                   "target": {
                     "file": "xrpl_lab/_atomic.py"
@@ -20259,7 +20849,7 @@
                   "via": "save_state"
                 },
                 {
-                  "line": 636,
+                  "line": 651,
                   "name": "model_dump_json",
                   "target": null,
                   "via": "save_state"
@@ -21513,7 +22103,7 @@
       "testRunners": [
         "pytest"
       ],
-      "testedBy": 169,
+      "testedBy": 170,
       "unresolvedSites": 0
     }
   ],
@@ -21706,7 +22296,7 @@
         {
           "boundary": "tests",
           "depth": 0,
-          "files": 178
+          "files": 179
         },
         {
           "boundary": "xrpl_lab",
@@ -21768,7 +22358,7 @@
       "tests": [
         {
           "config": "pyproject.toml",
-          "files": 178,
+          "files": 179,
           "job": "lint-and-test",
           "junit": true,
           "runner": "pytest",
@@ -22687,8 +23277,8 @@
   ],
   "engine": "1.24.0",
   "generatedFrom": {
-    "commit": "0bf3b610433498075661b818377dbf89e9157cad",
-    "tracked": 2633
+    "commit": "0a4a07af22762fad708c5d40f8a7177f321f338f",
+    "tracked": 2776
   },
   "landings": [
     {
@@ -23355,6 +23945,6 @@
   "overlaps": [],
   "submodules": [],
   "symlinks": [],
-  "testFiles": 186,
+  "testFiles": 187,
   "unassigned": []
 }

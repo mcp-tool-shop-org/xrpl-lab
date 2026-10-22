@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.7.9 — 2026-10-22
+
+### Fixed
+
+- **The state-version warning prints once** (#45). With state saved by an
+  older version, a command printed "Warning: state from vX, current is vY.
+  Some fields may differ." once for every time it loaded state: three times
+  for `feedback` and `support-bundle`. It now prints once per command for
+  each state file and version.
+
 ## 2.7.8 — 2026-10-22
 
 ### Removed

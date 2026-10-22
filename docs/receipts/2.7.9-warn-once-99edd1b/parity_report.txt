@@ -1,0 +1,247 @@
+DIFFERENT      leftfailed277\feedback.err
+    --- A
+    +++ B
+    @@ -2,3 +2 @@
+     Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    -Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    -Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+DIFFERENT      leftfailed277\feedback.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 3 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+same after normalizing leftfailed277\feedback.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      leftfailed277\item2_1_run_dryrun.err
+    --- A
+    +++ B
+    @@ -1,2 +1 @@
+     Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    -Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+DIFFERENT      leftfailed277\item2_1_run_dryrun.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 2 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+DIFFERENT      leftfailed277\item2_1_run_dryrun.out
+    --- A
+    +++ B
+    @@ -39,3 +39,3 @@
+       XRPL rejects a payment to yourself (temREDUNDANT), so practice payments go to a fresh address made for this run:
+    -  reADAiw9Bd19o4uxUgVFxk8ncaxfxCjzZ (your first payment to it creates the account)
+    +  r9iCCDmoAKAjckRGYTugyq1RMczu1ejPhB (your first payment to it creates the account)
+       Payment submitted!
+identical      leftfailed277\item2_2_status.err
+same after normalizing leftfailed277\item2_2_status.exit: A {'version': 1} | B {'version': 1}
+same after normalizing leftfailed277\item2_2_status.out: A {'timestamp': 1} | B {'timestamp': 1}
+identical      leftfailed277\item2_3_feedback.err
+same after normalizing leftfailed277\item2_3_feedback.exit: A {'version': 1} | B {'version': 1}
+same after normalizing leftfailed277\item2_3_feedback.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+identical      leftfailed277\snapshot.txt
+same after normalizing leftfailed277\status.err: A {'version': 2} | B {'version': 2}
+identical      leftfailed277\status.exit
+identical      leftfailed277\status.out
+DIFFERENT      leftfailed277\supportbundle.err
+    --- A
+    +++ B
+    @@ -1,3 +1 @@
+     Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    -Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    -Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+DIFFERENT      leftfailed277\supportbundle.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 3 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+same after normalizing leftfailed277\supportbundle.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      leftfailed277\supportbundle_json.err
+    --- A
+    +++ B
+    @@ -1,3 +1 @@
+     Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    -Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    -Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+DIFFERENT      leftfailed277\supportbundle_json.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 3 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+same after normalizing leftfailed277\supportbundle_json.out: A {'version': 3, 'timestamp': 7, 'ledger index': 1, 'faucet http': 1} | B {'version': 3, 'timestamp': 7, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      saved278\feedback.err
+    --- A
+    +++ B
+    @@ -1 +1,2 @@
+     `feedback` is deprecated, use `support-bundle`.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+DIFFERENT      saved278\feedback.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 0 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+same after normalizing saved278\feedback.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      saved278\item2_1_run_dryrun.err
+    --- A
+    +++ B
+    @@ -0,0 +1 @@
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+DIFFERENT      saved278\item2_1_run_dryrun.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 0 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+DIFFERENT      saved278\item2_1_run_dryrun.out
+    --- A
+    +++ B
+    @@ -39,3 +39,3 @@
+       XRPL rejects a payment to yourself (temREDUNDANT), so practice payments go to a fresh address made for this run:
+    -  rQGodkUkBUibiPxtXudPoEskKiAYaxuUdw (your first payment to it creates the account)
+    +  raJGJ4yd7LxLxjJjoubQWoTWGEvMLJBYdq (your first payment to it creates the account)
+       Payment submitted!
+identical      saved278\item2_2_status.err
+same after normalizing saved278\item2_2_status.exit: A {'version': 1} | B {'version': 1}
+same after normalizing saved278\item2_2_status.out: A {'timestamp': 1} | B {'timestamp': 1}
+identical      saved278\item2_3_feedback.err
+same after normalizing saved278\item2_3_feedback.exit: A {'version': 1} | B {'version': 1}
+same after normalizing saved278\item2_3_feedback.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+identical      saved278\snapshot.txt
+DIFFERENT      saved278\status.err
+    --- A
+    +++ B
+    @@ -0,0 +1 @@
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+DIFFERENT      saved278\status.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 0 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+identical      saved278\status.out
+DIFFERENT      saved278\supportbundle.err
+    --- A
+    +++ B
+    @@ -0,0 +1 @@
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+DIFFERENT      saved278\supportbundle.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 0 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+same after normalizing saved278\supportbundle.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      saved278\supportbundle_json.err
+    --- A
+    +++ B
+    @@ -0,0 +1 @@
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+DIFFERENT      saved278\supportbundle_json.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 0 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+same after normalizing saved278\supportbundle_json.out: A {'version': 3, 'timestamp': 8, 'ledger index': 1, 'faucet http': 1} | B {'version': 3, 'timestamp': 8, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      stamp276\feedback.err
+    --- A
+    +++ B
+    @@ -2,3 +2 @@
+     Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+    -Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+    -Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+DIFFERENT      stamp276\feedback.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 3 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: 2.7.6
+same after normalizing stamp276\feedback.out: A {'version': 1, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 1, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      stamp276\item2_1_run_dryrun.err
+    --- A
+    +++ B
+    @@ -1,2 +1 @@
+     Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+    -Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+DIFFERENT      stamp276\item2_1_run_dryrun.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 2 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: <ver>
+DIFFERENT      stamp276\item2_1_run_dryrun.out
+    --- A
+    +++ B
+    @@ -39,3 +39,3 @@
+       XRPL rejects a payment to yourself (temREDUNDANT), so practice payments go to a fresh address made for this run:
+    -  raBn5yBtA3GX3oCEJREBZ3gYAgM6kmVwYi (your first payment to it creates the account)
+    +  rMUDogdkJY3Dq87BrupCceCs9vxZq9i1s8 (your first payment to it creates the account)
+       Payment submitted!
+identical      stamp276\item2_2_status.err
+same after normalizing stamp276\item2_2_status.exit: A {'version': 1} | B {'version': 1}
+same after normalizing stamp276\item2_2_status.out: A {'timestamp': 1} | B {'timestamp': 1}
+identical      stamp276\item2_3_feedback.err
+same after normalizing stamp276\item2_3_feedback.exit: A {'version': 1} | B {'version': 1}
+same after normalizing stamp276\item2_3_feedback.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+identical      stamp276\snapshot.txt
+same after normalizing stamp276\status.err: A {'version': 1} | B {'version': 1}
+identical      stamp276\status.exit
+identical      stamp276\status.out
+DIFFERENT      stamp276\supportbundle.err
+    --- A
+    +++ B
+    @@ -1,3 +1 @@
+     Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+    -Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+    -Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+DIFFERENT      stamp276\supportbundle.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 3 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: 2.7.6
+same after normalizing stamp276\supportbundle.out: A {'version': 1, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 1, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      stamp276\supportbundle_json.err
+    --- A
+    +++ B
+    @@ -1,3 +1 @@
+     Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+    -Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+    -Warning: state from v2.7.6, current is v<ver>. Some fields may differ.
+DIFFERENT      stamp276\supportbundle_json.exit
+    --- A
+    +++ B
+    @@ -1,3 +1,3 @@
+     exit: 0
+    -warnings on stderr: 3 | on stdout: 0
+    +warnings on stderr: 1 | on stdout: 0
+     state.json version after: 2.7.6
+same after normalizing stamp276\supportbundle_json.out: A {'version': 2, 'timestamp': 7, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 7, 'ledger index': 1, 'faucet http': 1}
+
+67 files compared; 29 with a real difference
