@@ -10,14 +10,15 @@
   <a href="https://github.com/mcp-tool-shop-org/xrpl-lab/actions/workflows/ci.yml"><img src="https://github.com/mcp-tool-shop-org/xrpl-lab/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pypi.org/project/xrpl-lab/"><img src="https://img.shields.io/pypi/v/xrpl-lab.svg" alt="PyPI"></a>
   <a href="https://www.npmjs.com/package/@mcptoolshop/xrpl-lab"><img src="https://img.shields.io/npm/v/@mcptoolshop/xrpl-lab.svg" alt="npm"></a>
+  <a href="https://codecov.io/gh/mcp-tool-shop-org/xrpl-lab"><img src="https://codecov.io/gh/mcp-tool-shop-org/xrpl-lab/branch/main/graph/badge.svg" alt="Coverage"></a>
   <a href="https://github.com/mcp-tool-shop-org/xrpl-lab/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"></a>
   <a href="https://mcp-tool-shop-org.github.io/xrpl-lab/"><img src="https://img.shields.io/badge/Landing_Page-live-blue" alt="Landing Page"></a>
 </p>
 
-Manuel de formation XRPL — apprenez en pratiquant, prouvez par la création d’artefacts.
+Manuel de formation XRPL — apprendre en pratiquant, prouver par des exemples concrets.
 
-Chaque module enseigne une compétence XRPL et produit un artefact vérifiable : un ID de transaction,
-un reçu signé ou un rapport de diagnostic. Pas de comptes, pas de fioritures, pas de cloud — juste
+Chaque module enseigne une compétence XRPL et produit un résultat vérifiable : un ID de transaction,
+un reçu signé ou un rapport de diagnostic. Pas de comptes, pas de superflu, pas de cloud — juste
 des compétences et des reçus.
 
 <p align="center">
@@ -38,7 +39,7 @@ pip install xrpl-lab
 
 Nécessite Python 3.11 ou supérieur.
 
-Pas de Python ? Le wrapper npm télécharge le binaire autonome (nécessite Node 18+) :
+Pas de Python ? Le wrapper npm télécharge le binaire autonome (nécessite Node 18 ou supérieur) :
 
 ```bash
 npx @mcptoolshop/xrpl-lab
@@ -78,7 +79,7 @@ La colonne `#` correspond à l’ordre affiché par `xrpl-lab list` (ordre canon
 | 2 | Maîtrise des erreurs | fondamentaux | testnet | Maîtrise des reçus | txid, rapport |
 | 3 | Lignes de confiance 101 : les devises émises en tant que relations | fondamentaux | testnet | — | txid, rapport |
 | 4 | Débogage des lignes de confiance | fondamentaux | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
-| 5 | Trésorerie multisignature (SignerListSet) : contrôle N sur M du portefeuille Studio | fondamentaux | testnet | Maîtrise des reçus | txid, rapport |
+| 5 | Trésorerie multisig (SignerListSet) : contrôle N sur M du portefeuille Studio | fondamentaux | testnet | Maîtrise des reçus | txid, rapport |
 | 6 | Création de NFT 101 : votre premier actif de jeu | nft | testnet | — | txid, rapport |
 | 7 | Marché NFT 101 : échange d’actifs avec des redevances appliquées | nft | testnet | — | txid, rapport |
 | 8 | NFT dynamiques 101 : un objet de jeu qui évolue | nft | testnet | — | txid, rapport |
@@ -86,32 +87,32 @@ La colonne `#` correspond à l’ordre affiché par `xrpl-lab list` (ordre canon
 | 10 | Distribution MPT 101 : distribution de la devise aux joueurs | jetons | testnet | Émission MPT 101 : une devise de jeu en une seule transaction | txid, rapport |
 | 11 | Gel de jetons 101 : le bouton de pause de l’émetteur | jetons | testnet | — | txid, rapport |
 | 12 | Rappel 101 : le levier de rappel de l’émetteur | jetons | testnet | — | txid, rapport |
-| 13 | Escrow 101 : XRP avec verrouillage temporel | paiements | testnet | — | txid, rapport |
-| 14 | Fin d’escrow 101 : libération du XRP verrouillé | paiements | testnet | Escrow 101 : XRP avec verrouillage temporel | txid, rapport |
-| 15 | Escrow de jetons (XLS-85) : verrouillage des IOUs, et pas seulement du XRP | paiements | testnet | Lignes de confiance 101 : les devises émises en tant que relations, Escrow 101 : XRP avec verrouillage temporel | txid, rapport |
-| 16 | Chèques 101 : paiements différés (CheckCreate / CheckCash / CheckCancel) | paiements | testnet | Maîtrise des reçus | txid, rapport |
-| 17 | Canaux de paiement 101 : signez plusieurs fois, réglez une seule fois | paiements | testnet | — | txid, rapport |
+| 13 | Séquestre 101 : XRP avec verrouillage temporel | paiements | testnet | — | txid, rapport |
+| 14 | Fin du séquestre 101 : libération du XRP verrouillé | paiements | testnet | Séquestre 101 : XRP avec verrouillage temporel | txid, rapport |
+| 15 | Séquestre de jetons (XLS-85) : verrouillage des IOUs, et pas seulement du XRP | paiements | testnet | Lignes de confiance 101 : les devises émises en tant que relations, séquestre 101 : XRP avec verrouillage temporel | txid, rapport |
+| 16 | Vérifications 101 : paiements différés (CheckCreate / CheckCash / CheckCancel) | paiements | testnet | Maîtrise des reçus | txid, rapport |
+| 17 | Canaux de paiement 101 : signez plusieurs, réglez une seule fois | paiements | testnet | — | txid, rapport |
 | 18 | Montant livré : l’exploit des paiements partiels | paiements | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
-| 19 | Crédit de joueur custodial : un seul portefeuille groupé, plusieurs joueurs (balises de destination) | paiements | testnet | Montant livré : l’exploit des paiements partiels | txid, rapport |
+| 19 | Crédit de joueur en dépôt : un seul portefeuille groupé, plusieurs joueurs (balises de destination) | paiements | testnet | Montant livré : l’exploit des paiements partiels | txid, rapport |
 | 20 | DID 101 : identité sur le registre | identité | testnet | — | txid, rapport |
 | 21 | Identifiants 101 (XLS-70) : KYC et attestations d’âge sur le registre | identité | testnet | DID 101 : identité sur le registre | txid, rapport |
-| 22 | Domaines autorisés et DEX sécurisé (XLS-80/81) : commerce conforme et sécurisé par des identifiants | identité | testnet | Identifiants 101 (XLS-70) : KYC et attestations d’âge sur le registre | txid, rapport |
+| 22 | Domaines autorisés et DEX sécurisé (XLS-80/81) : échanges conformes et sécurisés par des identifiants | identité | testnet | Identifiants 101 (XLS-70) : KYC et attestations d’âge sur le registre | txid, rapport |
 | 23 | Porte de dépôt (DepositAuth + DepositPreauth) : dépôts de trésorerie sécurisés par des identifiants | identité | testnet | Identifiants 101 (XLS-70) : KYC et attestations d’âge sur le registre | txid, rapport |
 | 24 | Maîtrise du DEX : offres, carnets d’ordres et annulations | dex | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
 | 25 | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres | dex | testnet | Maîtrise du DEX : offres, carnets d’ordres et annulations | txid, rapport |
-| 26 | Garde-fous d’inventaire DEX : ne vous laissez pas déséquilibrer | dex | testnet | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres | txid, rapport |
+| 26 | Garanties d’inventaire DEX : ne vous laissez pas déséquilibrer | dex | testnet | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres | txid, rapport |
 | 27 | Réserves 101 : où votre XRP est « allé » | réserves | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
-| 28 | Hygiène des comptes : libérer les réserves et nettoyer les objets | réserves | testnet | Réserves 101 : où votre XRP est « allé » | txid, rapport |
-| 29 | Mode audit : vérifier les reçus à grande échelle | audit | testnet | Maîtrise des reçus | rapport, audit_pack |
-| 30 | AMM Liquidité 101 : fournir de la liquidité et gagner des frais | amm | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
-| 31 | Maîtrise du DEX par rapport à l’AMM : comparaison des stratégies de négociation | amm | exécution à blanc | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres, AMM Liquidité 101 : fournir de la liquidité et gagner des frais | txid, rapport |
-| 32 | Module de synthèse : mettre en place une économie de jeu minimale sur XRPL | module de synthèse | testnet | Émission MPT 101 : une devise de jeu en une seule transaction, Création de NFT 101 : votre premier actif de jeu, Escrow 101 : XRP avec verrouillage temporel, Mode audit : vérifier les reçus à grande échelle | txid, rapport, audit_pack |
+| 28 | Hygiène des comptes : libération des réserves et nettoyage des objets | réserves | testnet | Réserves 101 : où votre XRP est « allé » | txid, rapport |
+| 29 | Mode audit : vérification des reçus à grande échelle | audit | testnet | Maîtrise des reçus | rapport, audit_pack |
+| 30 | Liquidité AMM 101 : fourniture de liquidités et perception de frais | amm | testnet | Lignes de confiance 101 : les devises émises en tant que relations | txid, rapport |
+| 31 | Maîtrise des risques DEX par rapport à AMM : comparaison des stratégies de négociation | amm | exécution à blanc | Création de marché DEX 101 : gagner une marge sur le carnet d’ordres, liquidité AMM 101 : fourniture de liquidités et perception de frais | txid, rapport |
+| 32 | Module de synthèse : mettre en place une économie de jeu minimale sur XRPL | module de synthèse | testnet | Émission MPT 101 : une devise de jeu en une seule transaction, création de NFT 101 : votre premier actif de jeu, séquestre 101 : XRP avec verrouillage temporel, mode audit : vérification des reçus à grande échelle | txid, rapport, audit_pack |
 <!-- END curriculum:auto readme-table -->
 
-La colonne **Produit** répertorie les types d’artefacts que chaque module génère (`txid`,
+La colonne **Produit** répertorie les types de résultats que chaque module génère (`txid`,
 `report`, `audit_pack`) ; consultez la page de chaque module dans le
 [manuel](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) pour
-obtenir le guide complet des compétences et ce que vous prouvez sur le registre.
+le guide complet et ce que vous prouvez sur le registre.
 
 ### Voies
 
@@ -120,13 +121,13 @@ obtenir le guide complet des compétences et ce que vous prouvez sur le registre
 - **fondamentaux** — portefeuille, paiements, lignes de confiance, gestion des erreurs
 - **nft** — actifs de jeu NFT : création, règlement du marché (XLS-20), NFT dynamiques (XLS-46)
 - **jetons** — émission et distribution MPT (XLS-33), gel de jetons, rappel (XLS-39)
-- **paiements** — escrow avec verrouillage temporel, chèques, canaux de paiement, paiements partiels, balises de destination
-- **identité** — DID (XLS-40), identifiants (XLS-70), DEX autorisé (XLS-80/81), autorisation de dépôt
+- **paiements** — séquestre avec verrouillage temporel, vérifications, canaux de paiement, paiements partiels, balises de destination
+- **identité** — DID (XLS-40), identifiants (XLS-70), DEX sécurisé (XLS-80/81), autorisation de dépôt
 - **dex** — offres, carnets d’ordres, création de marché, gestion des stocks
 - **réserves** — réserves de compte, nombre de propriétaires, nettoyage
 - **audit** — vérification par lots, rapports d’audit
-- **amm** — liquidité du teneur de marché automatisé, comparaison DEX et AMM
-- **module de synthèse** — combiner les compétences des différentes voies pour créer une économie de jeu
+- **amm** — liquidité du teneur de marché automatisé, comparaison DEX par rapport à AMM
+- **module de synthèse** — combinez les compétences des différentes voies pour créer une économie de jeu
 <!-- END curriculum:auto readme-tracks -->
 
 ### Modes
@@ -147,7 +148,7 @@ xrpl-lab tracks             Track-level completion summaries
 xrpl-lab recovery           Diagnose stuck states, show recovery commands
 xrpl-lab lint [glob] [--json] [--no-curriculum]  Validate module files and curriculum
 xrpl-lab proof-pack         Export shareable proof pack
-xrpl-lab verify-artifact <file> [--json]  Verify any artifact's SHA-256 integrity (proof packs, certificates, audit packs, support bundles)
+xrpl-lab verify-artifact <file> [--json] [--live]  Verify any artifact (proof packs, certificates, audit packs, support bundles); --live also checks a proof pack's or certificate's transactions on the ledger
 xrpl-lab certificate        Export completion certificate
 xrpl-lab doctor             Run diagnostic checks
 xrpl-lab support-bundle [--json]  Generate a support bundle
@@ -156,6 +157,7 @@ xrpl-lab last-run           Show last module run + audit command
 xrpl-lab serve [--port N] [--host H] [--dry-run]  Start web dashboard and API server
 xrpl-lab reset [--module MODULE_ID]  Wipe local state OR reset a single module (requires confirmation)
 xrpl-lab module init --id ID --track TRACK --title TITLE --time TIME  Scaffold a lint-passing module skeleton
+xrpl-lab curriculum manifest  Print the curriculum manifest the docs are generated from
 
 xrpl-lab wallet create      Create a new wallet
 xrpl-lab wallet show        Show wallet info (no secrets)
@@ -164,7 +166,7 @@ xrpl-lab send --to <address> --amount <xrp> [--memo <text>]  Send a payment
 xrpl-lab verify --tx <id>   Verify a transaction on-ledger
 ```
 
-Toutes les commandes prennent en charge `--dry-run` pour le mode hors ligne lorsque cela est applicable.
+Toutes les commandes prennent en charge `--dry-run` pour le mode hors ligne, le cas échéant.
 
 ## Utilisation en atelier
 
@@ -192,70 +194,70 @@ xrpl-lab support-bundle --json       # Machine-parseable JSON
 xrpl-lab support-bundle --verify bundle.json  # Verify a received bundle
 ```
 
-Un facilitateur peut diagnostiquer le problème de n’importe quel apprenant à partir d’un ensemble de données de support sans
+Un facilitateur peut diagnostiquer le problème de n’importe quel apprenant à partir d’un ensemble de données d’assistance sans
 reproduire toute la session. Aucun secret n’est inclus.
 
-### Déroulement des ateliers
+### Déroulement de l’atelier
 
-**Environnement entièrement hors ligne** — aucune connexion réseau requise :
+**Bac à sable entièrement hors ligne** — aucun réseau requis :
 ```bash
 xrpl-lab wallet create
 xrpl-lab start --dry-run
 ```
 
-**Environnement mixte hors ligne + testnet** — transactions réelles pour les bases, environnement hors ligne pour les fonctionnalités avancées :
+**Mode mixte hors ligne + testnet** — transactions réelles pour les bases, environnement de test pour les fonctionnalités avancées :
 ```bash
 xrpl-lab wallet create
 xrpl-lab fund
 xrpl-lab start
 ```
 
-**Progression de « Camp » vers « Lab »** — continuer à partir de xrpl-camp :
+**Progression du camp vers le laboratoire** — continuer à partir de xrpl-camp :
 ```bash
 xrpl-lab start    # auto-detects camp wallet and certificate
 ```
 
 ## Artefacts
 
-**Ensemble de preuves** (`xrpl_lab_proof_pack.json`) : enregistrement partageable des modules terminés, des ID de transaction et des liens vers l’explorateur. Inclut un hachage d’intégrité SHA-256. Aucune donnée sensible.
+**Ensemble de preuves** (`xrpl_lab_proof_pack.json`) : enregistrement partageable des modules terminés, des ID de transaction et des liens vers l’explorateur. Inclut un hachage d’intégrité SHA-256. Pas de données sensibles.
 
 **Certificat** (`xrpl_lab_certificate.json`) : enregistrement succinct de l’achèvement.
 
 **Rapports** (`reports/*.md`) : résumés lisibles par l’homme de ce que vous avez fait et prouvé.
 
-**Ensembles d’audit** (`audit_pack_*.json`) : résultats de vérification par lots avec hachage d’intégrité SHA-256.
+**Ensembles d’audit** (`audit_pack_*.json`) : résultats de vérification par lots avec un hachage d’intégrité SHA-256.
 
 ## Modèle de sécurité et de confiance
 
 **Données auxquelles XRPL Lab a accès :**
-- Clé de portefeuille (stockée localement dans `~/.xrpl-lab/wallet.json` au format JSON en texte clair — mode POSIX `0o600` / `0o700`, ou ACL réservée au propriétaire sous Windows ; non chiffrée)
+- Clé de portefeuille (stockée localement dans `~/.xrpl-lab/wallet.json` au format JSON en texte clair — mode POSIX `0o600` / `0o700`, ou une liste de contrôle d’accès (ACL) réservée au propriétaire sous Windows ; non chiffrée)
 - Progression des modules et ID de transaction (stockés dans `~/.xrpl-lab/state.json`, écrit atomique via tmp + rename)
-- RPC XRPL Testnet (point de terminaison public, transactions signées localement avant l’envoi)
-- Distributeur de testnet (HTTP public, seule votre adresse est envoyée)
+- XRPL Testnet RPC (point de terminaison public, les transactions sont signées localement avant l’envoi)
+- Testnet faucet (HTTP public, seule votre adresse est envoyée)
 
-**Données auxquelles XRPL Lab N’a PAS accès :**
+**Données auxquelles XRPL Lab n’a PAS accès :**
 - Pas de mainnet. Uniquement le testnet
 - Pas de télémétrie, d’analyse ou de transmission de données de quelque nature que ce soit
 - Pas de comptes cloud, pas d’inscription, pas d’API tierces
-- Aucune donnée sensible dans les ensembles de preuves, les certificats, les rapports ou les ensembles de support — jamais
+- Pas de données sensibles dans les ensembles de preuves, les certificats, les rapports ou les ensembles de support, jamais
 
 **Niveaux de permissions et de stockage :**
-- Répertoire personnel `~/.xrpl-lab/` — niveau de données sensibles privées (POSIX `0o700` / `0o600`, ou ACL réservée au propriétaire sous Windows). Stocke la clé de portefeuille, le journal de diagnostic, les ensembles d’audit.
+- Répertoire personnel `~/.xrpl-lab/` — niveau de stockage des données sensibles (POSIX `0o700` / `0o600`, ou une ACL réservée au propriétaire sous Windows). Stocke la clé de portefeuille, le journal de diagnostic, les ensembles d’audit.
 - Espace de travail `./.xrpl-lab/` — niveau conçu pour être partagé, répertoire 0o755. Stocke les rapports de module, les ensembles de preuves, les certificats. Les facilitateurs peuvent les consulter sans élévation de permissions.
-- Système de fichiers : lecture/écriture uniquement dans les deux emplacements ci-dessus
-- Réseau : uniquement XRPL Testnet RPC + distributeur (les deux peuvent être remplacés via des variables d’environnement, les deux sont facultatifs avec `--dry-run`)
-- Aucune permission élevée requise
+- Système de fichiers : ne lit et n’écrit que dans les deux emplacements ci-dessus
+- Réseau : uniquement XRPL Testnet RPC + faucet (les deux peuvent être remplacés via des variables d’environnement, les deux sont facultatifs avec `--dry-run`)
+- Aucune permission élevée n’est requise
 
 **Interface du tableau de bord (lorsque `xrpl-lab serve` est en cours d’exécution) :**
-- Le point de terminaison du serveur WebSocket applique une liste d’autorisation d’origines (ferme les connexions non autorisées avec le code 4003)
+- Le point de terminaison WebSocket du runner applique une liste d’origines autorisées (ferme les connexions non autorisées avec le code 4003)
 - Les requêtes HTTP qui modifient l’état (POST, PUT, PATCH, DELETE) provenant d’une origine non autorisée sont refusées avec `403 ORIGIN_REJECTED`, de sorte qu’une page dans un autre onglet ne peut pas démarrer une exécution ; les requêtes sans origine (CLI, curl) fonctionnent toujours
-- Les requêtes dont l’`Host` n’est pas une adresse de loopback ou l’adresse `serve` à laquelle elles sont liées sont refusées avec `400 HOST_REJECTED`, ce qui empêche le détournement DNS (désactivé pour une liaison `0.0.0.0`)
-- Tous les cadres d’erreur émettent une enveloppe structurée (`code`, `message`, `hint`, `severity`, `icon_hint`) — aucune fuite de chemin, aucune fuite d’état interne
+- Les requêtes dont l’origine `Host` n’est pas l’adresse de loopback ou l’adresse `serve` à laquelle elles sont liées sont refusées avec `400 HOST_REJECTED`, ce qui empêche le détournement DNS (désactivé pour une liaison `0.0.0.0`)
+- Tous les cadres d’erreur émettent une enveloppe structurée (`code`, `message`, `hint`, `severity`, `icon_hint`) — pas de fuite de chemin, pas de fuite d’état interne
 - File d’attente de messages par connexion limitée avec un comportement de rétroaction documenté
 
 Consultez [SECURITY.md](SECURITY.md) pour connaître l’intégralité de la politique de sécurité et les instructions de configuration de l’atelier.
 
-## Prérequis
+## Exigences
 
 - Python 3.11+
 - Connexion Internet pour le testnet (ou utilisez `--dry-run` pour un mode entièrement hors ligne)
