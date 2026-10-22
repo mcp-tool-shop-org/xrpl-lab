@@ -54,7 +54,7 @@
       "externals": 0,
       "files": [
         {
-          "hash": "b2904e6aa843bfc9c951f63e6e2ea1d6b3b04f2066dee2e96e1d53d4c3718f64",
+          "hash": "8839ef61e3cb1ff771406e2809592783d97f427ab088d7cd45ca4cedb77a10ca",
           "path": "bin/xrpl-lab.js"
         }
       ],
@@ -9458,7 +9458,7 @@
           "path": ".gitignore"
         },
         {
-          "hash": "b039ea51331f05a545d6beeaa8b7b23f9439fcd98c8fe0769b8788e4ee5532c6",
+          "hash": "223d59bd22cd3e770dcb9570d9561c3ec1531e80ec9c058710beb9f5c5e7bf15",
           "path": "CHANGELOG.md"
         },
         {
@@ -9514,15 +9514,15 @@
           "path": "codecov.yml"
         },
         {
-          "hash": "4fd556fedc18c098e024d330506758dbcdef158eb5163f35c819d3c4ee0af83a",
+          "hash": "249333ad054f0955ca3bce32838c9a4915bcfaea5503e56b6dc9f1ffe5a52fe8",
           "path": "package.json"
         },
         {
-          "hash": "f512cd319840b466a33f65643cee2599bafc4726110f5031a56a2b22806fb8be",
+          "hash": "be1cb81ec8dd77d7c84822aebc7054234ec2ed1e29d355300b3d32ab395e74cc",
           "path": "pyproject.toml"
         },
         {
-          "hash": "c5a47a3b66542ec1e79c1247cfe4a2651c7fbccb4576b1640a565288104d037c",
+          "hash": "002dc04a970f3e2f50da96b263ba224702b9bfbcbb978dcaa0bbac74f804ad64",
           "path": "uv.lock"
         },
         {
@@ -13517,6 +13517,28 @@
         },
         {
           "exports": [
+            "old_home",
+            "test_a_different_old_version_still_warns",
+            "test_another_state_file_still_warns",
+            "test_the_cli_warns_once_per_command",
+            "test_three_loads_warn_once"
+          ],
+          "hash": "5408dea6b43781ffb03f4169cf77d39563f0b9afdba6e26ec555662931b9f945",
+          "importOrder": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/state.py",
+            "xrpl_lab/cli.py"
+          ],
+          "importsFiles": [
+            "xrpl_lab/__init__.py",
+            "xrpl_lab/cli.py",
+            "xrpl_lab/state.py"
+          ],
+          "path": "tests/test_v279_state_warning_once.py",
+          "testFramework": "pytest"
+        },
+        {
+          "exports": [
             "client_with_module",
             "verify_client"
           ],
@@ -14429,7 +14451,7 @@
               "line": 7
             }
           ],
-          "hash": "b2f23a7621d10185246cad6b80889f584d463d6e2cbaecdf0b36be31d37fa956",
+          "hash": "a78ac2d1165f8f7a18e6ac212ac40f8c3eb67716fd2310110b7c1def9fbd15b9",
           "path": "xrpl_lab/__init__.py"
         },
         {
@@ -19901,25 +19923,25 @@
             {
               "in": "load_state",
               "kind": "except",
-              "line": 512
+              "line": 527
             },
             {
               "in": "load_state",
               "kind": "except",
-              "line": 535
+              "line": 550
             },
             {
               "in": "reset_module",
               "kind": "raise",
-              "line": 703
+              "line": 718
             },
             {
               "in": "reset_module",
               "kind": "except",
-              "line": 736
+              "line": 751
             }
           ],
-          "hash": "8f8ec9637732b4cfd5e90409efe868c454c8c6355c8d6352f1c3888640c13e0f",
+          "hash": "3a5f34e0e2b264fc0669df90db53f2fd4a429aa1849d3bb20672fd49d1487203",
           "importsFiles": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/_atomic.py",
@@ -20128,7 +20150,7 @@
                   "via": "_load_state_for_merge"
                 },
                 {
-                  "line": 629,
+                  "line": 644,
                   "name": "model_copy",
                   "target": null
                 },
@@ -20139,14 +20161,14 @@
                   "via": "_merge_append_only"
                 },
                 {
-                  "line": 631,
+                  "line": 646,
                   "name": "atomic_write_json",
                   "target": {
                     "file": "xrpl_lab/_atomic.py"
                   }
                 },
                 {
-                  "line": 636,
+                  "line": 651,
                   "name": "model_dump_json",
                   "target": null
                 }
@@ -20239,7 +20261,7 @@
                   "via": "_load_state_for_merge"
                 },
                 {
-                  "line": 629,
+                  "line": 644,
                   "name": "model_copy",
                   "target": null,
                   "via": "save_state"
@@ -20251,7 +20273,7 @@
                   "via": "_merge_append_only"
                 },
                 {
-                  "line": 631,
+                  "line": 646,
                   "name": "atomic_write_json",
                   "target": {
                     "file": "xrpl_lab/_atomic.py"
@@ -20259,7 +20281,7 @@
                   "via": "save_state"
                 },
                 {
-                  "line": 636,
+                  "line": 651,
                   "name": "model_dump_json",
                   "target": null,
                   "via": "save_state"
@@ -21513,7 +21535,7 @@
       "testRunners": [
         "pytest"
       ],
-      "testedBy": 169,
+      "testedBy": 170,
       "unresolvedSites": 0
     }
   ],
@@ -21706,7 +21728,7 @@
         {
           "boundary": "tests",
           "depth": 0,
-          "files": 178
+          "files": 179
         },
         {
           "boundary": "xrpl_lab",
@@ -21768,7 +21790,7 @@
       "tests": [
         {
           "config": "pyproject.toml",
-          "files": 178,
+          "files": 179,
           "job": "lint-and-test",
           "junit": true,
           "runner": "pytest",
@@ -22687,8 +22709,8 @@
   ],
   "engine": "1.24.0",
   "generatedFrom": {
-    "commit": "0bf3b610433498075661b818377dbf89e9157cad",
-    "tracked": 2633
+    "commit": "c43a36fc2fcab74d22fadaafe98cd2c6d039ab8e",
+    "tracked": 2634
   },
   "landings": [
     {
@@ -23355,6 +23377,6 @@
   "overlaps": [],
   "submodules": [],
   "symlinks": [],
-  "testFiles": 186,
+  "testFiles": 187,
   "unassigned": []
 }
