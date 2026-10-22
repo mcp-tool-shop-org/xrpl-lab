@@ -1,0 +1,6 @@
+Usage: xrpl-lab recovery [OPTIONS]
+
+  Diagnose stuck states and show recovery commands.
+
+Options:
+  --help  Show this message and exit.

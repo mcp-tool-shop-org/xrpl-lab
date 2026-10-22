@@ -1,0 +1,10 @@
+Usage: xrpl-lab send [OPTIONS]
+
+  Send a payment transaction.
+
+Options:
+  --to TEXT      Destination address  [required]
+  --amount TEXT  Amount in XRP  [required]
+  --memo TEXT    Optional memo text
+  --dry-run
+  --help         Show this message and exit.

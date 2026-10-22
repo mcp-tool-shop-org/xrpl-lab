@@ -1,0 +1,12 @@
+Usage: xrpl-lab run [OPTIONS] MODULE_ID
+
+  Run a specific module by ID (e.g., xrpl-lab run receipt_literacy).
+
+Options:
+  --dry-run  Offline sandbox mode: transactions are simulated (won't execute
+             on testnet), but state and progress are saved locally. Use this
+             to learn without network access, or to repeat modules without
+             consuming testnet faucet requests.
+  --force    Re-run a completed module — useful for practice or retrying with
+             different values
+  --help     Show this message and exit.

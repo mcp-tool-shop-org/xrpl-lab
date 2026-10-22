@@ -8,7 +8,6 @@ Warn-tier doctor checks (curriculum drift, etc.) must not render as public
 from __future__ import annotations
 
 from xrpl_lab.doctor import Check, public_check_icon
-from xrpl_lab.feedback import generate_feedback
 from xrpl_lab.state import CompletedModule, LabState
 from xrpl_lab.workshop import (
     LearnerStatus,
@@ -149,35 +148,3 @@ def test_generate_support_bundle_threads_severity(tmp_path, monkeypatch):
     md = bundle.to_markdown()
     assert "[WARN] Last module state" in md
     assert "[FAIL] Last module state" not in md
-
-
-def test_feedback_markdown_warn_not_fail(tmp_path, monkeypatch):
-    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path)
-    monkeypatch.setattr("xrpl_lab.doctor.get_home_dir", lambda: tmp_path)
-    monkeypatch.setattr("xrpl_lab.doctor.get_workspace_dir", lambda: tmp_path / "ws")
-    monkeypatch.setattr("xrpl_lab.feedback.get_workspace_dir", lambda: tmp_path / "ws")
-    monkeypatch.setattr("xrpl_lab.feedback.load_state", lambda: LabState(
-        wallet_address="rTestAddr123", completed_modules=[], tx_index=[]
-    ))
-
-    async def _fake_doctor():
-        from xrpl_lab.doctor import DoctorReport
-
-        return DoctorReport(
-            checks=[
-                Check(
-                    "Last module state",
-                    False,
-                    "drift: x",
-                    "hint",
-                    severity="warn",
-                ),
-                Check("Hard break", False, "down", "fix it", severity="fail"),
-            ]
-        )
-
-    monkeypatch.setattr("xrpl_lab.feedback.run_doctor", _fake_doctor)
-    md = generate_feedback()
-    assert "[WARN] Last module state" in md
-    assert "[FAIL] Last module state" not in md
-    assert "[FAIL] Hard break" in md

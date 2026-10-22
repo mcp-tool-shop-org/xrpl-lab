@@ -184,7 +184,7 @@ async def await_validated_balance(transport: Transport, address: str) -> Decimal
 # query-string token if the operator pointed it at a credential-protected
 # endpoint. Rather than inventing a second redaction scheme, this reuses
 # the SAME xrpl_lab.reporting.sanitize_endpoint() already trusted for the
-# identical threat class on the proof-pack/doctor/feedback surfaces
+# identical threat class on the proof-pack/doctor/support-bundle surfaces
 # (RA-002/F-60b2df48, CHANGELOG v2.4.0) — per the wave-2 advisor contract.
 #
 # Unlike the WS output channel's generic, arbitrary-free-text redaction
@@ -194,7 +194,7 @@ async def await_validated_balance(transport: Transport, address: str) -> Decimal
 # legitimate path/query a learner needs to see — it only ever echoes a
 # misconfigured ENDPOINT. So every URL-shaped span found here is reduced
 # unconditionally to scheme://host[:port], exactly how audit.py/doctor.py/
-# feedback.py already treat endpoint values — no conditional "does this
+# workshop.py already treat endpoint values — no conditional "does this
 # look like a credential" heuristic is needed at this specific call site.
 _URL_SPAN_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s'\"()<>]+")
 

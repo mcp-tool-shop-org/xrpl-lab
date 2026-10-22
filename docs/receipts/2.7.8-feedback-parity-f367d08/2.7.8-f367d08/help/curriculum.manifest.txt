@@ -1,0 +1,12 @@
+Usage: xrpl-lab curriculum manifest [OPTIONS]
+
+  Print the canonical curriculum manifest (single source for all docs).
+
+  The module list, ordering/numbering, tracks, and counts shown here are the
+  SAME shape ``scripts/gen_docs.py`` renders into the README, the handbook,
+  and the marketing site — and that ``tests/test_docs_drift.py`` gates. There
+  is no second place to update the curriculum's shape.
+
+Options:
+  --json  Machine-readable JSON output
+  --help  Show this message and exit.

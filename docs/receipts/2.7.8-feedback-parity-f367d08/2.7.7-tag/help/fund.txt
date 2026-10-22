@@ -1,0 +1,7 @@
+Usage: xrpl-lab fund [OPTIONS]
+
+  Fund your wallet from the testnet faucet.
+
+Options:
+  --dry-run  Offline sandbox
+  --help     Show this message and exit.

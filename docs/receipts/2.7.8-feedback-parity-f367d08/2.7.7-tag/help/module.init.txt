@@ -1,0 +1,26 @@
+Usage: xrpl-lab module init [OPTIONS]
+
+  Generate a lint-passing module skeleton.
+
+  F-BACKEND-FT-006: bootstraps community contributions and custom workshop
+  modules. Generates a markdown file with valid frontmatter, three step
+  skeleton sections, and action comment hints. Auto-runs the linter on the
+  result so contributors see a green pass before they edit forward. Pairs with
+  the new CONTRIBUTING.md.
+
+Options:
+  --id TEXT                       snake_case module ID  [required]
+  --track [foundations|nfts|tokens|payments|identity|dex|reserves|audit|amm|capstone]
+                                  Curriculum track this module belongs to
+                                  [required]
+  --title TEXT                    Human-readable module title  [required]
+  --time TEXT                     Estimated duration (e.g., "20 min")
+                                  [required]
+  --requires TEXT                 Comma-separated list of prerequisite module
+                                  IDs (optional)
+  --level [beginner|intermediate|advanced]
+                                  Difficulty level (default: beginner)
+  --mode [testnet|dry-run]        Default execution mode
+  --outfile PATH                  Output path (default: ./<module_id>.md in
+                                  current directory)
+  --help                          Show this message and exit.

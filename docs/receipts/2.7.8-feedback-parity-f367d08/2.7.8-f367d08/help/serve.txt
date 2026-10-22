@@ -1,0 +1,18 @@
+Usage: xrpl-lab serve [OPTIONS]
+
+  Start the XRPL Lab web dashboard and API server.
+
+  Always hosts the JSON API on the given host:port. When a built dashboard is
+  found ($XRPL_LAB_DASHBOARD_DIR or ./site/dist), it is ALSO served in-process
+  at /xrpl-lab/app/ so a single command runs both; otherwise the dashboard is
+  served separately (the Astro dev server). The bundled dashboard talks to the
+  API at localhost:8321, so keep the default port when using the in-process
+  dashboard.
+
+  API docs available at http://{host}:{port}/docs after starting.
+
+Options:
+  --port INTEGER  API server port
+  --host TEXT     API server host
+  --dry-run       Offline sandbox for all operations
+  --help          Show this message and exit.

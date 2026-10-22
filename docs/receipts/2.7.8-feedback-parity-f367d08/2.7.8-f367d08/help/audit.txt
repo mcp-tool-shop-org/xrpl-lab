@@ -1,0 +1,12 @@
+Usage: xrpl-lab audit [OPTIONS]
+
+  Batch verify transactions and produce an audit report.
+
+Options:
+  --txids PATH   File with one txid per line  [required]
+  --expect PATH  Expectations JSON file
+  --csv TEXT     Write CSV report to this path
+  --md TEXT      Write markdown report to this path
+  --dry-run      Offline sandbox
+  --no-pack      Skip writing audit pack JSON
+  --help         Show this message and exit.

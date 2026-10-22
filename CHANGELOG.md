@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.7.8 — 2026-10-22
+
+### Removed
+
+- **`feedback.py`'s `generate_feedback()`** (#42). Nothing called it but its
+  own tests: the deprecated `feedback` command and `support-bundle` both
+  print the support bundle. Its tests go with it, and the doctor checks they
+  shared stay covered by doctor's own tests. Nothing a learner runs changes.
+
 ## 2.7.7 — 2026-10-22
 
 ### Fixed

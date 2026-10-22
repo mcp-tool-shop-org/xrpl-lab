@@ -1,0 +1,11 @@
+Usage: xrpl-lab proof verify [OPTIONS] FILE
+
+  Verify a proof pack's integrity (and, with --live, on-ledger truth).
+
+Options:
+  --json  Machine-readable JSON output
+  --live  Ledger-anchored verification: re-fetch every claimed txid from the
+          public XRPL (per the tx's own network) and confirm it exists, is
+          validated, and succeeded. The offline SHA-256 check ALWAYS runs;
+          --live adds the on-ledger trust layer on top.
+  --help  Show this message and exit.

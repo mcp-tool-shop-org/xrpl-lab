@@ -1,0 +1,17 @@
+Usage: xrpl-lab session-export [OPTIONS]
+
+  Archive all learner artifacts with a SHA-256 manifest.
+
+  Walks ``COHORT_DIR`` for per-learner workspaces and packs each learner's
+  proofs/, reports/, audit_packs/, certificates/ into a single archive.
+  wallet.json, state.json, and doctor.log are NEVER archived (workshop threat-
+  model line). MANIFEST.json at the archive root lists every included file
+  with its source SHA-256.
+
+Options:
+  --dir DIRECTORY        Cohort directory containing per-learner
+                         subdirectories.
+  --format [tar.gz|zip]  Archive format.
+  --outfile PATH         Output archive path (default:
+                         xrpl_lab_session_<timestamp>.<fmt>).
+  --help                 Show this message and exit.

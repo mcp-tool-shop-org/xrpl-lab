@@ -26,7 +26,7 @@ def _redact_path(p: Path | str) -> str:
     """Home-/cwd-relativize a path for doctor output.
 
     Doctor ``Check.detail`` strings flow into ``doctor.log`` and the
-    explicitly issue-shareable feedback bundle (``feedback.py``). A raw
+    explicitly issue-shareable support bundle (``workshop.py``). A raw
     absolute path leaks the OS username and home layout, so we render paths
     as ``~/…`` or ``./…`` and never expose the absolute home prefix. Mirrors
     the COREBCD-002 discipline already applied to the network checks, which

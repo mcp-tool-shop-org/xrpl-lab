@@ -1,0 +1,7 @@
+Usage: xrpl-lab audit-verify [OPTIONS] FILE
+
+  Verify an audit pack's integrity_sha256 (tamper-evidence).
+
+Options:
+  --json  Machine-readable JSON output
+  --help  Show this message and exit.

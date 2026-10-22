@@ -1,0 +1,6 @@
+Usage: xrpl-lab wallet show [OPTIONS]
+
+  Show wallet info (no secrets).
+
+Options:
+  --help  Show this message and exit.
