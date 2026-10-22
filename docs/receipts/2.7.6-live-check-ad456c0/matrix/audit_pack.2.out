@@ -1,0 +1,20 @@
+{
+  "valid": true,
+  "file": "audit_pack.json",
+  "version": "2.7.6",
+  "network": "testnet",
+  "dry_run": false,
+  "simulated": false,
+  "summary": {
+    "failed": 1,
+    "not_found": 0,
+    "passed": 4,
+    "total": 5
+  },
+  "integrity_sha256": "ba9ccafc308269bbb16991bbc0f28cd4fb2c09f49f984020967ed5528f4b1805",
+  "message": "Integrity verified",
+  "artifact_kind": "audit_pack",
+  "live": {
+    "skipped": "On-ledger verification doesn't apply to audit pack; only its integrity hash is checked."
+  }
+}

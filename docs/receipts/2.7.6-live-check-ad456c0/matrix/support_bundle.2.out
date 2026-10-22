@@ -1,0 +1,1 @@
+{"valid": true, "message": "Support bundle is well-formed.", "artifact_kind": "support_bundle", "live": {"skipped": "On-ledger verification doesn't apply to support bundle; only its integrity hash is checked."}}

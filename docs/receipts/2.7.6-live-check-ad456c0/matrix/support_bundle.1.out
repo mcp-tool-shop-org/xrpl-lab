@@ -1,0 +1,6 @@
+
+  Artifact:    support bundle
+  On-ledger verification doesn't apply to support bundle; only its integrity hash is checked.
+
+  ✅ PASS — Support bundle is well-formed.
+
