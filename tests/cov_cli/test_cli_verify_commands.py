@@ -581,18 +581,18 @@ def test_verify_artifact_live_on_a_certificate_reports_nothing_to_anchor(lab):
     assert "Certificates record no individual txids" in text.stdout
 
 
-@pytest.mark.parametrize(("body", "label"), [
-    ({"schema": "xrpl-lab-support-bundle-v1"}, "support bundle"),
-    ({"tool": "xrpl-lab", "verdicts": []}, "audit pack"),
+@pytest.mark.parametrize(("body", "label", "checked"), [
+    ({"schema": "xrpl-lab-support-bundle-v1"}, "support bundle",
+     "only its structure is checked (a support bundle has no integrity hash)"),
+    ({"tool": "xrpl-lab", "verdicts": []}, "audit pack", "only its integrity hash is checked"),
 ])
-def test_verify_artifact_live_says_it_does_not_apply(lab, body, label):
+def test_verify_artifact_live_says_it_does_not_apply(lab, body, label, checked):
     f = write_json(lab.work / "x.json", body)
     text = invoke(["verify-artifact", str(f), "--live"])
     assert f"On-ledger verification doesn't apply to {label}" in text.stdout
     d = json.loads(invoke(["verify-artifact", str(f), "--live", "--json"]).stdout)
     assert d["live"] == {"skipped": (
-        f"On-ledger verification doesn't apply to {label}; "
-        "only its integrity hash is checked."
+        f"On-ledger verification doesn't apply to {label}; {checked}."
     )}
 
 

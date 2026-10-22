@@ -1422,7 +1422,8 @@ def _detect_artifact_kind(artifact: object) -> str | None:
     ),
 )
 def verify_artifact(file: str, json_output: bool, live: bool):
-    """Verify any XRPL Lab JSON artifact's embedded integrity hash.
+    """Verify any XRPL Lab JSON artifact: its embedded integrity hash, or a
+    support bundle's structure (it carries no hash).
 
     Auto-detects the artifact kind from its own JSON markers, then runs the
     SAME verification as that kind's (now deprecated) native command:
@@ -1483,9 +1484,15 @@ def verify_artifact(file: str, json_output: bool, live: bool):
     # silently lost the on-ledger check.
     extras = {"artifact_kind": kind}
     if live and kind in ("audit_pack", "support_bundle"):
+        # A support bundle carries no integrity hash, only a schema and its
+        # required fields (Book Keeper, 2.7.6 live check).
+        checked = (
+            "only its integrity hash is checked" if kind == "audit_pack" else
+            "only its structure is checked (a support bundle has no integrity hash)"
+        )
         note = (
-            f"On-ledger verification doesn't apply to {_ARTIFACT_KIND_LABELS[kind].lower()}; "
-            "only its integrity hash is checked."
+            f"On-ledger verification doesn't apply to {_ARTIFACT_KIND_LABELS[kind]}; "
+            f"{checked}."
         )
         extras["live"] = {"skipped": note}
         if not json_output:

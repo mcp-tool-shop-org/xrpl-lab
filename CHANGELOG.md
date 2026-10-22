@@ -9,7 +9,9 @@
   `--live`, so following that advice silently dropped the on-ledger check.
   It now passes `--live` through, with the same output and exit codes as
   the commands it replaces. For an audit pack or a support bundle, which
-  have no on-ledger check, `--live` says so and changes nothing.
+  have no on-ledger check, `--live` says so and changes nothing. The help
+  now says that a support bundle's structure is checked, not a hash (it
+  carries none).
 - **Hints no longer send learners to deprecated commands.** The main
   `--help`, the "wrong kind of file" messages and the certificate's `--live`
   note named `proof verify` or `cert-verify`; they now name `verify-artifact`.
