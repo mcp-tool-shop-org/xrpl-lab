@@ -1,0 +1,24 @@
+
+  Artifact:    proof pack
+
+  ✅ PASS — Proof pack integrity verified.
+
+  File:         pack_pass.json
+  Version:      2.7.6
+  Address:      rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF
+  Network:      testnet
+  Modules:      1
+  Transactions: 9
+  SHA-256:      c74ba90234c84390da5da0f52370e76e8c559cab2f721c5df18a2434c418a37c
+
+  On-ledger verification:
+  · SKIP failed  (An earlier run's step that never reached a ledger; this module's latest run passed.)
+  ✓ PASS AD9F29484FF4D0E6971E…  (testnet)
+  ✓ PASS C84A293E706DBB942C27…  (testnet)
+  ✓ PASS 1A2CFD54225FAA196B02…  (testnet)
+  ✓ PASS 8D4434B1FF8BB69C5902…  (testnet)
+  ✓ PASS D8DAB3F166928AEF5A2E…  (testnet)
+
+  On-ledger verdict: PASS — 5 verified, 1 skipped.
+  Mixed pack — verified 5 real-network txid(s); skipped 1 with no on-ledger anchor (dry-run or local runs, or steps that never reached a ledger).
+

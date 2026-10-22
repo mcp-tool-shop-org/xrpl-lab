@@ -588,7 +588,8 @@ def verify_audit_pack(pack: dict) -> tuple[bool, str]:
     if pack.get("tool") != "xrpl-lab" or "verdicts" not in pack:
         return False, (
             "Missing audit-pack markers (tool='xrpl-lab' + verdicts) — you "
-            "may have pasted a proof pack (use `proof verify`) or a partial "
+            "may have pasted a proof pack (`verify-artifact` detects the kind) "
+            "or a partial "
             "file."
         )
 

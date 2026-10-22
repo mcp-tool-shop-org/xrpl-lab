@@ -120,9 +120,9 @@ def test_verifiers_reject_non_objects(fn):
 
 def test_verifiers_name_the_other_artifact_when_the_marker_is_wrong():
     ok, msg = rep.verify_proof_pack({"xrpl_lab_certificate": True})
-    assert not ok and "use cert-verify" in msg
+    assert not ok and "certificate (verify-artifact detects the kind)" in msg
     ok, msg = rep.verify_certificate({"xrpl_lab_proof_pack": True})
-    assert not ok and "use proof verify" in msg
+    assert not ok and "pack (verify-artifact detects the kind)" in msg
 
 
 def test_verifiers_report_a_missing_hash_as_truncated():
@@ -359,7 +359,7 @@ def test_live_certificate_without_transactions_points_at_the_proof_pack():
     res = asyncio.run(rep.verify_certificate_live({"address": "rA"}))
     assert res.artifact_kind == "certificate"
     assert res.no_onledger_txids is True
-    assert "proof verify <proof_pack.json> --live" in res.note
+    assert "verify-artifact <proof_pack.json> --live" in res.note
 
 
 def test_live_certificate_with_embedded_transactions_is_verified_like_a_pack():

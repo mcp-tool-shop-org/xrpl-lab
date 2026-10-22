@@ -1,0 +1,1 @@
+`cert-verify` is deprecated, use `verify-artifact`.

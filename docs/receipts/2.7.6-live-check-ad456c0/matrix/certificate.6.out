@@ -1,0 +1,23 @@
+{
+  "valid": true,
+  "file": "certificate.json",
+  "version": "2.7.6",
+  "address": "rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 9,
+  "sha256": "d6e9e4e47302bbbd79f0871fa4e80423b18d97db0fe40ac2599a31ddb82542d8",
+  "simulated": false,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "certificate",
+    "overall_passed": true,
+    "no_onledger_txids": true,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "note": "Certificates record no individual txids \u2014 there is nothing to anchor on-ledger. To verify on-ledger, run 'proof verify <proof_pack.json> --live' instead (the proof pack carries the txids).",
+    "tx_results": []
+  },
+  "live_passed": true
+}

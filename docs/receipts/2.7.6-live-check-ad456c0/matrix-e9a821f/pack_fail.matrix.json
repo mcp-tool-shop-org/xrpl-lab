@@ -1,0 +1,167 @@
+{
+  "artifact": "pack_fail.json",
+  "rows": [
+    {
+      "n": 1,
+      "cmd": "xrpl-lab verify-artifact pack_fail.json --live",
+      "exit": 1,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 2,
+      "cmd": "xrpl-lab verify-artifact pack_fail.json --live --json",
+      "exit": 1,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "file": "pack_fail.json",
+        "version": "2.7.6",
+        "address": "rpWVB8PAQLxSLb6vadaJU6q3LjCD4Eeo3r",
+        "network": "testnet",
+        "modules_completed": 1,
+        "total_transactions": 4,
+        "sha256": "5e4fddcf4c07724d76721d9fc7b79351a02c1d420ea27dd370fc8c31c9de6e49",
+        "simulated": false,
+        "all_verified": false,
+        "message": "Integrity verified",
+        "live": {
+          "artifact_kind": "proof_pack",
+          "overall_passed": false,
+          "no_onledger_txids": false,
+          "passed": 0,
+          "failed": 1,
+          "skipped": 0,
+          "note": "",
+          "tx_results": [
+            {
+              "txid": "failed",
+              "network": "testnet",
+              "status": "FAIL",
+              "reason": "A step failed before its transaction reached the network (no hash was recorded), so there is nothing on the ledger to check.",
+              "checks": [],
+              "validated": false
+            }
+          ]
+        },
+        "live_passed": false,
+        "artifact_kind": "proof_pack"
+      }
+    },
+    {
+      "n": 3,
+      "cmd": "xrpl-lab verify-artifact pack_fail.json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 4,
+      "cmd": "xrpl-lab verify-artifact pack_fail.json --json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "file": "pack_fail.json",
+        "version": "2.7.6",
+        "address": "rpWVB8PAQLxSLb6vadaJU6q3LjCD4Eeo3r",
+        "network": "testnet",
+        "modules_completed": 1,
+        "total_transactions": 4,
+        "sha256": "5e4fddcf4c07724d76721d9fc7b79351a02c1d420ea27dd370fc8c31c9de6e49",
+        "simulated": false,
+        "all_verified": false,
+        "message": "Integrity verified",
+        "artifact_kind": "proof_pack"
+      }
+    },
+    {
+      "n": 5,
+      "cmd": "xrpl-lab proof verify pack_fail.json --live",
+      "exit": 1,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 6,
+      "cmd": "xrpl-lab proof verify pack_fail.json --live --json",
+      "exit": 1,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "file": "pack_fail.json",
+        "version": "2.7.6",
+        "address": "rpWVB8PAQLxSLb6vadaJU6q3LjCD4Eeo3r",
+        "network": "testnet",
+        "modules_completed": 1,
+        "total_transactions": 4,
+        "sha256": "5e4fddcf4c07724d76721d9fc7b79351a02c1d420ea27dd370fc8c31c9de6e49",
+        "simulated": false,
+        "all_verified": false,
+        "message": "Integrity verified",
+        "live": {
+          "artifact_kind": "proof_pack",
+          "overall_passed": false,
+          "no_onledger_txids": false,
+          "passed": 0,
+          "failed": 1,
+          "skipped": 0,
+          "note": "",
+          "tx_results": [
+            {
+              "txid": "failed",
+              "network": "testnet",
+              "status": "FAIL",
+              "reason": "A step failed before its transaction reached the network (no hash was recorded), so there is nothing on the ledger to check.",
+              "checks": [],
+              "validated": false
+            }
+          ]
+        },
+        "live_passed": false
+      }
+    },
+    {
+      "n": 7,
+      "cmd": "xrpl-lab proof verify pack_fail.json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 8,
+      "cmd": "xrpl-lab proof verify pack_fail.json --json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "file": "pack_fail.json",
+        "version": "2.7.6",
+        "address": "rpWVB8PAQLxSLb6vadaJU6q3LjCD4Eeo3r",
+        "network": "testnet",
+        "modules_completed": 1,
+        "total_transactions": 4,
+        "sha256": "5e4fddcf4c07724d76721d9fc7b79351a02c1d420ea27dd370fc8c31c9de6e49",
+        "simulated": false,
+        "all_verified": false,
+        "message": "Integrity verified"
+      }
+    }
+  ],
+  "json_identical_except_artifact_kind": {
+    "live": {
+      "identical": true,
+      "differing_keys": [],
+      "artifact_kind": "proof_pack"
+    },
+    "offline": {
+      "identical": true,
+      "differing_keys": [],
+      "artifact_kind": "proof_pack"
+    }
+  }
+}

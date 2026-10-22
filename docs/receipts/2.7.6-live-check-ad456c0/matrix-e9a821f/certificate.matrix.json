@@ -1,0 +1,145 @@
+{
+  "artifact": "certificate.json",
+  "rows": [
+    {
+      "n": 1,
+      "cmd": "xrpl-lab verify-artifact certificate.json --live",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 2,
+      "cmd": "xrpl-lab verify-artifact certificate.json --live --json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "file": "certificate.json",
+        "version": "2.7.6",
+        "address": "rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+        "network": "testnet",
+        "modules_completed": 1,
+        "total_transactions": 9,
+        "sha256": "d6e9e4e47302bbbd79f0871fa4e80423b18d97db0fe40ac2599a31ddb82542d8",
+        "simulated": false,
+        "message": "Integrity verified",
+        "live": {
+          "artifact_kind": "certificate",
+          "overall_passed": true,
+          "no_onledger_txids": true,
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0,
+          "note": "Certificates record no individual txids \u2014 there is nothing to anchor on-ledger. To verify on-ledger, run 'verify-artifact <proof_pack.json> --live' instead (the proof pack carries the txids).",
+          "tx_results": []
+        },
+        "live_passed": true,
+        "artifact_kind": "certificate"
+      }
+    },
+    {
+      "n": 3,
+      "cmd": "xrpl-lab verify-artifact certificate.json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 4,
+      "cmd": "xrpl-lab verify-artifact certificate.json --json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "file": "certificate.json",
+        "version": "2.7.6",
+        "address": "rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+        "network": "testnet",
+        "modules_completed": 1,
+        "total_transactions": 9,
+        "sha256": "d6e9e4e47302bbbd79f0871fa4e80423b18d97db0fe40ac2599a31ddb82542d8",
+        "simulated": false,
+        "message": "Integrity verified",
+        "artifact_kind": "certificate"
+      }
+    },
+    {
+      "n": 5,
+      "cmd": "xrpl-lab cert-verify certificate.json --live",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 6,
+      "cmd": "xrpl-lab cert-verify certificate.json --live --json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "file": "certificate.json",
+        "version": "2.7.6",
+        "address": "rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+        "network": "testnet",
+        "modules_completed": 1,
+        "total_transactions": 9,
+        "sha256": "d6e9e4e47302bbbd79f0871fa4e80423b18d97db0fe40ac2599a31ddb82542d8",
+        "simulated": false,
+        "message": "Integrity verified",
+        "live": {
+          "artifact_kind": "certificate",
+          "overall_passed": true,
+          "no_onledger_txids": true,
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0,
+          "note": "Certificates record no individual txids \u2014 there is nothing to anchor on-ledger. To verify on-ledger, run 'verify-artifact <proof_pack.json> --live' instead (the proof pack carries the txids).",
+          "tx_results": []
+        },
+        "live_passed": true
+      }
+    },
+    {
+      "n": 7,
+      "cmd": "xrpl-lab cert-verify certificate.json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": []
+    },
+    {
+      "n": 8,
+      "cmd": "xrpl-lab cert-verify certificate.json --json",
+      "exit": 0,
+      "network_calls": 0,
+      "hosts": [],
+      "json": {
+        "valid": true,
+        "file": "certificate.json",
+        "version": "2.7.6",
+        "address": "rKpJ5XRNVVShcYaun28HbbpYsbvxR6T5mF",
+        "network": "testnet",
+        "modules_completed": 1,
+        "total_transactions": 9,
+        "sha256": "d6e9e4e47302bbbd79f0871fa4e80423b18d97db0fe40ac2599a31ddb82542d8",
+        "simulated": false,
+        "message": "Integrity verified"
+      }
+    }
+  ],
+  "json_identical_except_artifact_kind": {
+    "live": {
+      "identical": true,
+      "differing_keys": [],
+      "artifact_kind": "certificate"
+    },
+    "offline": {
+      "identical": true,
+      "differing_keys": [],
+      "artifact_kind": "certificate"
+    }
+  }
+}

@@ -435,7 +435,7 @@ def verify_proof_pack(pack: dict) -> tuple[bool, str]:
         # pasting a certificate (different marker) or a partial file.
         return False, (
             "Missing xrpl_lab_proof_pack marker — you may have pasted a "
-            "certificate (use cert-verify) or a partial file."
+            "certificate (verify-artifact detects the kind) or a partial file."
         )
 
     stored_hash = pack.get("sha256")
@@ -474,7 +474,7 @@ def verify_certificate(cert: dict) -> tuple[bool, str]:
         # PC-004: actionable clause — a proof pack has a different marker.
         return False, (
             "Missing xrpl_lab_certificate marker — you may have pasted a proof "
-            "pack (use proof verify) or a partial file."
+            "pack (verify-artifact detects the kind) or a partial file."
         )
 
     stored_hash = cert.get("sha256")
@@ -1231,7 +1231,7 @@ async def verify_certificate_live(
         result.note = (
             "Certificates record no individual txids — there is nothing to "
             "anchor on-ledger. To verify on-ledger, run "
-            "'proof verify <proof_pack.json> --live' instead (the proof pack "
+            "'verify-artifact <proof_pack.json> --live' instead (the proof pack "
             "carries the txids)."
         )
         return result
