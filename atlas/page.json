@@ -41,49 +41,66 @@
   ],
   "changes": {
     "fileCounts": {
-      "added": 2,
-      "changed": 25,
-      "moved": 2,
-      "parts": 8,
-      "removed": 0
+      "added": 2221,
+      "changed": 73,
+      "moved": 0,
+      "parts": 7,
+      "removed": 2
     },
     "items": [
       {
         "kind": "landing",
-        "sentence": "modules/amm_liquidity_101.md is now read by tests/test_amm.py.",
+        "sentence": "pyproject.toml is now also read by tests/test_version_fallback.py.",
         "subjects": [
-          "modules/amm_liquidity_101.md",
-          "tests/test_amm.py"
+          "pyproject.toml",
+          "tests/test_version_fallback.py"
         ]
       },
       {
-        "kind": "part",
-        "sentence": "design is no longer a part.",
+        "kind": "landing",
+        "sentence": "tests/test_live_fire_run2.py is now read by tests/test_v261_followups.py.",
         "subjects": [
-          "design"
+          "tests/test_live_fire_run2.py",
+          "tests/test_v261_followups.py"
         ]
       },
       {
         "kind": "counts",
-        "sentence": "2 files added, 2 moved and 25 changed content, across 8 parts.",
+        "sentence": "2221 files added, 2 removed and 73 changed content, across 7 parts.",
         "subjects": []
       }
     ],
     "since": {
-      "commit": "c73deb4e8314a62d57c2a5a9f211c6f14471a0f8",
-      "generatedAt": "2026-10-15T00:28:11.589Z"
+      "commit": "fa2370c86bb3dab62af342d2cbf5d9266ea3c240",
+      "generatedAt": "2026-10-20T20:46:49.630Z"
     },
     "unchanged": false
   },
-  "changesTogether": [],
+  "changesTogether": [
+    {
+      "a": "bin/xrpl-lab.js",
+      "b": "xrpl_lab/__init__.py",
+      "either": 8,
+      "partLabels": [
+        "bin",
+        "xrpl_lab"
+      ],
+      "parts": [
+        "bin",
+        "xrpl_lab"
+      ],
+      "relation": "none",
+      "shared": 6
+    }
+  ],
   "changesTogetherNote": [
-    "1 file changed together with its own test, as expected.",
+    "Confidence is low: fewer than 25 source files reach 10 revisions in the window.",
     "Window: 180 days; a pair counts from 3 shared commits, since 5 source files reach 10 revisions; the floor rises to 10 when 25 do."
   ],
-  "changesTogetherWithTests": 1,
-  "commit": "fa2370c86bb3dab62af342d2cbf5d9266ea3c240",
+  "changesTogetherWithTests": 0,
+  "commit": "434e10728586e3fa0b3d77277599b62efa1cc15b",
   "defaultBranch": "main",
-  "derived": "10 parts, mostly Python (175 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
+  "derived": "10 parts, mostly Python (231 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
   "doors": [
     {
       "checks": [
@@ -105,7 +122,7 @@
         {
           "boundary": "tests",
           "depth": 0,
-          "files": 121
+          "files": 177
         },
         {
           "boundary": "xrpl_lab",
@@ -182,7 +199,7 @@
         {
           "boundary": "xrpl_lab",
           "depth": 0,
-          "files": 49
+          "files": 50
         }
       ],
       "runs": [],
@@ -212,7 +229,7 @@
         {
           "boundary": "xrpl_lab",
           "depth": 0,
-          "files": 11
+          "files": 12
         }
       ],
       "runs": [
@@ -320,7 +337,7 @@
         {
           "boundary": "xrpl_lab",
           "depth": 0,
-          "files": 48
+          "files": 49
         }
       ],
       "runs": [
@@ -345,13 +362,13 @@
   ],
   "engine": "1.24.0",
   "generated": [],
-  "generatedAt": "2026-10-20T20:46:49.630Z",
+  "generatedAt": "2026-10-22T07:07:03.011Z",
   "limits": [
     "1 import could not be resolved: `tests/test_product_smoke.py` imports a path built at run time.",
     "3 writes and 7 reads use paths built at run time and are not named here.",
-    "6 writes and 52 reads go to a path their caller passes, not to this repository.",
+    "6 writes and 58 reads go to a path their caller passes, not to this repository.",
     "1 write and 6 reads go to the home directory (.xrpl-lab/) or a path their caller passes, not to this repository.",
-    "4 reads go to the directory the command is run in, not to this repository.",
+    "6 reads go to the directory the command is run in, not to this repository.",
     "Statistics confidence is low: fewer than 25 source files reach 10 revisions in the window."
   ],
   "mainDoor": ".github/workflows/ci.yml",
@@ -380,11 +397,11 @@
   "startReason": "This path follows xrpl-lab (a command people run, from pyproject.toml) from its entry, since CI runs only tests and checks.",
   "summary": null,
   "summaryFrom": null,
-  "testFiles": 129,
+  "testFiles": 185,
   "testedBy": {
     "bin": 0,
     "scripts": 1,
-    "xrpl_lab": 117
+    "xrpl_lab": 168
   },
   "unnamedWrites": 3,
   "unread": [],
