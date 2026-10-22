@@ -8751,6 +8751,510 @@
         {
           "hash": "1ee3184a1aeff8a4949c71df3dc7a119c004639a62368fe235b889077d585707",
           "path": "docs/receipts/2.7.7-live-check-c99bab1/recovered/verify_live.json"
+        },
+        {
+          "hash": "ea323752c711491821fc1c0be3ea3a01eb934f3f9196cd4c4baa1f1c970a760d",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/code.txt"
+        },
+        {
+          "hash": "f758c46bf1fc2a72bb231e984aad5989ca8b263b587f52e1b75bbd7ac46321db",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/control-state-276/README.txt"
+        },
+        {
+          "hash": "c19b0c480416f6770da778d381667b2f145881b32a79208f06a55c3cae9a76c9",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/control-state-276/feedback.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/control-state-276/feedback.exit"
+        },
+        {
+          "hash": "c22ebef8b0419769feb1647f4ec988860e0572ef865670571f7d309badf185d5",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/control-state-276/feedback.out"
+        },
+        {
+          "hash": "0e7b85bba94c32d04b278db29a5366e1441bb1890d8c4ea8777534cc47ea4c17",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/control-state-276/supportbundle_json.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/control-state-276/supportbundle_json.exit"
+        },
+        {
+          "hash": "c268007d0fac2328010926f6c8d3e084f9f1f703fe540158f2dde94cb4700a1a",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/control-state-276/supportbundle_json.out"
+        },
+        {
+          "hash": "7a74b1e371036f0c22647edf225f518d3b61ad7b49475f273dc08258e576abc7",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/_top.txt"
+        },
+        {
+          "hash": "617b46b230ab60c9c1c42ac51ae61faed1c4cdbe841e2e63068d3a7b13909fe8",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/audit-verify.txt"
+        },
+        {
+          "hash": "1c6ee0647b6c762c08177169ae79fb9cf761322ea26f4490032396c836e7bbce",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/audit.txt"
+        },
+        {
+          "hash": "edc5e9fad176882d834c22de89d84af6120d4a444eeef8595916bd5c88fcc636",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/cert-verify.txt"
+        },
+        {
+          "hash": "0a4152a406c95f3752964adcf565bb585c77db66128358c9005fc74d403cbe2b",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/certificate.txt"
+        },
+        {
+          "hash": "dd19df5f0d78dc503ea8653c729e1c6fa2b864dc9c3309da0a1cab38be5dde77",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/cohort-status.txt"
+        },
+        {
+          "hash": "8c8ca4754c3a781dfd4039e343cf5b91b48a24abb01846ba3608ea4c7a115148",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/curriculum.manifest.txt"
+        },
+        {
+          "hash": "957922bd27e734401a72fd7333119bf6756cf74bed01a3a1be24d8a76ec19ea4",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/curriculum.txt"
+        },
+        {
+          "hash": "93a698ecb8c1f214c3a58beb025c875b22788f58e1b5729a94e3b82c2f5d0b44",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/doctor.txt"
+        },
+        {
+          "hash": "f61578c60caa4d65c23fab4d8d4a27927a119f6378e1e36bd98abea4e8296c26",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/feedback.txt"
+        },
+        {
+          "hash": "c3630cca7406ba3c87f71b2c6ca2a7018de3be7f0498f6ff19a077141c159c15",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/fund.txt"
+        },
+        {
+          "hash": "528b6d95968fcfeef24e8d7df8b9e7109044d0d5a2330cf8c39ba65acdf1374f",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/last-run.txt"
+        },
+        {
+          "hash": "4ba694fa0b80ad34870c7060f58779e455a4437b1829b838099e1dbb31c523b3",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/lint.txt"
+        },
+        {
+          "hash": "4c5f19dea94aa272f8988d85933037b8e7212fc9364a91644b2f615ad26fa51f",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/list.txt"
+        },
+        {
+          "hash": "45c9f9d26305d9528a1f0118e88248490a300ffd1b7f07b45ada9b5e7f1a71c4",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/module.init.txt"
+        },
+        {
+          "hash": "92632d00a3e120aabbd423bb38a2b78b30894b4d59c3bbd5fa96e84429f1981d",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/module.txt"
+        },
+        {
+          "hash": "47b919450e8bf025847405946dec0dcfb80c74f97621c196fa84792231a29ec1",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/proof-pack.txt"
+        },
+        {
+          "hash": "c348bb7626fac98812fb79409254d463dd92f655fc1363d5b5f78e0aeec6555c",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/proof.txt"
+        },
+        {
+          "hash": "3019a730ec2e37d07b2ed05411cf509964b5744fc9c8a12896d1aa6b77c389d8",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/proof.verify.txt"
+        },
+        {
+          "hash": "3775ec9bd3ca2f0f85eefebbdeb87ca4d2581184f36f1b46d5b15ded6a53b1c1",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/recovery.txt"
+        },
+        {
+          "hash": "d15aee8813945d91eed74bffa50c3852c4d6e3886557aa3df10a5caa8a64c939",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/reset.txt"
+        },
+        {
+          "hash": "48153ebbaede08432f930cf5e849d85c859061e3233eedc02ffe978a060767e6",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/run.txt"
+        },
+        {
+          "hash": "159287e0f16203de2ee8f20068b7944ef1c48ead633c4ef170c1d3551414f192",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/send.txt"
+        },
+        {
+          "hash": "4698370ae20a589948fe5e60f1cf93970e58b25a120c2f6fac72a13196fa65ec",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/serve.txt"
+        },
+        {
+          "hash": "ea97ef11954aa69b9a8b35262400e396c100fa1a5f3e8d4e60b70cbcd29c4f47",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/session-export.txt"
+        },
+        {
+          "hash": "d192989ff84c88b8142a7f23dfde5646c3c72075a7d81797d7b176f95bafe4bc",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/start.txt"
+        },
+        {
+          "hash": "fb8a850c4d390ade4985db011cb4a806ace24a11accd8bf73526105efa697bf2",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/status.txt"
+        },
+        {
+          "hash": "aaa4e10e6066790126453ad3a452646144372706a7b6db92ab8dd0032ff820bd",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/support-bundle.txt"
+        },
+        {
+          "hash": "7db71ac003fccd23a4132c6696f5165ad577cb5d77f80a2227804f7170acae83",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/tracks.txt"
+        },
+        {
+          "hash": "486657a15003adeefc04dd9caf7a2bb13ef249fcc6c721c8f735f95de6dda411",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/verify-artifact.txt"
+        },
+        {
+          "hash": "beea654cfd980956ca49fe8d3875fcae52560438bd264a4677740f4de5da6d01",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/verify.txt"
+        },
+        {
+          "hash": "bd4e41672de967ea87c3f61ec93e58fe95f60825e76562db3be62e3831d423ff",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/wallet.create.txt"
+        },
+        {
+          "hash": "5525cce2017fb662138e0fc99501e598a9c7991509371f9ee828ee4f53bbaf0f",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/wallet.show.txt"
+        },
+        {
+          "hash": "7d1e3f1775053514780655e8da37165d069351262a85e27781282e9b373f5629",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/help/wallet.txt"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/import_feedback.txt"
+        },
+        {
+          "hash": "c8bfd3ec3eb0b7fe9d112133d567014ab0626a97e3d78c8003ec18991799e85b",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/leftfailed/feedback.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/leftfailed/feedback.exit"
+        },
+        {
+          "hash": "ed9f44e0f5cf40309bb9836e5f59f076c674d55d08e383bb8e4143a26fcbd822",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/leftfailed/feedback.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/leftfailed/supportbundle.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/leftfailed/supportbundle.exit"
+        },
+        {
+          "hash": "25ae468b9720d1cf8473b43710f540dbcf72712d35c6e3845f2ac9f0d2b489f0",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/leftfailed/supportbundle.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/leftfailed/supportbundle_json.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/leftfailed/supportbundle_json.exit"
+        },
+        {
+          "hash": "8ad942ea0514f8e7ec0d254312cb850079eed1d28bc9bd5e66ac143e48dac1bb",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/leftfailed/supportbundle_json.out"
+        },
+        {
+          "hash": "c8bfd3ec3eb0b7fe9d112133d567014ab0626a97e3d78c8003ec18991799e85b",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/recovered/feedback.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/recovered/feedback.exit"
+        },
+        {
+          "hash": "8dd4627f7aae8640619fbe7d7c9a4234824d9a86eef55027dc2d8007ddc88384",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/recovered/feedback.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/recovered/supportbundle.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/recovered/supportbundle.exit"
+        },
+        {
+          "hash": "b2bc1aaa8bad7630d7393f2c3b521e040fc02aad0ba7dbd95395acee5ee94083",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/recovered/supportbundle.out"
+        },
+        {
+          "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/recovered/supportbundle_json.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/recovered/supportbundle_json.exit"
+        },
+        {
+          "hash": "1f5daea95036328b2e6d362e719a9ef4b7586a96a9ad2e00214024e5ecb52834",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.7-tag/recovered/supportbundle_json.out"
+        },
+        {
+          "hash": "37901e95078b694745a5a4783a17aa7b95e22dc63ede8d61b3692a890b4a33ec",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/code.txt"
+        },
+        {
+          "hash": "ae0181d696fcb0375c2534b996a3715b9a12459070f2b853183738c11907d614",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/control-state-276/README.txt"
+        },
+        {
+          "hash": "468d4694b29f85e31f1c4a46bddee7fb40af2027ea59fb77bd332f66434135a1",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/control-state-276/feedback.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/control-state-276/feedback.exit"
+        },
+        {
+          "hash": "4e1f4718bb586d08054cbaa4a86d405cc360ffc414e4edf3e834d9776e801ab1",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/control-state-276/feedback.out"
+        },
+        {
+          "hash": "af32c5a65c67c133b472b8d30a94f3c5699f9908da40d0d1e703be0f103eed28",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/control-state-276/supportbundle_json.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/control-state-276/supportbundle_json.exit"
+        },
+        {
+          "hash": "034bfce8810ad20a450d4d623ac515eeabed5a3b2728285ba0a61ba6741652e2",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/control-state-276/supportbundle_json.out"
+        },
+        {
+          "hash": "7a74b1e371036f0c22647edf225f518d3b61ad7b49475f273dc08258e576abc7",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/_top.txt"
+        },
+        {
+          "hash": "617b46b230ab60c9c1c42ac51ae61faed1c4cdbe841e2e63068d3a7b13909fe8",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/audit-verify.txt"
+        },
+        {
+          "hash": "1c6ee0647b6c762c08177169ae79fb9cf761322ea26f4490032396c836e7bbce",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/audit.txt"
+        },
+        {
+          "hash": "edc5e9fad176882d834c22de89d84af6120d4a444eeef8595916bd5c88fcc636",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/cert-verify.txt"
+        },
+        {
+          "hash": "0a4152a406c95f3752964adcf565bb585c77db66128358c9005fc74d403cbe2b",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/certificate.txt"
+        },
+        {
+          "hash": "dd19df5f0d78dc503ea8653c729e1c6fa2b864dc9c3309da0a1cab38be5dde77",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/cohort-status.txt"
+        },
+        {
+          "hash": "8c8ca4754c3a781dfd4039e343cf5b91b48a24abb01846ba3608ea4c7a115148",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/curriculum.manifest.txt"
+        },
+        {
+          "hash": "957922bd27e734401a72fd7333119bf6756cf74bed01a3a1be24d8a76ec19ea4",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/curriculum.txt"
+        },
+        {
+          "hash": "93a698ecb8c1f214c3a58beb025c875b22788f58e1b5729a94e3b82c2f5d0b44",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/doctor.txt"
+        },
+        {
+          "hash": "f61578c60caa4d65c23fab4d8d4a27927a119f6378e1e36bd98abea4e8296c26",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/feedback.txt"
+        },
+        {
+          "hash": "c3630cca7406ba3c87f71b2c6ca2a7018de3be7f0498f6ff19a077141c159c15",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/fund.txt"
+        },
+        {
+          "hash": "528b6d95968fcfeef24e8d7df8b9e7109044d0d5a2330cf8c39ba65acdf1374f",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/last-run.txt"
+        },
+        {
+          "hash": "4ba694fa0b80ad34870c7060f58779e455a4437b1829b838099e1dbb31c523b3",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/lint.txt"
+        },
+        {
+          "hash": "4c5f19dea94aa272f8988d85933037b8e7212fc9364a91644b2f615ad26fa51f",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/list.txt"
+        },
+        {
+          "hash": "45c9f9d26305d9528a1f0118e88248490a300ffd1b7f07b45ada9b5e7f1a71c4",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/module.init.txt"
+        },
+        {
+          "hash": "92632d00a3e120aabbd423bb38a2b78b30894b4d59c3bbd5fa96e84429f1981d",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/module.txt"
+        },
+        {
+          "hash": "47b919450e8bf025847405946dec0dcfb80c74f97621c196fa84792231a29ec1",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/proof-pack.txt"
+        },
+        {
+          "hash": "c348bb7626fac98812fb79409254d463dd92f655fc1363d5b5f78e0aeec6555c",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/proof.txt"
+        },
+        {
+          "hash": "3019a730ec2e37d07b2ed05411cf509964b5744fc9c8a12896d1aa6b77c389d8",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/proof.verify.txt"
+        },
+        {
+          "hash": "3775ec9bd3ca2f0f85eefebbdeb87ca4d2581184f36f1b46d5b15ded6a53b1c1",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/recovery.txt"
+        },
+        {
+          "hash": "d15aee8813945d91eed74bffa50c3852c4d6e3886557aa3df10a5caa8a64c939",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/reset.txt"
+        },
+        {
+          "hash": "48153ebbaede08432f930cf5e849d85c859061e3233eedc02ffe978a060767e6",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/run.txt"
+        },
+        {
+          "hash": "159287e0f16203de2ee8f20068b7944ef1c48ead633c4ef170c1d3551414f192",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/send.txt"
+        },
+        {
+          "hash": "4698370ae20a589948fe5e60f1cf93970e58b25a120c2f6fac72a13196fa65ec",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/serve.txt"
+        },
+        {
+          "hash": "ea97ef11954aa69b9a8b35262400e396c100fa1a5f3e8d4e60b70cbcd29c4f47",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/session-export.txt"
+        },
+        {
+          "hash": "d192989ff84c88b8142a7f23dfde5646c3c72075a7d81797d7b176f95bafe4bc",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/start.txt"
+        },
+        {
+          "hash": "fb8a850c4d390ade4985db011cb4a806ace24a11accd8bf73526105efa697bf2",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/status.txt"
+        },
+        {
+          "hash": "aaa4e10e6066790126453ad3a452646144372706a7b6db92ab8dd0032ff820bd",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/support-bundle.txt"
+        },
+        {
+          "hash": "7db71ac003fccd23a4132c6696f5165ad577cb5d77f80a2227804f7170acae83",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/tracks.txt"
+        },
+        {
+          "hash": "486657a15003adeefc04dd9caf7a2bb13ef249fcc6c721c8f735f95de6dda411",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/verify-artifact.txt"
+        },
+        {
+          "hash": "beea654cfd980956ca49fe8d3875fcae52560438bd264a4677740f4de5da6d01",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/verify.txt"
+        },
+        {
+          "hash": "bd4e41672de967ea87c3f61ec93e58fe95f60825e76562db3be62e3831d423ff",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/wallet.create.txt"
+        },
+        {
+          "hash": "5525cce2017fb662138e0fc99501e598a9c7991509371f9ee828ee4f53bbaf0f",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/wallet.show.txt"
+        },
+        {
+          "hash": "7d1e3f1775053514780655e8da37165d069351262a85e27781282e9b373f5629",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/help/wallet.txt"
+        },
+        {
+          "hash": "17d9f58f1eb3ff8de1f709a6136bff70f774d67e54a00f748633c9b101b736a7",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/import_feedback.txt"
+        },
+        {
+          "hash": "7eafe6c3440005737a2786e1d6fa412b4771a2c9d3a90aeefc997286e7bef10d",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/leftfailed/feedback.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/leftfailed/feedback.exit"
+        },
+        {
+          "hash": "a61867dbca553667fd721013b30aeb1638962c412ee1b313c05b77baa15f1584",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/leftfailed/feedback.out"
+        },
+        {
+          "hash": "91eff4fda6cc97f7e5c3fa5e0597c18a418ce497c06a23cc4dc4076c03cfbd5a",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/leftfailed/supportbundle.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/leftfailed/supportbundle.exit"
+        },
+        {
+          "hash": "b4b3aad6e12e12b3fa5ce61a598119c6c3176b754be231e98761c2f80a153dc1",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/leftfailed/supportbundle.out"
+        },
+        {
+          "hash": "91eff4fda6cc97f7e5c3fa5e0597c18a418ce497c06a23cc4dc4076c03cfbd5a",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/leftfailed/supportbundle_json.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/leftfailed/supportbundle_json.exit"
+        },
+        {
+          "hash": "690564bac4a58c155adc53387fa043d549dd8e6b79c7a24d678258fe778c78bf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/leftfailed/supportbundle_json.out"
+        },
+        {
+          "hash": "7eafe6c3440005737a2786e1d6fa412b4771a2c9d3a90aeefc997286e7bef10d",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/recovered/feedback.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/recovered/feedback.exit"
+        },
+        {
+          "hash": "b83b453045a97f002e2990fd24a32bf83da94c425e0531c1a97f026285283200",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/recovered/feedback.out"
+        },
+        {
+          "hash": "91eff4fda6cc97f7e5c3fa5e0597c18a418ce497c06a23cc4dc4076c03cfbd5a",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/recovered/supportbundle.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/recovered/supportbundle.exit"
+        },
+        {
+          "hash": "dcbf24a91bc14f0ccc48598c36380564323bc79d0515016875ab77f10f1541a3",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/recovered/supportbundle.out"
+        },
+        {
+          "hash": "91eff4fda6cc97f7e5c3fa5e0597c18a418ce497c06a23cc4dc4076c03cfbd5a",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/recovered/supportbundle_json.err"
+        },
+        {
+          "hash": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/recovered/supportbundle_json.exit"
+        },
+        {
+          "hash": "bec31c028f6f40071d9d370bd736065f3b3c8488f0723a06c946e2cff8251921",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/2.7.8-f367d08/recovered/supportbundle_json.out"
+        },
+        {
+          "hash": "12c0855dcee7a8cdc9c3d8c4cd50fa495ee573b02d7b8541b0c19da6f766c6ed",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/README.md"
+        },
+        {
+          "hash": "c97fc898327e32a6963e8cd02fb5c3a77e0e9944ba2e1e974c379eb7a99d0987",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/harness/feedback_parity.sh"
+        },
+        {
+          "hash": "5c754facd487860759efb11a24f1d84c39bb59440b93d9236a54eabc309e9eca",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/harness/parity_diff.py.txt"
+        },
+        {
+          "hash": "b6ec803eef69d2ce9e5a5e62a12c89ff5c01cc6a5faa4e507887b5d11c229fff",
+          "path": "docs/receipts/2.7.8-feedback-parity-f367d08/parity_report.txt"
         }
       ],
       "globs": [
@@ -12998,6 +13502,18 @@
           ],
           "path": "tests/test_v277_last_error.py",
           "testFramework": "pytest"
+        },
+        {
+          "exports": [
+            "test_the_bundle_network_follows_an_rpc_override",
+            "test_the_bundle_survives_a_read_only_workspace"
+          ],
+          "hash": "8977f3c5123cbe6400f7e8dd94b43d917500c4b22748622578c21de61fdebf02",
+          "importsFiles": [
+            "xrpl_lab/state.py",
+            "xrpl_lab/workshop.py"
+          ],
+          "path": "tests/test_v278_support_bundle_ported.py"
         },
         {
           "exports": [
@@ -20997,7 +21513,7 @@
       "testRunners": [
         "pytest"
       ],
-      "testedBy": 168,
+      "testedBy": 169,
       "unresolvedSites": 0
     }
   ],
@@ -21190,7 +21706,7 @@
         {
           "boundary": "tests",
           "depth": 0,
-          "files": 177
+          "files": 178
         },
         {
           "boundary": "xrpl_lab",
@@ -21252,7 +21768,7 @@
       "tests": [
         {
           "config": "pyproject.toml",
-          "files": 177,
+          "files": 178,
           "job": "lint-and-test",
           "junit": true,
           "runner": "pytest",
@@ -22171,8 +22687,8 @@
   ],
   "engine": "1.24.0",
   "generatedFrom": {
-    "commit": "434e10728586e3fa0b3d77277599b62efa1cc15b",
-    "tracked": 2506
+    "commit": "0bf3b610433498075661b818377dbf89e9157cad",
+    "tracked": 2633
   },
   "landings": [
     {
@@ -22839,6 +23355,6 @@
   "overlaps": [],
   "submodules": [],
   "symlinks": [],
-  "testFiles": 185,
+  "testFiles": 186,
   "unassigned": []
 }

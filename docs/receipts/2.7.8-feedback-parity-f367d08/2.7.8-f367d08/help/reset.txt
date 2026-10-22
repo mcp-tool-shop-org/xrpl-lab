@@ -1,0 +1,16 @@
+Usage: xrpl-lab reset [OPTIONS]
+
+  Wipe all local state and workspace (requires confirmation).
+
+  With --module MODULE_ID, removes only that module from completed state and
+  clears its workspace artifacts. Preserves wallet, doctor.log, audit packs,
+  and all other modules.
+
+Options:
+  --module TEXT  Granular reset: remove only the specified module from
+                 completed_modules + clear its workspace artifacts. Preserves
+                 wallet and all other modules' state. Workshop-day workflow
+                 for a stuck learner who needs to retry one module without
+                 losing the rest.
+  --confirm      Skip the confirmation prompt (granular --module mode only).
+  --help         Show this message and exit.

@@ -1,0 +1,7 @@
+Usage: xrpl-lab wallet create [OPTIONS]
+
+  Create a new XRPL wallet.
+
+Options:
+  --path PATH  Custom wallet path
+  --help       Show this message and exit.

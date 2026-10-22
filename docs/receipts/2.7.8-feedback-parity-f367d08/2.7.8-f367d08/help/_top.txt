@@ -1,0 +1,47 @@
+Usage: xrpl-lab [OPTIONS] COMMAND [ARGS]...
+
+  XRPL Lab — learn by doing, prove by artifact.
+
+  Quick start:
+
+      xrpl-lab start           Interactive guided tour
+      xrpl-lab list            Show all modules
+      xrpl-lab run MODULE_ID   Run a specific module
+      xrpl-lab verify-artifact FILE [--live]
+                               Verify a proof pack or certificate
+                               (--live: re-check its txids on the ledger)
+      xrpl-lab doctor          Check your setup
+      xrpl-lab serve           Start the web dashboard
+
+Options:
+  --version  Show the version and exit.
+  --help     Show this message and exit.
+
+Commands:
+  audit            Batch verify transactions and produce an audit report.
+  audit-verify     Verify an audit pack's integrity_sha256...
+  cert-verify      Verify a certificate's integrity (and, with --live,...
+  certificate      Generate a completion certificate.
+  cohort-status    Aggregate per-learner status across a cohort directory.
+  curriculum       Curriculum commands: the single-source manifest the...
+  doctor           Run diagnostic checks on your XRPL Lab environment.
+  fund             Fund your wallet from the testnet faucet.
+  last-run         Show last module run info and the audit command to...
+  lint             Lint module files for authoring errors.
+  list             Show all modules with status, track, and progression...
+  module           Module authoring helpers (init scaffolder).
+  proof            Proof pack commands: generate and verify.
+  proof-pack       Generate a shareable proof pack.
+  recovery         Diagnose stuck states and show recovery commands.
+  reset            Wipe all local state and workspace (requires...
+  run              Run a specific module by ID (e.g., xrpl-lab run...
+  send             Send a payment transaction.
+  serve            Start the XRPL Lab web dashboard and API server.
+  session-export   Archive all learner artifacts with a SHA-256 manifest.
+  start            Guided launcher — pick a module and start learning.
+  status           Show progress, wallet, curriculum position, and blockers.
+  support-bundle   Generate or verify a support bundle for facilitator...
+  tracks           Show track-level completion summaries.
+  verify           Verify a transaction on the ledger.
+  verify-artifact  Verify any XRPL Lab JSON artifact: its embedded...
+  wallet           Wallet management commands.

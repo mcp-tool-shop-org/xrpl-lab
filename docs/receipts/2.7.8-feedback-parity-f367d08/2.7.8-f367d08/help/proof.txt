@@ -1,0 +1,9 @@
+Usage: xrpl-lab proof [OPTIONS] COMMAND [ARGS]...
+
+  Proof pack commands: generate and verify.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  verify  Verify a proof pack's integrity (and, with --live, on-ledger...

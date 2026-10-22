@@ -1,0 +1,8 @@
+Usage: xrpl-lab support-bundle [OPTIONS]
+
+  Generate or verify a support bundle for facilitator handoff.
+
+Options:
+  --json         Machine-readable JSON output
+  --verify PATH  Verify an existing support bundle file
+  --help         Show this message and exit.

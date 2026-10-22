@@ -1,0 +1,6 @@
+Usage: xrpl-lab proof-pack [OPTIONS]
+
+  Generate a shareable proof pack.
+
+Options:
+  --help  Show this message and exit.

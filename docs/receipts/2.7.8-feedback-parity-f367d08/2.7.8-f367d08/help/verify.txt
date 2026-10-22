@@ -1,0 +1,8 @@
+Usage: xrpl-lab verify [OPTIONS]
+
+  Verify a transaction on the ledger.
+
+Options:
+  --tx TEXT  Transaction ID to verify  [required]
+  --dry-run
+  --help     Show this message and exit.

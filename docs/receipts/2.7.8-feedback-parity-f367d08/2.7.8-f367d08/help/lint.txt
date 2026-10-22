@@ -1,0 +1,17 @@
+Usage: xrpl-lab lint [OPTIONS] [GLOB_PATTERN]
+
+  Lint module files for authoring errors.
+
+  Validates frontmatter, action names, payloads, mode labeling, and curriculum
+  structure (prerequisites, cycles, tracks).
+
+  Examples:
+    xrpl-lab lint                     # lint all modules
+    xrpl-lab lint modules/dex*.md     # lint a subset
+    xrpl-lab lint --json              # CI-friendly JSON output
+    xrpl-lab lint --no-curriculum     # skip cross-module checks
+
+Options:
+  --json           Machine-readable JSON output
+  --no-curriculum  Skip curriculum-level validation
+  --help           Show this message and exit.

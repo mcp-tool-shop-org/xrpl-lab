@@ -1,0 +1,109 @@
+same after normalizing control-state-276\feedback.err: A {'version': 3} | B {'version': 3}
+identical      control-state-276\feedback.exit
+same after normalizing control-state-276\feedback.out: A {'version': 1, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 1, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+same after normalizing control-state-276\README.txt: A {'version': 1} | B {'version': 1}
+same after normalizing control-state-276\supportbundle_json.err: A {'version': 3} | B {'version': 3}
+identical      control-state-276\supportbundle_json.exit
+same after normalizing control-state-276\supportbundle_json.out: A {'version': 2, 'timestamp': 7, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 7, 'ledger index': 1, 'faucet http': 1}
+identical      help\_top.txt
+identical      help\audit-verify.txt
+identical      help\audit.txt
+identical      help\cert-verify.txt
+identical      help\certificate.txt
+identical      help\cohort-status.txt
+identical      help\curriculum.manifest.txt
+identical      help\curriculum.txt
+identical      help\doctor.txt
+identical      help\feedback.txt
+identical      help\fund.txt
+identical      help\last-run.txt
+identical      help\lint.txt
+identical      help\list.txt
+identical      help\module.init.txt
+identical      help\module.txt
+identical      help\proof-pack.txt
+identical      help\proof.txt
+identical      help\proof.verify.txt
+identical      help\recovery.txt
+identical      help\reset.txt
+identical      help\run.txt
+identical      help\send.txt
+identical      help\serve.txt
+identical      help\session-export.txt
+identical      help\start.txt
+identical      help\status.txt
+identical      help\support-bundle.txt
+identical      help\tracks.txt
+identical      help\verify-artifact.txt
+identical      help\verify.txt
+identical      help\wallet.create.txt
+identical      help\wallet.show.txt
+identical      help\wallet.txt
+DIFFERENT      import_feedback.txt
+    --- A
+    +++ B
+    @@ -1 +1,5 @@
+    -exit: 0
+    +Traceback (most recent call last):
+    +  File "<string>", line 1, in <module>
+    +    import xrpl_lab.feedback
+    +ModuleNotFoundError: No module named 'xrpl_lab.feedback'
+    +exit: 1
+DIFFERENT      leftfailed\feedback.err
+    --- A
+    +++ B
+    @@ -1 +1,4 @@
+     `feedback` is deprecated, use `support-bundle`.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+identical      leftfailed\feedback.exit
+same after normalizing leftfailed\feedback.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      leftfailed\supportbundle.err
+    --- A
+    +++ B
+    @@ -0,0 +1,3 @@
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+identical      leftfailed\supportbundle.exit
+same after normalizing leftfailed\supportbundle.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      leftfailed\supportbundle_json.err
+    --- A
+    +++ B
+    @@ -0,0 +1,3 @@
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+identical      leftfailed\supportbundle_json.exit
+same after normalizing leftfailed\supportbundle_json.out: A {'version': 3, 'timestamp': 7, 'ledger index': 1, 'faucet http': 1} | B {'version': 3, 'timestamp': 7, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      recovered\feedback.err
+    --- A
+    +++ B
+    @@ -1 +1,4 @@
+     `feedback` is deprecated, use `support-bundle`.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+identical      recovered\feedback.exit
+same after normalizing recovered\feedback.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      recovered\supportbundle.err
+    --- A
+    +++ B
+    @@ -0,0 +1,3 @@
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+identical      recovered\supportbundle.exit
+same after normalizing recovered\supportbundle.out: A {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1} | B {'version': 2, 'timestamp': 2, 'ledger index': 1, 'faucet http': 1}
+DIFFERENT      recovered\supportbundle_json.err
+    --- A
+    +++ B
+    @@ -0,0 +1,3 @@
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+    +Warning: state from v<ver>, current is v<ver>. Some fields may differ.
+identical      recovered\supportbundle_json.exit
+same after normalizing recovered\supportbundle_json.out: A {'version': 3, 'timestamp': 12, 'ledger index': 1, 'faucet http': 1} | B {'version': 3, 'timestamp': 12, 'ledger index': 1, 'faucet http': 1}
+
+61 files compared; 7 with a real difference

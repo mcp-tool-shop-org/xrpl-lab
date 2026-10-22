@@ -41,40 +41,24 @@
   ],
   "changes": {
     "fileCounts": {
-      "added": 2221,
-      "changed": 73,
+      "added": 127,
+      "changed": 0,
       "moved": 0,
-      "parts": 7,
-      "removed": 2
+      "parts": 2,
+      "removed": 0
     },
     "items": [
       {
-        "kind": "landing",
-        "sentence": "pyproject.toml is now also read by tests/test_version_fallback.py.",
-        "subjects": [
-          "pyproject.toml",
-          "tests/test_version_fallback.py"
-        ]
-      },
-      {
-        "kind": "landing",
-        "sentence": "tests/test_live_fire_run2.py is now read by tests/test_v261_followups.py.",
-        "subjects": [
-          "tests/test_live_fire_run2.py",
-          "tests/test_v261_followups.py"
-        ]
-      },
-      {
         "kind": "counts",
-        "sentence": "2221 files added, 2 removed and 73 changed content, across 7 parts.",
+        "sentence": "Nothing structural changed since 2026-10-22; 127 files added.",
         "subjects": []
       }
     ],
     "since": {
-      "commit": "fa2370c86bb3dab62af342d2cbf5d9266ea3c240",
-      "generatedAt": "2026-10-20T20:46:49.630Z"
+      "commit": "434e10728586e3fa0b3d77277599b62efa1cc15b",
+      "generatedAt": "2026-10-22T07:07:03.011Z"
     },
-    "unchanged": false
+    "unchanged": true
   },
   "changesTogether": [
     {
@@ -98,9 +82,9 @@
     "Window: 180 days; a pair counts from 3 shared commits, since 5 source files reach 10 revisions; the floor rises to 10 when 25 do."
   ],
   "changesTogetherWithTests": 0,
-  "commit": "434e10728586e3fa0b3d77277599b62efa1cc15b",
+  "commit": "0bf3b610433498075661b818377dbf89e9157cad",
   "defaultBranch": "main",
-  "derived": "10 parts, mostly Python (231 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), HTML (1) and shell (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
+  "derived": "10 parts, mostly Python (232 files), Astro (13), TypeScript (8), CSS (4), JavaScript (2), shell (2) and HTML (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
   "doors": [
     {
       "checks": [
@@ -122,7 +106,7 @@
         {
           "boundary": "tests",
           "depth": 0,
-          "files": 177
+          "files": 178
         },
         {
           "boundary": "xrpl_lab",
@@ -362,7 +346,7 @@
   ],
   "engine": "1.24.0",
   "generated": [],
-  "generatedAt": "2026-10-22T07:07:03.011Z",
+  "generatedAt": "2026-10-22T07:25:07.852Z",
   "limits": [
     "1 import could not be resolved: `tests/test_product_smoke.py` imports a path built at run time.",
     "3 writes and 7 reads use paths built at run time and are not named here.",
@@ -397,11 +381,11 @@
   "startReason": "This path follows xrpl-lab (a command people run, from pyproject.toml) from its entry, since CI runs only tests and checks.",
   "summary": null,
   "summaryFrom": null,
-  "testFiles": 185,
+  "testFiles": 186,
   "testedBy": {
     "bin": 0,
     "scripts": 1,
-    "xrpl_lab": 168
+    "xrpl_lab": 169
   },
   "unnamedWrites": 3,
   "unread": [],

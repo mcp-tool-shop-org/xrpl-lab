@@ -1,0 +1,6 @@
+Usage: xrpl-lab tracks [OPTIONS]
+
+  Show track-level completion summaries.
+
+Options:
+  --help  Show this message and exit.

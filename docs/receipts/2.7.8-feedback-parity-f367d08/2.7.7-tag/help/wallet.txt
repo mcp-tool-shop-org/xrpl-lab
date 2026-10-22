@@ -1,0 +1,10 @@
+Usage: xrpl-lab wallet [OPTIONS] COMMAND [ARGS]...
+
+  Wallet management commands.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  create  Create a new XRPL wallet.
+  show    Show wallet info (no secrets).

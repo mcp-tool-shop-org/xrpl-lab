@@ -1,0 +1,6 @@
+Usage: xrpl-lab list [OPTIONS]
+
+  Show all modules with status, track, and progression info.
+
+Options:
+  --help  Show this message and exit.

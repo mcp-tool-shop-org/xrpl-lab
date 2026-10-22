@@ -1,0 +1,7 @@
+Usage: xrpl-lab status [OPTIONS]
+
+  Show progress, wallet, curriculum position, and blockers.
+
+Options:
+  --json  Machine-readable JSON output
+  --help  Show this message and exit.
