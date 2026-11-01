@@ -24,7 +24,6 @@ sidebar:
 |---------|-------------|
 | `xrpl-lab support-bundle` | Generate a support bundle (markdown) for facilitator handoff |
 | `xrpl-lab support-bundle --json` | Machine-parseable JSON support bundle |
-| `xrpl-lab support-bundle --verify <file>` | Verify a received support bundle |
 | `xrpl-lab feedback` | Alias for support-bundle (markdown output) |
 
 ## Facilitator commands
@@ -49,14 +48,11 @@ sidebar:
 | `xrpl-lab proof-pack` | Export a shareable proof pack (JSON with SHA-256 integrity) |
 | `xrpl-lab certificate` | Export a slim completion certificate |
 | `xrpl-lab audit --txids <file>` | Batch verify transactions against expectations |
-| `xrpl-lab audit-verify <file>` | Verify an audit pack's SHA-256 integrity (non-zero exit on mismatch) |
 | `xrpl-lab verify-artifact <file> [--json] [--live]` | Verify any artifact: it detects proof packs, certificates, audit packs and support bundles from their own JSON and runs the same check as that kind's own command |
-| `xrpl-lab proof verify <file> [--live]` | Verify a proof pack |
-| `xrpl-lab cert-verify <file> [--live]` | Verify a certificate |
 
 ### Ledger-anchored verification (`--live`)
 
-The offline SHA-256 check always runs. With `--live`, `verify-artifact`, `proof verify` and `cert-verify` also re-fetch every transaction a proof pack or certificate claims from the public XRPL and confirm each one is there as claimed. Audit packs and support bundles have nothing on the ledger to check, so `--live` says so and changes nothing.
+The offline SHA-256 check always runs. With `--live`, `verify-artifact` also re-fetch every transaction a proof pack or certificate claims from the public XRPL and confirm each one is there as claimed. Audit packs and support bundles have nothing on the ledger to check, so `--live` says so and changes nothing.
 
 ### Audit flags
 

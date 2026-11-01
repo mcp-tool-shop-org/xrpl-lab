@@ -338,17 +338,25 @@ class TestDeprecatedVerifyCommands:
         assert "FAIL" in result.output
         assert result.stderr == "`proof verify` is deprecated, use `verify-artifact`.\n"
 
-    def test_deprecated_commands_still_visible_in_help(self):
-        """Deprecated verify entries are demoted by note, not hidden."""
+    def test_deprecated_commands_hidden_from_help_but_callable(self):
+        """Issue #37 (reverses the 2.6.0 "demoted by note, not hidden" pin):
+        the deprecated verify entries keep working and keep their stderr note,
+        but are no longer listed; verify-artifact is the one listed way."""
         result = CliRunner().invoke(main, ["--help"])
         assert result.exit_code == 0
         listed = _help_listed_commands(result.output)
-        assert "cert-verify" in listed
-        assert "audit-verify" in listed
+        assert "cert-verify" not in listed
+        assert "audit-verify" not in listed
         assert "support-bundle" in listed
         assert "verify-artifact" in listed
         proof_help = CliRunner().invoke(main, ["proof", "--help"])
-        assert "verify" in _help_listed_commands(proof_help.output)
+        assert "verify" not in _help_listed_commands(proof_help.output)
+        for argv in (
+            ["proof", "verify", "--help"],
+            ["cert-verify", "--help"],
+            ["audit-verify", "--help"],
+        ):
+            assert CliRunner().invoke(main, argv).exit_code == 0
 
 
 # ── Hidden pure aliases: still run, absent from help, note on stderr ────────

@@ -191,7 +191,7 @@ xrpl-lab recovery           # Stuck? See exactly what to run next
 ```bash
 xrpl-lab support-bundle              # Human-readable markdown bundle
 xrpl-lab support-bundle --json       # Machine-parseable JSON
-xrpl-lab support-bundle --verify bundle.json  # Verify a received bundle
+xrpl-lab verify-artifact bundle.json    # Verify a received bundle
 ```
 
 A facilitator can diagnose any learner's issue from a support bundle without

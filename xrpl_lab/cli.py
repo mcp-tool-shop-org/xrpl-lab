@@ -824,7 +824,7 @@ def _run_proof_pack_verify(
         sys.exit(1)
 
 
-@proof.command("verify")
+@proof.command("verify", hidden=True)
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
 @click.option(
@@ -964,7 +964,7 @@ def _run_certificate_verify(
         sys.exit(1)
 
 
-@main.command("cert-verify")
+@main.command("cert-verify", hidden=True)
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
 @click.option(
@@ -1035,8 +1035,8 @@ def _run_support_bundle_verify(
 
 @main.command("support-bundle")
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
-@click.option("--verify", "verify_path", type=click.Path(exists=True),
-              help="Verify an existing support bundle file")
+@click.option("--verify", "verify_path", type=click.Path(exists=True), hidden=True,
+              help="Verify an existing support bundle file (deprecated; use verify-artifact)")
 def support_bundle(json_output: bool, verify_path: str | None):
     """Generate or verify a support bundle for facilitator handoff."""
     from .workshop import generate_support_bundle
@@ -1343,7 +1343,7 @@ def _run_audit_pack_verify(
         sys.exit(1)
 
 
-@main.command("audit-verify")
+@main.command("audit-verify", hidden=True)
 @click.argument("file", type=click.Path(exists=True))
 @click.option("--json", "json_output", is_flag=True, help="Machine-readable JSON output")
 def audit_verify(file: str, json_output: bool):
