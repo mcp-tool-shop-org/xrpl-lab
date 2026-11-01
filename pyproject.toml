@@ -81,6 +81,9 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+# pytest-asyncio >= 1.4 warns when this is unset (escalated to an error by the
+# filterwarnings below). "function" is what every test here already gets.
+asyncio_default_fixture_loop_scope = "function"
 # Turn NEW *real* DeprecationWarnings into hard errors so a dependency bump
 # that deprecates an API we rely on surfaces in CI before it removes the shim
 # and breaks the suite silently. The one known, already-surfaced deprecation
@@ -110,4 +113,8 @@ filterwarnings = [
     # starlette moves to anyio.from_thread.BlockingPortal.
     "ignore:The anyio\\.abc\\.BlockingPortal alias is deprecated:DeprecationWarning",
     "ignore:Using `httpx` with `starlette\\.testclient` is deprecated",
+    # pytest-asyncio 1.4.x imports the pytest-internal alias `CallSpec2`, renamed to
+    # `CallSpec` in pytest 9.2 (removed in pytest 10). The import is inside the plugin,
+    # not this repo. Scoped to this one message; remove when pytest-asyncio drops it.
+    "ignore:_pytest\\.python\\.CallSpec2 has been renamed",
 ]
