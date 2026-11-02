@@ -996,3 +996,33 @@ class TestCohortStatus:
         rows = list(reader)
         assert [r["learner_id"] for r in rows] == ["alice", "bob"]
         assert rows[0]["completed_count"] == "1"
+
+
+class TestDeprecatedVerifyCommandsHidden:
+    """Issue #37: the deprecated verify commands stay callable but are not listed."""
+
+    def test_top_level_help_does_not_list_deprecated_verify_commands(self):
+        out = CliRunner().invoke(main, ["--help"]).output
+        for name in ("cert-verify", "audit-verify"):
+            assert name not in out
+        assert "verify-artifact" in out
+
+    def test_proof_help_does_not_list_verify(self):
+        result = CliRunner().invoke(main, ["proof", "--help"])
+        assert result.exit_code == 0
+        tail = result.output.split("Commands:")[-1]
+        listed = [ln.split()[0] for ln in tail.splitlines() if ln.strip()]
+        assert "verify" not in listed
+
+    def test_support_bundle_help_does_not_list_verify_flag(self):
+        result = CliRunner().invoke(main, ["support-bundle", "--help"])
+        assert result.exit_code == 0
+        assert "--verify" not in result.output
+
+    def test_deprecated_commands_still_respond_to_help(self):
+        for argv in (
+            ["proof", "verify", "--help"],
+            ["cert-verify", "--help"],
+            ["audit-verify", "--help"],
+        ):
+            assert CliRunner().invoke(main, argv).exit_code == 0
