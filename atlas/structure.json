@@ -9,7 +9,7 @@
       "externals": 0,
       "files": [
         {
-          "hash": "366cf5ccec7110ca7cddb1aa0b5dd95648e2e77aecc7ad743811fd27cc9f6ab7",
+          "hash": "40126111eaffeaf2668bdc8ec9dd3be5b991dbc1825f0a0481d416b6b6a50604",
           "path": ".github/workflows/ci.yml"
         },
         {
@@ -10038,35 +10038,35 @@
           "path": "LICENSE"
         },
         {
-          "hash": "85347f0598a7df90e7273b8f17a15452f345152689ae344b975bed61f13641c6",
+          "hash": "586b408468393e0d41b107cbab74e4258fc3cd3e1bd7d264815c809392fc3c63",
           "path": "README.es.md"
         },
         {
-          "hash": "87763735ee57655a1fa77d995d531d195d59ba572c38d6ff2da06cc1a5cb7f7f",
+          "hash": "d5971a15f29040d753e7ce5705f23e5cef9aee11b5401846bb883c75cc804acc",
           "path": "README.fr.md"
         },
         {
-          "hash": "d010f78aa936abea2dde7a2fd9418f711a2b6e328b297e12946cf4913f08fe50",
+          "hash": "7e2d2160bd5a7707b884ae152b38542f0489a36f2d2e37c7a08843029b889d06",
           "path": "README.hi.md"
         },
         {
-          "hash": "b5e91e32c22895c0c92c0e4f3fbf93732d9bab03feb6ae6a5e140c1654c414b2",
+          "hash": "ca5c366afdbcceeb8dbcd00be8c3bbe3000413eacb8484000eb94438e64a2689",
           "path": "README.it.md"
         },
         {
-          "hash": "8a130659a0b63d23c49936745199f108f36d00805d4389407af5a12f475072f3",
+          "hash": "295c9466f04a9aa0438fe3a8ede660e903759605765506fbb27d3aacae373766",
           "path": "README.ja.md"
         },
         {
-          "hash": "d9e3e265e9be7f05d5eb7d2a86c7c9b680a5499851099756e9dfa06d37c059b9",
+          "hash": "84c331910ccd88b204a0a48ae3fa23a81e0959b0786719abae3d682b9152d500",
           "path": "README.md"
         },
         {
-          "hash": "97e1a99558afcb2e17ebe9a47db05a4c9aef2f082316ded6d4ca9a6dfe889025",
+          "hash": "bd453a98b7a0f2c5477f761266988981b4ecce297a5334b58c2433578005d3c5",
           "path": "README.pt-BR.md"
         },
         {
-          "hash": "e437e76f31941bfd2bd6aea72515ab82f06f80ae3071caae56f543c557c8bde2",
+          "hash": "5b463c5a9c029dcd3bb8208c0dd62d76e6c88befdbd22436769dac2ab879d02b",
           "path": "README.zh.md"
         },
         {
@@ -10074,7 +10074,7 @@
           "path": "SECURITY.md"
         },
         {
-          "hash": "f6386369449f29d614301ca4c00ac3d464d50cef25348d6825f9a50ae2fd9c20",
+          "hash": "8f9fb2a881059f8a5f532799a8ccd376155f98a92b4efc3223c9896f017ccaa6",
           "path": "SHIP_GATE.md"
         },
         {
@@ -10086,7 +10086,7 @@
           "path": "package.json"
         },
         {
-          "hash": "be1cb81ec8dd77d7c84822aebc7054234ec2ed1e29d355300b3d32ab395e74cc",
+          "hash": "b6816bda017f4108d66a27dc7bac6a68eea70fb63caf2844fd9fd038d86992a3",
           "path": "pyproject.toml"
         },
         {
@@ -10212,11 +10212,11 @@
           "path": "site/src/content/docs/handbook/artifacts.md"
         },
         {
-          "hash": "4d93db6d967934b9899b5f22ab146736137399387d002ebfd409d72e99dedcdb",
+          "hash": "8fcd3baf8acd2eba890c635e27d9717c3435d743b7ef9f3e9bfe83a80de803a8",
           "path": "site/src/content/docs/handbook/beginners.md"
         },
         {
-          "hash": "545dcbdd3b01b68038d712b49f6dd23c1d34cadc3a9561b9169d4946ddf45a60",
+          "hash": "326734308523d9be25429bfd2af1cf71b16caa39582e2f2af1efbb503efe81be",
           "path": "site/src/content/docs/handbook/commands.md"
         },
         {
@@ -10481,7 +10481,7 @@
         },
         {
           "constantOnly": true,
-          "hash": "6bf261b32cbdcd9ffabe45363ad7f25ad15be9a56ec474196f7ce16fc5e6e227",
+          "hash": "fe324f810bf615b9f71a084a726e26a289cf1b2effd32fa6f89d75468093696d",
           "importsFiles": [
             "site/src/data/curriculum.json"
           ],
@@ -12047,7 +12047,7 @@
             "test_status",
             "test_version"
           ],
-          "hash": "17b4dee7008290af65c009544a52d660a4c2b5b1008bd89fa7e06170768c575d",
+          "hash": "915d6263da30f093f0b9e7b1c7b9db92bb1aa7657b3a2c1add90d367337efc02",
           "importOrder": [
             "xrpl_lab/cli.py",
             "xrpl_lab/__init__.py",
@@ -14319,7 +14319,7 @@
           "testFramework": "pytest"
         },
         {
-          "hash": "8a42e93823d281fe3a318995dac5dd99a2b6a1ef47d3ca34928e9ee8089272e9",
+          "hash": "99352d333ea01d7d39e67485326c9d17b2f8f1d172839678444d009a0840eadb",
           "importOrder": [
             "xrpl_lab/cli.py",
             "xrpl_lab/audit.py",
@@ -16576,7 +16576,7 @@
               "line": 2387
             }
           ],
-          "hash": "62d057c7bdd93a8c7ac562d7c7569e639888969f9ffcd1e3061233582e481da1",
+          "hash": "ea05123eed49cb2e04c8a34f845a0c1a7a93fa258f7c755203825695fe8f147f",
           "importOrder": [
             "xrpl_lab/__init__.py",
             "xrpl_lab/curriculum.py",
@@ -22092,12 +22092,26 @@
         {
           "reads": 1,
           "where": [
+            "cwd:modules/"
+          ],
+          "writes": 0
+        },
+        {
+          "reads": 1,
+          "where": [
             "cwd:presets"
+          ],
+          "writes": 0
+        },
+        {
+          "reads": 1,
+          "where": [
+            "cwd:presets/"
           ],
           "writes": 0
         }
       ],
-      "outsideReads": 69,
+      "outsideReads": 71,
       "outsideWrites": 7,
       "role": "code",
       "testRunners": [
@@ -22397,6 +22411,13 @@
         },
         {
           "event": "workflow_dispatch"
+        }
+      ],
+      "unresolvedExpressions": [
+        {
+          "adds": "flags",
+          "job": "lint-and-test",
+          "step": "Run tests"
         }
       ],
       "uses": [
@@ -23275,9 +23296,9 @@
       "to": "xrpl_lab"
     }
   ],
-  "engine": "1.24.0",
+  "engine": "1.26.0",
   "generatedFrom": {
-    "commit": "0a4a07af22762fad708c5d40f8a7177f321f338f",
+    "commit": "51099c69c43c0f62f92afc994acd14723e9ad857",
     "tracked": 2776
   },
   "landings": [
@@ -23350,6 +23371,18 @@
         }
       ],
       "target": "modules",
+      "writers": []
+    },
+    {
+      "readers": [
+        {
+          "by": "tests/test_token_escrow.py",
+          "call": "read_text",
+          "confidence": "ast",
+          "fromTests": true
+        }
+      ],
+      "target": "modules/*.md",
       "writers": []
     },
     {

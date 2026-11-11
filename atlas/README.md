@@ -1,14 +1,15 @@
 # xrpl-lab: how it works
 
-Mapped at 2026-10-22 from commit 0a4a07a by Atlas 1.24.0.
+Mapped at 2026-11-11 from commit 51099c6 by Atlas 1.26.0.
 
 ## What this is
 
 10 parts, mostly Python (233 files), Astro (13), TypeScript (8), CSS (4), shell (3), JavaScript (2) and HTML (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.
 
-## What changed since 2026-10-22 (c43a36f)
+## What changed since 2026-10-22 (0a4a07a)
 
-Nothing structural changed since 2026-10-22; 142 files added.
+- modules/*.md is now read by tests/test_token_escrow.py.
+- 17 files changed content, across 5 parts.
 
 ## What comes in
 
@@ -55,13 +56,11 @@ CI writes nothing this map can see.
 
 ## What tends to change together
 
-- **bin/xrpl-lab.js** and **xrpl_lab/__init__.py** changed together in 6 of 8 commits, though neither part imports the other.
-
-1 file changed together with its own test, as expected.
+- **bin/xrpl-lab.js** and **xrpl_lab/__init__.py** changed together in 5 of 6 commits, though neither part imports the other.
 
 Confidence is low: fewer than 25 source files reach 10 revisions in the window.
 
-Window: 180 days; a pair counts from 3 shared commits, since 6 source files reach 10 revisions; the floor rises to 10 when 25 do.
+Window: 180 days; a pair counts from 3 shared commits, since 1 source file reaches 10 revisions; the floor rises to 10 when 25 do.
 
 ## What no test touches
 
@@ -96,8 +95,8 @@ Read those in order to follow one run of xrpl-lab end to end. This path follows 
 - 1 import could not be resolved: `tests/test_product_smoke.py` imports a path built at run time.
 - 3 writes and 7 reads use paths built at run time and are not named here.
 - 6 writes and 58 reads go to a path their caller passes, not to this repository.
+- 8 reads go to the directory the command is run in, not to this repository.
 - 1 write and 6 reads go to the home directory (.xrpl-lab/) or a path their caller passes, not to this repository.
-- 6 reads go to the directory the command is run in, not to this repository.
 - Statistics confidence is low: fewer than 25 source files reach 10 revisions in the window.
 
 Regenerate with `npx --yes @dogfood-lab/atlas map`.
