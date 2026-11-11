@@ -41,30 +41,38 @@
   ],
   "changes": {
     "fileCounts": {
-      "added": 142,
-      "changed": 0,
+      "added": 0,
+      "changed": 17,
       "moved": 0,
-      "parts": 1,
+      "parts": 5,
       "removed": 0
     },
     "items": [
       {
+        "kind": "landing",
+        "sentence": "modules/*.md is now read by tests/test_token_escrow.py.",
+        "subjects": [
+          "modules/*.md",
+          "tests/test_token_escrow.py"
+        ]
+      },
+      {
         "kind": "counts",
-        "sentence": "Nothing structural changed since 2026-10-22; 142 files added.",
+        "sentence": "17 files changed content, across 5 parts.",
         "subjects": []
       }
     ],
     "since": {
-      "commit": "c43a36fc2fcab74d22fadaafe98cd2c6d039ab8e",
-      "generatedAt": "2026-10-22T08:34:47.648Z"
+      "commit": "0a4a07af22762fad708c5d40f8a7177f321f338f",
+      "generatedAt": "2026-10-22T08:47:08.641Z"
     },
-    "unchanged": true
+    "unchanged": false
   },
   "changesTogether": [
     {
       "a": "bin/xrpl-lab.js",
       "b": "xrpl_lab/__init__.py",
-      "either": 8,
+      "either": 6,
       "partLabels": [
         "bin",
         "xrpl_lab"
@@ -74,16 +82,15 @@
         "xrpl_lab"
       ],
       "relation": "none",
-      "shared": 6
+      "shared": 5
     }
   ],
   "changesTogetherNote": [
-    "1 file changed together with its own test, as expected.",
     "Confidence is low: fewer than 25 source files reach 10 revisions in the window.",
-    "Window: 180 days; a pair counts from 3 shared commits, since 6 source files reach 10 revisions; the floor rises to 10 when 25 do."
+    "Window: 180 days; a pair counts from 3 shared commits, since 1 source file reaches 10 revisions; the floor rises to 10 when 25 do."
   ],
-  "changesTogetherWithTests": 1,
-  "commit": "0a4a07af22762fad708c5d40f8a7177f321f338f",
+  "changesTogetherWithTests": 0,
+  "commit": "51099c69c43c0f62f92afc994acd14723e9ad857",
   "defaultBranch": "main",
   "derived": "10 parts, mostly Python (233 files), Astro (13), TypeScript (8), CSS (4), shell (3), JavaScript (2) and HTML (1). Work enters through 8 doors; the busiest is CI, which reaches 4 parts. It publishes to npm and PyPI. It deploys a site to GitHub Pages. People run xrpl-lab.",
   "doors": [
@@ -345,15 +352,15 @@
       "to": "xrpl_lab"
     }
   ],
-  "engine": "1.24.0",
+  "engine": "1.26.0",
   "generated": [],
-  "generatedAt": "2026-10-22T08:47:08.641Z",
+  "generatedAt": "2026-11-11T22:52:57.330Z",
   "limits": [
     "1 import could not be resolved: `tests/test_product_smoke.py` imports a path built at run time.",
     "3 writes and 7 reads use paths built at run time and are not named here.",
     "6 writes and 58 reads go to a path their caller passes, not to this repository.",
+    "8 reads go to the directory the command is run in, not to this repository.",
     "1 write and 6 reads go to the home directory (.xrpl-lab/) or a path their caller passes, not to this repository.",
-    "6 reads go to the directory the command is run in, not to this repository.",
     "Statistics confidence is low: fewer than 25 source files reach 10 revisions in the window."
   ],
   "mainDoor": ".github/workflows/ci.yml",
@@ -388,6 +395,7 @@
     "scripts": 1,
     "xrpl_lab": 170
   },
+  "testedCodeParts": 3,
   "unnamedWrites": 3,
   "unread": [],
   "unreadFiles": 0,
