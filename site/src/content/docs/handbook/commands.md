@@ -54,6 +54,15 @@ sidebar:
 
 The offline SHA-256 check always runs. With `--live`, `verify-artifact` also re-fetch every transaction a proof pack or certificate claims from the public XRPL and confirm each one is there as claimed. Audit packs and support bundles have nothing on the ledger to check, so `--live` says so and changes nothing.
 
+With `--json`, read the right field:
+
+| Field | Means | `true` when |
+|-------|-------|-------------|
+| `valid` | The offline hash check, and nothing else | The file is unedited. It is `true` even when the pack's transactions are missing, failed or lost to a reset |
+| `live_passed` | The ledger's answer (present with `--live`) | Every transaction the pack claims was confirmed on the ledger. `false` for FAIL, RESET and UNCONFIRMED |
+
+**`valid` does not mean "verified".** To know that a pack was confirmed on the ledger, read `live_passed` or the exit code (`0`), never `valid` alone.
+
 #### After a test network reset
 
 Testnet and Devnet are sometimes reset, which deletes every account and transaction on them. Both are reset on **2026-11-25** ([xrpl.org notice](https://xrpl.org/blog/2026/testnet-devnet-reset)). A proof pack issued before a reset keeps its hash, but its transactions are on no ledger any more.
