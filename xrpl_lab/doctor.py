@@ -433,8 +433,8 @@ def _check_last_module_state() -> Check:
     parts: list[str] = []
 
     # Last completed module (most recent by completed_at timestamp)
-    if state.completed_modules:
-        last_done = max(state.completed_modules, key=lambda m: m.completed_at)
+    last_done = state.latest_completed()
+    if last_done is not None:
         try:
             ts = datetime.fromtimestamp(
                 last_done.completed_at, tz=UTC,

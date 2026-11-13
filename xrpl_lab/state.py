@@ -294,6 +294,21 @@ class LabState(BaseModel):
     def is_module_completed(self, module_id: str) -> bool:
         return any(m.module_id == module_id for m in self.completed_modules)
 
+    def latest_completed(self) -> CompletedModule | None:
+        """The module completed most recently, or None when none is.
+
+        On equal ``completed_at`` the later entry in the list wins. Entries
+        are appended as modules complete, so on a clock tie that is the later
+        completion. Ties are real on Windows before Python 3.13, where
+        ``time.time()`` moves in ticks of about 15 ms; a plain ``max`` returned
+        the first tied module, so `status` named the wrong one.
+        """
+        latest: CompletedModule | None = None
+        for m in self.completed_modules:
+            if latest is None or m.completed_at >= latest.completed_at:
+                latest = m
+        return latest
+
     def current_failures(self) -> list[TxRecord]:
         """Failed records that still describe the learner's state, oldest first.
 

@@ -11,6 +11,13 @@
   failed or miscounted. They now share one filter (`glob_visible` in
   `modules.py`) that ignores them.
 
+- **"Last completed" names the right module on a clock tie.** When two
+  modules carried the same completion time, `status`, the dashboard's last run
+  and the doctor summary named the first of them. They now name the one
+  completed last (`LabState.latest_completed`). Ties happen on Windows before
+  Python 3.13, where the clock moves in ticks of about 15 ms; there a status
+  test failed.
+
 ### Changed
 
 - **npm wrapper** now depends on `@mcptoolshop/npm-launcher` `^1.2.0` (was
