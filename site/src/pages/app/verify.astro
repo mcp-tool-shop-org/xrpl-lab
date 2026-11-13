@@ -132,7 +132,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
         </tr>
         <tr><td colspan="4" class="muted" style="border-bottom:1px solid var(--line);padding-top:0;font-size:12.5px">${esc(t.reason || '')}</td></tr>`;
       }).join('');
-      const summary = `<p class="muted" style="margin:0 0 10px;font-size:13px">${live.passed} passed · ${live.failed} failed · ${live.skipped} skipped${live.reset ? ` · ${live.reset} lost to a ledger reset` : ''}${live.note ? ' · ' + esc(live.note) : ''}</p>`;
+      const summary = `<p class="muted" style="margin:0 0 10px;font-size:13px">${live.passed} passed · ${live.failed} failed · ${live.skipped} skipped${live.reset ? ` · ${live.reset} lost to a ledger reset` : ''}${live.unconfirmed ? ` · ${live.unconfirmed} unconfirmed` : ''}${live.reset_signal ? ` · signal: ${esc(live.reset_signal)}` : ''}${live.note ? ' · ' + esc(live.note) : ''}</p>`;
       return `${summary}<table class="vtable"><thead><tr>
         <th>Transaction</th><th>Network</th><th>Status</th><th>Link</th>
       </tr></thead><tbody>${body}</tbody></table>`;
@@ -156,6 +156,8 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       const verdictIc = ok ? healthIcon('pass') : healthIcon(resetOnly ? 'warn' : 'fail');
       const verdictText = ok
         ? `${kind} verified`
+        : resetOnly && r.live!.unconfirmed > 0
+          ? `${kind} UNCONFIRMED: it claims a reset that nothing else confirms`
         : resetOnly
           ? `${kind} can't be checked on-ledger: ledger reset after issuance; offline hash intact`
           : (r.hash_valid ? `${kind} failed on-ledger verification` : `${kind} integrity check failed`);

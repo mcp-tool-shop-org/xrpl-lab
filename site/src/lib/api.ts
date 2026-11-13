@@ -275,10 +275,13 @@ export interface VerifyTxResult {
   network: string;
   // "RESET": the network was reset after the tx was recorded, so it can no
   // longer be checked on-ledger. Not a pass.
-  status: string; // "PASS" | "FAIL" | "SKIPPED" | "RESET"
+  // "UNCONFIRMED": the tx is missing and only the artifact itself claims a
+  // reset. A claim, not evidence. Not a pass.
+  status: string; // "PASS" | "FAIL" | "SKIPPED" | "RESET" | "UNCONFIRMED"
   reason: string;
   checks: string[];
   explorer_url: string;
+  reset_signal: string; // "" | "announced" | "seen_by_this_lab" | "pack_claim"
 }
 
 export interface VerifyLiveResult {
@@ -289,7 +292,10 @@ export interface VerifyLiveResult {
   failed: number;
   skipped: number;
   reset: number; // txids lost to a network reset after issuance
+  unconfirmed: number; // missing txids where only the artifact claims a reset
   ledger_reset: boolean;
+  reset_signal: string; // "" | "announced" | "seen_by_this_lab" | "pack_claim"
+  suspicious_ledger_marks: string[];
   note: string;
   tx_results: VerifyTxResult[];
 }

@@ -36,6 +36,14 @@ describe('verifyBadge', () => {
     expect(html).not.toContain('badge--failed');
   });
 
+  it('renders UNCONFIRMED as neutral with its own glyph, never as a pass', () => {
+    const html = verifyBadge('UNCONFIRMED');
+    expect(html).toContain('UNCONFIRMED');
+    expect(html).toContain('?');
+    expect(html).toContain('badge--cancelled');
+    expect(html).not.toContain('badge--done');
+  });
+
   it('falls back to SKIPPED for an unknown status', () => {
     expect(verifyBadge('???')).toContain('SKIPPED');
   });

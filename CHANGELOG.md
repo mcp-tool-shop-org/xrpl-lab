@@ -30,13 +30,30 @@
     `RESET` where it would otherwise read `FAIL`. It is never a pass either
     way. A lab that sees the reset for itself (below) records the exact moment
     and does not have this window.
+- **A reset verdict names what it rests on.** `verify-artifact --live` now
+  says who says there was a reset, in the output and in `--json`
+  (`reset_signal`, per transaction and for the whole result):
+  - `announced`: a listed reset covers the transaction's recorded time.
+  - `seen_by_this_lab`: the lab running the check saw the reset in its own
+    state. `verify-artifact` and the dashboard's verify page read that state.
+  - `pack_claim`: only the pack says so (its `ledger_marks` or
+    `ledger_resets_seen`). That is a claim, not evidence, so the verdict is
+    **UNCONFIRMED: the pack claims a reset that nothing else confirms**. It
+    is counted on its own (`live.unconfirmed`) and still exits 4.
+  - **Changed from the unreleased behaviour of the two entries around this
+    one:** a pack's own marks or its own record of a reset used to give
+    `RESET`. They now give `UNCONFIRMED`. Only the two independent signals
+    give `RESET`. No path is ever a pass.
+  - A pack ledger mark above the network's current index, with no reset
+    known, is flagged (`suspicious_ledger_marks`). It is a flag, not a
+    verdict: the transactions are still judged on what the ledger shows.
 - **The lab notices a reset and says what to do.**
   - Each run on Testnet or Devnet now reads the ledger before its first step.
     A validated ledger index far below the one seen before (more than 1,000
     ledgers, so server lag does not count) means the network was reset; the
     lab records it (`ledger_epochs` in `state.json`) and new proof packs carry
-    it (`ledger_resets_seen`), so the pack explains its own older
-    transactions without a lookup.
+    it (`ledger_resets_seen`). In the lab's own state it is an independent
+    reset signal; in a pack it is that pack's claim (see the signals above).
   - `xrpl-lab doctor` has a **Network reset** check. It warns when a reset
     erased the on-ledger results of completed modules, and it catches a reset
     no run has seen yet by comparing the live ledger with the last index seen.

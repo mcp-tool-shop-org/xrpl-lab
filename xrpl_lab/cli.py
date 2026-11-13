@@ -674,7 +674,7 @@ def _render_live_report(live) -> None:
     ``live`` is a reporting.LiveVerificationResult. Human-readable only — the
     JSON branch folds ``live.to_dict()`` into the caller's result object.
     """
-    from .reporting import LIVE_PASS, LIVE_RESET
+    from .reporting import LIVE_PASS, LIVE_RESET, LIVE_UNCONFIRMED
 
     console.print("  [bold]On-ledger verification:[/]")
     if live.no_onledger_txids:
@@ -691,7 +691,16 @@ def _render_live_report(live) -> None:
         elif r.status == "SKIPPED":
             console.print(f"  [dim]· SKIP {short}  ({r.reason})[/]")
         elif r.status == LIVE_RESET:
-            console.print(f"  [yellow]↺ RESET[/] {short}  [dim]({r.network})[/]")
+            console.print(
+                f"  [yellow]↺ RESET[/] {short}  "
+                f"[dim]({r.network}; signal: {r.reset_signal})[/]"
+            )
+            console.print(f"         [yellow]{r.reason}[/]")
+        elif r.status == LIVE_UNCONFIRMED:
+            console.print(
+                f"  [yellow]? UNCONFIRMED[/] {short}  "
+                f"[dim]({r.network}; signal: {r.reset_signal})[/]"
+            )
             console.print(f"         [yellow]{r.reason}[/]")
         else:
             console.print(f"  [red]✗ FAIL[/] {short}  [dim]({r.network})[/]")
@@ -703,23 +712,50 @@ def _render_live_report(live) -> None:
             f"  [green]On-ledger verdict: PASS[/] — "
             f"{live.passed_count} verified, {live.skipped_count} skipped."
         )
+    elif live.unconfirmed_count and not live.failed_count:
+        # Only the pack says there was a reset. A claim, not evidence.
+        console.print(
+            f"  [yellow]On-ledger verdict: UNCONFIRMED: the pack claims a reset "
+            f"that nothing else confirms[/] — {live.unconfirmed_count} unconfirmed, "
+            f"{live.reset_count} lost to a known reset, "
+            f"{live.passed_count} verified, {live.skipped_count} skipped. "
+            f"Signal: {live.reset_signal}."
+        )
     elif live.ledger_reset and not live.failed_count:
         # Not a pass and not a failure: the ledger these txids were on is gone.
         console.print(
             f"  [yellow]On-ledger verdict: CAN'T BE CHECKED (ledger reset after "
             f"issuance)[/] — {live.reset_count} lost to the reset, "
-            f"{live.passed_count} verified, {live.skipped_count} skipped."
+            f"{live.passed_count} verified, {live.skipped_count} skipped. "
+            f"Signal: {live.reset_signal}."
         )
     else:
+        lost = live.reset_count + live.unconfirmed_count
         console.print(
             f"  [red]On-ledger verdict: FAIL[/] — "
             f"{live.failed_count} failed, {live.passed_count} verified, "
             f"{live.skipped_count} skipped"
-            + (f", {live.reset_count} lost to a ledger reset." if live.reset_count else ".")
+            + (
+                f", {live.reset_count} lost to a ledger reset, "
+                f"{live.unconfirmed_count} unconfirmed."
+                if lost else "."
+            )
         )
     if live.note:
         console.print(f"  [dim]{live.note}[/]")
     console.print()
+
+
+def _own_state_or_none():
+    """This lab's own state, for the reset check; None if it can't be read.
+
+    Live verification uses it as a reset signal that does not come from the
+    artifact being checked. A missing or broken state just means no signal.
+    """
+    try:
+        return load_state()
+    except Exception:  # noqa: BLE001 - no state, no signal
+        return None
 
 
 # `verify-artifact --live` exits 4 when the only thing wrong is that the
@@ -785,7 +821,9 @@ def _run_proof_pack_verify(
     live_result = None
     live_ok = True
     if live and valid:
-        live_result = asyncio.run(verify_proof_pack_live(pack))
+        live_result = asyncio.run(
+            verify_proof_pack_live(pack, own_state=_own_state_or_none())
+        )
         live_ok = live_result.overall_passed
 
     if json_output:
@@ -808,6 +846,7 @@ def _run_proof_pack_verify(
             }
             result["live_passed"] = live_ok if live_result else False
             result["ledger_reset"] = bool(live_result and live_result.ledger_reset)
+            result["reset_signal"] = live_result.reset_signal if live_result else ""
         if json_extras:
             result.update(json_extras)
         print(json.dumps(result, indent=2))
@@ -938,7 +977,9 @@ def _run_certificate_verify(
     live_result = None
     live_ok = True
     if live and valid:
-        live_result = asyncio.run(verify_certificate_live(cert))
+        live_result = asyncio.run(
+            verify_certificate_live(cert, own_state=_own_state_or_none())
+        )
         live_ok = live_result.overall_passed
 
     if json_output:
@@ -960,6 +1001,7 @@ def _run_certificate_verify(
             }
             result["live_passed"] = live_ok if live_result else False
             result["ledger_reset"] = bool(live_result and live_result.ledger_reset)
+            result["reset_signal"] = live_result.reset_signal if live_result else ""
         if json_extras:
             result.update(json_extras)
         print(json.dumps(result, indent=2))
@@ -1458,7 +1500,9 @@ def _detect_artifact_kind(artifact: object) -> str | None:
         "on-ledger check, so --live says so and changes nothing. Exit codes: "
         "0 verified; 1 the hash failed or a transaction is missing or not as "
         "claimed; 4 the test network was reset after the artifact was issued, "
-        "so its transactions can't be checked (not a pass)."
+        "so its transactions can't be checked (not a pass). With exit 4 the "
+        "output names the signal: an announced reset, one this lab saw, or "
+        "only the artifact's own claim (UNCONFIRMED)."
     ),
 )
 def verify_artifact(file: str, json_output: bool, live: bool):

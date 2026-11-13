@@ -78,6 +78,13 @@ def _ok(txid: str, account: str = "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe") -> TxInf
                   result_code="tesSUCCESS", validated=True)
 
 
+@pytest.fixture(autouse=True)
+def _own_lab_home(tmp_path, monkeypatch):
+    """An empty lab home: live verify reads this lab's own state as a signal."""
+    monkeypatch.setattr("xrpl_lab.state.DEFAULT_HOME_DIR", tmp_path / "labhome")
+    monkeypatch.delenv("XRPL_LAB_HOME", raising=False)
+
+
 @pytest.fixture
 def after_reset(monkeypatch):
     monkeypatch.setattr("xrpl_lab.resets._now", lambda: AFTER_RESET)
@@ -335,11 +342,12 @@ def _marked_pack(seen_at: str = "2026-11-10T00:00:00+00:00", index=4_200_000) ->
     return pack
 
 
-def test_a_ledger_below_the_recorded_index_means_an_unannounced_reset(before_reset):
+def test_a_pack_mark_above_the_live_ledger_is_only_the_packs_claim(before_reset):
+    """Nothing but the pack says the network was reset: UNCONFIRMED, not RESET."""
     ledger = _Ledger(index=812)
     res = _live(_marked_pack(), ledger)
-    assert [r.status for r in res.tx_results] == [rep.LIVE_RESET, rep.LIVE_RESET]
-    assert "validated ledger is now 812, below the 4200000 this pack recorded" in (
+    assert [r.status for r in res.tx_results] == [rep.LIVE_UNCONFIRMED] * 2
+    assert "the pack records ledger 4200000 for Testnet, which is now at 812" in (
         res.tx_results[0].reason
     )
     assert res.overall_passed is False
@@ -382,7 +390,7 @@ def test_a_mark_without_a_time_covers_every_record(before_reset):
     pack = _old_pack()
     pack["ledger_marks"] = {"testnet": {"validated_ledger_index": 4_200_000}}
     res = _live(pack, _Ledger(index=812))
-    assert [r.status for r in res.tx_results] == [rep.LIVE_RESET, rep.LIVE_RESET]
+    assert [r.status for r in res.tx_results] == [rep.LIVE_UNCONFIRMED] * 2
 
 
 # ── the CLI ───────────────────────────────────────────────────────────
@@ -446,7 +454,7 @@ def test_cli_a_failure_beside_a_reset_is_still_exit_1(after_reset, monkeypatch, 
     assert out.exit_code == 1
     text = _flat(out.stdout)
     assert "On-ledger verdict: FAIL" in text
-    assert "1 failed, 0 verified, 0 skipped, 1 lost to a ledger reset." in text
+    assert "1 failed, 0 verified, 0 skipped, 1 lost to a ledger reset, 0 unconfirmed." in text
     assert json.loads(_cli(["verify-artifact", str(f), "--live", "--json"]).stdout)[
         "ledger_reset"
     ] is True
