@@ -181,8 +181,8 @@ def get_learner_status(state: LabState | None = None) -> LearnerStatus:
     # ── Activity ──────────────────────────────────────────────────
     last_activity: str | None = None
     last_module: str | None = None
-    if state.completed_modules:
-        latest = max(state.completed_modules, key=lambda m: m.completed_at)
+    latest = state.latest_completed()
+    if latest is not None:
         last_activity = datetime.fromtimestamp(latest.completed_at, tz=UTC).isoformat()
         last_module = latest.module_id
 

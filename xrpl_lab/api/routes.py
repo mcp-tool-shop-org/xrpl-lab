@@ -224,8 +224,8 @@ def get_status(request: Request) -> StatusResponse:
     ls = get_learner_status(state)
 
     last_run: LastRun | None = None
-    if state.completed_modules:
-        latest = max(state.completed_modules, key=lambda m: m.completed_at)
+    latest = state.latest_completed()
+    if latest is not None:
         last_run = LastRun(
             module=latest.module_id,
             timestamp=datetime.fromtimestamp(latest.completed_at, tz=UTC).isoformat(),
