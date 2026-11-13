@@ -1,0 +1,10 @@
+{
+  "before": {
+    "validated_ledger_index": 22292496,
+    "seen_at": 1794571530.20721
+  },
+  "after": {
+    "validated_ledger_index": 99000000,
+    "seen_at": 1794571530.5587463
+  }
+}

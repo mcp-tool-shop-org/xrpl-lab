@@ -1,0 +1,129 @@
+{
+  "valid": true,
+  "file": "pack_final.json",
+  "version": "2.8.0",
+  "address": "rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X",
+  "network": "testnet",
+  "modules_completed": 2,
+  "total_transactions": 7,
+  "sha256": "7e5cc1e85449bf4e0d2ee647afbdeaa281b95585b733fe9e5eb7351448fab154",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": true,
+    "no_onledger_txids": false,
+    "passed": 7,
+    "failed": 0,
+    "skipped": 0,
+    "reset": 0,
+    "unconfirmed": 0,
+    "ledger_reset": false,
+    "reset_signal": "",
+    "suspicious_ledger_marks": [],
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "A5E0FBBDF7D15BE1F3C08E8C7C7941EF5D562AF7F147333891A15CBC2C2B5FFD",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X"
+        ],
+        "validated": null,
+        "reset_signal": ""
+      },
+      {
+        "txid": "0DBCF8D18F93883E935BD493B1939E6504918F5848848D6E74BC9F17F3E94239",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X"
+        ],
+        "validated": null,
+        "reset_signal": ""
+      },
+      {
+        "txid": "0FC1D3F3211FC35059C8DE0145FCCBBDA6F93DB98A9C5F0688BECEF92FCAE34C",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Expected rejection, validated on-ledger: tecUNFUNDED_PAYMENT.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tecUNFUNDED_PAYMENT"
+        ],
+        "validated": true,
+        "reset_signal": ""
+      },
+      {
+        "txid": "4834664BD45E9493417AEBB326658A6EF012C11774EAE05E6667419143A69764",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X"
+        ],
+        "validated": null,
+        "reset_signal": ""
+      },
+      {
+        "txid": "83A5EEDF02FA21DCD7F23040FA429899B611825C8DE3F494B4BD0FB971CA8D2F",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X"
+        ],
+        "validated": null,
+        "reset_signal": ""
+      },
+      {
+        "txid": "D8DC66449B9E6780F3FE84EEA0C571B5F4480F677BC96691E8AFE90ADDE451D7",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Expected rejection, validated on-ledger: tecUNFUNDED_PAYMENT.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tecUNFUNDED_PAYMENT"
+        ],
+        "validated": true,
+        "reset_signal": ""
+      },
+      {
+        "txid": "1772195A6E409C843E9C9619C16500BEAC35AD5CEB47F846EA4F3FC593020280",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X"
+        ],
+        "validated": null,
+        "reset_signal": ""
+      }
+    ]
+  },
+  "live_passed": true,
+  "ledger_reset": false,
+  "reset_signal": "",
+  "artifact_kind": "proof_pack"
+}

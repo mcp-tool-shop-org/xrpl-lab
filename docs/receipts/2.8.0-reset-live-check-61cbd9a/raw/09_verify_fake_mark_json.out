@@ -1,0 +1,44 @@
+{
+  "valid": true,
+  "file": "pack_fake_mark.json",
+  "version": "2.8.0",
+  "address": "rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 1,
+  "sha256": "9252148f667a3c74205b10f84834711c71ce9e0f6254098c68e71946f6c99955",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "reset": 0,
+    "unconfirmed": 1,
+    "ledger_reset": true,
+    "reset_signal": "pack_claim",
+    "suspicious_ledger_marks": [
+      "testnet"
+    ],
+    "note": "UNCONFIRMED: 1 transaction(s) are missing and only the pack itself says the network was reset. That is a claim, not evidence. Suspicious ledger mark: the pack records a ledger index for Testnet above the network's current one, and no reset is known.",
+    "tx_results": [
+      {
+        "txid": "F00DFACEF00DFACEF00DFACEF00DFACEF00DFACEF00DFACEF00DFACEF00DFACE",
+        "network": "testnet",
+        "status": "UNCONFIRMED",
+        "reason": "UNCONFIRMED: the pack claims a reset that nothing else confirms. The transaction is not on the ledger, and the pack records ledger 99000000 for Testnet, which is now at 22292462. No announced reset covers its recorded time and this lab has not seen one, so the claim rests on the pack alone: anyone can write those fields.",
+        "checks": [],
+        "validated": false,
+        "reset_signal": "pack_claim"
+      }
+    ]
+  },
+  "live_passed": false,
+  "ledger_reset": true,
+  "reset_signal": "pack_claim",
+  "artifact_kind": "proof_pack"
+}

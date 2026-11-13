@@ -1,0 +1,61 @@
+{
+  "valid": true,
+  "file": "pack_after.json",
+  "version": "2.8.0",
+  "address": "rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 2,
+  "sha256": "e71a4dbcdb1f588985aa9eff77033e40e78036be2467bd0311512f2c126c5d86",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": true,
+    "no_onledger_txids": false,
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0,
+    "reset": 0,
+    "unconfirmed": 0,
+    "ledger_reset": false,
+    "reset_signal": "",
+    "suspicious_ledger_marks": [],
+    "note": "",
+    "tx_results": [
+      {
+        "txid": "A5E0FBBDF7D15BE1F3C08E8C7C7941EF5D562AF7F147333891A15CBC2C2B5FFD",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X"
+        ],
+        "validated": null,
+        "reset_signal": ""
+      },
+      {
+        "txid": "0DBCF8D18F93883E935BD493B1939E6504918F5848848D6E74BC9F17F3E94239",
+        "network": "testnet",
+        "status": "PASS",
+        "reason": "Verified on-ledger.",
+        "checks": [
+          "Exists on-ledger",
+          "Validated: yes",
+          "Result: tesSUCCESS",
+          "Account matches: rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X"
+        ],
+        "validated": null,
+        "reset_signal": ""
+      }
+    ]
+  },
+  "live_passed": true,
+  "ledger_reset": false,
+  "reset_signal": "",
+  "artifact_kind": "proof_pack"
+}

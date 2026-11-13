@@ -1,0 +1,18 @@
+
+  Artifact:    proof pack
+
+  ✅ PASS — Proof pack integrity verified.
+
+  File:         pack_real.json
+  Version:      2.8.0
+  Address:      rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X
+  Network:      testnet
+  Modules:      1
+  Transactions: 1
+  SHA-256:      417516808ad55c765e2666c756c6b790af762d9116720e8ced62f1e3e61fb580
+
+  On-ledger verification:
+  ✓ PASS A5E0FBBDF7D15BE1F3C0…  (testnet)
+
+  On-ledger verdict: PASS — 1 verified, 0 skipped.
+

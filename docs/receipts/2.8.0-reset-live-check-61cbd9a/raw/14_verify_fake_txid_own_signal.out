@@ -1,0 +1,23 @@
+
+  Artifact:    proof pack
+
+  ✅ PASS — Proof pack integrity verified.
+
+  File:         pack_fake_txid.json
+  Version:      2.8.0
+  Address:      rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X
+  Network:      testnet
+  Modules:      1
+  Transactions: 1
+  SHA-256:      5850662bc5325de2c653f8adc0471338e0d21db58c84119439a8d3e1b403dc9a
+
+  On-ledger verification:
+  ↺ RESET F00DFACEF00DFACEF00D…  (testnet; signal: seen_by_this_lab)
+         Can no longer be checked on-ledger. This lab last saw Testnet at ledger 99000000; it is now at 22292465, so the network was reset after this 
+transaction was recorded. The transaction no longer exists on any ledger; only the offline hash remains, and a hash proves the file is unedited, not that the 
+transaction happened.
+
+  On-ledger verdict: CAN'T BE CHECKED (ledger reset after issuance) — 1 lost to the reset, 0 verified, 0 skipped. Signal: seen_by_this_lab.
+  Ledger reset after issuance: 1 transaction(s) can no longer be checked on-ledger. The offline hash is intact, but this pack can't be verified on-ledger any 
+more.
+

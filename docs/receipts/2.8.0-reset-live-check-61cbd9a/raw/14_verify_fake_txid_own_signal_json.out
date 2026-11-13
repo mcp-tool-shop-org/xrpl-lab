@@ -1,0 +1,42 @@
+{
+  "valid": true,
+  "file": "pack_fake_txid.json",
+  "version": "2.8.0",
+  "address": "rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X",
+  "network": "testnet",
+  "modules_completed": 1,
+  "total_transactions": 1,
+  "sha256": "5850662bc5325de2c653f8adc0471338e0d21db58c84119439a8d3e1b403dc9a",
+  "simulated": false,
+  "all_verified": true,
+  "message": "Integrity verified",
+  "live": {
+    "artifact_kind": "proof_pack",
+    "overall_passed": false,
+    "no_onledger_txids": false,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "reset": 1,
+    "unconfirmed": 0,
+    "ledger_reset": true,
+    "reset_signal": "seen_by_this_lab",
+    "suspicious_ledger_marks": [],
+    "note": "Ledger reset after issuance: 1 transaction(s) can no longer be checked on-ledger. The offline hash is intact, but this pack can't be verified on-ledger any more.",
+    "tx_results": [
+      {
+        "txid": "F00DFACEF00DFACEF00DFACEF00DFACEF00DFACEF00DFACEF00DFACEF00DFACE",
+        "network": "testnet",
+        "status": "RESET",
+        "reason": "Can no longer be checked on-ledger. This lab last saw Testnet at ledger 99000000; it is now at 22292464, so the network was reset after this transaction was recorded. The transaction no longer exists on any ledger; only the offline hash remains, and a hash proves the file is unedited, not that the transaction happened.",
+        "checks": [],
+        "validated": false,
+        "reset_signal": "seen_by_this_lab"
+      }
+    ]
+  },
+  "live_passed": false,
+  "ledger_reset": true,
+  "reset_signal": "seen_by_this_lab",
+  "artifact_kind": "proof_pack"
+}

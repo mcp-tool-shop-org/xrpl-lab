@@ -1,0 +1,15 @@
+{
+  "version": "2.8.0",
+  "network": "testnet",
+  "ledger_marks": {
+    "testnet": {
+      "validated_ledger_index": 22292456,
+      "seen_at": 1794571392.6057155
+    }
+  },
+  "ledger_epochs": {},
+  "completed_modules": [
+    "receipt_literacy"
+  ],
+  "tx_count": 1
+}

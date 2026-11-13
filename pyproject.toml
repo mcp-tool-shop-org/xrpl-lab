@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "xrpl-lab"
-version = "2.7.9"
+version = "2.8.0"
 description = "XRPL training workbook — learn by doing, prove by artifact"
 readme = "README.md"
 license = "MIT"
@@ -41,10 +41,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# urllib3>=2.7.0 is a security floor (PYSEC-2026-141/142, fixed in 2.7.0). It
+# urllib3>=2.8.0 is a security floor (PYSEC-2026-4175/4176/4177, fixed in
+# 2.8.0; before that PYSEC-2026-141/142, fixed in 2.7.0). It
 # enters the dev tree transitively via pip-audit -> requests; pinned here so the
-# audited dependency tree cannot regress to the vulnerable 2.6.3.
-dev = ["ruff", "pytest", "pytest-asyncio", "pytest-cov", "pip-audit", "urllib3>=2.7.0"]
+# audited dependency tree cannot regress to a vulnerable release.
+dev = ["ruff", "pytest", "pytest-asyncio", "pytest-cov", "pip-audit", "urllib3>=2.8.0"]
 
 [project.scripts]
 xrpl-lab = "xrpl_lab.cli:main"
