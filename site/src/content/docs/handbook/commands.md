@@ -68,7 +68,19 @@ Testnet and Devnet are sometimes reset, which deletes every account and transact
 
 `RESET` is not a pass. A pack listing made-up transactions dated before the reset reads the same way, so a reset pack is never reported as verified: only its offline hash remains, and a hash shows the file is unedited, not that the transactions happened. To get a pack that verifies on-ledger again, re-run the modules after the reset and export a new pack.
 
-The lab knows about a reset in two ways: a list of announced resets, and the highest validated ledger index each run saw, which newer packs carry (`ledger_marks`). If the network's ledger is now well below that index (by more than the few ledgers servers can lag), it was reset.
+The notice gives the reset's day but not its hour, so the announced reset covers every transaction recorded before the 25th has ended everywhere: **2026-11-26 12:00 UTC**. A transaction recorded after the wipe but before that time, and missing from the ledger, reads `RESET` where it would otherwise read `FAIL`. Neither is a pass.
+
+#### Getting going again after a reset
+
+A reset deletes your account from the network. Your wallet file, its address, your progress and your reports are untouched.
+
+1. `xrpl-lab doctor` shows a **Network reset** warning when completed modules lost their on-ledger results.
+2. `xrpl-lab recovery` lists the commands for your case.
+3. `xrpl-lab fund` funds the same address again from the faucet.
+4. `xrpl-lab run <module> --force` re-runs a module, so it is proven on the new ledger.
+5. `xrpl-lab proof-pack` exports a new pack. Its re-run modules verify with `--live`; modules you did not re-run still read `RESET`.
+
+Live verification knows about a reset in three ways: a list of announced resets; the pack's own record of a reset its lab saw (`ledger_resets_seen`); and the highest validated ledger index each run saw, which newer packs carry (`ledger_marks`). If the network's ledger is now well below that index (by more than the few ledgers servers can lag), it was reset.
 
 ### Audit flags
 

@@ -556,6 +556,41 @@ class RecoveryHint:
     explanation: str
 
 
+def _reset_hints(wiped) -> list[RecoveryHint]:
+    """Recovery hints for completed modules a network reset erased.
+
+    ``wiped`` is a ``resets.WipedWork``. The wallet comes first: until it is
+    funded again, no module can run on the reset network.
+    """
+    count = len(wiped.modules)
+    what = "module" if count == 1 else "modules"
+    hints: list[RecoveryHint] = []
+    if wiped.nothing_since:
+        hints.append(RecoveryHint(
+            situation=f"{wiped.label}: your wallet was erased with it",
+            command="xrpl-lab fund",
+            explanation=(
+                "A reset deletes every account on the network. Your wallet file "
+                "and its address are unchanged; fund the same address again "
+                "from the faucet before running anything."
+            ),
+        ))
+    hints.append(RecoveryHint(
+        situation=(
+            f"{wiped.label}: {count} completed {what} lost on-ledger results"
+        ),
+        command=f"xrpl-lab run {wiped.modules[0]} --force",
+        explanation=(
+            "Your progress, reports and proof pack are kept, and the pack's "
+            "hash still verifies offline. With --live its transactions now read "
+            "RESET (they can't be checked any more). To prove a module on the "
+            "ledger again, re-run it with --force, then export a new proof pack. "
+            f"Affected: {', '.join(wiped.modules)}."
+        ),
+    ))
+    return hints
+
+
 def diagnose_recovery(state: LabState | None = None) -> list[RecoveryHint]:
     """Diagnose known stuck states and return recovery hints.
 
@@ -624,6 +659,12 @@ def diagnose_recovery(state: LabState | None = None) -> list[RecoveryHint]:
                     ))
             except (json.JSONDecodeError, OSError):
                 pass
+
+    # A test network reset erased earlier on-ledger work
+    from .resets import wiped_by_reset
+
+    for wiped in wiped_by_reset(state):
+        hints.extend(_reset_hints(wiped))
 
     # Failed transactions in recent history
     recent_failed = [

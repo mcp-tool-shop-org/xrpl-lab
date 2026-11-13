@@ -18,6 +18,32 @@
     the highest validated ledger index it saw (`ledger_marks` in `state.json`),
     and new proof packs carry it inside their hash.
   - Packs sealed by 2.7.9 and earlier verify exactly as before.
+  - **New exit code 4** for `verify-artifact --live` (and the deprecated
+    `proof verify` / `cert-verify`): the hash is intact and nothing was found
+    false, but the network was reset after issuance. `0` still means verified
+    and `1` still means a failure. A script that treats any non-zero exit as a
+    failure keeps working; one that tests for exactly `1` should also handle `4`.
+  - **Accepted edge.** The notice gives the reset's day, not its hour, so the
+    reset covers every transaction recorded before the 25th has ended
+    everywhere, which is **2026-11-26 12:00 UTC**. A transaction recorded
+    after the wipe but before that time, and missing from the ledger, reads
+    `RESET` where it would otherwise read `FAIL`. It is never a pass either
+    way. A lab that sees the reset for itself (below) records the exact moment
+    and does not have this window.
+- **The lab notices a reset and says what to do.**
+  - Each run on Testnet or Devnet now reads the ledger before its first step.
+    A validated ledger index far below the one seen before (more than 1,000
+    ledgers, so server lag does not count) means the network was reset; the
+    lab records it (`ledger_epochs` in `state.json`) and new proof packs carry
+    it (`ledger_resets_seen`), so the pack explains its own older
+    transactions without a lookup.
+  - `xrpl-lab doctor` has a **Network reset** check. It warns when a reset
+    erased the on-ledger results of completed modules, and it catches a reset
+    no run has seen yet by comparing the live ledger with the last index seen.
+  - `xrpl-lab recovery` lists the steps: fund the wallet again (a reset
+    deletes the account; the address and wallet file are unchanged), then
+    re-run each affected module with `--force`. Progress, reports and the
+    proof pack's offline hash are kept.
 
 ### Fixed
 

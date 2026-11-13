@@ -264,6 +264,64 @@ async def _check_faucet() -> Check:
         )
 
 
+async def _check_network_reset() -> Check:
+    """Warn when a test network reset erased the learner's on-ledger work.
+
+    Two sources: what state already knows (an announced reset, or one an
+    earlier run saw), and a fresh reading of the ledger index against the
+    state's mark, which catches a reset no run has seen yet.
+    """
+    from .resets import LIVE_CHECKED_NETWORKS, ledger_went_backwards, wiped_by_reset
+    from .state import load_state
+    from .transport.xrpl_testnet import XRPLTestnetTransport
+
+    name = "Network reset"
+    try:
+        state = load_state()
+    except Exception as exc:  # noqa: BLE001 - the state check reports this
+        return Check(name, True, f"Not checked (state unreadable: {type(exc).__name__})")
+
+    wiped = wiped_by_reset(state)
+    if wiped:
+        first = wiped[0]
+        count = sum(len(w.modules) for w in wiped)
+        what = "module" if count == 1 else "modules"
+        funded = "" if not first.nothing_since else " Your wallet was erased too."
+        return Check(
+            name,
+            False,
+            f"{first.label}. {count} completed {what} lost on-ledger results.{funded}",
+            "Run: xrpl-lab recovery  (it lists the commands: fund, then re-run "
+            "with --force). Reports and proof pack hashes are unaffected.",
+            severity="warn",
+        )
+
+    # Nothing known. Has the network been reset since the last run?
+    transport = XRPLTestnetTransport()
+    network = transport.network_name
+    mark = state.ledger_marks.get(network)
+    if network not in LIVE_CHECKED_NETWORKS or mark is None:
+        return Check(name, True, "No reset since your last run")
+    try:
+        info = await asyncio.wait_for(transport.get_network_info(), timeout=30)
+    except Exception as exc:  # noqa: BLE001 - the RPC check reports connectivity
+        return Check(name, True, f"Not checked (ledger unreachable: {type(exc).__name__})")
+    if info.connected and ledger_went_backwards(
+        mark.validated_ledger_index, info.ledger_index
+    ):
+        return Check(
+            name,
+            False,
+            f"{network.capitalize()} was reset since your last run: its ledger is "
+            f"now {info.ledger_index}, below the {mark.validated_ledger_index} "
+            "seen before. Accounts and transactions from before are gone.",
+            "Run: xrpl-lab fund, then re-run modules with --force to prove "
+            "them on the ledger again.",
+            severity="warn",
+        )
+    return Check(name, True, "No reset since your last run")
+
+
 def _check_env_overrides() -> Check:
     """Report env var overrides and FAIL on a non-testnet endpoint.
 
@@ -615,9 +673,12 @@ async def run_doctor() -> DoctorReport:
     report.checks.append(_check_windows_dir_permissions())
 
     # Network checks (run in parallel)
-    rpc_check, faucet_check = await asyncio.gather(_check_rpc(), _check_faucet())
+    rpc_check, faucet_check, reset_check = await asyncio.gather(
+        _check_rpc(), _check_faucet(), _check_network_reset(),
+    )
     report.checks.append(rpc_check)
     report.checks.append(faucet_check)
+    report.checks.append(reset_check)
 
     # Informational
     report.checks.append(_check_last_error())

@@ -266,6 +266,16 @@ async def run_module(
     # devnet runs and minted dead testnet explorer links in sealed artifacts.
     state.network = transport.network_name
     ensure_workspace()
+    # Read the ledger before the first step: after a network reset this is
+    # where the lab sees the lower index, so the run's own transactions are
+    # recorded after the reset, not before it.
+    marks_before = state.model_dump()["ledger_marks"]
+    await _note_ledger_mark(state, transport)
+    if state.model_dump()["ledger_marks"] != marks_before:
+        try:
+            save_state(state)
+        except Exception as exc:  # noqa: BLE001 - bookkeeping; the run goes on
+            logger.warning("ledger mark save failed: %s", type(exc).__name__)
 
     # --force redoes a completed module; it was ignored here, so on testnet
     # `run --force` printed "Run with --force" and did nothing (Book Keeper,
