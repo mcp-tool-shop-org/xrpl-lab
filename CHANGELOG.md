@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 2.8.0 — 2026-11-13
+
+Testnet and Devnet are wiped on 2026-11-25. This release is for that: proof
+packs issued before the wipe are judged honestly afterwards, and the lab tells
+a learner what the wipe did to their work and how to carry on.
 
 ### Added
 

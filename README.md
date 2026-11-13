@@ -228,6 +228,51 @@ transaction IDs, and explorer links. Includes a SHA-256 integrity hash. No secre
 
 **Audit packs** (`audit_pack_*.json`): Batch verification results with SHA-256 integrity hash.
 
+## When a test network is reset
+
+Testnet and Devnet are sometimes reset, which deletes every account and
+transaction on them. **Both are reset on 2026-11-25**
+([xrpl.org notice](https://xrpl.org/blog/2026/testnet-devnet-reset)).
+
+**Your own lab.** Your wallet file, its address, your progress and your reports
+are kept. Your account on the network is gone, and so are the on-ledger results
+of modules you finished before the reset.
+
+```bash
+xrpl-lab doctor                       # "Network reset" warns when this applies to you
+xrpl-lab recovery                     # lists the steps for your case
+xrpl-lab fund                         # fund the same address again
+xrpl-lab run <module_id> --force      # prove a module on the new ledger
+xrpl-lab proof-pack                   # export a pack that verifies again
+```
+
+**A proof pack from before a reset.** Its hash still verifies offline. With
+`--live` its transactions can no longer be found, and `verify-artifact` says
+why, with its own exit code:
+
+| Exit | Verdict | Meaning |
+|------|---------|---------|
+| `0` | PASS | The hash is intact and every transaction was confirmed on the ledger |
+| `1` | FAIL | The hash check failed, or a transaction is missing or not as claimed |
+| `4` | RESET, or UNCONFIRMED | Nothing was found false, but the transactions can't be checked |
+
+With exit `4` the output and `--json` (`reset_signal`) name what the verdict
+rests on:
+
+| `reset_signal` | Rests on | Status |
+|----------------|----------|--------|
+| `announced` | A listed, announced reset covers the time the transaction was recorded | `RESET` |
+| `seen_by_this_lab` | The lab running the check saw the reset in its own state | `RESET` |
+| `pack_claim` | Only the pack itself says there was a reset | `UNCONFIRMED` |
+
+Neither `RESET` nor `UNCONFIRMED` is a pass. A pack listing made-up
+transactions dated before a reset reads the same way as an honest one, so only
+the offline hash is left as evidence, and a hash shows that the file is
+unedited, not that the transactions happened. To get a pack that verifies
+on-ledger again, re-run the modules after the reset and export a new pack. The
+[handbook](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/commands/)
+has the details.
+
 ## Security and Trust Model
 
 **Data XRPL Lab touches:**
