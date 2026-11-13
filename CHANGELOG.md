@@ -87,6 +87,14 @@ a learner what the wipe did to their work and how to carry on.
 - **npm wrapper** now depends on `@mcptoolshop/npm-launcher` `^1.2.0` (was
   `^1.0.0`).
 
+### Security
+
+- **Dependency advisories fixed by upgrade; none ignored.** `uv.lock` moves to
+  anyio 4.14.2, certifi 2026.10.23, filelock 4.2.10, msgpack 1.2.4, urllib3
+  2.8.0 and pip 26.3. The dev extra's urllib3 floor rises from `>=2.7.0` to
+  `>=2.8.0` (PYSEC-2026-4175, -4176, -4177). These are development and audit
+  tools' dependencies; the package's own runtime requirements are unchanged.
+
 ### Verified, no change needed
 
 - **Doctor page "Issues detected" banner** (#1). The banner and the rows come
