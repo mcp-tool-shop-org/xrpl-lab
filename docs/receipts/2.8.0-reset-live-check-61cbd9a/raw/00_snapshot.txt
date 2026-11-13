@@ -1,0 +1,6 @@
+code: mcp-tool-shop-org/xrpl-lab @ 61cbd9a (2.8.0 release prep)
+cwd: <scratch>/cwd   XRPL_LAB_HOME=<scratch>/home   (wallet.json stays there, never copied)
+XRPL_LAB_RPC_URL=<unset>  XRPL_LAB_FAUCET_URL=<unset>  PYTHONUTF8=1  COLUMNS=160
+started: 2026-11-13T12:02:52Z
+finished: 2026-11-13T12:04:15Z
+part D finished: 2026-11-13T12:06:26Z

@@ -1,0 +1,11 @@
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Recovery                                                                                                                                                    │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ⚠ Testnet was reset (seen on 2026-11-13): 1 completed module lost on-ledger results
+    xrpl-lab run failure_literacy --force
+    Your progress, reports and proof pack are kept, and the pack's hash still verifies offline. With --live its transactions now read RESET (they can't be 
+checked any more). To prove a module on the ledger again, re-run it with --force, then export a new proof pack. Affected: failure_literacy.
+
+

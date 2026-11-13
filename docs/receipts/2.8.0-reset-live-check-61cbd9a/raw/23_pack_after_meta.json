@@ -1,0 +1,34 @@
+{
+  "version": "2.8.0",
+  "network": "testnet",
+  "ledger_marks": {
+    "testnet": {
+      "validated_ledger_index": 22292472,
+      "seen_at": "2026-11-13T12:04:04.076084+00:00"
+    }
+  },
+  "ledger_resets_seen": {
+    "testnet": [
+      {
+        "last_index": 99000000,
+        "last_seen_at": "2026-11-13T12:03:35.903159+00:00",
+        "reset_seen_at": "2026-11-13T12:03:54.894928+00:00"
+      }
+    ]
+  },
+  "transactions": [
+    {
+      "txid": "A5E0FBBDF7D15BE1F3C08E8C7C7941EF5D562AF7F147333891A15CBC2C2B5FFD",
+      "module_id": "receipt_literacy",
+      "success": true,
+      "timestamp": "2026-11-13T12:03:11.718140+00:00"
+    },
+    {
+      "txid": "0DBCF8D18F93883E935BD493B1939E6504918F5848848D6E74BC9F17F3E94239",
+      "module_id": "receipt_literacy",
+      "success": true,
+      "timestamp": "2026-11-13T12:04:03.218445+00:00"
+    }
+  ],
+  "sha256": "e71a4dbcdb1f588985aa9eff77033e40e78036be2467bd0311512f2c126c5d86"
+}

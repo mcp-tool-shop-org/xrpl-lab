@@ -1,0 +1,24 @@
+
+  Artifact:    proof pack
+
+  ✅ PASS — Proof pack integrity verified.
+
+  File:         pack_fake_mark.json
+  Version:      2.8.0
+  Address:      rK8UDe1pL5LV5YTQApBwMG3pC2etU6Wi1X
+  Network:      testnet
+  Modules:      1
+  Transactions: 1
+  SHA-256:      9252148f667a3c74205b10f84834711c71ce9e0f6254098c68e71946f6c99955
+
+  On-ledger verification:
+  ? UNCONFIRMED F00DFACEF00DFACEF00D…  (testnet; signal: pack_claim)
+         UNCONFIRMED: the pack claims a reset that nothing else confirms. The transaction is not on the ledger, and the pack records ledger 99000000 for 
+Testnet, which is now at 22292461. No announced reset covers its recorded time and this lab has not seen one, so the claim rests on the pack alone: anyone can 
+write those fields.
+
+  On-ledger verdict: UNCONFIRMED: the pack claims a reset that nothing else confirms — 1 unconfirmed, 0 lost to a known reset, 0 verified, 0 skipped. Signal: 
+pack_claim.
+  UNCONFIRMED: 1 transaction(s) are missing and only the pack itself says the network was reset. That is a claim, not evidence. Suspicious ledger mark: the 
+pack records a ledger index for Testnet above the network's current one, and no reset is known.
+

@@ -1,0 +1,29 @@
+{
+  "version": "2.8.0",
+  "network": "testnet",
+  "ledger_marks": {
+    "testnet": {
+      "validated_ledger_index": 22292501,
+      "seen_at": 1794571548.725268
+    }
+  },
+  "ledger_epochs": {
+    "testnet": [
+      {
+        "last_index": 99000000,
+        "last_seen_at": 1794571415.9031594,
+        "reset_seen_at": 1794571434.8949285
+      },
+      {
+        "last_index": 99000000,
+        "last_seen_at": 1794571530.5587463,
+        "reset_seen_at": 1794571535.8734064
+      }
+    ]
+  },
+  "completed_modules": [
+    "failure_literacy",
+    "receipt_literacy"
+  ],
+  "tx_count": 5
+}
