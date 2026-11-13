@@ -2547,8 +2547,9 @@ def lint(glob_pattern: str, json_output: bool, no_curriculum: bool):
         lint_module_file,
         load_kb_capability_slugs,
     )
+    from .modules import glob_visible
 
-    paths = sorted(Path(".").glob(glob_pattern))
+    paths = glob_visible(Path("."), glob_pattern)
     if not paths:
         if json_output:
             print(LintResult().to_json())
@@ -2571,7 +2572,7 @@ def lint(glob_pattern: str, json_output: bool, no_curriculum: bool):
     # modules the caller never named. Detect the subset case and auto-skip
     # curriculum, printing a clear note. `--no-curriculum` still works (it
     # short-circuits before this). A full-catalog lint is unaffected.
-    full_catalog = sorted(Path(".").glob("modules/*.md"))
+    full_catalog = glob_visible(Path("."), "modules/*.md")
     is_strict_subset = bool(full_catalog) and set(paths) < set(full_catalog)
 
     curriculum_skipped_for_subset = False

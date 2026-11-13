@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **AppleDouble `._*` files are skipped** (#1). On exFAT, FAT and network
+  volumes written from macOS, a `._name.md` sidecar sits beside every module
+  and report. `lint`, module loading, the status report count, the track
+  artifact lists and the dashboard's reports listing read it as text and
+  failed or miscounted. They now share one filter (`glob_visible` in
+  `modules.py`) that ignores them.
+
+### Changed
+
+- **npm wrapper** now depends on `@mcptoolshop/npm-launcher` `^1.2.0` (was
+  `^1.0.0`).
+
+### Verified, no change needed
+
+- **Doctor page "Issues detected" banner** (#1). The banner and the rows come
+  from the same `/api/doctor` response and the page re-renders both on every
+  run, so stale state is not possible. `overall` is `error` only when a row is
+  `fail`; the new `tests/test_doctor_banner_contract.py` pins that. A banner over
+  four green rows means a failing row below the fold.
+- **Coverage bar** already adopted: coverage 97%, floor 90 (target 90), CI
+  `--cov-fail-under=90`, Codecov project and patch at 90%.
+
 ## 2.7.9 — 2026-10-22
 
 ### Fixed

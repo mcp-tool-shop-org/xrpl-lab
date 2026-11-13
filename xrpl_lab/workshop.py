@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 
 from . import __version__
 from .curriculum import TRACKS, build_graph
-from .modules import load_all_modules
+from .modules import glob_visible, load_all_modules
 from .state import LabState, get_workspace_dir, load_state
 from .transport.xrpl_testnet import classify_network, get_rpc_url
 
@@ -203,7 +203,7 @@ def get_learner_status(state: LabState | None = None) -> LearnerStatus:
     has_proof_pack = (ws / "proofs" / "xrpl_lab_proof_pack.json").exists()
     has_certificate = (ws / "proofs" / "xrpl_lab_certificate.json").exists()
     reports_dir = ws / "reports"
-    report_count = len(list(reports_dir.glob("*.md"))) if reports_dir.is_dir() else 0
+    report_count = len(glob_visible(reports_dir, "*.md")) if reports_dir.is_dir() else 0
 
     return LearnerStatus(
         version=__version__,
@@ -527,7 +527,7 @@ def get_track_summaries(state: LabState | None = None) -> list[TrackSummary]:
         artifacts: list[str] = []
         if reports_dir.is_dir():
             for m in completed_in_track:
-                for rpt in reports_dir.glob(f"*{m.id}*"):
+                for rpt in glob_visible(reports_dir, f"*{m.id}*"):
                     artifacts.append(rpt.name)
 
         summaries.append(TrackSummary(

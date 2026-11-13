@@ -16,7 +16,7 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@mcptoolshop/npm-launcher": "^1.0.0"
+    "@mcptoolshop/npm-launcher": "^1.2.0"
   },
   "keywords": [
     "xrpl",
