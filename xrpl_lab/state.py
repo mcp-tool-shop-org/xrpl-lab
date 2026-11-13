@@ -229,9 +229,33 @@ def _merge_append_only(target: LabState, on_disk: LabState) -> None:
     for module_id, accounts in on_disk.module_accounts.items():
         target.remember_accounts(module_id, accounts)
 
-    # The highest ledger index seen per network: keep the larger mark.
-    for network, mark in on_disk.ledger_marks.items():
-        target.note_ledger(network, mark.validated_ledger_index)
+    # Resets seen: the union of both copies, oldest first.
+    for network, epochs in on_disk.ledger_epochs.items():
+        known = {(e.last_index, e.reset_seen_at) for e in target.ledger_epochs.get(network, [])}
+        for epoch in epochs:
+            if (epoch.last_index, epoch.reset_seen_at) not in known:
+                target.ledger_epochs.setdefault(network, []).append(epoch)
+        target.ledger_epochs[network].sort(key=lambda e: e.reset_seen_at)
+
+    # The ledger mark per network. Both copies are readings of one network, so
+    # the later reading is the current epoch's; within an epoch keep the
+    # higher index. (Not note_ledger: a stale copy's lower index is not a reset.)
+    for network, theirs in on_disk.ledger_marks.items():
+        mine = target.ledger_marks.get(network)
+        if mine is None:
+            target.ledger_marks[network] = theirs
+            continue
+        last_reset = max(
+            (e.reset_seen_at for e in target.ledger_epochs.get(network, [])), default=0.0
+        )
+        mine_current = mine.seen_at >= last_reset
+        theirs_current = theirs.seen_at >= last_reset
+        newer_epoch = theirs_current and not mine_current
+        same_epoch_higher = theirs_current == mine_current and (
+            theirs.validated_ledger_index > mine.validated_ledger_index
+        )
+        if newer_epoch or same_epoch_higher:
+            target.ledger_marks[network] = theirs
 
     # Preserve the earliest known creation time across both copies.
     target.created_at = min(target.created_at, on_disk.created_at)
@@ -242,6 +266,14 @@ class LedgerMark(BaseModel):
 
     validated_ledger_index: int
     seen_at: float
+
+
+class LedgerEpoch(BaseModel):
+    """A stretch of one network's history that a reset ended."""
+
+    last_index: int       # the highest validated ledger index seen before it
+    last_seen_at: float   # when that index was read
+    reset_seen_at: float  # when the lower index that showed the reset was read
 
 
 class CompletedModule(BaseModel):
@@ -303,6 +335,10 @@ class LabState(BaseModel):
     # Carried into the proof pack so live verification can tell a reset network
     # (its ledger restarts near 1) from a fake txid.
     ledger_marks: dict[str, LedgerMark] = Field(default_factory=dict)
+    # network -> the resets this lab saw for itself: a ledger index well below
+    # the mark means the network restarted. The old mark is kept here and the
+    # mark starts again, so a later reset is seen too.
+    ledger_epochs: dict[str, list[LedgerEpoch]] = Field(default_factory=dict)
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
 
@@ -391,12 +427,27 @@ class LabState(BaseModel):
         """Remember the highest validated ledger index seen on ``network``."""
         if not network or not ledger_index or ledger_index <= 0:
             return
+        from .resets import ledger_went_backwards
+
+        now = time.time()
         mark = self.ledger_marks.get(network)
+        if mark is not None and ledger_went_backwards(
+            mark.validated_ledger_index, ledger_index
+        ):
+            # The network was reset since the mark: close that epoch.
+            self.ledger_epochs.setdefault(network, []).append(
+                LedgerEpoch(
+                    last_index=mark.validated_ledger_index,
+                    last_seen_at=mark.seen_at,
+                    reset_seen_at=now,
+                )
+            )
+            mark = None
         if mark is None or ledger_index > mark.validated_ledger_index:
             self.ledger_marks[network] = LedgerMark(
-                validated_ledger_index=ledger_index, seen_at=time.time()
+                validated_ledger_index=ledger_index, seen_at=now
             )
-            self.updated_at = time.time()
+            self.updated_at = now
 
     def record_tx(
         self,

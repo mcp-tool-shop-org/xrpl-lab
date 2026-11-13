@@ -285,6 +285,24 @@ def generate_proof_pack(state: LabState) -> dict:
             }
             for network, mark in sorted(state.ledger_marks.items())
         }
+    # The resets this lab saw for itself (a ledger index well below its mark).
+    # A pack's own word, so it only ever turns "not found" into RESET, which
+    # is not a pass. Absent when there are none.
+    if any(state.ledger_epochs.values()):
+        pack["ledger_resets_seen"] = {
+            network: [
+                {
+                    "last_index": e.last_index,
+                    "last_seen_at": datetime.fromtimestamp(e.last_seen_at, tz=UTC).isoformat(),
+                    "reset_seen_at": datetime.fromtimestamp(
+                        e.reset_seen_at, tz=UTC
+                    ).isoformat(),
+                }
+                for e in epochs
+            ]
+            for network, epochs in sorted(state.ledger_epochs.items())
+            if epochs
+        }
 
     # Add integrity hash (hash of the pack content without the hash field itself)
     content = json.dumps(pack, sort_keys=True, separators=(",", ":"))
@@ -1158,6 +1176,21 @@ def _pack_ledger_mark(pack: dict, network: str) -> tuple[int | None, datetime | 
     return index, _parse_iso(mark.get("seen_at"))
 
 
+def _pack_reset_seen_after(
+    pack: dict, network: str, recorded_at: datetime | None,
+) -> datetime | None:
+    """When the pack says its lab saw ``network`` reset, after ``recorded_at``."""
+    seen = pack.get("ledger_resets_seen")
+    epochs = seen.get(network) if isinstance(seen, dict) else None
+    if not isinstance(epochs, list):
+        return None
+    for epoch in epochs:
+        when = _parse_iso(epoch.get("reset_seen_at")) if isinstance(epoch, dict) else None
+        if when is not None and (recorded_at is None or recorded_at <= when):
+            return when
+    return None
+
+
 async def _current_ledger_index(
     network: str, transport: Transport, cache: dict[str, int | None],
 ) -> int | None:
@@ -1190,8 +1223,14 @@ async def _apply_network_reset(
     recorded_at = claim.get("recorded_at")
     reason = ""
     reset = known_reset_after(network, recorded_at)
+    seen_reset = _pack_reset_seen_after(pack, network, recorded_at)
     if reset is not None:
         reason = f"{reset.label()} ({reset.source}), after this transaction was recorded."
+    elif seen_reset is not None:
+        reason = (
+            f"This pack records that {network.capitalize()} was reset (seen on "
+            f"{seen_reset.date().isoformat()}), after this transaction was recorded."
+        )
     else:
         mark_index, mark_seen = _pack_ledger_mark(pack, network)
         if mark_index is not None and (

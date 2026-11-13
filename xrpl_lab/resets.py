@@ -106,3 +106,69 @@ def ledger_went_backwards(recorded_index: int | None, current_index: int | None)
     if not recorded_index or not current_index:
         return False
     return current_index < recorded_index - LEDGER_LAG_TOLERANCE
+
+
+@dataclass(frozen=True)
+class WipedWork:
+    """Completed modules whose on-ledger results a reset of ``network`` erased."""
+
+    network: str
+    label: str          # "Testnet was reset on 2026-11-25" / "... was reset (seen ...)"
+    source: str         # the announcement URL, or "" for a reset the lab saw itself
+    since: datetime     # records before this instant are gone
+    modules: tuple[str, ...]
+    # True when nothing at all has been recorded on the network since the
+    # reset: the wallet itself has not been funded again.
+    nothing_since: bool
+
+
+def _reset_point(network: str, state, now: datetime) -> tuple[datetime, str, str] | None:
+    """When ``network`` was last reset, as far as this state can tell.
+
+    A reset the lab saw itself (a ledger epoch) gives the moment it was seen.
+    An announced reset gives only its day, so its last possible instant is
+    used unless the lab also saw it, which is more precise.
+    """
+    epochs = sorted(state.ledger_epochs.get(network, []), key=lambda e: e.reset_seen_at)
+    seen = [datetime.fromtimestamp(e.reset_seen_at, tz=UTC) for e in epochs]
+    announced = [r for r in KNOWN_RESETS if r.network == network and now >= r.starts]
+    latest = max(announced, key=lambda r: r.day, default=None)
+    # A reset seen after the announced day is a later one, and the latest.
+    if seen and (latest is None or seen[-1] > latest.ends):
+        day = seen[-1].date().isoformat()
+        return seen[-1], f"{network.capitalize()} was reset (seen on {day})", ""
+    if latest is not None:
+        on_the_day = [s for s in seen if s >= latest.starts]
+        return (on_the_day[-1] if on_the_day else latest.ends), latest.label(), latest.source
+    return None
+
+
+def wiped_by_reset(state, *, now: datetime | None = None) -> list[WipedWork]:
+    """The completed modules whose on-ledger results a network reset erased.
+
+    A module counts as wiped when every transaction it has on the network was
+    recorded before the reset. Re-running it (``run --force``) records new
+    ones and clears it.
+    """
+    now = now or _now()
+    completed = {m.module_id for m in state.completed_modules}
+    found: list[WipedWork] = []
+    for network in sorted(LIVE_CHECKED_NETWORKS):
+        point = _reset_point(network, state, now)
+        if point is None:
+            continue
+        since, label, source = point
+        cutoff = since.timestamp()
+        before: set[str] = set()
+        after: set[str] = set()
+        for tx in state.tx_index:
+            if tx.network != network or tx.txid == "failed" or tx.validated is False:
+                continue
+            (before if tx.timestamp < cutoff else after).add(tx.module_id)
+        wiped = tuple(sorted((before - after) & completed))
+        if wiped:
+            found.append(WipedWork(
+                network=network, label=label, source=source, since=since,
+                modules=wiped, nothing_since=not after,
+            ))
+    return found

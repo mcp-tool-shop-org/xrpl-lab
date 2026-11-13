@@ -1455,7 +1455,10 @@ def _detect_artifact_kind(artifact: object) -> str | None:
         "re-fetch every claimed txid from the public XRPL and confirm it is "
         "there as claimed. The offline SHA-256 check ALWAYS runs; --live adds "
         "the on-ledger trust layer. Audit packs and support bundles have no "
-        "on-ledger check, so --live says so and changes nothing."
+        "on-ledger check, so --live says so and changes nothing. Exit codes: "
+        "0 verified; 1 the hash failed or a transaction is missing or not as "
+        "claimed; 4 the test network was reset after the artifact was issued, "
+        "so its transactions can't be checked (not a pass)."
     ),
 )
 def verify_artifact(file: str, json_output: bool, live: bool):
