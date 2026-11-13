@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .modules import _ACTION_RE, _STEP_RE, parse_module
+from .modules import _ACTION_RE, _STEP_RE, glob_visible, parse_module
 from .registry import PayloadError, PayloadSchema, is_registered, resolve
 
 # Explicit opt-out for ## Step headings that are intentionally actionless
@@ -402,7 +402,7 @@ def lint_all_modules(modules_dir: Path | None = None) -> LintResult:
     # thread them through every module so the validity cross-check runs at
     # most one db query per lint, not one per file.
     kb_slugs = load_kb_capability_slugs()
-    for md_file in sorted(modules_dir.glob("*.md")):
+    for md_file in glob_visible(modules_dir, "*.md"):
         result.issues.extend(lint_module_file(md_file, kb_slugs=kb_slugs))
 
     return result

@@ -11,6 +11,17 @@ from pathlib import Path
 import yaml
 
 
+def glob_visible(directory: Path, pattern: str) -> list[Path]:
+    """Sorted ``directory.glob(pattern)`` without AppleDouble ``._*`` files.
+
+    exFAT, FAT and network volumes written from macOS get a ``._name`` sidecar
+    beside every file. It carries resource-fork bytes, not text, so reading it
+    as a module or report fails. Every lab glob that reads user-visible files
+    goes through here.
+    """
+    return sorted(p for p in directory.glob(pattern) if not p.name.startswith("._"))
+
+
 @dataclass
 class ModuleStep:
     """A single step in a module (rendered as a block of text)."""
@@ -320,7 +331,7 @@ def load_all_modules(extra_dirs: list[Path] | None = None) -> dict[str, ModuleDe
     for d in dirs:
         if not d.is_dir():
             continue
-        for f in sorted(d.glob("*.md")):
+        for f in glob_visible(d, "*.md"):
             try:
                 mod = parse_module(f.read_text(encoding="utf-8"))
             except (ValueError, yaml.YAMLError) as e:

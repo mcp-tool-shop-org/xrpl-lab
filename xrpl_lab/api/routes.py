@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from .. import __version__
 from ..doctor import run_doctor
-from ..modules import load_all_modules
+from ..modules import glob_visible, load_all_modules
 from ..reporting import (
     _explorer_url,
     generate_certificate,
@@ -312,7 +312,7 @@ def list_reports() -> list[ReportSummary]:
         return []
 
     result: list[ReportSummary] = []
-    for p in sorted(reports_dir.glob("*.md"))[:_MAX_REPORTS_INLINE]:
+    for p in glob_visible(reports_dir, "*.md")[:_MAX_REPORTS_INLINE]:
         # F-6beae9bb: read_text() (and getmtime()) are file I/O against a
         # workspace directory that can change out from under us between the
         # glob() above and this read — a manual tamper, an encoding hiccup,
