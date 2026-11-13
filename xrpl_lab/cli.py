@@ -674,7 +674,7 @@ def _render_live_report(live) -> None:
     ``live`` is a reporting.LiveVerificationResult. Human-readable only — the
     JSON branch folds ``live.to_dict()`` into the caller's result object.
     """
-    from .reporting import LIVE_PASS
+    from .reporting import LIVE_PASS, LIVE_RESET
 
     console.print("  [bold]On-ledger verification:[/]")
     if live.no_onledger_txids:
@@ -690,6 +690,9 @@ def _render_live_report(live) -> None:
             console.print(f"  [green]✓ PASS[/] {short}  [dim]({r.network})[/]")
         elif r.status == "SKIPPED":
             console.print(f"  [dim]· SKIP {short}  ({r.reason})[/]")
+        elif r.status == LIVE_RESET:
+            console.print(f"  [yellow]↺ RESET[/] {short}  [dim]({r.network})[/]")
+            console.print(f"         [yellow]{r.reason}[/]")
         else:
             console.print(f"  [red]✗ FAIL[/] {short}  [dim]({r.network})[/]")
             console.print(f"         [red]{r.reason}[/]")
@@ -700,15 +703,45 @@ def _render_live_report(live) -> None:
             f"  [green]On-ledger verdict: PASS[/] — "
             f"{live.passed_count} verified, {live.skipped_count} skipped."
         )
+    elif live.ledger_reset and not live.failed_count:
+        # Not a pass and not a failure: the ledger these txids were on is gone.
+        console.print(
+            f"  [yellow]On-ledger verdict: CAN'T BE CHECKED (ledger reset after "
+            f"issuance)[/] — {live.reset_count} lost to the reset, "
+            f"{live.passed_count} verified, {live.skipped_count} skipped."
+        )
     else:
         console.print(
             f"  [red]On-ledger verdict: FAIL[/] — "
             f"{live.failed_count} failed, {live.passed_count} verified, "
-            f"{live.skipped_count} skipped."
+            f"{live.skipped_count} skipped"
+            + (f", {live.reset_count} lost to a ledger reset." if live.reset_count else ".")
         )
     if live.note:
         console.print(f"  [dim]{live.note}[/]")
     console.print()
+
+
+# `verify-artifact --live` exits 4 when the only thing wrong is that the
+# network was reset after the artifact was issued: the hash is intact, nothing
+# failed, but its txids can't be checked any more. Not 0 (it is not verified)
+# and not 1 (nothing was found false).
+EXIT_LEDGER_RESET = 4
+
+
+def _verify_exit_code(valid: bool, live: bool, live_result, live_ok: bool) -> int:
+    """The exit code for a verify run: 0 pass, 1 fail, 4 ledger reset."""
+    if not valid:
+        return 1
+    if not live or live_ok:
+        return 0
+    if (
+        live_result is not None
+        and live_result.ledger_reset
+        and not live_result.failed_count
+    ):
+        return EXIT_LEDGER_RESET
+    return 1
 
 
 def _run_proof_pack_verify(
@@ -774,6 +807,7 @@ def _run_proof_pack_verify(
                 "skipped": "hash check failed — live check not attempted",
             }
             result["live_passed"] = live_ok if live_result else False
+            result["ledger_reset"] = bool(live_result and live_result.ledger_reset)
         if json_extras:
             result.update(json_extras)
         print(json.dumps(result, indent=2))
@@ -820,8 +854,9 @@ def _run_proof_pack_verify(
                 )
                 console.print()
 
-    if not valid or (live and not live_ok):
-        sys.exit(1)
+    code = _verify_exit_code(valid, live, live_result, live_ok)
+    if code:
+        sys.exit(code)
 
 
 @proof.command("verify", hidden=True)
@@ -924,6 +959,7 @@ def _run_certificate_verify(
                 "skipped": "hash check failed — live check not attempted",
             }
             result["live_passed"] = live_ok if live_result else False
+            result["ledger_reset"] = bool(live_result and live_result.ledger_reset)
         if json_extras:
             result.update(json_extras)
         print(json.dumps(result, indent=2))
@@ -960,8 +996,9 @@ def _run_certificate_verify(
                 )
                 console.print()
 
-    if not valid or (live and not live_ok):
-        sys.exit(1)
+    code = _verify_exit_code(valid, live, live_result, live_ok)
+    if code:
+        sys.exit(code)
 
 
 @main.command("cert-verify", hidden=True)

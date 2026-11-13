@@ -273,7 +273,9 @@ export async function fetchDoctor(): Promise<DoctorResult> {
 export interface VerifyTxResult {
   txid: string;
   network: string;
-  status: string; // "PASS" | "FAIL" | "SKIPPED"
+  // "RESET": the network was reset after the tx was recorded, so it can no
+  // longer be checked on-ledger. Not a pass.
+  status: string; // "PASS" | "FAIL" | "SKIPPED" | "RESET"
   reason: string;
   checks: string[];
   explorer_url: string;
@@ -286,6 +288,8 @@ export interface VerifyLiveResult {
   passed: number;
   failed: number;
   skipped: number;
+  reset: number; // txids lost to a network reset after issuance
+  ledger_reset: boolean;
   note: string;
   tx_results: VerifyTxResult[];
 }

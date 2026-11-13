@@ -229,8 +229,19 @@ def _merge_append_only(target: LabState, on_disk: LabState) -> None:
     for module_id, accounts in on_disk.module_accounts.items():
         target.remember_accounts(module_id, accounts)
 
+    # The highest ledger index seen per network: keep the larger mark.
+    for network, mark in on_disk.ledger_marks.items():
+        target.note_ledger(network, mark.validated_ledger_index)
+
     # Preserve the earliest known creation time across both copies.
     target.created_at = min(target.created_at, on_disk.created_at)
+
+
+class LedgerMark(BaseModel):
+    """The highest validated ledger index seen on one network, and when."""
+
+    validated_ledger_index: int
+    seen_at: float
 
 
 class CompletedModule(BaseModel):
@@ -288,6 +299,10 @@ class LabState(BaseModel):
     # module_id -> the accounts bound in its runs (the learner and its helper
     # wallets), so live verification can accept a helper-signed tx (2.7.1).
     module_accounts: dict[str, list[str]] = Field(default_factory=dict)
+    # network -> the highest validated ledger index a run saw there, and when.
+    # Carried into the proof pack so live verification can tell a reset network
+    # (its ledger restarts near 1) from a fake txid.
+    ledger_marks: dict[str, LedgerMark] = Field(default_factory=dict)
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
 
@@ -370,6 +385,17 @@ class LabState(BaseModel):
         if module_id and accounts:
             known = set(self.module_accounts.get(module_id, []))
             self.module_accounts[module_id] = sorted(known | set(accounts))
+            self.updated_at = time.time()
+
+    def note_ledger(self, network: str, ledger_index: int | None) -> None:
+        """Remember the highest validated ledger index seen on ``network``."""
+        if not network or not ledger_index or ledger_index <= 0:
+            return
+        mark = self.ledger_marks.get(network)
+        if mark is None or ledger_index > mark.validated_ledger_index:
+            self.ledger_marks[network] = LedgerMark(
+                validated_ledger_index=ledger_index, seen_at=time.time()
+            )
             self.updated_at = time.time()
 
     def record_tx(

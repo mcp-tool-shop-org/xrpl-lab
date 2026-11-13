@@ -132,7 +132,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
         </tr>
         <tr><td colspan="4" class="muted" style="border-bottom:1px solid var(--line);padding-top:0;font-size:12.5px">${esc(t.reason || '')}</td></tr>`;
       }).join('');
-      const summary = `<p class="muted" style="margin:0 0 10px;font-size:13px">${live.passed} passed · ${live.failed} failed · ${live.skipped} skipped${live.note ? ' · ' + esc(live.note) : ''}</p>`;
+      const summary = `<p class="muted" style="margin:0 0 10px;font-size:13px">${live.passed} passed · ${live.failed} failed · ${live.skipped} skipped${live.reset ? ` · ${live.reset} lost to a ledger reset` : ''}${live.note ? ' · ' + esc(live.note) : ''}</p>`;
       return `${summary}<table class="vtable"><thead><tr>
         <th>Transaction</th><th>Network</th><th>Status</th><th>Link</th>
       </tr></thead><tbody>${body}</tbody></table>`;
@@ -150,10 +150,15 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 
       // Headline verdict — hash + (if run) live, combined into overall_passed.
       const ok = r.overall_passed;
-      const verdictIc = ok ? healthIcon('pass') : healthIcon('fail');
+      // Ledger reset after issuance: the hash is intact and nothing failed, but
+      // the txids are gone from every ledger. A warning, never "verified".
+      const resetOnly = !ok && r.hash_valid && !!r.live && r.live.ledger_reset && r.live.failed === 0;
+      const verdictIc = ok ? healthIcon('pass') : healthIcon(resetOnly ? 'warn' : 'fail');
       const verdictText = ok
         ? `${kind} verified`
-        : (r.hash_valid ? `${kind} failed on-ledger verification` : `${kind} integrity check failed`);
+        : resetOnly
+          ? `${kind} can't be checked on-ledger: ledger reset after issuance; offline hash intact`
+          : (r.hash_valid ? `${kind} failed on-ledger verification` : `${kind} integrity check failed`);
 
       // Identity header (best-effort, escaped — never trusted).
       const meta = `<dl class="kv" style="margin-top:14px">

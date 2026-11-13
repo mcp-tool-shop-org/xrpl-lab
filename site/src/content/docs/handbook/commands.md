@@ -54,6 +54,22 @@ sidebar:
 
 The offline SHA-256 check always runs. With `--live`, `verify-artifact` also re-fetch every transaction a proof pack or certificate claims from the public XRPL and confirm each one is there as claimed. Audit packs and support bundles have nothing on the ledger to check, so `--live` says so and changes nothing.
 
+#### After a test network reset
+
+Testnet and Devnet are sometimes reset, which deletes every account and transaction on them. Both are reset on **2026-11-25** ([xrpl.org notice](https://xrpl.org/blog/2026/testnet-devnet-reset)). A proof pack issued before a reset keeps its hash, but its transactions are on no ledger any more.
+
+`--live` reports each such transaction as `RESET`, with the verdict **can't be checked (ledger reset after issuance)**, and exits with code **4**:
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | The hash is intact and, with `--live`, every transaction was confirmed on the ledger |
+| `1` | The hash check failed, or a transaction is missing or not as claimed |
+| `4` | The hash is intact and nothing was found false, but the network was reset after issuance, so the transactions can't be checked |
+
+`RESET` is not a pass. A pack listing made-up transactions dated before the reset reads the same way, so a reset pack is never reported as verified: only its offline hash remains, and a hash shows the file is unedited, not that the transactions happened. To get a pack that verifies on-ledger again, re-run the modules after the reset and export a new pack.
+
+The lab knows about a reset in two ways: a list of announced resets, and the highest validated ledger index each run saw, which newer packs carry (`ledger_marks`). If the network's ledger is now below that index, it was reset.
+
 ### Audit flags
 
 | Flag | Description |

@@ -462,6 +462,8 @@ def _live_to_schema(live) -> VerifyLiveResult:
         passed=d.get("passed", 0),
         failed=d.get("failed", 0),
         skipped=d.get("skipped", 0),
+        reset=d.get("reset", 0),
+        ledger_reset=d.get("ledger_reset", False),
         note=d.get("note", ""),
         tx_results=tx_results,
     )

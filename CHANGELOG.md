@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Added
+
+- **Proof packs survive a test network reset.** Testnet and Devnet are wiped
+  on 2026-11-25 ([xrpl.org notice](https://xrpl.org/blog/2026/testnet-devnet-reset)).
+  Before this change, `verify-artifact --live` on a pack issued before the wipe
+  would report every transaction as "not found", which reads as a forgery.
+  - Live verification now reports such a transaction as `RESET`: "can no longer
+    be checked on-ledger". The verdict is **can't be checked (ledger reset
+    after issuance)** and the exit code is **4**. It is not a pass: a pack with
+    `RESET` transactions is never reported as verified, in the CLI, in `--json`
+    (`ledger_reset`, `live.reset`) or on the dashboard's verify page.
+  - A reset is known from a list of announced resets (`xrpl_lab/resets.py`) or
+    from the ledger going backwards: each run on Testnet or Devnet now records
+    the highest validated ledger index it saw (`ledger_marks` in `state.json`),
+    and new proof packs carry it inside their hash.
+  - Packs sealed by 2.7.9 and earlier verify exactly as before.
+
 ### Fixed
 
 - **AppleDouble `._*` files are skipped** (#1). On exFAT, FAT and network

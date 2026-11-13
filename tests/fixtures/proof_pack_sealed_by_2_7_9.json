@@ -1,0 +1,88 @@
+{
+  "address": "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
+  "all_verified": true,
+  "capstone": false,
+  "completed_modules": [
+    {
+      "accounts": [],
+      "completed_at": "2026-11-06T21:20:00+00:00",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "kb_source": "",
+      "module_id": "receipt_literacy",
+      "txids": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "verified": true
+    },
+    {
+      "accounts": [],
+      "completed_at": "2026-11-06T21:20:04+00:00",
+      "explorer_urls": [
+        "https://testnet.xrpl.org/transactions/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      ],
+      "kb_source": "",
+      "module_id": "failure_literacy",
+      "txids": [
+        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      ],
+      "verified": true
+    }
+  ],
+  "endpoint": "https://s.altnet.rippletest.net:51234",
+  "expected_failures": 0,
+  "failed_transactions": 0,
+  "generated_at": "2026-11-13T11:11:06.674221+00:00",
+  "module_accounts": {},
+  "network": "testnet",
+  "receipt_table": [
+    {
+      "expected": false,
+      "module": "receipt_literacy",
+      "network": "testnet",
+      "status": "ok",
+      "timestamp": "2026-11-06 21:20",
+      "txid": "AAAAAAAAAAAAAAAA...",
+      "txid_full": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "validated": true
+    },
+    {
+      "expected": false,
+      "module": "failure_literacy",
+      "network": "testnet",
+      "status": "ok",
+      "timestamp": "2026-11-06 21:20",
+      "txid": "BBBBBBBBBBBBBBBB...",
+      "txid_full": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+      "validated": true
+    }
+  ],
+  "sha256": "c661e70fb9eb6fc34650e7b494a12689ea27d7eea902ecca255b80258a8fc51d",
+  "successful_transactions": 2,
+  "total_transactions": 2,
+  "transactions": [
+    {
+      "expected": false,
+      "explorer_url": "https://testnet.xrpl.org/transactions/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "module_id": "receipt_literacy",
+      "network": "testnet",
+      "success": true,
+      "timestamp": "2026-11-06T21:20:02+00:00",
+      "txid": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "validated": true
+    },
+    {
+      "expected": false,
+      "explorer_url": "https://testnet.xrpl.org/transactions/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+      "module_id": "failure_literacy",
+      "network": "testnet",
+      "success": true,
+      "timestamp": "2026-11-06T21:20:06+00:00",
+      "txid": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+      "validated": true
+    }
+  ],
+  "version": "2.7.9",
+  "xrpl_lab_proof_pack": true
+}
