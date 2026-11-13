@@ -68,7 +68,7 @@ No se requiere red. Transacciones simuladas para aprender el flujo de trabajo.
 32 módulos en diez áreas temáticas: Fundamentos, NFT, Tokens, Pagos, Identidad, DEX, Reservas, Auditoría, AMM y Proyecto Final.
 Los requisitos previos se especifican explícitamente; la CLI y el analizador los hacen cumplir.
 
-La columna `#` coincide con el orden que muestra `xrpl-lab list` (orden canónico de las áreas temáticas).
+La columna `#` coincide con el orden que muestra `xrpl-lab list` (orden temático canónico).
 <!-- END curriculum:auto readme-intro -->
 
 <!-- BEGIN curriculum:auto readme-table -->
@@ -77,36 +77,36 @@ La columna `#` coincide con el orden que muestra `xrpl-lab list` (orden canónic
 |---|--------|-------|------|---------------|----------|
 | 1 | Conocimiento de recibos | fundamentos | testnet | — | txid, informe |
 | 2 | Conocimiento de fallos | fundamentos | testnet | Conocimiento de recibos | txid, informe |
-| 3 | Líneas de confianza 101: Monedas emitidas como relaciones | fundamentos | testnet | — | txid, informe |
-| 4 | Depuración de líneas de confianza | fundamentos | testnet | Líneas de confianza 101: Monedas emitidas como relaciones | txid, informe |
-| 5 | Tesorería multisig (SignerListSet): Control N de M de la billetera del estudio | fundamentos | testnet | Conocimiento de recibos | txid, informe |
-| 6 | Creación de NFT 101: Su primer activo de juego | nfts | testnet | — | txid, informe |
-| 7 | Mercado de NFT 101: Intercambio de activos con regalías aplicadas | nfts | testnet | — | txid, informe |
-| 8 | NFT dinámicos 101: Un artículo de juego que mejora | nfts | testnet | — | txid, informe |
-| 9 | Emisión de MPT 101: Una moneda de juego en una sola transacción | tokens | testnet | — | txid, informe |
-| 10 | Distribución de MPT 101: Cómo obtener la moneda para los jugadores | tokens | testnet | Emisión de MPT 101: Una moneda de juego en una sola transacción | txid, informe |
-| 11 | Congelación de tokens 101: El botón de pausa del emisor | tokens | testnet | — | txid, informe |
-| 12 | Reembolso 101: La herramienta de revocación del emisor | tokens | testnet | — | txid, informe |
+| 3 | Líneas de confianza 101: monedas emitidas como relaciones | fundamentos | testnet | — | txid, informe |
+| 4 | Depuración de líneas de confianza | fundamentos | testnet | Líneas de confianza 101: monedas emitidas como relaciones | txid, informe |
+| 5 | Tesorería multisig (SignerListSet): control N de M de la billetera Studio | fundamentos | testnet | Conocimiento de recibos | txid, informe |
+| 6 | Creación de NFT 101: su primer activo de juego | nfts | testnet | — | txid, informe |
+| 7 | Mercado de NFT 101: intercambio de activos con regalías aplicadas | nfts | testnet | — | txid, informe |
+| 8 | NFT dinámicos 101: un artículo de juego que sube de nivel | nfts | testnet | — | txid, informe |
+| 9 | Emisión de MPT 101: una moneda de juego en una sola transacción | tokens | testnet | — | txid, informe |
+| 10 | Distribución de MPT 101: cómo obtener la moneda para los jugadores | tokens | testnet | Emisión de MPT 101: una moneda de juego en una sola transacción | txid, informe |
+| 11 | Congelación de tokens 101: el botón de pausa del emisor | tokens | testnet | — | txid, informe |
+| 12 | Reembolso 101: la herramienta de revocación del emisor | tokens | testnet | — | txid, informe |
 | 13 | Depósito en garantía 101: XRP con tiempo limitado | pagos | testnet | — | txid, informe |
-| 14 | Finalización del depósito en garantía 101: Liberación del XRP bloqueado | pagos | testnet | Depósito en garantía 101: XRP con tiempo limitado | txid, informe |
-| 15 | Depósito en garantía de tokens (XLS-85): Bloqueo de IOUs, no solo de XRP | pagos | testnet | Líneas de confianza 101: Monedas emitidas como relaciones, Depósito en garantía 101: XRP con tiempo limitado | txid, informe |
-| 16 | Comprobaciones 101: Pagos diferidos (CheckCreate / CheckCash / CheckCancel) | pagos | testnet | Conocimiento de recibos | txid, informe |
-| 17 | Canales de pago 101: Firme muchos, liquide una vez | pagos | testnet | — | txid, informe |
-| 18 | Cantidad entregada: La vulnerabilidad de los pagos parciales | pagos | testnet | Líneas de confianza 101: Monedas emitidas como relaciones | txid, informe |
-| 19 | Acreditación de jugadores con custodia: Una billetera agrupada, muchos jugadores (etiquetas de destino) | pagos | testnet | Cantidad entregada: La vulnerabilidad de los pagos parciales | txid, informe |
-| 20 | DID 101: Identidad en el libro mayor | identidad | testnet | — | txid, informe |
-| 21 | Credenciales 101 (XLS-70): KYC y atestaciones de edad en el libro mayor | identidad | testnet | DID 101: Identidad en el libro mayor | txid, informe |
-| 22 | Dominios con permisos y DEX con acceso restringido (XLS-80/81): Comercio compatible y con acceso restringido por credenciales | identidad | testnet | Credenciales 101 (XLS-70): KYC y atestaciones de edad en el libro mayor | txid, informe |
-| 23 | Puerta de depósito (DepositAuth + DepositPreauth): Depósitos de tesorería con acceso restringido por credenciales | identidad | testnet | Credenciales 101 (XLS-70): KYC y atestaciones de edad en el libro mayor | txid, informe |
-| 24 | Conocimiento de DEX: Ofertas, libros de órdenes y cancelaciones | dex | testnet | Líneas de confianza 101: Monedas emitidas como relaciones | txid, informe |
-| 25 | Creación de mercado DEX 101: Obtención de un margen en el libro de órdenes | dex | testnet | Conocimiento de DEX: Ofertas, libros de órdenes y cancelaciones | txid, informe |
-| 26 | Medidas de seguridad del inventario DEX: No se desequilibre | dex | testnet | Creación de mercado DEX 101: Obtención de un margen en el libro de órdenes | txid, informe |
-| 27 | Reservas 101: Dónde "fue" su XRP | reservas | testnet | Líneas de confianza 101: Monedas emitidas como relaciones | txid, informe |
-| 28 | Higiene de la cuenta: Liberación de reservas y limpieza de objetos | reservas | testnet | Reservas 101: Dónde "fue" su XRP | txid, informe |
-| 29 | Modo de auditoría: Verificación de recibos a escala | auditoría | testnet | Conocimiento de recibos | informe, paquete de auditoría |
-| 30 | Liquidez AMM 101: Proporcionar liquidez y obtener comisiones | amm | testnet | Líneas de confianza 101: Monedas emitidas como relaciones | txid, informe |
-| 31 | Conocimiento de riesgos de DEX vs AMM: Comparación de estrategias de negociación | amm | prueba en seco | Creación de mercado DEX 101: Obtención de un margen en el libro de órdenes, Liquidez AMM 101: Proporcionar liquidez y obtener comisiones | txid, informe |
-| 32 | Proyecto final: Implemente una economía de juego mínima en XRPL | proyecto final | testnet | Emisión de MPT 101: Una moneda de juego en una sola transacción, Creación de NFT 101: Su primer activo de juego, Depósito en garantía 101: XRP con tiempo limitado, Modo de auditoría: Verificación de recibos a escala | txid, informe, paquete de auditoría |
+| 14 | Finalización del depósito en garantía 101: liberación del XRP bloqueado | pagos | testnet | Depósito en garantía 101: XRP con tiempo limitado | txid, informe |
+| 15 | Depósito en garantía de tokens (XLS-85): bloqueo de IOUs, no solo de XRP | pagos | testnet | Líneas de confianza 101: monedas emitidas como relaciones, depósito en garantía 101: XRP con tiempo limitado | txid, informe |
+| 16 | Comprobaciones 101: pagos diferidos (CheckCreate / CheckCash / CheckCancel) | pagos | testnet | Conocimiento de recibos | txid, informe |
+| 17 | Canales de pago 101: firme muchos, liquide una vez | pagos | testnet | — | txid, informe |
+| 18 | Cantidad entregada: la vulnerabilidad de los pagos parciales | pagos | testnet | Líneas de confianza 101: monedas emitidas como relaciones | txid, informe |
+| 19 | Acreditación de jugadores con custodia: una billetera agrupada, muchos jugadores (etiquetas de destino) | pagos | testnet | Cantidad entregada: la vulnerabilidad de los pagos parciales | txid, informe |
+| 20 | DID 101: identidad en el libro mayor | identidad | testnet | — | txid, informe |
+| 21 | Credenciales 101 (XLS-70): KYC y atestaciones de edad en el libro mayor | identidad | testnet | DID 101: identidad en el libro mayor | txid, informe |
+| 22 | Dominios con permisos y DEX con acceso restringido (XLS-80/81): comercio compatible y con acceso restringido por credenciales | identidad | testnet | Credenciales 101 (XLS-70): KYC y atestaciones de edad en el libro mayor | txid, informe |
+| 23 | Puerta de depósito (DepositAuth + DepositPreauth): depósitos de tesorería con acceso restringido por credenciales | identidad | testnet | Credenciales 101 (XLS-70): KYC y atestaciones de edad en el libro mayor | txid, informe |
+| 24 | Conocimiento de DEX: ofertas, libros de órdenes y cancelaciones | dex | testnet | Líneas de confianza 101: monedas emitidas como relaciones | txid, informe |
+| 25 | Creación de mercado DEX 101: obtención de ganancias por la diferencia en el libro de órdenes | dex | testnet | Conocimiento de DEX: ofertas, libros de órdenes y cancelaciones | txid, informe |
+| 26 | Protecciones de inventario DEX: no se desequilibre | dex | testnet | Creación de mercado DEX 101: obtención de ganancias por la diferencia en el libro de órdenes | txid, informe |
+| 27 | Reservas 101: dónde "fue" su XRP | reservas | testnet | Líneas de confianza 101: monedas emitidas como relaciones | txid, informe |
+| 28 | Higiene de la cuenta: liberación de reservas y limpieza de objetos | reservas | testnet | Reservas 101: dónde "fue" su XRP | txid, informe |
+| 29 | Modo de auditoría: verificación de recibos a escala | auditoría | testnet | Conocimiento de recibos | informe, paquete de auditoría |
+| 30 | Liquidez AMM 101: provisión de liquidez y obtención de comisiones | amm | testnet | Líneas de confianza 101: monedas emitidas como relaciones | txid, informe |
+| 31 | Conocimiento de riesgos de DEX frente a AMM: comparación de estrategias de negociación | amm | ejecución de prueba | Creación de mercado DEX 101: obtención de ganancias por la diferencia en el libro de órdenes, liquidez AMM 101: provisión de liquidez y obtención de comisiones | txid, informe |
+| 32 | Proyecto final: configure una economía de juego mínima en XRPL | proyecto final | testnet | Emisión de MPT 101: una moneda de juego en una sola transacción, creación de NFT 101: su primer activo de juego, depósito en garantía 101: XRP con tiempo limitado, modo de auditoría: verificación de recibos a escala | txid, informe, paquete de auditoría |
 <!-- END curriculum:auto readme-table -->
 
 La columna **Produce** enumera los tipos de resultados que genera cada módulo (`txid`,
@@ -127,13 +127,13 @@ obtener la guía completa de habilidades y lo que demuestra en el libro mayor.
 - **reservas**: reservas de cuenta, recuento de propietarios, limpieza
 - **auditoría**: verificación por lotes, informes de auditoría
 - **amm**: liquidez del creador de mercado automatizado, comparación de DEX y AMM
-- **proyecto final**: combine las habilidades de las áreas temáticas en una sola implementación de economía de juego
+- **proyecto final**: combine las habilidades de las áreas temáticas en una sola construcción de economía de juego
 <!-- END curriculum:auto readme-tracks -->
 
 ### Modos
 
 - **testnet**: transacciones reales en la red de prueba XRPL
-- **prueba en seco**: entorno de pruebas sin conexión con transacciones simuladas (no se requiere red)
+- **ejecución de prueba**: entorno de pruebas sin conexión con transacciones simuladas (no se requiere red)
 
 ## Comandos
 
@@ -191,7 +191,7 @@ xrpl-lab recovery           # Stuck? See exactly what to run next
 ```bash
 xrpl-lab support-bundle              # Human-readable markdown bundle
 xrpl-lab support-bundle --json       # Machine-parseable JSON
-xrpl-lab support-bundle --verify bundle.json  # Verify a received bundle
+xrpl-lab verify-artifact bundle.json    # Verify a received bundle
 ```
 
 Un facilitador puede diagnosticar el problema de cualquier alumno a partir de un paquete de soporte sin
@@ -199,20 +199,20 @@ reproducir toda la sesión. No se incluyen secretos.
 
 ### Flujos de trabajo
 
-**Entorno de pruebas completamente desconectado**: no se requiere red:
+**Entorno de pruebas completamente desconectado**: no se requiere red.
 ```bash
 xrpl-lab wallet create
 xrpl-lab start --dry-run
 ```
 
-**Mixto: modo sin conexión + red de pruebas** — transacciones reales para funciones básicas, entorno de pruebas para funciones avanzadas:
+**Mixto: modo sin conexión + red de prueba:** transacciones reales para los conceptos básicos, entorno de pruebas para funciones avanzadas:
 ```bash
 xrpl-lab wallet create
 xrpl-lab fund
 xrpl-lab start
 ```
 
-**Progresión de Camp → Lab** — continúa desde xrpl-camp:
+**Progresión de Camp → Lab:** continuar desde xrpl-camp:
 ```bash
 xrpl-lab start    # auto-detects camp wallet and certificate
 ```
@@ -224,44 +224,86 @@ identificadores de transacción y enlaces al explorador. Incluye un hash de inte
 
 **Certificado** (`xrpl_lab_certificate.json`): registro conciso de la finalización.
 
-**Informes** (`reports/*.md`): resúmenes legibles por humanos de lo que se hizo y se demostró.
+**Informes** (`reports/*.md`): resúmenes legibles por humanos de lo que hizo y demostró.
 
-**Paquetes de auditoría** (`audit_pack_*.json`): resultados de verificación por lotes con hash de integridad SHA-256.
+**Paquetes de auditoría** (`audit_pack_*.json`): resultados de verificación por lotes con un hash de integridad SHA-256.
+
+## Cuando se restablece una red de prueba
+
+A veces, la red de prueba y la red de desarrollo se restablecen, lo que elimina todas las cuentas y
+transacciones que contienen. **Ambas se restablecen el 25 de noviembre de 2026**
+([aviso de xrpl.org](https://xrpl.org/blog/2026/testnet-devnet-reset)).
+
+**Su propio laboratorio.** Su archivo de billetera, su dirección, su progreso y sus informes
+se guardan. Su cuenta en la red desaparece, al igual que los resultados en el libro mayor
+de los módulos que completó antes del restablecimiento.
+
+```bash
+xrpl-lab doctor                       # "Network reset" warns when this applies to you
+xrpl-lab recovery                     # lists the steps for your case
+xrpl-lab fund                         # fund the same address again
+xrpl-lab run <module_id> --force      # prove a module on the new ledger
+xrpl-lab proof-pack                   # export a pack that verifies again
+```
+
+**Un paquete de prueba de antes de un restablecimiento.** Su hash sigue siendo válido en modo sin conexión. Con
+`--live`, sus transacciones ya no se pueden encontrar, y `verify-artifact` indica
+por qué, con su propio código de salida:
+
+| Salida | Resultado | Significado |
+|------|---------|---------|
+| `0` | PASADO | El hash está intacto y todas las transacciones se confirmaron en el libro mayor. |
+| `1` | FALLIDO | La verificación del hash falló, o falta una transacción o no es como se afirmó. |
+| `4` | RESTABLECIDO o NO CONFIRMADO | No se encontró nada incorrecto, pero no se pueden verificar las transacciones. |
+
+Con la salida `4`, la salida y `--json` (`reset_signal`) indican en qué se basa el resultado:
+
+| `reset_signal` | Se basa en | Estado |
+|----------------|----------|--------|
+| `announced` | Un restablecimiento anunciado y listado cubre el período en el que se registró la transacción. | `RESET` |
+| `seen_by_this_lab` | El laboratorio que ejecuta la verificación detectó el restablecimiento en su propio estado. | `RESET` |
+| `pack_claim` | Solo el paquete en sí indica que hubo un restablecimiento. | `UNCONFIRMED` |
+
+Ni `RESET` ni `UNCONFIRMED` son un resultado positivo. Un paquete que enumera transacciones inventadas con fecha anterior a un restablecimiento se lee de la misma manera que uno honesto, por lo que solo
+el hash sin conexión queda como evidencia, y un hash muestra que el archivo no se ha modificado, no que las transacciones ocurrieron. Para obtener un paquete que se verifique
+de nuevo en el libro mayor, vuelva a ejecutar los módulos después del restablecimiento y exporte un nuevo paquete. El
+[manual](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/commands/)
+contiene los detalles.
 
 ## Modelo de seguridad y confianza
 
 **Datos a los que accede XRPL Lab:**
-- Semilla de la billetera (almacenada localmente en `~/.xrpl-lab/wallet.json` como JSON en texto plano — modo POSIX `0o600` / `0o700`, o una ACL de solo propietario en Windows; no está cifrada)
-- Progreso del módulo e identificadores de transacción (almacenados en `~/.xrpl-lab/state.json`, escrituras atómicas mediante tmp + cambio de nombre)
+- Semilla de la billetera (almacenada localmente en `~/.xrpl-lab/wallet.json` como JSON en texto plano: modo POSIX `0o600` / `0o700`, o una ACL de solo propietario en Windows; no está cifrada)
+- Progreso del módulo e identificadores de transacción (almacenados en `~/.xrpl-lab/state.json`, escrituras atómicas mediante tmp + rename)
 - XRPL Testnet RPC (punto final público, las transacciones se firman localmente antes del envío)
-- Grifo de la red de pruebas (HTTP público, solo se envía su dirección)
+- Grifo de la red de prueba (HTTP público, solo se envía su dirección)
 
 **Datos a los que XRPL Lab NO accede:**
-- No a la red principal. Solo a la red de pruebas
-- No hay telemetría, análisis ni comunicación de ningún tipo
-- No hay cuentas en la nube, ni registro, ni API de terceros
-- No hay información confidencial en los paquetes de prueba, certificados, informes ni paquetes de soporte, nunca
+- No a la red principal. Solo a la red de prueba.
+- No hay telemetría, análisis ni comunicación con el hogar de ningún tipo.
+- No hay cuentas en la nube, ni registro, ni API de terceros.
+- No hay información confidencial en los paquetes de prueba, certificados, informes o paquetes de soporte, nunca.
 
 **Permisos y niveles de almacenamiento:**
-- Directorio de inicio `~/.xrpl-lab/` — nivel de secretos privados (POSIX `0o700` / `0o600`, o una ACL de solo propietario en Windows). Almacena la semilla de la billetera, el registro del doctor y los paquetes de auditoría.
-- Espacio de trabajo `./.xrpl-lab/` — nivel diseñado para ser compartido, directorio 0o755. Almacena los informes de los módulos, los paquetes de prueba y los certificados. Los facilitadores pueden revisarlos sin necesidad de permisos elevados.
-- Sistema de archivos: solo lee y escribe en las dos ubicaciones anteriores
-- Red: solo XRPL Testnet RPC + grifo (ambos se pueden anular mediante variables de entorno, ambos son opcionales con `--dry-run`)
-- No se requieren permisos elevados
+- Directorio de inicio `~/.xrpl-lab/`: nivel de secretos privados (POSIX `0o700` / `0o600`, o una ACL de solo propietario en Windows). Almacena la semilla de la billetera, el registro del médico, los paquetes de auditoría.
+- Espacio de trabajo `./.xrpl-lab/`: nivel diseñado para compartir, directorio 0o755. Almacena los informes de los módulos, los paquetes de prueba, los certificados. Los facilitadores pueden revisarlos sin necesidad de elevar los permisos.
+- Sistema de archivos: solo lee y escribe en las dos ubicaciones anteriores.
+- Red: solo XRPL Testnet RPC + grifo (ambos se pueden anular mediante variables de entorno, ambos son opcionales con `--dry-run`).
+- No se requieren permisos elevados.
 
-**Interfaz del panel de control (cuando `xrpl-lab serve` está en ejecución):**
-- El punto final del ejecutor WebSocket aplica una lista de permisos de origen (cierra las conexiones que no están en la lista con el código 4003)
-- Las solicitudes HTTP que cambian el estado (POST, PUT, PATCH, DELETE) desde un origen que no está en la lista se rechazan con `403 ORIGIN_REJECTED`, por lo que una página en otra pestaña no puede iniciar una ejecución; las solicitudes sin origen (CLI, curl) siguen funcionando
-- Las solicitudes cuyo `Host` no es loopback o la dirección `serve` a la que está enlazado se rechazan con `400 HOST_REJECTED`, lo que cierra el rebinding de DNS (desactivado para un enlace `0.0.0.0`)
-- Todos los marcos de error emiten un sobre estructurado (`code`, `message`, `hint`, `severity`, `icon_hint`) — no hay filtración de rutas, no hay filtración de estado interno
-- Cola de mensajes por conexión limitada con un comportamiento de contrapresión documentado
+**Superficie del panel (cuando `xrpl-lab serve` está en ejecución):**
+- El punto final del ejecutor WebSocket aplica una lista de permitidos de origen (cierra las conexiones que no están en la lista con el código 4003).
+- Las solicitudes HTTP que cambian el estado (POST, PUT, PATCH, DELETE) desde un origen que no está en la lista se rechazan con `403 ORIGIN_REJECTED`, por lo que una página en otra pestaña no puede iniciar una ejecución; las solicitudes sin origen (CLI, curl) siguen funcionando.
+- Las solicitudes cuyo `Host` no es loopback o la dirección `serve` a la que está enlazado se rechazan con `400 HOST_REJECTED`, lo que cierra el enlace DNS (desactivado para un enlace `0.0.0.0`).
+- Todos los marcos de error emiten un sobre estructurado (`code`, `message`, `hint`, `severity`, `icon_hint`): no hay fugas de ruta, no hay fugas de estado interno.
+- Cola de mensajes por conexión limitada con un comportamiento de contrapresión documentado.
 
-Consulte [SECURITY.md](SECURITY.md) para obtener la política de seguridad completa y las instrucciones de configuración del taller.
+Consulte [SECURITY.md](SECURITY.md) para obtener la política de seguridad completa y la guía de configuración del taller.
 
 ## Requisitos
 
 - Python 3.11+
-- Conexión a Internet para la red de pruebas (o utilice `--dry-run` para el modo completamente sin conexión)
+- Conexión a Internet para la red de prueba (o utilice `--dry-run` para un modo completamente sin conexión)
 
 ## Licencia
 

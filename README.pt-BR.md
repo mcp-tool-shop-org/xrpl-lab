@@ -15,7 +15,7 @@
   <a href="https://mcp-tool-shop-org.github.io/xrpl-lab/"><img src="https://img.shields.io/badge/Landing_Page-live-blue" alt="Landing Page"></a>
 </p>
 
-Manual de treinamento XRPL — aprenda praticando, comprove com resultados.
+XRPL: guia de treinamento — aprenda praticando, demonstre com resultados.
 
 Cada módulo ensina uma habilidade XRPL e produz um resultado verificável: um ID de transação,
 um recibo assinado ou um relatório de diagnóstico. Sem contas, sem informações desnecessárias, sem nuvem — apenas
@@ -39,7 +39,7 @@ pip install xrpl-lab
 
 Requer Python 3.11+.
 
-Sem Python? O wrapper npm baixa o binário autônomo (requer Node 18+):
+Sem Python? O wrapper npm baixa o binário independente (requer Node 18+):
 
 ```bash
 npx @mcptoolshop/xrpl-lab
@@ -103,15 +103,13 @@ A coluna `#` corresponde à ordem mostrada por `xrpl-lab list` (ordem canônica 
 | 26 | Salvaguardas de inventário DEX: Não se deixe desequilibrar | dex | testnet | Criação de mercado DEX 101: Ganhando spread no livro de pedidos | txid, relatório |
 | 27 | Reservas 101: Onde seu XRP "foi" | reservas | testnet | Linhas de confiança 101: Moedas emitidas como relacionamentos | txid, relatório |
 | 28 | Higiene da conta: Liberando reservas e limpando objetos | reservas | testnet | Reservas 101: Onde seu XRP "foi" | txid, relatório |
-| 29 | Modo de auditoria: Verifique recibos em escala | auditoria | testnet | Alfabetização em recibos | relatório, audit_pack |
+| 29 | Modo de auditoria: Verifique os recibos em escala | auditoria | testnet | Alfabetização em recibos | relatório, audit_pack |
 | 30 | Liquidez AMM 101: Fornecendo liquidez e ganhando taxas | amm | testnet | Linhas de confiança 101: Moedas emitidas como relacionamentos | txid, relatório |
 | 31 | Alfabetização de risco DEX vs AMM: Comparando estratégias de negociação | amm | execução a seco | Criação de mercado DEX 101: Ganhando spread no livro de pedidos, Liquidez AMM 101: Fornecendo liquidez e ganhando taxas | txid, relatório |
-| 32 | Projeto final: Crie uma economia de jogo mínima no XRPL | projeto final | testnet | Emissão de MPT 101: Uma moeda de jogo em uma única transação, Criação de NFT 101: Seu primeiro ativo de jogo, Escrow 101: XRP com tempo limitado, Modo de auditoria: Verifique recibos em escala | txid, relatório, audit_pack |
+| 32 | Projeto final: Crie uma economia de jogo mínima no XRPL | projeto final | testnet | Emissão de MPT 101: Uma moeda de jogo em uma única transação, Criação de NFT 101: Seu primeiro ativo de jogo, Escrow 101: XRP com tempo limitado, Modo de auditoria: Verifique os recibos em escala | txid, relatório, audit_pack |
 <!-- END curriculum:auto readme-table -->
 
-A coluna **Produz** lista os tipos de resultados que cada módulo gera (`txid`, `report`, `audit_pack`); consulte a página de cada módulo no
-[manual](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) para obter
-o guia completo da habilidade e o que você comprova no livro-razão.
+A coluna **Produz** lista os tipos de resultados que cada módulo gera (`txid`, `report`, `audit_pack`); consulte a página de cada módulo no [manual](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/modules/) para obter o guia completo de habilidades e o que você demonstra no livro-razão.
 
 ### Trilhas
 
@@ -190,11 +188,10 @@ xrpl-lab recovery           # Stuck? See exactly what to run next
 ```bash
 xrpl-lab support-bundle              # Human-readable markdown bundle
 xrpl-lab support-bundle --json       # Machine-parseable JSON
-xrpl-lab support-bundle --verify bundle.json  # Verify a received bundle
+xrpl-lab verify-artifact bundle.json    # Verify a received bundle
 ```
 
-Um facilitador pode diagnosticar o problema de qualquer aluno a partir de um pacote de suporte sem
-reproduzir toda a sessão. Nenhum segredo é incluído.
+Um facilitador pode diagnosticar o problema de qualquer aluno a partir de um pacote de suporte sem reproduzir toda a sessão. Nenhum segredo é incluído.
 
 ### Fluxos de workshop
 
@@ -204,7 +201,7 @@ xrpl-lab wallet create
 xrpl-lab start --dry-run
 ```
 
-**Modo misto offline + testnet** — transações reais para funcionalidades básicas, ambiente de testes para funcionalidades avançadas:
+**Modo misto offline + testnet** — transações reais para o básico, ambiente de testes para funcionalidades avançadas:
 ```bash
 xrpl-lab wallet create
 xrpl-lab fund
@@ -221,46 +218,90 @@ xrpl-lab start    # auto-detects camp wallet and certificate
 **Pacote de prova** (`xrpl_lab_proof_pack.json`): Registro compartilhável dos módulos concluídos,
 IDs de transação e links do explorador. Inclui um hash de integridade SHA-256. Sem informações confidenciais.
 
-**Certificado** (`xrpl_lab_certificate.json`): Registro conciso de conclusão.
+**Certificado** (`xrpl_lab_certificate.json`): Registro resumido da conclusão.
 
 **Relatórios** (`reports/*.md`): Resumos legíveis por humanos do que você fez e comprovou.
 
 **Pacotes de auditoria** (`audit_pack_*.json`): Resultados de verificação em lote com hash de integridade SHA-256.
 
+## Quando uma rede de testes é redefinida
+
+As redes Testnet e Devnet são, às vezes, redefinidas, o que exclui todas as contas e
+transações nelas. **Ambas são redefinidas em 25-11-2026**
+([aviso xrpl.org](https://xrpl.org/blog/2026/testnet-devnet-reset)).
+
+**Seu próprio laboratório.** Seu arquivo de carteira, seu endereço, seu progresso e seus relatórios
+são mantidos. Sua conta na rede desaparece, assim como os resultados no livro-razão
+dos módulos que você concluiu antes da redefinição.
+
+```bash
+xrpl-lab doctor                       # "Network reset" warns when this applies to you
+xrpl-lab recovery                     # lists the steps for your case
+xrpl-lab fund                         # fund the same address again
+xrpl-lab run <module_id> --force      # prove a module on the new ledger
+xrpl-lab proof-pack                   # export a pack that verifies again
+```
+
+**Um pacote de prova de antes de uma redefinição.** Seu hash ainda verifica offline. Com
+`--live`, suas transações não podem mais ser encontradas, e `verify-artifact` diz
+o porquê, com seu próprio código de saída:
+
+| Saída | Resultado | Significado |
+|------|---------|---------|
+| `0` | APROVADO | O hash está intacto e todas as transações foram confirmadas no livro-razão |
+| `1` | REPROVADO | A verificação do hash falhou, ou uma transação está faltando ou não é como alegado |
+| `4` | REDEFINIDO ou NÃO CONFIRMADO | Nada foi considerado falso, mas as transações não podem ser verificadas |
+
+Com a saída `4`, a saída e `--json` (`reset_signal`) indicam no que o resultado
+se baseia:
+
+| `reset_signal` | Baseia-se em | Status |
+|----------------|----------|--------|
+| `announced` | Uma redefinição listada e anunciada cobre o período em que a transação foi registrada | `RESET` |
+| `seen_by_this_lab` | O laboratório que executa a verificação detectou a redefinição em seu próprio estado | `RESET` |
+| `pack_claim` | Apenas o próprio pacote indica que houve uma redefinição | `UNCONFIRMED` |
+
+Nem `RESET` nem `UNCONFIRMED` são um resultado positivo. Um pacote listando transações inventadas
+datadas de antes de uma redefinição é lido da mesma forma que um pacote honesto, portanto, apenas
+o hash offline permanece como evidência, e um hash mostra que o arquivo não foi editado, não que as transações ocorreram. Para obter um pacote que seja verificado
+novamente no livro-razão, execute os módulos novamente após a redefinição e exporte um novo pacote. O
+[manual](https://mcp-tool-shop-org.github.io/xrpl-lab/handbook/commands/)
+contém os detalhes.
+
 ## Modelo de segurança e confiança
 
 **Dados que o XRPL Lab acessa:**
-- Semente da carteira (armazenada localmente em `~/.xrpl-lab/wallet.json` como JSON em texto simples — modo POSIX `0o600` / `0o700`, ou uma ACL exclusiva do proprietário no Windows; não criptografada)
+- Semente da carteira (armazenada localmente em `~/.xrpl-lab/wallet.json` como JSON em texto simples — modo POSIX `0o600` / `0o700`, ou uma ACL somente para o proprietário no Windows; não criptografada)
 - Progresso do módulo e IDs de transação (armazenados em `~/.xrpl-lab/state.json`, gravações atômicas via tmp + renomear)
 - XRPL Testnet RPC (ponto de extremidade público, transações assinadas localmente antes do envio)
-- Testnet faucet (HTTP público, apenas o seu endereço é enviado)
+- Torneira da Testnet (HTTP público, apenas o seu endereço é enviado)
 
 **Dados que o XRPL Lab NÃO acessa:**
-- Sem mainnet. Apenas testnet
-- Sem telemetria, análises ou qualquer tipo de comunicação com servidores externos
+- Nenhuma mainnet. Apenas Testnet
+- Sem telemetria, análises ou qualquer tipo de comunicação com o servidor
 - Sem contas na nuvem, sem registro, sem APIs de terceiros
-- Sem informações confidenciais nos pacotes de prova, certificados, relatórios ou pacotes de suporte — nunca
+- Sem informações confidenciais em pacotes de prova, certificados, relatórios ou pacotes de suporte — nunca
 
 **Permissões e níveis de armazenamento:**
-- Home `~/.xrpl-lab/` — nível de informações confidenciais privadas (POSIX `0o700` / `0o600`, ou uma ACL exclusiva do proprietário no Windows). Armazena a semente da carteira, o log do programa e os pacotes de auditoria.
-- Workspace `./.xrpl-lab/` — nível projetado para compartilhamento, diretório 0o755. Armazena relatórios de módulos, pacotes de prova e certificados. Os facilitadores podem revisar sem elevação de permissões.
+- Home `~/.xrpl-lab/` — nível de segredos privados (POSIX `0o700` / `0o600`, ou uma ACL somente para o proprietário no Windows). Armazena a semente da carteira, o log do médico, os pacotes de auditoria.
+- Workspace `./.xrpl-lab/` — nível projetado para compartilhamento, diretório 0o755. Armazena relatórios de módulos, pacotes de prova, certificados. Os facilitadores podem revisar sem elevação de permissões.
 - Sistema de arquivos: lê/grava apenas os dois locais acima
-- Rede: apenas XRPL Testnet RPC + faucet (ambos podem ser substituídos por meio de variáveis de ambiente, ambos opcionais com `--dry-run`)
+- Rede: apenas XRPL Testnet RPC + torneira (ambos podem ser substituídos por variáveis de ambiente, ambos opcionais com `--dry-run`)
 - Nenhuma permissão elevada é necessária
 
 **Interface do painel (quando `xrpl-lab serve` está em execução):**
-- O ponto de extremidade do executor WebSocket aplica uma lista de permissões de origem (fecha conexões não listadas com o código 4003)
+- O ponto de extremidade do executor WebSocket impõe uma lista de permissões de origem (fecha conexões não listadas com o código 4003)
 - As solicitações HTTP que alteram o estado (POST, PUT, PATCH, DELETE) de uma origem não listada são recusadas com `403 ORIGIN_REJECTED`, portanto, uma página em outra guia não pode iniciar uma execução; solicitações sem origem (CLI, curl) ainda funcionam
-- As solicitações cujo `Host` não é loopback ou o endereço `serve` ao qual está vinculado são recusadas com `400 HOST_REJECTED`, o que fecha o redirecionamento de DNS (desativado para um bind `0.0.0.0`)
+- As solicitações cujo `Host` não é loopback ou o endereço `serve` ao qual está vinculado são recusadas com `400 HOST_REJECTED`, o que fecha o redirecionamento de DNS (desativado para um `0.0.0.0` bind)
 - Todos os quadros de erro emitem um envelope estruturado (`code`, `message`, `hint`, `severity`, `icon_hint`) — sem vazamento de caminho, sem vazamento de estado interno
-- Fila de mensagens por conexão limitada com comportamento de contrapressão documentado
+- Fila de mensagens por conexão limitada com comportamento de back-pressure documentado
 
 Consulte [SECURITY.md](SECURITY.md) para obter a política de segurança completa e as orientações de configuração do workshop.
 
 ## Requisitos
 
 - Python 3.11+
-- Conexão com a Internet para testnet (ou use `--dry-run` para o modo totalmente offline)
+- Conexão com a Internet para a testnet (ou use `--dry-run` para o modo totalmente offline)
 
 ## Licença
 
