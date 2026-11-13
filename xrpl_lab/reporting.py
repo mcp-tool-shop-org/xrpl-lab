@@ -641,6 +641,14 @@ LIVE_SKIPPED = "SKIPPED"  # not a real-network tx (dry-run / local / simulated)
 # ledger, so it can no longer be checked. NOT a pass: a pack citing made-up
 # txids dated before a reset reads the same way.
 LIVE_RESET = "RESET"
+# The pack itself claims a reset (its own ledger marks or its own record of
+# one) and nothing independent confirms it. A claim, not evidence.
+LIVE_UNCONFIRMED = "UNCONFIRMED"
+
+# What a reset verdict rests on. The first two are independent of the pack.
+SIGNAL_ANNOUNCED = "announced"          # a listed, announced reset
+SIGNAL_THIS_LAB = "seen_by_this_lab"    # the verifying lab's own state saw it
+SIGNAL_PACK_CLAIM = "pack_claim"        # only the pack says so
 
 
 @dataclass
@@ -658,6 +666,8 @@ class TxLiveResult:
     # Internal: the ledger had no such transaction (not serialised). Only a
     # not-found result can become RESET.
     not_found: bool = False
+    # For RESET / UNCONFIRMED: what the verdict rests on (a SIGNAL_* value).
+    reset_signal: str = ""
 
     @property
     def passed(self) -> bool:
@@ -675,6 +685,7 @@ class TxLiveResult:
             "reason": self.reason,
             "checks": list(self.checks),
             "validated": self.validated,
+            "reset_signal": self.reset_signal,
         }
 
 
@@ -689,6 +700,9 @@ class LiveVerificationResult:
     # nothing on-ledger to check, which is honest, not a failure.
     no_onledger_txids: bool = False
     note: str = ""
+    # Networks where the pack records a ledger index above the live network's
+    # and nothing independent says the network was reset. Flagged, not judged.
+    suspicious_ledger_marks: list[str] = field(default_factory=list)
 
     @property
     def real_tx_results(self) -> list[TxLiveResult]:
@@ -712,9 +726,27 @@ class LiveVerificationResult:
         return sum(1 for r in self.tx_results if r.status == LIVE_RESET)
 
     @property
+    def unconfirmed_count(self) -> int:
+        return sum(1 for r in self.tx_results if r.status == LIVE_UNCONFIRMED)
+
+    @property
     def ledger_reset(self) -> bool:
-        """True when some txids can't be checked because the network was reset."""
-        return self.reset_count > 0
+        """True when some txids can't be checked because of a reset, confirmed
+        or only claimed by the pack."""
+        return self.reset_count > 0 or self.unconfirmed_count > 0
+
+    @property
+    def reset_signal(self) -> str:
+        """What the reset verdict rests on; the weakest signal wins.
+
+        ``pack_claim`` if any txid rests on the pack's word alone, else the
+        independent signal, else "".
+        """
+        signals = {r.reset_signal for r in self.tx_results if r.reset_signal}
+        for signal in (SIGNAL_PACK_CLAIM, SIGNAL_ANNOUNCED, SIGNAL_THIS_LAB):
+            if signal in signals:
+                return signal
+        return ""
 
     @property
     def overall_passed(self) -> bool:
@@ -730,7 +762,7 @@ class LiveVerificationResult:
         # A txid lost to a network reset can't be checked, so the pack can't
         # be called verified on-ledger (it is also what a forgery dated before
         # the reset looks like). Reported apart from a failure, never a pass.
-        if self.reset_count > 0:
+        if self.reset_count > 0 or self.unconfirmed_count > 0:
             return False
         if self.no_onledger_txids:
             return True
@@ -746,7 +778,10 @@ class LiveVerificationResult:
             "failed": self.failed_count,
             "skipped": self.skipped_count,
             "reset": self.reset_count,
+            "unconfirmed": self.unconfirmed_count,
             "ledger_reset": self.ledger_reset,
+            "reset_signal": self.reset_signal,
+            "suspicious_ledger_marks": list(self.suspicious_ledger_marks),
             "note": self.note,
             "tx_results": [r.to_dict() for r in self.tx_results],
         }
@@ -1204,68 +1239,176 @@ async def _current_ledger_index(
     return cache[network]
 
 
+def _own_lab_reset(
+    own_state, network: str, recorded_at: datetime | None, current: int | None,
+) -> str:
+    """Why the verifying lab's OWN state says ``network`` was reset, or "".
+
+    Independent of the pack: this lab's own runs saw the ledger restart (an
+    epoch in its state), or its own ledger mark is above the live index now.
+    """
+    from .resets import ledger_went_backwards
+
+    if own_state is None:
+        return ""
+    for epoch in own_state.ledger_epochs.get(network, []):
+        seen = datetime.fromtimestamp(epoch.reset_seen_at, tz=UTC)
+        if recorded_at is None or recorded_at <= seen:
+            return (
+                f"This lab saw {network.capitalize()} reset on "
+                f"{seen.date().isoformat()}, after this transaction was recorded."
+            )
+    mark = own_state.ledger_marks.get(network)
+    if mark is not None and ledger_went_backwards(mark.validated_ledger_index, current):
+        seen = datetime.fromtimestamp(mark.seen_at, tz=UTC)
+        if recorded_at is None or recorded_at <= seen:
+            return (
+                f"This lab last saw {network.capitalize()} at ledger "
+                f"{mark.validated_ledger_index}; it is now at {current}, so the "
+                "network was reset after this transaction was recorded."
+            )
+    return ""
+
+
+def _pack_reset_claim(
+    pack: dict, network: str, recorded_at: datetime | None, current: int | None,
+) -> str:
+    """What the PACK says about a reset of ``network``, or "". Its own word."""
+    from .resets import ledger_went_backwards
+
+    seen_reset = _pack_reset_seen_after(pack, network, recorded_at)
+    if seen_reset is not None:
+        return (
+            f"the pack records that {network.capitalize()} was reset (seen on "
+            f"{seen_reset.date().isoformat()})"
+        )
+    mark_index, mark_seen = _pack_ledger_mark(pack, network)
+    if mark_index is not None and (
+        recorded_at is None or mark_seen is None or recorded_at <= mark_seen
+    ) and ledger_went_backwards(mark_index, current):
+        return (
+            f"the pack records ledger {mark_index} for {network.capitalize()}, "
+            f"which is now at {current}"
+        )
+    return ""
+
+
 async def _apply_network_reset(
     tx_result: TxLiveResult,
     claim: dict,
     pack: dict,
     transport: Transport,
     current_index_cache: dict[str, int | None],
+    own_state=None,
 ) -> TxLiveResult:
-    """Turn a not-found FAIL into RESET when the network was reset after it.
+    """Re-judge a not-found txid when a network reset may explain it.
 
-    Two signals: an announced reset after the tx's recorded time
-    (``resets.KNOWN_RESETS``), or the network's ledger now below the index the
-    pack recorded, for a tx recorded no later than that mark.
+    Independent signals give RESET: an announced reset after the tx's recorded
+    time (``resets.KNOWN_RESETS``), or the verifying lab's own state having
+    seen the reset. A reset that only the pack claims (its ledger marks or its
+    own record of one) gives UNCONFIRMED: a claim, not evidence. Neither is
+    ever a pass. With no signal at all the FAIL stands.
     """
-    from .resets import known_reset_after, ledger_went_backwards
+    from .resets import known_reset_after
 
     network = tx_result.network
     recorded_at = claim.get("recorded_at")
-    reason = ""
-    reset = known_reset_after(network, recorded_at)
-    seen_reset = _pack_reset_seen_after(pack, network, recorded_at)
-    if reset is not None:
-        reason = f"{reset.label()} ({reset.source}), after this transaction was recorded."
-    elif seen_reset is not None:
-        reason = (
-            f"This pack records that {network.capitalize()} was reset (seen on "
-            f"{seen_reset.date().isoformat()}), after this transaction was recorded."
+
+    def rejudged(status: str, signal: str, reason: str) -> TxLiveResult:
+        return TxLiveResult(
+            txid=tx_result.txid,
+            network=network,
+            status=status,
+            reason=reason,
+            checks=list(tx_result.checks),
+            # What the ledger shows now: no such transaction, so no explorer link.
+            validated=False,
+            reset_signal=signal,
         )
-    else:
-        mark_index, mark_seen = _pack_ledger_mark(pack, network)
-        if mark_index is not None and (
-            recorded_at is None or mark_seen is None or recorded_at <= mark_seen
-        ):
-            current = await _current_ledger_index(network, transport, current_index_cache)
-            if ledger_went_backwards(mark_index, current):
-                reason = (
-                    f"{network.capitalize()}'s validated ledger is now {current}, "
-                    f"below the {mark_index} this pack recorded: the network was "
-                    "reset after issuance."
-                )
-    if not reason:
-        return tx_result
-    return TxLiveResult(
-        txid=tx_result.txid,
-        network=network,
-        status=LIVE_RESET,
-        reason=(
-            f"Can no longer be checked on-ledger. {reason} The transaction no "
-            "longer exists on any ledger; only the offline hash remains, and a "
-            "hash proves the file is unedited, not that the transaction happened."
-        ),
-        checks=list(tx_result.checks),
-        # What the ledger shows now: no such transaction, so no explorer link.
-        validated=False,
+
+    tail = (
+        " The transaction no longer exists on any ledger; only the offline hash "
+        "remains, and a hash proves the file is unedited, not that the "
+        "transaction happened."
     )
+    reset = known_reset_after(network, recorded_at)
+    if reset is not None:
+        return rejudged(LIVE_RESET, SIGNAL_ANNOUNCED, (
+            f"Can no longer be checked on-ledger. {reset.label()} "
+            f"({reset.source}), after this transaction was recorded.{tail}"
+        ))
+
+    current = await _current_ledger_index(network, transport, current_index_cache)
+    own = _own_lab_reset(own_state, network, recorded_at, current)
+    if own:
+        return rejudged(LIVE_RESET, SIGNAL_THIS_LAB, (
+            f"Can no longer be checked on-ledger. {own}{tail}"
+        ))
+
+    claimed = _pack_reset_claim(pack, network, recorded_at, current)
+    if claimed:
+        return rejudged(LIVE_UNCONFIRMED, SIGNAL_PACK_CLAIM, (
+            "UNCONFIRMED: the pack claims a reset that nothing else confirms. "
+            f"The transaction is not on the ledger, and {claimed}. No announced "
+            "reset covers its recorded time and this lab has not seen one, so "
+            "the claim rests on the pack alone: anyone can write those fields."
+        ))
+    return tx_result
 
 
 def _reset_note(result: LiveVerificationResult, kind: str = "pack") -> str:
-    return (
-        f"Ledger reset after issuance: {result.reset_count} transaction(s) can no "
-        f"longer be checked on-ledger. The offline hash is intact, but this {kind} "
-        "can't be verified on-ledger any more."
-    )
+    parts: list[str] = []
+    if result.reset_count:
+        parts.append(
+            f"Ledger reset after issuance: {result.reset_count} transaction(s) can "
+            f"no longer be checked on-ledger. The offline hash is intact, but this "
+            f"{kind} can't be verified on-ledger any more."
+        )
+    if result.unconfirmed_count:
+        parts.append(
+            f"UNCONFIRMED: {result.unconfirmed_count} transaction(s) are missing "
+            f"and only the {kind} itself says the network was reset. That is a "
+            "claim, not evidence."
+        )
+    return " ".join(parts)
+
+
+async def _flag_suspicious_marks(
+    result: LiveVerificationResult,
+    pack: dict,
+    transports: dict[str, Transport],
+    current_index_cache: dict[str, int | None],
+    own_state=None,
+) -> None:
+    """Flag a pack ledger mark that is above the live network's index.
+
+    After a real reset that is what an honest pack looks like, so the mark is
+    only flagged when nothing independent says the network was reset: no
+    announced reset since the mark was seen, and none seen by this lab.
+    """
+    from .resets import known_reset_after, ledger_went_backwards
+
+    for network in sorted(transports):
+        mark_index, mark_seen = _pack_ledger_mark(pack, network)
+        if mark_index is None:
+            continue
+        current = await _current_ledger_index(
+            network, transports[network], current_index_cache,
+        )
+        if not ledger_went_backwards(mark_index, current):
+            continue
+        if known_reset_after(network, mark_seen) is not None:
+            continue
+        if _own_lab_reset(own_state, network, mark_seen, current):
+            continue
+        result.suspicious_ledger_marks.append(network)
+    if result.suspicious_ledger_marks:
+        nets = ", ".join(n.capitalize() for n in result.suspicious_ledger_marks)
+        extra = (
+            f"Suspicious ledger mark: the pack records a ledger index for {nets} "
+            "above the network's current one, and no reset is known."
+        )
+        result.note = f"{result.note} {extra}".strip()
 
 
 async def verify_proof_pack_live(
@@ -1273,8 +1416,13 @@ async def verify_proof_pack_live(
     transport_factory: TransportFactory | None = None,
     *,
     transport: Transport | None = None,
+    own_state=None,
 ) -> LiveVerificationResult:
     """Ledger-anchor a proof pack: re-fetch EVERY real-network txid it claims.
+
+    ``own_state`` is the verifying lab's own ``LabState`` (or None). It is the
+    one reset signal that is independent of the pack besides the announced
+    list: what this lab's own runs saw of the network.
 
     For each txid, resolve a transport for the txid's OWN recorded network
     (testnet txid → testnet transport, devnet → devnet) and assert it exists,
@@ -1304,6 +1452,7 @@ async def verify_proof_pack_live(
     resolve = _build_resolver(transport, transport_factory)
     # network -> its current validated ledger index, read at most once.
     current_index_cache: dict[str, int | None] = {}
+    seen_transports: dict[str, Transport] = {}
 
     real_seen = False
     for claim in claims:
@@ -1327,6 +1476,7 @@ async def verify_proof_pack_live(
             continue
         real_seen = True
         tx_transport = resolve(network)
+        seen_transports[network] = tx_transport
         tx_result = await _verify_one_tx_live(
             txid,
             network,
@@ -1337,12 +1487,15 @@ async def verify_proof_pack_live(
         )
         if tx_result.not_found:
             tx_result = await _apply_network_reset(
-                tx_result, claim, pack, tx_transport, current_index_cache,
+                tx_result, claim, pack, tx_transport, current_index_cache, own_state,
             )
         result.tx_results.append(tx_result)
 
-    if result.reset_count:
+    if result.ledger_reset:
         result.note = _reset_note(result)
+    await _flag_suspicious_marks(
+        result, pack, seen_transports, current_index_cache, own_state,
+    )
 
     if not real_seen:
         if result.failed_count:
@@ -1383,6 +1536,7 @@ async def verify_certificate_live(
     transport_factory: TransportFactory | None = None,
     *,
     transport: Transport | None = None,
+    own_state=None,
 ) -> LiveVerificationResult:
     """Ledger-anchor a certificate.
 
@@ -1410,6 +1564,7 @@ async def verify_certificate_live(
 
     resolve = _build_resolver(transport, transport_factory)
     current_index_cache: dict[str, int | None] = {}
+    seen_transports: dict[str, Transport] = {}
     real_seen = False
     for claim in claims:
         txid = claim["txid"]
@@ -1430,6 +1585,7 @@ async def verify_certificate_live(
             continue
         real_seen = True
         tx_transport = resolve(network)
+        seen_transports[network] = tx_transport
         tx_result = await _verify_one_tx_live(
             txid,
             network,
@@ -1440,12 +1596,15 @@ async def verify_certificate_live(
         )
         if tx_result.not_found:
             tx_result = await _apply_network_reset(
-                tx_result, claim, cert, tx_transport, current_index_cache,
+                tx_result, claim, cert, tx_transport, current_index_cache, own_state,
             )
         result.tx_results.append(tx_result)
 
-    if result.reset_count:
+    if result.ledger_reset:
         result.note = _reset_note(result, "certificate")
+    await _flag_suspicious_marks(
+        result, cert, seen_transports, current_index_cache, own_state,
+    )
 
     if not real_seen:
         if result.failed_count:

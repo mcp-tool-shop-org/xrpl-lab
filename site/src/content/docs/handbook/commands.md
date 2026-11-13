@@ -80,7 +80,19 @@ A reset deletes your account from the network. Your wallet file, its address, yo
 4. `xrpl-lab run <module> --force` re-runs a module, so it is proven on the new ledger.
 5. `xrpl-lab proof-pack` exports a new pack. Its re-run modules verify with `--live`; modules you did not re-run still read `RESET`.
 
-Live verification knows about a reset in three ways: a list of announced resets; the pack's own record of a reset its lab saw (`ledger_resets_seen`); and the highest validated ledger index each run saw, which newer packs carry (`ledger_marks`). If the network's ledger is now well below that index (by more than the few ledgers servers can lag), it was reset.
+#### Who says there was a reset
+
+Exit code 4 always comes with the signal the verdict rests on, in the output and in `--json` (`reset_signal`):
+
+| Signal | What it means | Verdict |
+|--------|---------------|---------|
+| `announced` | A listed, announced reset covers the time the transaction was recorded | `RESET`: can't be checked |
+| `seen_by_this_lab` | The lab running the check saw the reset itself, in its own state (`ledger_epochs`, or its own ledger mark now above the network's) | `RESET`: can't be checked |
+| `pack_claim` | Only the pack says so: its `ledger_marks` or its `ledger_resets_seen`. Anyone can write those fields | `UNCONFIRMED`: the pack claims a reset that nothing else confirms |
+
+The first two do not depend on the pack. The third is a claim, not evidence. When transactions rest on different signals, the weakest one names the result. None of the three is ever a pass.
+
+A pack that records a ledger index above the network's current one, when no reset is known, is flagged as a **suspicious ledger mark** (`suspicious_ledger_marks` in `--json`).
 
 ### Audit flags
 

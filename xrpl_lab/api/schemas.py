@@ -154,10 +154,12 @@ class VerifyTxResult(BaseModel):
 
     txid: str
     network: str
-    status: str  # LIVE_PASS | LIVE_FAIL | LIVE_SKIPPED | LIVE_RESET
+    status: str  # LIVE_PASS | LIVE_FAIL | LIVE_SKIPPED | LIVE_RESET | LIVE_UNCONFIRMED
     reason: str
     checks: list[str] = Field(default_factory=list)
     explorer_url: str = ""
+    # For RESET / UNCONFIRMED: "announced" | "seen_by_this_lab" | "pack_claim".
+    reset_signal: str = ""
 
 
 class VerifyLiveResult(BaseModel):
@@ -171,7 +173,12 @@ class VerifyLiveResult(BaseModel):
     skipped: int = 0
     # Txids lost to a network reset after issuance: unverifiable, not passed.
     reset: int = 0
+    # Missing txids where only the artifact itself claims a reset: a claim,
+    # not evidence. Never passed.
+    unconfirmed: int = 0
     ledger_reset: bool = False
+    reset_signal: str = ""
+    suspicious_ledger_marks: list[str] = Field(default_factory=list)
     note: str = ""
     tx_results: list[VerifyTxResult] = Field(default_factory=list)
 

@@ -118,6 +118,8 @@ const VERIFY_BADGE: Record<string, { cls: string; glyph: string; label: string }
   // The network was reset after issuance: can't be checked, neither pass nor
   // fail. Neutral styling with its own glyph and label.
   RESET:   { cls: 'cancelled', glyph: '↺', label: 'RESET' },
+  // Only the artifact itself claims a reset: a claim, not evidence.
+  UNCONFIRMED: { cls: 'cancelled', glyph: '?', label: 'UNCONFIRMED' },
 };
 
 export function verifyBadge(status: string): string {

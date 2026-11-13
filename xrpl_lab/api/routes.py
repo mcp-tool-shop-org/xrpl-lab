@@ -452,6 +452,7 @@ def _live_to_schema(live) -> VerifyLiveResult:
             reason=tx.get("reason", ""),
             checks=list(tx.get("checks", []) or []),
             explorer_url=_verify_explorer_url(tx),
+            reset_signal=tx.get("reset_signal", "") or "",
         )
         for tx in d.get("tx_results", [])
     ]
@@ -463,7 +464,10 @@ def _live_to_schema(live) -> VerifyLiveResult:
         failed=d.get("failed", 0),
         skipped=d.get("skipped", 0),
         reset=d.get("reset", 0),
+        unconfirmed=d.get("unconfirmed", 0),
         ledger_reset=d.get("ledger_reset", False),
+        reset_signal=d.get("reset_signal", "") or "",
+        suspicious_ledger_marks=list(d.get("suspicious_ledger_marks", []) or []),
         note=d.get("note", ""),
         tx_results=tx_results,
     )
@@ -582,11 +586,17 @@ async def verify_artifact(request: Request) -> VerifyResponse:
     live_schema: VerifyLiveResult | None = None
     live_ok = True
     if live and hash_valid:
+        # This lab's own state: the one reset signal, besides the announced
+        # list, that does not come from the artifact being checked.
+        try:
+            own_state = load_state()
+        except Exception:  # noqa: BLE001 - no state, no signal
+            own_state = None
         try:
             if is_pack:
-                live_result = await verify_proof_pack_live(body)
+                live_result = await verify_proof_pack_live(body, own_state=own_state)
             else:
-                live_result = await verify_certificate_live(body)
+                live_result = await verify_certificate_live(body, own_state=own_state)
             live_schema = _live_to_schema(live_result)
             live_ok = live_result.overall_passed
         except Exception:

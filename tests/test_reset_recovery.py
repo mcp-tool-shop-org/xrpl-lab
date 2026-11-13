@@ -241,14 +241,15 @@ def _live(pack: dict):
     return asyncio.run(rep.verify_proof_pack_live(pack, transport=_Ledger()))
 
 
-def test_verify_accepts_the_packs_own_record_of_a_reset(monkeypatch):
+def test_the_packs_own_record_of_a_reset_is_a_claim_not_evidence(monkeypatch):
     monkeypatch.setattr("xrpl_lab.resets._now", lambda: BEFORE)  # no announced reset yet
     res = _live(_pack_with_seen({"testnet": [{"reset_seen_at": "2026-11-10T00:00:00+00:00"}]}))
-    assert [r.status for r in res.tx_results] == [rep.LIVE_RESET, rep.LIVE_RESET]
-    assert "This pack records that Testnet was reset (seen on 2026-11-10)" in (
+    assert [r.status for r in res.tx_results] == [rep.LIVE_UNCONFIRMED] * 2
+    assert "the pack records that Testnet was reset (seen on 2026-11-10)" in (
         res.tx_results[0].reason
     )
-    assert res.overall_passed is False  # still never a pass
+    assert res.reset_signal == rep.SIGNAL_PACK_CLAIM
+    assert res.overall_passed is False  # never a pass
 
 
 @pytest.mark.parametrize(
@@ -271,7 +272,7 @@ def test_an_undated_tx_is_covered_by_a_reset_the_pack_records(monkeypatch):
     pack = {"address": "rA", "network": "testnet",
             "completed_modules": [{"module_id": "m", "txids": ["C" * 64]}],
             "ledger_resets_seen": {"testnet": [{"reset_seen_at": "2026-11-10T00:00:00+00:00"}]}}
-    assert _live(pack).tx_results[0].status == rep.LIVE_RESET
+    assert _live(pack).tx_results[0].status == rep.LIVE_UNCONFIRMED
 
 
 # ── which completed modules a reset wiped ─────────────────────────────
