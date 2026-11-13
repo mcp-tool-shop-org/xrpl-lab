@@ -146,6 +146,9 @@ def test_the_unpinned_clock_reads_the_real_time(monkeypatch):
 @pytest.mark.parametrize(
     ("recorded", "current", "backwards"),
     [(5_000_000, 120, True), (5_000_000, 5_000_001, False), (5_000_000, 5_000_000, False),
+     # A server a few ledgers behind is lag, not a reset.
+     (5_000_000, 4_999_990, False), (5_000_000, 4_999_000, False),
+     (5_000_000, 4_998_999, True),
      (None, 120, False), (5_000_000, None, False), (0, 120, False)],
 )
 def test_ledger_went_backwards(recorded, current, backwards):
@@ -343,8 +346,9 @@ def test_a_ledger_below_the_recorded_index_means_an_unannounced_reset(before_res
     assert ledger.info_calls == 1  # read once per network, not once per txid
 
 
-def test_a_ledger_at_or_above_the_recorded_index_is_no_reset(before_reset):
-    res = _live(_marked_pack(), _Ledger(index=4_200_050))
+@pytest.mark.parametrize("index", [4_200_050, 4_200_000, 4_199_990])
+def test_a_ledger_at_above_or_just_behind_the_recorded_index_is_no_reset(before_reset, index):
+    res = _live(_marked_pack(), _Ledger(index=index))
     assert [r.status for r in res.tx_results] == [rep.LIVE_FAIL, rep.LIVE_FAIL]
 
 

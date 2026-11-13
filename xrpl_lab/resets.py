@@ -15,8 +15,9 @@ Two signals, either of which is enough:
    then a missing transaction is checked as before.
 2. **The ledger went backwards.** Each run records the highest validated ledger
    index it saw (``LabState.ledger_marks``); the proof pack carries it. Ledger
-   indexes only grow on a live network, so a current index below the recorded
-   one means the network was reset after issuance, announced or not.
+   indexes only grow on a live network, so a current index well below the
+   recorded one (more than server lag explains) means the network was reset
+   after issuance, announced or not.
 
 Neither signal is a pass. The verdict is "can't be checked on-ledger any more";
 the offline hash is the remaining evidence.
@@ -93,8 +94,15 @@ def known_reset_after(
     return None
 
 
+# Servers of one network can sit a few ledgers apart, so a slightly lower
+# index is lag, not a reset. A ledger closes every 3 to 5 seconds: 1,000
+# ledgers is about an hour, far more than any lag, and far less than the drop
+# a reset causes (the index restarts near 1).
+LEDGER_LAG_TOLERANCE = 1_000
+
+
 def ledger_went_backwards(recorded_index: int | None, current_index: int | None) -> bool:
-    """True when the network's validated ledger is below an index seen before."""
+    """True when the network's validated ledger is well below an index seen before."""
     if not recorded_index or not current_index:
         return False
-    return current_index < recorded_index
+    return current_index < recorded_index - LEDGER_LAG_TOLERANCE

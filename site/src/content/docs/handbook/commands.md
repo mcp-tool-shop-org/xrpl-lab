@@ -68,7 +68,7 @@ Testnet and Devnet are sometimes reset, which deletes every account and transact
 
 `RESET` is not a pass. A pack listing made-up transactions dated before the reset reads the same way, so a reset pack is never reported as verified: only its offline hash remains, and a hash shows the file is unedited, not that the transactions happened. To get a pack that verifies on-ledger again, re-run the modules after the reset and export a new pack.
 
-The lab knows about a reset in two ways: a list of announced resets, and the highest validated ledger index each run saw, which newer packs carry (`ledger_marks`). If the network's ledger is now below that index, it was reset.
+The lab knows about a reset in two ways: a list of announced resets, and the highest validated ledger index each run saw, which newer packs carry (`ledger_marks`). If the network's ledger is now well below that index (by more than the few ledgers servers can lag), it was reset.
 
 ### Audit flags
 
