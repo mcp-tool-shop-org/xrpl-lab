@@ -106,7 +106,7 @@ export function runBadge(status: string): string {
   return `<span class="badge badge--${b.cls}" role="status">${glyph}<span>${b.label}</span></span>`;
 }
 
-/* ---------- verify badges (live tx verdicts: PASS | FAIL | SKIPPED) ---------- */
+/* ---------- verify badges (live tx verdicts: PASS | FAIL | SKIPPED | RESET) ---------- */
 // Reuses the run-state .badge--{done,failed,cancelled} styling so the verify
 // page's per-tx table reads with the SAME shape+glyph+label+hue vocabulary as
 // the run page's status pills — never hue alone. PASS → done (✓), FAIL →
@@ -115,6 +115,9 @@ const VERIFY_BADGE: Record<string, { cls: string; glyph: string; label: string }
   PASS:    { cls: 'done',      glyph: '✓', label: 'PASS' },
   FAIL:    { cls: 'failed',    glyph: '✗', label: 'FAIL' },
   SKIPPED: { cls: 'cancelled', glyph: '⊘', label: 'SKIPPED' },
+  // The network was reset after issuance: can't be checked, neither pass nor
+  // fail. Neutral styling with its own glyph and label.
+  RESET:   { cls: 'cancelled', glyph: '↺', label: 'RESET' },
 };
 
 export function verifyBadge(status: string): string {

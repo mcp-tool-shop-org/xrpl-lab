@@ -3,7 +3,7 @@
  * (F-162ff030 / Advisor F-cdf586bf). Scope: esc, openModal, runBadge only.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { esc, openModal, closeModal, runBadge } from './dashboard-ui';
+import { esc, openModal, closeModal, runBadge, verifyBadge } from './dashboard-ui';
 
 describe('esc', () => {
   it('escapes &, <, >, ", and \' for attribute-safe HTML', () => {
@@ -17,6 +17,27 @@ describe('esc', () => {
 
   it('stringifies non-strings', () => {
     expect(esc(42)).toBe('42');
+  });
+});
+
+describe('verifyBadge', () => {
+  it('renders PASS, FAIL and SKIPPED with their own glyph and label', () => {
+    expect(verifyBadge('PASS')).toContain('badge--done');
+    expect(verifyBadge('FAIL')).toContain('badge--failed');
+    expect(verifyBadge('SKIPPED')).toContain('SKIPPED');
+  });
+
+  it('renders RESET as neutral, never as a pass or a failure', () => {
+    const html = verifyBadge('RESET');
+    expect(html).toContain('RESET');
+    expect(html).toContain('↺');
+    expect(html).toContain('badge--cancelled');
+    expect(html).not.toContain('badge--done');
+    expect(html).not.toContain('badge--failed');
+  });
+
+  it('falls back to SKIPPED for an unknown status', () => {
+    expect(verifyBadge('???')).toContain('SKIPPED');
   });
 });
 

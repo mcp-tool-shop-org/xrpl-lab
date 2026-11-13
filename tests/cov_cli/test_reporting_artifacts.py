@@ -269,8 +269,9 @@ def test_claims_from_transactions_skip_junk_and_duplicates():
     # 2.7.1: each claim also carries what the record says (success, expected,
     # validated), so an expected rejection is verified as one.
     # 2.7.5 (#32): and whether a later passing run superseded it.
+    # And when the record was made (None here), for the network-reset check.
     rest = {"success": True, "expected": False, "validated": None, "accounts": [],
-            "superseded": False}
+            "superseded": False, "recorded_at": None}
     assert claims == [
         {"txid": TX1, "network": "devnet", "account": "", "tx_type": "Payment", **rest},
         {"txid": TX2, "network": "testnet", "account": "", "tx_type": "", **rest},

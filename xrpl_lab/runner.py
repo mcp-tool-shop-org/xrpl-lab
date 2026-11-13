@@ -160,6 +160,27 @@ async def _execute_action(
     return context
 
 
+async def _note_ledger_mark(state, transport: Transport) -> None:
+    """Record the network's validated ledger index in state (reset detection).
+
+    Only public test networks, whose ledger anyone can re-check, get a mark;
+    a dry run or a local node has nothing to compare against later. A failed
+    read leaves the mark as it was: the run itself already succeeded.
+    """
+    from .resets import LIVE_CHECKED_NETWORKS
+
+    network = transport.network_name
+    if network not in LIVE_CHECKED_NETWORKS:
+        return
+    try:
+        info = await transport.get_network_info()
+    except Exception as exc:  # noqa: BLE001 - best effort, never fails a run
+        logger.warning("ledger mark read failed: %s", type(exc).__name__)
+        return
+    if info.connected:
+        state.note_ledger(network, info.ledger_index)
+
+
 def _step_heading(step, index: int) -> str:
     """The step's heading for the report, numbered by the module's own label.
 
@@ -656,6 +677,7 @@ async def run_module(
     state.remember_accounts(
         module.id, list(getattr(transport, "bound_addresses", lambda: [])())
     )
+    await _note_ledger_mark(state, transport)
     # B-BACKEND-005: guard the completion save like the recovery save. The
     # module already ran and its report is on disk, so a save failure here
     # loses only the completed-module bookkeeping (recoverable by re-run), not

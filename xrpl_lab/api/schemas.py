@@ -143,7 +143,9 @@ class ReportDetail(BaseModel):
 class VerifyTxResult(BaseModel):
     """Per-tx on-ledger verdict — mirrors reporting.TxLiveResult.to_dict().
 
-    ``status`` is the live verdict ("PASS" | "FAIL" | "SKIPPED"); ``explorer_url``
+    ``status`` is the live verdict ("PASS" | "FAIL" | "SKIPPED" | "RESET": the
+    network was reset after the tx was recorded, so it can no longer be checked,
+    which is not a pass); ``explorer_url``
     is recomputed server-side from the tx's own recorded network (testnet/devnet
     get a link, dry-run/local/simulated get "") so the browser table can link a
     real-network txid to its public explorer entry without trusting a value the
@@ -152,7 +154,7 @@ class VerifyTxResult(BaseModel):
 
     txid: str
     network: str
-    status: str  # LIVE_PASS | LIVE_FAIL | LIVE_SKIPPED
+    status: str  # LIVE_PASS | LIVE_FAIL | LIVE_SKIPPED | LIVE_RESET
     reason: str
     checks: list[str] = Field(default_factory=list)
     explorer_url: str = ""
@@ -167,6 +169,9 @@ class VerifyLiveResult(BaseModel):
     passed: int = 0
     failed: int = 0
     skipped: int = 0
+    # Txids lost to a network reset after issuance: unverifiable, not passed.
+    reset: int = 0
+    ledger_reset: bool = False
     note: str = ""
     tx_results: list[VerifyTxResult] = Field(default_factory=list)
 
